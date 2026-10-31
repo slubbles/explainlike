@@ -29,6 +29,7 @@ const HELP = `metual <github-url | local-repo-dir | x.com post url | article url
   --level-file <file.json>                 add your own level (see docs/plugins.md) and use it
   --no-qa                                  skip the Muse Transcribe voiceover check
   --pace <lively|calm>                     lively: new shot every ~2.7 s, section cards, captions by the boxes (default lively)
+  --export <tldr|excalidraw>               editable board file: .tldr opens in tldraw.com (default tldr)
 
 follow-ups on an earlier repo run (same input, new --out):
   --from <earlier out dir>                 reuse that run's diagram
@@ -56,19 +57,21 @@ const started = Date.now();
 const whatIf = opt("--what-if");
 const pace = opt("--pace") ?? "lively";
 if (pace !== "lively" && pace !== "calm") { process.stderr.write("--pace takes lively or calm\n"); process.exit(1); }
+const exportAs = opt("--export") ?? "tldr";
+if (exportAs !== "tldr" && exportAs !== "excalidraw") { process.stderr.write("--export takes tldr or excalidraw\n"); process.exit(1); }
 if (whatIf && whatIf !== "10x" && whatIf !== "100x") { process.stderr.write("--what-if takes 10x or 100x\n"); process.exit(1); }
 runMetual({
   from: opt("--from") && path.resolve(opt("--from")!), focus: opt("--focus"), whatIf: whatIf as "10x" | "100x" | undefined,
   input: fs.existsSync(input) ? path.resolve(input) : input,
   level, theme: opt("--theme"), out: opt("--out") && path.resolve(opt("--out")!), name: opt("--name"), voice: opt("--voice"),
-  packs: argv.includes("--no-packs") ? [] : [...many("--pack"), ...many("--icons")].length ? [...many("--pack"), ...many("--icons")].map((d) => (fs.existsSync(d) ? path.resolve(d) : d)) : undefined, fresh: argv.includes("--fresh"), workers: opt("--workers") ? Number(opt("--workers")) : undefined, qa: !argv.includes("--no-qa"), pace,
+  packs: argv.includes("--no-packs") ? [] : [...many("--pack"), ...many("--icons")].length ? [...many("--pack"), ...many("--icons")].map((d) => (fs.existsSync(d) ? path.resolve(d) : d)) : undefined, fresh: argv.includes("--fresh"), workers: opt("--workers") ? Number(opt("--workers")) : undefined, qa: !argv.includes("--no-qa"), pace, export: exportAs,
   progress: (e) => {
     if (json) process.stdout.write(JSON.stringify({ type: "progress", ...e }) + "\n");
     else process.stderr.write(`[${((Date.now() - started) / 1000).toFixed(0).padStart(4)}s] $${(e.usd?.total ?? 0).toFixed(3).padStart(6)}  ${e.stage.padEnd(12)} ${e.message}\n`);
   },
 }).then((m) => {
   if (json) process.stdout.write(JSON.stringify({ type: "done", manifest: m }) + "\n");
-  else process.stdout.write(`\nvideo      ${m.outputs.mp4}\nexcalidraw ${m.outputs.excalidraw}\nsheet      ${m.outputs.contactSheet}\nmeta spend $${m.cost.metaUsd.toFixed(3)}  voice $${m.cost.voiceUsd.toFixed(3)}  (${m.seconds}s)\n`);
+  else process.stdout.write(`\nvideo      ${m.outputs.mp4}\nboard      ${m.outputs.tldr ?? m.outputs.excalidraw}\nsheet      ${m.outputs.contactSheet}\nmeta spend $${m.cost.metaUsd.toFixed(3)}  voice $${m.cost.voiceUsd.toFixed(3)}  (${m.seconds}s)\n`);
 }).catch((e) => {
   if (json) process.stdout.write(JSON.stringify({ type: "error", message: String(e?.message ?? e) }) + "\n");
   else process.stderr.write(`metual failed: ${e?.stack ?? e}\n`);
