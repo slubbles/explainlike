@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import { getTheme, getLevel } from "@metual/core";
-import { captionMismatches, compose, loadIconPack, stillGaps, shotStarts, offFrameTexts, cameraAt, boxOf, type Pace } from "../src/index.js";
+import { textWidth, captionMismatches, compose, loadIconPack, stillGaps, shotStarts, offFrameTexts, cameraAt, boxOf, type Pace } from "../src/index.js";
 
 const fx = new URL("./fixtures/", import.meta.url);
 const plan = JSON.parse(fs.readFileSync(new URL("spotibai.plan.json", fx), "utf8"));
@@ -75,5 +75,21 @@ test("captions spell out the narration word for word, and a changed word is caug
     if (c) c.words.find((w) => w.w === "a")!.w = "the";
     else bent.captions[3].words[0].w += "s";
     assert.equal(captionMismatches(bent, plan.scenes).length, 1);
+  }
+});
+
+test("lively: the jump counter covers only the icon, never the box's name or description", async () => {
+  const { film } = await make("lively");
+  type B = { x: number; y: number; w: number; h: number };
+  const box = (e: any): B => { const w = textWidth(e.text, e.size), x = e.anchor === "middle" ? e.x - w / 2 : e.anchor === "end" ? e.x - w : e.x; return { x, y: e.y - e.size * 0.95, w, h: e.size * 1.25 }; };
+  const hit = (a: B, b: B) => a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
+  const counts = film.elements.filter((e: any) => e.k === "text" && e.anim === "count") as any[];
+  assert.ok(counts.length > 0);
+  for (const c of counts) {
+    const cover = [c.bgBox, box(c)];
+    const covered = film.elements.filter((e: any) => e.k === "text" && e !== c && e.anim !== "count" && cover.some((r) => hit(r, box(e))));
+    assert.deepEqual(covered.map((e: any) => e.text), [], c.text);
+    const b = box(c), r = c.bgBox;
+    assert.ok(b.x >= r.x && b.y >= r.y && b.x + b.w <= r.x + r.w && b.y + b.h <= r.y + r.h + 0.01, `${c.text} fits its backdrop`);
   }
 });

@@ -484,10 +484,13 @@ export async function compose(inp: ComposeInput): Promise<Composed> {
         const others = [...graph.nodes.values()].filter((n) => n.id !== c.id && n.id !== f.id);
         const L = placeRingLabel(ring.box, lw, 60, [...others, f, ...(poly ? [polyBox(poly)] : []), ...graph.edges.flatMap((e) => (e.labelBox ? [e.labelBox] : []))]);
         B.text({ text: lab, x: L.x, y: L.y, size: 44, color: C("red"), anchor: L.anchor, t0: t1 + 0.5, dur: 0.6, g: `s:${k}`, bg: true });
-        // lively: the size of the jump counts up big over the box ("1x" to "10x"), then gets out of the way
+        // lively: the size of the jump counts up over the box's icon ("1x" to "10x"), then gets out of the way.
+        // It covers only the icon, so the box's name and description stay readable.
         const mult = Number(/^(\d+)x$/i.exec(r.at.trim())?.[1]);
         if (lively && mult > 1) {
-          B.els.push({ k: "text", id: B.id("t"), text: `${mult}x`, x: c.x + c.w / 2, y: c.y + c.h / 2 + 50, size: 150, color: C("red"), anchor: "middle", t0: t1, dur: 0.8, g: `cnt:${k}`, bg: theme.background, anim: "count", count: { from: 1, to: mult, suffix: "x" } });
+          const back = { x: c.x + 8, y: c.y + 8, w: c.w - 16, h: NODE.icon + 12 };
+          const size = Math.min(back.h / 1.25, (back.w - 16) / Math.max(1e-6, textWidth(`${mult}x`, 1)));
+          B.els.push({ k: "text", id: B.id("t"), text: `${mult}x`, x: c.x + c.w / 2, y: back.y + size * 0.95 + (back.h - size * 1.25) / 2, size, color: C("red"), anchor: "middle", t0: t1, dur: 0.8, g: `cnt:${k}`, bg: theme.background, bgBox: back, anim: "count", count: { from: 1, to: mult, suffix: "x" } });
           B.setOp(`cnt:${k}`, t1 + 1.6, 0, 0.3);
         }
         // the camera holds everything this scene draws, label included
