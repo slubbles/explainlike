@@ -1,24 +1,26 @@
 # Explain Like
 
-Paste a GitHub repo, an X post or an article. Get a **whiteboard explainer video** (mp4) and an **editable board** of it (a `.tldr` file you open at tldraw.com).
+Paste a GitHub repo, an X post or an article. Get a **whiteboard explainer video** (mp4) and **editable boards** of it (a `.tldr` for tldraw.com and an `.excalidraw` for excalidraw.com).
 
 - A light whiteboard, marker-pen lines that swell and thin, a friendly handwriting font (Shantell Sans), and colors that mean something: red = problem, orange/yellow = key idea, green = fix, blue = actors.
 - **Repos** become a system design explainer on one evolving canvas: the architecture is built layer by layer, a dot walks one real request through it, then red circles show what breaks at 10x/100x and green boxes show the fix. Every box is grounded in files from the repo, and a second model pass reviews each box against the code before anything is drawn.
 - **Posts and articles** become an annotated screenshot of the source (quotes underlined and boxed) followed by small concept boards. Every board node carries a verbatim quote from the source as evidence; quotes that are not in the source are dropped.
-- **Levels**: explain it like I'm 5, I'm new, I'm interviewing, or I'm senior. Interviewing adds requirements, a back-of-envelope estimate and trade-offs; senior adds failure modes, consistency and cost. Every assumed number is tagged as an estimate on screen.
+- **No levels or themes to pick**: Muse Spark reads the source first and decides the approach (analogy, story, step by step, build-up, compare, problem then solution), the depth, the tempo and the look. Simple topics run brisk, technical ones slower. Every assumed number is tagged as an estimate on screen.
+- **Paced for watching**: every shot holds at least 3.5 s (4 s steady, 4.8 s slow), 8 to 15 cuts a minute, eased camera moves, one title on screen at a time, and the camera never moves while a ring or arrow draws. Captions sit in one fixed band at the bottom; the music bed sits about 22 dB under the voice.
+- **Checked twice**: before rendering, every ring, arrow and label is checked against the camera plan and moved until it sits where it should. After rendering, the frames themselves are measured for cut-off words, overlaps, captions over drawings, tiny text and blank frames (`frame-check.json`). Both boards are read back and checked too (`board-check.json`).
 - **Interactive**: in the web app, tap any box for a grounded explanation, get a 15-20 s deep-dive clip on it, or ask "what if 10x traffic?".
 
 ### Explain Like explaining Explain Like
 
-This is Explain Like run on its own repo (`--level new`, $0.15 of Muse Spark and $0.04 of voice), in the default `pen-light` look:
+This is an earlier build of Explain Like run on its own repo ($0.15 of Muse Spark and $0.04 of voice), in the `pen-light` look:
 
 ![Explain Like drawing its own architecture](docs/media/explainlike-self.gif)
 
 ![contact sheet of the self-diagram video](docs/media/explainlike-self.contact.jpg)
 
-The older black `caleb-dark` look and the plainer `whiteboard-light` look are one flag away (`--theme caleb-dark`). The same pipeline at `--level interviewing`, on a small music app (slubbles/spotibai), with back-of-envelope numbers and what breaks at 10x and 100x:
+The same pipeline on a small music app (slubbles/spotibai), with back-of-envelope numbers and what breaks at 10x and 100x:
 
-![spotibai at interviewing level in the pen-light theme](docs/media/spotibai-pen.contact.jpg)
+![spotibai in the pen-light look](docs/media/spotibai-pen.contact.jpg)
 
 Powered by Meta Muse models (Muse Spark for reading and planning, Muse Transcribe for voiceover QA, Muse Image + SAM for the doodle icon pack). Voice by Deepgram Aura.
 
@@ -30,32 +32,33 @@ cp .env.example .env        # add MODEL_API_KEY, optionally DEEPGRAM_API_KEY
 npx playwright-core install chromium   # or set EXPLAINLIKE_CHROME to an installed Chrome
 
 # a repo (GitHub URL or local path)
-node packages/cli/bin/explainlike.mjs https://github.com/umami-software/umami --level new
+node packages/cli/bin/explainlike.mjs https://github.com/umami-software/umami
 # an article or X post
-node packages/cli/bin/explainlike.mjs https://blog.vllm.ai/2023/06/20/vllm.html --level five
+node packages/cli/bin/explainlike.mjs https://blog.vllm.ai/2023/06/20/vllm.html
 ```
 
 Needs Node 20+, ffmpeg on PATH, and Chrome/Chromium.
 
-Outputs land in `explainlike-out/<name>-<level>/`:
+Outputs land in `explainlike-out/<name>/`:
 
 | file | what |
 | --- | --- |
 | `<name>.mp4` | 1920x1080 video with narration and karaoke captions |
 | `<name>.tldr` | the full diagram as an editable board; open it at tldraw.com and keep editing (see below) |
+| `<name>.excalidraw` | the same board for excalidraw.com |
+| `placement.json` | what the pre-render check moved, and anything left |
+| `frame-check.json` | the post-render frame check: sampled times and any issues |
+| `board-check.json` | the read-back check of both boards |
 | `<name>.contact.jpg` | contact sheet of frames, for a quick look |
 | `architecture.json`, `review.json` | repo only: components, evidence files, review verdict |
 | `plan.json` | scenes and narration (cached; delete it or use `--fresh` to re-plan) |
-| `manifest.json` | outputs, timings, voice QA score, and model/voice spend |
+| `manifest.json` | outputs, the brief, pacing numbers, check results, voice QA score, and model/voice spend |
 
 ### CLI options
 
 ```
 explainlike <github-url | local-repo-dir | x.com post url | article url> [options]
-  --level <five|new|interviewing|senior>   default new
-  --level-file <file.json>                 your own level (see docs/plugins.md)
-  --theme <pen-light|caleb-dark|whiteboard-light>   default pen-light
-  --out <dir>                              output folder
+  --out <dir>                              output folder (default ./explainlike-out/<name>)
   --name <owner/repo>                      display name (useful for local folders)
   --voice <deepgram|silent>                default deepgram when DEEPGRAM_API_KEY is set
   --pack <id|dir>                          component/icon pack (repeatable; default: all built-in packs,
@@ -64,8 +67,8 @@ explainlike <github-url | local-repo-dir | x.com post url | article url> [option
   --fresh                                  ignore cached architecture/plan
   --workers <n>                            parallel frame renderers
   --no-qa                                  skip the Muse Transcribe voiceover check
-  --pace <lively|calm>                     lively: new shot every ~2.7 s, section cards, captions by the boxes (default lively)
-  --export <tldr|excalidraw>               editable board file (default tldr; excalidraw writes a .excalidraw instead)
+  --no-music                               no music bed
+  --vision-review                          also show 8 rendered frames to Muse Spark (costs a little; off by default)
   --json                                   progress as JSON lines (used by the web app)
 
 follow-ups on an earlier repo run (same input, new --out):
@@ -82,11 +85,11 @@ Every run prints its spend (Meta models and voice, in USD) and writes it to `man
 pnpm --filter @explainlike/web build && pnpm --filter @explainlike/web start   # http://localhost:3000
 ```
 
-Paste a link, pick a level, and watch progress with a live cost meter. When it finishes:
+Paste a link and watch progress with a live cost meter. When it finishes:
 
 - **Play** the video. Hit areas over the diagram line up with the boxes; tap one for a short explanation from Muse Spark, grounded in that box's evidence files, and a button to render a 15-20 s deep-dive clip on it.
 - **What if 10x traffic?** renders a follow-up clip that circles what breaks and draws the fix. Every number in it is labelled as an assumption.
-- **Download .tldr**: save the board file and open it at tldraw.com to keep editing (steps below).
+- **Download .tldr** or **.excalidraw**: save a board file and keep editing it (steps below).
 
 Jobs are written to disk (`EXPLAINLIKE_JOBS_DIR`, default `explainlike-out/web`), so they survive restarts. URLs pointing at private networks are refused, and local paths are only accepted with `EXPLAINLIKE_ALLOW_LOCAL=1`.
 
@@ -101,24 +104,24 @@ It is not deployed publicly on purpose: every job spends the operator's API cred
 
 ## Keep editing the board
 
-Every run saves `<name>.tldr` next to the video. It is written by Explain Like's own exporter from tldraw's public file format. No tldraw SDK or code is bundled, Explain Like uses no tldraw logo or branding, and Explain Like itself stays MIT.
+Every run saves `<name>.tldr` and `<name>.excalidraw` next to the video. Both are written by Explain Like's own exporters from each tool's public file format, then read back and checked. No tldraw SDK or code is bundled, Explain Like uses no tldraw logo or branding, and Explain Like itself stays MIT.
 
 1. Go to [tldraw.com](https://www.tldraw.com) and sign in (free; importing files needs an account).
 2. Open the account menu and choose **Import file…**, then pick the `.tldr`. Dragging the file onto the canvas works too.
 3. Every box is a normal rectangle grouped with its icon, every arrow is tied to its boxes, and every note is plain text, so you can move, restyle or add to anything.
 
-Want Excalidraw instead? Run with `--export excalidraw` and open the `.excalidraw` at excalidraw.com (menu, Open).
+For Excalidraw, open the `.excalidraw` at excalidraw.com (menu, Open).
 
 ## How it works
 
 ```
 packages/
-  core     contract: schemas (zod), levels, themes, text rules
+  core     contract: schemas (zod), the brief and tempos, looks, text rules
   models   Meta Model API client (Muse Spark JSON-schema chat, Muse Image, SAM, Muse Transcribe) + cost ledger
   ingest   repo digest (secret files never opened, secrets redacted), X post via fxtwitter, article via Readability; source card screenshot + quote boxes
-  planner  architecture extraction -> validation against real files -> review pass -> revise; scene planning per level
+  planner  architecture extraction -> validation against real files -> review pass -> revise; the brief (approach, depth, tempo, look) -> scene planning
   voice    Deepgram Aura TTS + Nova word timestamps (cached), or silent timing
-  render   elk layout -> rough.js strokes (marker-pen outlines via perfect-freehand) -> one SVG world with camera keyframes -> Playwright frames -> ffmpeg; .tldr and .excalidraw export
+  render   elk layout -> rough.js strokes (marker-pen outlines via perfect-freehand) -> one SVG world with camera keyframes -> placement check -> Playwright frames -> frame check -> ffmpeg; checked .tldr and .excalidraw export
   cli      `explainlike` command and the pipeline
 apps/web   Next.js front end
 ```
@@ -127,16 +130,14 @@ Animation events (a box drawing in, an arrow, a circle) are timed to the word in
 
 ## Plugins
 
-See [docs/plugins.md](docs/plugins.md). There are three plugin points:
+See [docs/plugins.md](docs/plugins.md). There is one plugin point:
 
 - **Packs** are folders with a `manifest.json` that add icons and *components*: building blocks detected from file evidence. For example, `d1_databases` in `wrangler.jsonc` means a D1 database. Detected blocks are passed to the architecture pass as hints and get consistent icons. Two packs are built in: `cloudflare` and `cloud-generic` (AWS/GCP/Azure-style object store, queues, functions, CDN and more). Both use doodle icons only, with no vendor logos. A worked example lives in [examples/packs/supabase](examples/packs/supabase).
-- **Themes**: `pen-light` (default), `caleb-dark` and `whiteboard-light` are built in. Add your own with `registerTheme()`.
-- **Levels** are JSON files (`--level-file`). Example: [examples/levels/product-manager.json](examples/levels/product-manager.json).
 
 ## Tests
 
 ```bash
-pnpm test        # schemas, levels, themes, quote matching, note/architecture validators, packs, secret redaction, URL validation
+pnpm test        # schemas, the brief, quote matching, validators, packs, secret redaction, URL validation, pacing, placement, frame and board checks
 pnpm typecheck
 ```
 
