@@ -34,7 +34,7 @@ export async function planRepoScenes(o: { ledger: CostLedger; arch: Architecture
         "1. one 'hook' scene: what the product is and the one question the video answers. add_components empty.",
         `2. 'layer' scenes: each adds at most ${L.perScene} components (by id), starting where requests start (the client) and moving inward, in flow order. Every component is added exactly once. The narration must say each added component's keyword out loud, in the order listed in add_components, and say what it does here.`,
         "3. one 'walkthrough' scene: narrate the walkthrough request hop by hop, saying each hop's keyword, in order. add_components empty.",
-        `4. ${o.arch.scale.length} 'scale' scenes, one per scale risk, in the given order: say what breaks at that traffic level and why (problem keyword), then the fix (fix keyword). callouts: [{target: component id, text: problem keyword, color: red}, {target: component id, text: fix keyword, color: green}].`,
+        `4. ${o.arch.scale.length} 'scale' scenes, one per scale risk, in the given order: say what breaks at that traffic level and why (problem keyword), then the fix (fix keyword), in 2 or 3 short plain sentences ('The fix is ...'), not a run-on or a string of jargon. callouts: [{target: component id, text: problem keyword, color: red}, {target: component id, text: fix keyword, color: green}].`,
         "5. one 'recap' scene: the whole picture in two or three sentences.",
         ...notesRules(L.notes),
         `Each scene's narration is about ${L.wordsPerScene} words (hook and recap can be shorter). Whole video ${L.seconds[0]} to ${L.seconds[1]} seconds at 2.6 words per second.`,
