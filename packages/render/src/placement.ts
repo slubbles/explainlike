@@ -2,7 +2,7 @@ import type { Film, FText, CamKey } from "./film.js";
 import type { Box } from "./layout.js";
 import type { Sketch } from "./compose.js";
 import { cameraAt } from "./check.js";
-import { boxOf, readableWidth } from "./pace.js";
+import { boxOf, readableWidth, TITLE_BAND } from "./pace.js";
 import { RING_PAD, ringReach } from "./annotate.js";
 
 /**
@@ -285,8 +285,22 @@ function reframe(p: Placed, it: Item, t: number): string | undefined {
   const k: CamKey | undefined = ks[ks.length - 1];
   if (!k) return undefined;
   const pad = 30, b = it.box;
-  const x0 = Math.min(k.x, b.x - pad), y0 = Math.min(k.y, b.y - pad), x1 = Math.max(k.x + k.w, b.x + b.w + pad), y1 = Math.max(k.y + k.h, b.y + b.h + pad);
-  const w = Math.max(x1 - x0, ((y1 - y0) * film.width) / film.height), h = (w * film.height) / film.width;
+  const x0 = Math.min(k.x, b.x - pad), x1 = Math.max(k.x + k.w, b.x + b.w + pad), y1 = Math.max(k.y + k.h, b.y + b.h + pad);
+  let y0 = Math.min(k.y, b.y - pad), w = 0, h = 0;
+  // when the shot grows upward to reach the item while a scene title is up, leave the title its band
+  const titled = film.headings.some((x) => t >= x.t0 && t < x.t1), up = b.y - pad < k.y;
+  for (let i = 0; i < (titled && up ? 4 : 1); i++) {
+    w = Math.max(x1 - x0, ((y1 - y0) * film.width) / film.height);
+    h = (w * film.height) / film.width;
+    if (titled && up) y0 = b.y - pad - (TITLE_BAND * h) / film.height;
+  }
+  // unless that room would slice something already lit on the board: then reach just the item, as before
+  const rest = settled(film, t), cut = (f: Box) => items(p).some((o) => o.kind !== "wire" && o.t0 <= rest && opacity(film, o.g, rest) > 0.6 && area(f, o.box) > 0 && area(f, o.box) < o.box.w * o.box.h - 1);
+  if (titled && up && cut({ x: (x0 + x1) / 2 - w / 2, y: (y0 + y1) / 2 - h / 2, w, h })) {
+    y0 = Math.min(k.y, b.y - pad);
+    w = Math.max(x1 - x0, ((y1 - y0) * film.width) / film.height);
+    h = (w * film.height) / film.width;
+  }
   if (w > readableWidth(film) * 1.5 && w > k.w * 1.05) return undefined;
   Object.assign(k, { x: (x0 + x1) / 2 - w / 2, y: (y0 + y1) / 2 - h / 2, w, h });
   return `widened the shot at ${k.t.toFixed(1)}s to ${Math.round(w)}`;
