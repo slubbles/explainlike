@@ -50,6 +50,26 @@ test("beside a screenshot, captions use its empty margins, stacking on two lines
   assert.equal(captions[1].spot, captions[0].spot);
 });
 
+test("a caption spoken over a black section card stays on screen", { timeout: 60_000 }, async () => {
+  const words = (text: string, at: number) => text.split(" ").map((w, i) => ({ w, s: at + i * 0.3, e: at + i * 0.3 + 0.25 }));
+  const film = {
+    width: 1920, height: 1080, fps: 30, duration: 4,
+    theme: { background: "#f4f1ea", ink: "#222", accent: "#0866FF", caption: { color: "#111", highlight: "#0866FF", background: "#fff" } },
+    fonts: { hand: "sans-serif", sans: "sans-serif" },
+    elements: [], groups: {}, camera: [{ t: 0, x: 0, y: 0, w: 1920, h: 1080, move: 0 }], headings: [], fades: [], brand: "metual",
+    cards: [{ t0: 1, t1: 3, text: "what breaks" }],
+    captions: [{ t0: 1.5, t1: 2.8, scene: "s1", words: words("and fixes or drops", 1.5) }],
+  } as unknown as Film;
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "metual-cap-"));
+  await captureFrames(film, dir, { only: [66], workers: 1 });
+  const sharp = (await import("sharp")).default;
+  // the bottom band of the frame: the card is black there, the caption pill is light
+  const { data } = await sharp(path.join(dir, "f000066.jpg")).extract({ left: 0, top: 820, width: 1920, height: 200 }).greyscale().raw().toBuffer({ resolveWithObject: true });
+  fs.rmSync(dir, { recursive: true, force: true });
+  const light = data.filter((v) => v > 200).length;
+  assert.ok(light > 5000, `caption hidden under the card (${light} light pixels)`);
+});
+
 test("a caption phrase never reads as a grammar slip on its own: 'how does' stays with 'a pasted link become'", () => {
   const said = "The question: how does a pasted link become a watchable video?".split(" ");
   const words = said.map((word, i) => ({ word, start: i * 0.3, end: i * 0.3 + 0.25 }));

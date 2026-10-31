@@ -134,7 +134,8 @@
   let lastCap = null;
   const card = document.createElement("div"); card.id = "card";
   const cardText = document.createElement("div"); cardText.id = "cardText"; card.appendChild(cardText);
-  document.getElementById("barwrap").before(card);
+  // captions stay on top of the black section card, so no spoken word is ever hidden
+  document.getElementById("capwrap").before(card);
   const capwrap = document.getElementById("capwrap");
 
   // Captions never cover the drawing. Before the first frame, each caption picks one spot:
@@ -275,7 +276,7 @@
   function placeCaption(c, t) {
     const pop = 0.88 + 0.12 * easeOut(clamp((t - c.t0) / 0.18, 0, 1));
     capwrap.className = capClass(c);
-    const p = spotXY(c.spot || BANDS[0], c, t, cap.offsetWidth, cap.offsetHeight);
+    const p = spotXY(coverAt(t) ? BANDS[0] : c.spot || BANDS[0], c, t, cap.offsetWidth, cap.offsetHeight);
     capwrap.style.left = `${p.x.toFixed(1)}px`; capwrap.style.top = `${p.y.toFixed(1)}px`;
     cap.style.transform = `scale(${pop.toFixed(3)})`;
   }
