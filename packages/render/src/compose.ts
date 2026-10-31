@@ -297,7 +297,14 @@ export function captionsFor(scene: string, words: WordTiming[], offset: number, 
     const ws = caps[i].words;
     let moved = 0;
     while (ws.length > 2 && LEADS_ON.test(ws[ws.length - 1].w.toLowerCase()) && caps[i + 1].words.length < maxWords) { caps[i + 1].words.unshift(ws.pop()!); moved++; }
-    if (moved) caps[i + 1].t0 = caps[i + 1].words[0].s - 0.08;
+    if (!moved) continue;
+    caps[i + 1].t0 = caps[i + 1].words[0].s - 0.08;
+    // what is left would flash by ("deep dive"): it takes the last word of the phrase before when that phrase
+    // keeps enough words and ends mid-clause ("Render a twenty | second deep dive | on just that box."), else the move is undone
+    const quick = () => caps[i + 1].words[0].s - ws[0].s < MIN_PHRASE_S;
+    const prev = caps[i - 1]?.words;
+    if (quick() && prev && prev.length > 2 && !/[.!?,;:]$/.test(prev[prev.length - 1].w)) { ws.unshift(prev.pop()!); caps[i].t0 = ws[0].s - 0.08; }
+    if (quick()) { ws.push(...caps[i + 1].words.splice(0, moved)); caps[i + 1].t0 = caps[i + 1].words[0].s - 0.08; }
   }
   for (let i = 0; i < caps.length; i++) {
     // a phrase never replaces the one before while that one's last word is still being said
