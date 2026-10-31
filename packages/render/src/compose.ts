@@ -300,6 +300,11 @@ export function captionsFor(scene: string, words: WordTiming[], offset: number, 
  * Shorten a box description to n characters by dropping whole trailing words, so it never
  * ends in a cut-off word or an ellipsis that reads as clipped. One over-long word is cut as a last resort.
  */
+/** Lower-cases ordinary words but keeps names as the code writes them: ChatLive, OpenNext, D1, FEEDBACK_DB. */
+export function plainCase(s: string) {
+  return s.replace(/\S+/g, (w) => (/[a-z][A-Z]|[A-Z]{2}|[0-9_]/.test(w) ? w : w.toLowerCase()));
+}
+
 export function shortSub(s: string, n: number) {
   if (s.length <= n) return s;
   const ws = s.split(/\s+/);
@@ -339,7 +344,7 @@ export async function compose(inp: ComposeInput): Promise<Composed> {
     const order = new Map<string, number>();
     plan.scenes.forEach((s) => s.add_components.forEach((id) => { if (!order.has(id)) order.set(id, order.size); }));
     const comps = [...a.components].sort((x, y) => (order.get(x.id) ?? 99) - (order.get(y.id) ?? 99));
-    const gnodes: GNode[] = comps.map((c) => ({ id: c.id, keyword: c.keyword, sub: shortSub(c.name.toLowerCase(), 36), icon: c.icon, color: C(inp.colorOf ? inp.colorOf(c) : "white") }));
+    const gnodes: GNode[] = comps.map((c) => ({ id: c.id, keyword: c.keyword, sub: shortSub(plainCase(c.name), 36), icon: c.icon, color: C(inp.colorOf ? inp.colorOf(c) : "white") }));
     const gedges: GEdge[] = a.connections.map((c) => ({ from: c.from, to: c.to, label: c.label }));
     a.scale.forEach((r, i) => {
       const id = `fix-${i}`;
