@@ -2,6 +2,7 @@
 import Player, { type Interactive } from "./Player";
 import { fileUrl, money, secs, useJob, type Explain, type Job } from "../lib/client";
 import { Info } from "./Icons";
+import { cap } from "../lib/steps";
 
 /** The answer's opening sentence, so the cited points lead. */
 function firstSentence(s: string) {
@@ -23,7 +24,7 @@ function Clip({ id }: { id: string }) {
       </a>
       <div>
         <b>{what}</b>
-        {job.state === "running" && <span>{job.message}</span>}
+        {job.state === "running" && <span>{cap(job.message)}</span>}
         {job.state === "error" && <span className="err">Failed: {job.error}</span>}
         {job.state === "done" && <span>{secs(job.durationSec)} · <a href={fileUrl(id, mp4, true)}>download</a></span>}
       </div>
