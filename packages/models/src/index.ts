@@ -131,3 +131,29 @@ export async function museTranscribe(opts: { ledger: CostLedger; step: string; w
   opts.ledger.add({ step: opts.step, model: TRANSCRIBE, seconds: (Date.now() - t) / 1000, usd: mins * PRICE.transcribePerMin });
   return { transcript: out.transcript ?? "", turns: out.turns ?? [] };
 }
+
+const FrameReview = z.object({
+  frames: z.array(z.object({
+    t: z.number(),
+    problems: z.array(z.object({ kind: z.enum(["cropped", "overlap", "covered", "unreadable", "blank", "other"]), where: z.string() })),
+  })),
+});
+export type FrameReviewResult = z.infer<typeof FrameReview>;
+
+/**
+ * Muse Spark looks at a few rendered frames and lists layout problems a viewer would notice.
+ * Off by default (it costs money); the bounding-box check runs first and is free.
+ */
+export async function reviewFrames(opts: { ledger: CostLedger; frames: { t: number; jpeg: Buffer }[] }): Promise<FrameReviewResult> {
+  const content: unknown[] = [{
+    type: "text",
+    text: "These are frames from an explainer video drawn on a whiteboard. For each frame, list only problems a viewer would notice: "
+      + "text or drawings cut off by the frame edge, labels overlapping lines or other text, the caption bar covering something important, "
+      + "text too small to read, or an empty frame. Use an empty list when a frame is fine. Each frame is preceded by its time in seconds.",
+  }];
+  for (const f of opts.frames) {
+    content.push({ type: "text", text: `t=${f.t.toFixed(2)}` });
+    content.push({ type: "image_url", image_url: { url: `data:image/jpeg;base64,${f.jpeg.toString("base64")}` } });
+  }
+  return sparkJson({ ledger: opts.ledger, step: "frame-review", name: "frame_review", schema: FrameReview, messages: [{ role: "user", content }], effort: "low", maxTokens: 4000 });
+}
