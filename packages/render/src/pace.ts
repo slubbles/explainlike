@@ -46,7 +46,7 @@ const inside = (b: Box, v: Box) => b.x >= v.x && b.y >= v.y && b.x + b.w <= v.x 
 
 /** Camera view that frames b below the heading and above the captions (same margins as the composer). */
 function fitView(film: Film, b: Box, minW: number): Omit<CamKey, "t" | "move"> {
-  const W = film.width, H = film.height, SAFE = { top: 160, bottom: 120, side: 110 };
+  const W = film.width, H = film.height, SAFE = { top: 160, bottom: CAPTION_BAND + 10, side: 110 };
   const bw = Math.max(b.w + 120, minW), bh = Math.max(b.h + 120, (minW * (H - SAFE.top - SAFE.bottom)) / (W - 2 * SAFE.side));
   const s = Math.min((W - 2 * SAFE.side) / bw, (H - SAFE.top - SAFE.bottom) / bh);
   const cx = b.x + b.w / 2, cy = b.y + b.h / 2, screenCy = SAFE.top + (H - SAFE.top - SAFE.bottom) / 2;
@@ -221,49 +221,52 @@ export function applyTempo(film: Film, scenes: Span[], tempo: TempoLimits = DEFA
     if (!sc || !READ_KINDS.has(sc.kind)) continue;
     const hold = keys[i + 1]?.t ?? sc.end, end = Math.min(hold, sc.end);
     const wide: Box = { x: k.x, y: k.y, w: k.w, h: k.h };
-    // the overview is a shot of its own, so it holds a full beat before the first glide
-    let t = k.t + Math.max(tempo.minBeat, k.move + OVERVIEW_S), sweep = 0;
-    const done = new Set<FElement>();
     const shown = (until: number) => boxes.filter(({ e, b }) => e.k !== "path" && e.k !== "dot" && e.t0 < until && overlaps(b, wide));
-    while (t < end - tempo.minBeat * 0.5) {
-      let tn = t + beat < end - 0.9 ? t + beat : hold;
-      const fresh = boxes.filter(({ e, b }) => e.k !== "dot" && e.k !== "path" && !done.has(e) && e.t0 + e.dur >= t && e.t0 < tn && inside(b, wide)).sort((a, b) => a.e.t0 + a.e.dur - b.e.t0 - b.e.dur);
-      let f: Box | undefined;
-      for (const x of fresh) {
-        const u = union(f ? [f, x.b] : [x.b])!, fin = x.e.t0 + x.e.dur;
-        // the next glide starts in time to arrive as the word finishes, but never before a full beat has passed
-        const next = Math.max(t + tempo.minBeat, fin - tempo.move);
-        // (only when there is room left for that glide and it arrives as the word finishes: otherwise this
-        // framing widens to take the word in too, since a word must be whole on screen as it finishes)
-        const room = next < Math.min(tn, end - tempo.minBeat * 0.5) && next + tempo.move <= fin + 0.05;
-        if (f && room && (u.w > RW * 0.85 || u.h > (RW * 0.85 * film.height) / film.width)) { tn = next; break; }
-        f = u;
-        done.add(x.e);
+    // the glides from t on: each frames what is drawn next, readably, and holds at least a beat
+    const glides = (from: number): CamKey[] => {
+      const out: CamKey[] = [], done = new Set<FElement>();
+      let t = from, sweep = 0;
+      while (t < end - tempo.minBeat * 0.5) {
+        let tn = t + beat < end - 0.9 ? t + beat : hold;
+        const fresh = boxes.filter(({ e, b }) => e.k !== "dot" && e.k !== "path" && !done.has(e) && e.t0 + e.dur >= t && e.t0 < tn && inside(b, wide)).sort((a, b) => a.e.t0 + a.e.dur - b.e.t0 - b.e.dur);
+        let f: Box | undefined;
+        for (const x of fresh) {
+          const u = union(f ? [f, x.b] : [x.b])!, fin = x.e.t0 + x.e.dur;
+          // the next glide starts in time to arrive as the word finishes, but never before a full beat has passed
+          const next = Math.max(t + tempo.minBeat, fin - tempo.move);
+          // (only when there is room left for that glide and it arrives as the word finishes: otherwise this
+          // framing widens to take the word in too, since a word must be whole on screen as it finishes)
+          const room = next < Math.min(tn, end - tempo.minBeat * 0.5) && next + tempo.move <= fin + 0.05;
+          if (f && room && (u.w > RW * 0.85 || u.h > (RW * 0.85 * film.height) / film.width)) { tn = next; break; }
+          f = u;
+          done.add(x.e);
+        }
+        const swept = !f;
+        if (!f) {
+          const all = union(shown(tn).map((x) => x.b));
+          if (!all) break;
+          const tall = all.h / all.w > film.height / film.width, half = sweep++ % 2;
+          f = tall ? { ...all, y: all.y + (half * all.h) / 2, h: all.h / 2 } : { ...all, x: all.x + (half * all.w) / 2, w: all.w / 2 };
+        }
+        let v: Box = fitView(film, f, RW * 0.7);
+        if (swept && v.w > RW) { const cx = v.x + v.w / 2, cy = v.y + v.h / 2, h = (RW * film.height) / film.width; v = { x: cx - RW / 2, y: cy - h / 2, w: RW, h }; }
+        // a resting view should not slice a box or word in half: widen a little to take it in
+        for (let j = 0; j < 3; j++) {
+          const cut = shown(tn).filter(({ b }) => overlaps(b, v) && !inside(b, v)).map((x) => x.b);
+          if (!cut.length) break;
+          const w = union([v, ...cut])!, g = fitView(film, w, 0);
+          if (g.w > RW * 1.15) break;
+          v = g;
+        }
+        out.push({ t, ...within(v, wide), move: tempo.move });
+        t = tn;
       }
-      const swept = !f;
-      if (!f) {
-        const all = union(shown(tn).map((x) => x.b));
-        if (!all) break;
-        const tall = all.h / all.w > film.height / film.width, half = sweep++ % 2;
-        f = tall ? { ...all, y: all.y + (half * all.h) / 2, h: all.h / 2 } : { ...all, x: all.x + (half * all.w) / 2, w: all.w / 2 };
-      }
-      let v: Box = fitView(film, f, RW * 0.7);
-      if (swept && v.w > RW) { const cx = v.x + v.w / 2, cy = v.y + v.h / 2, h = (RW * film.height) / film.width; v = { x: cx - RW / 2, y: cy - h / 2, w: RW, h }; }
-      // a resting view should not slice a box or word in half: widen a little to take it in
-      for (let j = 0; j < 3; j++) {
-        const cut = shown(tn).filter(({ b }) => overlaps(b, v) && !inside(b, v)).map((x) => x.b);
-        if (!cut.length) break;
-        const w = union([v, ...cut])!, g = fitView(film, w, 0);
-        if (g.w > RW * 1.15) break;
-        v = g;
-      }
-      v = within(v, wide);
-      const key = { t, ...v, move: tempo.move };
-      optional.add(key);
-      film.camera.push(key);
-      sortCam();
-      t = tn;
-    }
+      return out;
+    };
+    // the overview is a shot of its own, so it holds a full beat before the first glide
+    const plan = glides(k.t + Math.max(tempo.minBeat, k.move + OVERVIEW_S));
+    for (const key of plan) { optional.add(key); film.camera.push(key); }
+    sortCam();
   }
 
   // 2c. a long hold is split in two: the camera moves in on what is drawn (or was just drawn) in its
@@ -435,7 +438,8 @@ export function applyTempo(film: Film, scenes: Span[], tempo: TempoLimits = DEFA
       sortCam();
       if (!moved) break;
     }
-    // a move never runs into the next one
+    // keys nudged onto the same moment collapse into the later one, and a move never runs into the next one
+    film.camera = film.camera.filter((k, i, ks) => !(ks[i + 1] && ks[i + 1].t - k.t < 0.05));
     for (let i = 0; i + 1 < film.camera.length; i++) {
       const k = film.camera[i], n = film.camera[i + 1];
       if (k.move > 0 && k.t + k.move > n.t) k.move = Math.max(0.3, n.t - k.t - 0.02);
@@ -448,5 +452,50 @@ export function applyTempo(film: Film, scenes: Span[], tempo: TempoLimits = DEFA
     beats();
     if (JSON.stringify(film.camera) === before) break;
   }
+  clearCaptionBand(film);
   return paceReport(film, tempo);
+}
+
+/** Screen px at the bottom kept free of drawing for the captions, and at the top for the scene title. */
+export const CAPTION_BAND = 170, TITLE_BAND = 150;
+
+/**
+ * Captions sit at one fixed spot at the bottom, on an opaque pill, so no held shot may put what it is
+ * about under them: every element mostly on screen during the hold stays between the title and the
+ * captions. A neighbour mostly off screen may pass under the pill, as video does under subtitles.
+ * The camera first slides by as little as it can; only when no slide works does it widen, around
+ * what the shot is about.
+ */
+function clearCaptionBand(film: Film) {
+  const { width: W, height: H } = film, cam = film.camera;
+  const lo = (H - CAPTION_BAND) / H, hi = TITLE_BAND / H;
+  const area = (b: Box) => Math.max(1, b.w * b.h);
+  for (let i = 0; i < cam.length; i++) {
+    const k = cam[i], end = cam[i + 1]?.t ?? film.duration;
+    const ts: number[] = [];
+    for (let t = k.t + k.move; t < end; t += 0.25) ts.push(t);
+    ts.push(Math.max(k.t + k.move, end - 0.01));
+    // dimmed context (an earlier layer, say) may pass under the pill too: only what is lit counts
+    const live = film.elements.filter((e) => ts.some((t) => t >= e.t0 && opacityAt(film, e, t) > 0.6)).map(boxOf).filter((b): b is Box => !!b);
+    // a long wire taller than the space between the bands is structure, not a subject: it may cross the band
+    const about = (v: Box) => live.filter((b) => { const x = intersect(b, v); return !!x && area(x) >= 0.5 * area(b) && b.h <= v.h * (lo - hi) * 0.6; });
+    const clear = (v: Box, fs: Box[]) => fs.every((b) => b.y >= v.y + v.h * hi - 1 && b.y + b.h <= v.y + v.h * lo + 1);
+    let focus = about(k);
+    for (let pass = 0; pass < 6 && !clear(k, focus); pass++) {
+      const c = union(focus)!;
+      // slide: the smallest vertical shift that clears it, if the content fits between the bands at all
+      if (c.h <= k.h * (lo - hi)) {
+        const dy = c.y + c.h > k.y + k.h * lo ? c.y + c.h - (k.y + k.h * lo) : c.y - (k.y + k.h * hi);
+        const v = { ...k, y: k.y + dy };
+        const now = about(v);
+        if (clear(v, now)) { k.y = v.y; break; }
+        focus = [...new Set([...focus, ...now])];
+        continue;
+      }
+      // widen around it, so it fits between title and captions with a little room
+      const w = Math.max(k.w, c.w / 0.94, ((c.h / (lo - hi)) * W) / H / 0.97), h = (w * H) / W;
+      k.x = c.x + c.w / 2 - w / 2; k.y = c.y + c.h / 2 - h * ((lo + hi) / 2); k.w = w; k.h = h;
+      focus = [...new Set([...focus, ...about(k)])];
+    }
+  }
 }

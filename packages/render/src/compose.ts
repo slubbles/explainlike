@@ -14,7 +14,7 @@ import path from "node:path";
 
 export const W = 1920, H = 1080, FPS = 30;
 const LEAD = 0.3;
-const SAFE = { top: 160, bottom: 220, side: 110 };
+const SAFE = { top: 160, bottom: 180, side: 110 };
 let gen = rough.generator();
 
 /** Concept board nodes are big: a large doodle (or an icon grid), a big keyword, the source quote underneath. */

@@ -11,7 +11,7 @@ export interface FDot extends Base { k: "dot"; pts: [number, number][]; color: s
 export type FElement = FPath | FImage | FText | FDot;
 
 export interface CamKey { t: number; x: number; y: number; w: number; h: number; move: number }
-export interface Caption { t0: number; t1: number; words: { w: string; s: number; e: number }[]; /** id of the scene whose narration this caption shows */ scene?: string; /** world box the caption sits next to (lively pace); bottom of the screen when absent */ at?: { x: number; y: number; w: number; h: number } }
+export interface Caption { t0: number; t1: number; words: { w: string; s: number; e: number }[]; /** id of the scene whose narration this caption shows */ scene?: string }
 export interface Heading { t0: number; t1: number; text: string }
 
 export interface Film {

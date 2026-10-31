@@ -133,9 +133,10 @@ test("a shot too wide to read a box's name never rests longer than a beat", asyn
     if (!READ_KINDS.has(s.kind)) continue;
     let run = 0;
     for (let t = s.start; t < s.end; t += 0.1) {
-      // a framing may widen a little past readable so a word that lands late in its shot is whole on screen
-      // as it finishes (names stay at least 26 / 1.4 = 18.6 px tall); past 1.4x it reads as a parked overview
-      run = cameraAt(film, t).w > RW * 1.4 ? run + 0.1 : 0;
+      // a framing may widen past readable so every word is whole on screen as it finishes, between the title
+      // and the captions, when a dense layer is narrated too fast for a second glide (names stay at least
+      // 26 / 1.5 = 17 px tall); past 1.5x it reads as a parked overview
+      run = cameraAt(film, t).w > RW * 1.5 ? run + 0.1 : 0;
       if (run > minBeat + move) { long.push(`${s.kind} at ${t.toFixed(1)}`); break; }
     }
   }

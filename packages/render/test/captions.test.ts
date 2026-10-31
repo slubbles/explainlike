@@ -4,8 +4,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { getTheme, specFromBrief, DEFAULT_BRIEF, agreementSlips } from "@explainlike/core";
-import { compose, loadIconPack, captureFrames, captionsFor, type Film } from "../src/index.js";
-import { ringOf } from "../src/annotate.js";
+import { compose, loadIconPack, captureFrames, captionsFor } from "../src/index.js";
 
 const fx = new URL("./fixtures/", import.meta.url);
 const plan = JSON.parse(fs.readFileSync(new URL("spotibai.plan.json", fx), "utf8"));
@@ -15,40 +14,24 @@ const audio = plan.scenes.map((s: any) => {
   return { sceneId: s.id, duration: ws.length * 0.38, words: ws.map((w: string, i: number) => ({ word: w, start: i * 0.38, end: i * 0.38 + 0.3 })) };
 });
 
-test("captions find free space: none covers a box, an arrow or a label on a still frame, and barely brushes one mid-glide", { timeout: 120_000 }, async () => {
+test("captions sit in one fixed spot at the bottom, on one line, and never cover the drawing at rest", { timeout: 120_000 }, async () => {
   for (const theme of ["pen-light", "chalk-dark"]) {
-    const { film } = await compose({ plan, audio, theme: getTheme(theme), spec: specFromBrief(DEFAULT_BRIEF), pack: loadIconPack(), sourceLabel: "x", arch, pace: "lively" });
+    const { film } = await compose({ plan, audio, theme: getTheme(theme), spec: specFromBrief(DEFAULT_BRIEF), pack: loadIconPack(), sourceLabel: "x", arch });
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), "explainlike-cap-"));
     const { captions } = await captureFrames(film, dir, { only: [0], workers: 1 });
     fs.rmSync(dir, { recursive: true, force: true });
     assert.equal(captions.length, film.captions.length);
-    const covering = captions.filter((c) => c.overlapPx > 0 || c.movingPx > 4).map((c) => `${c.t0.toFixed(1)}s "${c.text}" ${c.spot} ${c.overlapPx}px still, ${c.movingPx}px moving`);
+    const bottoms = new Set(captions.map((c) => c.rect!.y + c.rect!.h));
+    assert.equal(bottoms.size, 1, `captions sit at different heights: ${[...bottoms].join(", ")}`);
+    for (const c of captions) {
+      assert.ok(!c.stacked, `"${c.text}" wraps onto a second line`);
+      assert.ok(Math.abs(c.rect!.x + c.rect!.w / 2 - film.width / 2) <= 1, `"${c.text}" is not centred`);
+      assert.ok(c.rect!.y >= film.height - 220, `"${c.text}" rises above the bottom band`);
+    }
+    // the drawing may slide under the opaque caption pill while the camera glides past, never while it rests
+    const covering = captions.filter((c) => c.overlapPx > 0).map((c) => `${c.t0.toFixed(1)}s "${c.text}" ${c.overlapPx}px`);
     assert.deepEqual(covering, [], theme);
   }
-});
-
-test("beside a screenshot, captions use its empty margins, stacking on two lines, and stay put", { timeout: 60_000 }, async () => {
-  // a page screenshot: plain light margins around a dark post in the middle
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900"><rect width="1600" height="900" fill="#f4f1ea"/><rect x="420" y="0" width="760" height="900" fill="#15171c"/></svg>`;
-  const href = "data:image/svg+xml;base64," + Buffer.from(svg).toString("base64");
-  const words = (text: string, at: number) => text.split(" ").map((w, i) => ({ w, s: at + i * 0.3, e: at + i * 0.3 + 0.25 }));
-  const film = {
-    width: 1920, height: 1080, fps: 30, duration: 6,
-    theme: { background: "#f4f1ea", ink: "#222", accent: "#0866FF", caption: { color: "#fff", highlight: "#0866FF", background: "#111" } },
-    fonts: { hand: "sans-serif", sans: "sans-serif" },
-    elements: [{ k: "img", id: "shot", t0: 0, dur: 0.2, href, x: 0, y: 0, w: 1920, h: 1080, anim: "fade" }],
-    groups: {}, camera: [{ t: 0, x: 0, y: 0, w: 1920, h: 1080, move: 0 }], headings: [], fades: [], brand: "Explain Like",
-    captions: [
-      { t0: 1, t1: 2.6, scene: "s1", words: words("This is Karpathy’s post", 1) },
-      { t0: 2.6, t1: 4.2, scene: "s1", words: words("announcing a tiny chat", 2.6) },
-    ],
-  } as Film;
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "explainlike-cap-"));
-  const { captions } = await captureFrames(film, dir, { only: [0], workers: 1 });
-  fs.rmSync(dir, { recursive: true, force: true });
-  assert.deepEqual(captions.map((c) => c.overlapPx), [0, 0]);
-  assert.ok(captions[0].stacked, "one line is too wide for the margin");
-  assert.equal(captions[1].spot, captions[0].spot);
 });
 
 test("a caption phrase never reads as a grammar slip on its own: 'a pasted link become' is never shown without 'how does'", () => {
@@ -81,59 +64,6 @@ test("a phrase spoken fast is not flashed on its own: it takes the next words, s
     assert.ok(up >= 0.7 || i === caps.length - 1, `"${c.words.map((w) => w.w).join(" ")}" is up for only ${up.toFixed(2)} s`);
     assert.ok(c.words.map((w) => w.w).join(" ").length <= 30);
   }
-});
-
-test("when even a stacked caption is too wide for the only free margin, a smaller stacked caption fits there instead of covering the post", { timeout: 60_000 }, async () => {
-  // a dark post filling all but a thin light strip on each side (the corner pixel is the page colour)
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900"><rect width="1600" height="900" fill="#f4f1ea"/><rect x="30" y="0" width="1220" height="900" fill="#15171c"/></svg>`;
-  const href = "data:image/svg+xml;base64," + Buffer.from(svg).toString("base64");
-  const words = (text: string, at: number) => text.split(" ").map((w, i) => ({ w, s: at + i * 0.3, e: at + i * 0.3 + 0.25 }));
-  const film = {
-    width: 1920, height: 1080, fps: 30, duration: 4,
-    theme: { background: "#f4f1ea", ink: "#222", accent: "#0866FF", caption: { color: "#fff", highlight: "#0866FF", background: "#111" } },
-    fonts: { hand: "sans-serif", sans: "sans-serif" },
-    elements: [{ k: "img", id: "shot", t0: 0, dur: 0.2, href, x: 0, y: 0, w: 1920, h: 1080, anim: "fade" }],
-    groups: {}, camera: [{ t: 0, x: 0, y: 0, w: 1920, h: 1080, move: 0 }], headings: [], fades: [], brand: "Explain Like",
-    captions: [{ t0: 1, t1: 2.6, scene: "s1", words: words("and it explains the", 1) }],
-  } as Film;
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "explainlike-cap-"));
-  const { captions } = await captureFrames(film, dir, { only: [0], workers: 1 });
-  fs.rmSync(dir, { recursive: true, force: true });
-  assert.equal(captions[0].overlapPx, 0, JSON.stringify(captions[0]));
-  assert.ok(captions[0].small, JSON.stringify(captions[0]));
-});
-
-test("a caption keeps clear of the box it talks about and its ring, also while the camera drifts slowly", { timeout: 60_000 }, async () => {
-  const words = (text: string, at: number) => text.split(" ").map((w, i) => ({ w, s: at + i * 0.3, e: at + i * 0.3 + 0.25 }));
-  // the ring ends ~20 px above the lowest caption spot, as at "because every job's files" in the 10x film
-  const box = { x: 760, y: 618, w: 400, h: 260 };
-  const ring = ringOf(box);
-  const d = "M" + ring.points.map(([x, y]) => `${x.toFixed(1)} ${y.toFixed(1)}`).join(" L");
-  const film = {
-    width: 1920, height: 1080, fps: 30, duration: 6,
-    theme: { background: "#f4f1ea", ink: "#222", accent: "#0866FF", caption: { color: "#111", highlight: "#0866FF", background: "#fff" } },
-    fonts: { hand: "sans-serif", sans: "sans-serif" },
-    elements: [
-      { k: "path", id: "box", t0: 0, dur: 0.2, d: `M${box.x} ${box.y} h${box.w} v${box.h} h${-box.w} Z`, stroke: "#4465e9", sw: 4 },
-      { k: "path", id: "ring", t0: 0.2, dur: 0.3, d, stroke: "#e03131", sw: 5, anim: "draw" },
-    ],
-    groups: {},
-    // a slow drift over the whole caption, like the scale scenes' glides
-    camera: [{ t: 0, x: 0, y: 0, w: 1920, h: 1080, move: 0 }, { t: 1, x: 8, y: 4, w: 1904, h: 1071, move: 3 }],
-    headings: [], fades: [], brand: "Explain Like",
-    captions: [{ t0: 1, t1: 3, scene: "s1", at: box, words: words("because every job's files", 1) }],
-  } as unknown as Film;
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "explainlike-cap-"));
-  const { captions } = await captureFrames(film, dir, { only: [0], workers: 1 });
-  fs.rmSync(dir, { recursive: true, force: true });
-  const r = captions[0].rect!;
-  assert.equal(captions[0].overlapPx, 0, JSON.stringify(captions[0]));
-  // a slow drift is not a fast move: nothing is covered while it runs either
-  assert.equal(captions[0].movingPx, 0, JSON.stringify(captions[0]));
-  // the ring on screen when the caption appears (the glide has just begun), and a clear border beyond it
-  const rb = ring.box;
-  const gap = Math.max(rb.x - (r.x + r.w), r.x - (rb.x + rb.w), rb.y - (r.y + r.h), r.y - (rb.y + rb.h));
-  assert.ok(gap >= 24, `caption ${JSON.stringify(r)} sits ${gap.toFixed(0)} px from the ring ${JSON.stringify(rb)}`);
 });
 
 test("a phrase does not end on a word that leads into the next, and is not replaced before its last word is said", () => {
