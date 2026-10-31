@@ -195,3 +195,12 @@ test("'the resulting video' stays whole at real speech speed, where 'Then you wa
   const shown = captionsFor("s1", words, 0, 14, 4, 26).map((c) => c.words.map((w) => w.w).join(" "));
   assert.ok(shown.some((p) => p.includes("the resulting video")), `"the resulting video" is split: ${shown.join(" | ")}`);
 });
+
+test("a compound noun and a relative clause stay whole at real speech speed", () => {
+  const cut = (t: readonly (readonly [string, number, number])[]) =>
+    captionsFor("s1", t.map(([word, start, end]) => ({ word, start, end })), 0, 60, 4, 26).map((c) => c.words.map((w) => w.w).join(" "));
+  const recipe = cut([["Think", 33.14, 33.38], ["of", 33.38, 33.54], ["it", 33.54, 33.7], ["as", 33.7, 33.86], ["a", 33.86, 33.94], ["recipe", 33.94, 34.26], ["card", 34.26, 34.5], ["for", 34.5, 34.66], ["a", 34.66, 34.82], ["language", 34.82, 35.06], ["model.", 35.06, 35.46]]);
+  assert.ok(recipe.some((p) => p.includes("recipe card")), `"recipe card" is split: ${recipe.join(" | ")}`);
+  const files = cut([["and", 3.2, 3.44], ["Muse", 3.44, 3.76], ["Spark", 3.76, 4], ["explains", 4, 4.48], ["it,", 4.48, 4.96], ["citing", 5.12, 5.44], ["only", 5.44, 5.76], ["the", 5.76, 5.92], ["files", 5.92, 6.16], ["that", 6.16, 6.32], ["box", 6.32, 6.64], ["was", 6.64, 6.8], ["built", 6.8, 7.04], ["from.", 7.04, 7.36]]);
+  assert.ok(files.some((p) => p.includes("files that box was built from.")), `the relative clause is split from its noun: ${files.join(" | ")}`);
+});

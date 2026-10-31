@@ -251,6 +251,8 @@ function eventTimes(words: WordTiming[], phrases: string[][], start: number, end
 const LEADS_ON = /^(how|why|what|which|because|than|not|a|an|the|of|on|to|in|at|for|with|by|from|into|onto|about|just|and|or|but|its|their|your|my|our|his|her|this|that|these|those|every|each)$/;
 /** Words that open a noun phrase (or a number in one): a break between one of them and its noun splits the thing being named. */
 const DETERMINER = /^(a|an|the|its|their|your|my|our|his|her|this|these|those|every|each|any|some|with|of|for|from|into|one|two|three|four|five|six|seven|eight|nine|ten|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|hundred|thousand|million)$/;
+/** Helper verbs: "that box was", "that it is". */
+const AUX = /^(is|was|are|were|has|have|had|does|did|can|will|would|could|should|gets|got)$/;
 /** Words a phrase can start on: a break just before one falls between two parts of a sentence. */
 const OPENS = /^(a|an|the|and|or|but|so|then|to|on|in|at|for|with|by|from|into|onto|about|where|which|who|when|while|because|if|against|without|citing|its|their|your|this|that|these|those|every|each|any|it|you|we|they)$/;
 
@@ -269,6 +271,11 @@ function breakCost(words: WordTiming[], from: number, j: number) {
   if (LEADS_ON.test(bare(lw))) return 15;
   // "the back | of the envelope", "a piece | of code": "of" binds the two nouns into one thing
   if (nw === "of") return 10;
+  // "the files | that box was built from.": alone, "that box was built from" reads as a sentence about a box, so
+  // a relative clause like it stays whole and with the noun it describes
+  const relative = (k: number) => k + 2 < words.length && bare(words[k].word) === "that" && !OPENS.test(bare(words[k + 1].word)) && AUX.test(bare(words[k + 2].word));
+  if (relative(j + 1)) return 15;
+  for (let k = j; k >= from && !/[.!?,;:]$/.test(words[k].word); k--) if (relative(k)) return 15;
   // "an X | post,": the word that closes a clause stays with it
   if (/[.!?,;:]$/.test(words[j + 1].word)) return 9;
   // "the resulting | video", "a second Muse Spark | pass": after a determiner the noun is still to come, unless the
@@ -290,7 +297,7 @@ export function captionsFor(scene: string, words: WordTiming[], offset: number, 
   const lineSlips = new Set(agreementSlips(text(0, n - 1)).map((x) => x.phrase));
   const phraseCost = (i: number, j: number) => {
     const len = j - i + 1, chars = text(i, j).length;
-    if (len > 1 && (len > maxWords + 2 || chars > maxChars + 8)) return Infinity;
+    if (len > 1 && (len > maxWords + 3 || chars > maxChars + 8)) return Infinity;
     let c = 2 * Math.max(0, len - maxWords) + 0.5 * Math.max(0, chars - maxChars);
     // a sentence ending inside the phrase ("pipeline. Metual.") only when the phrase is a single word long otherwise
     for (let k = i; k < j; k++) if (/[.!?]$/.test(words[k].word)) c += k === i ? 5 : 50;
@@ -309,7 +316,7 @@ export function captionsFor(scene: string, words: WordTiming[], offset: number, 
   const best: number[] = Array(n + 1).fill(Infinity), from: number[] = Array(n + 1).fill(0);
   best[0] = 0;
   for (let j = 1; j <= n; j++) {
-    for (let i = Math.max(0, j - maxWords - 2); i < j; i++) {
+    for (let i = Math.max(0, j - maxWords - 3); i < j; i++) {
       const c = best[i] + phraseCost(i, j - 1);
       if (c < best[j]) { best[j] = c; from[j] = i; }
     }
