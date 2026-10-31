@@ -71,13 +71,13 @@ test("a caption spoken over a black section card stays on screen", { timeout: 60
   assert.ok(light > 5000, `caption hidden under the card (${light} light pixels)`);
 });
 
-test("a caption phrase never reads as a grammar slip on its own: 'how does' stays with 'a pasted link become'", () => {
+test("a caption phrase never reads as a grammar slip on its own: 'a pasted link become' is never shown without 'how does'", () => {
   const said = "The question: how does a pasted link become a watchable video?".split(" ");
   const words = said.map((word, i) => ({ word, start: i * 0.3, end: i * 0.3 + 0.25 }));
   const caps = captionsFor("s1", words, 0, 10, 4, 26);
   const shown = caps.map((c) => c.words.map((w) => w.w).join(" "));
   assert.equal(shown.join(" "), said.join(" "));
-  assert.ok(shown.includes("how does a pasted link become"), shown.join(" | "));
+  assert.ok(!shown.some((p) => /(^| )how$/.test(p)), shown.join(" | "));
   for (const p of shown) assert.deepEqual(agreementSlips(p), [], p);
 });
 
@@ -172,3 +172,19 @@ function check(t: readonly (readonly [string, number, number])[]) {
   // moving the leading words on must not leave a phrase that flashes by ("deep dive" for half a second)
   for (const c of caps) assert.ok(c.t1 - c.t0 >= 0.7, `"${c.words.map((w) => w.w).join(" ")}" is up only ${(c.t1 - c.t0).toFixed(2)} s (${shown.join(" | ")})`);
 }
+
+test("a phrase does not break inside a noun phrase: 'the back of the envelope math' and 'the resulting video' stay whole", () => {
+  for (const [line, whole] of [
+    ["Point it at a real app, at interview level, and it does the back of the envelope math, and shows where the design breaks.", "the back of the envelope math,"],
+    ["You paste a GitHub, X, or article link into the box to start a video. Then you watch the resulting video in the player.", "the resulting video"],
+    ["A few minutes later, you get a narrated whiteboard video, drawn piece by piece.", "a narrated whiteboard video,"],
+  ]) {
+    for (const [maxWords, maxChars] of [[4, 26], [8, 46]]) {
+      const said = line.split(" ");
+      const words = said.map((word, i) => ({ word, start: i * 0.3, end: i * 0.3 + 0.25 }));
+      const shown = captionsFor("s1", words, 0, 30, maxWords, maxChars).map((c) => c.words.map((w) => w.w).join(" "));
+      assert.equal(shown.join(" "), line);
+      assert.ok(shown.some((p) => p.includes(whole)), `"${whole}" is split: ${shown.join(" | ")}`);
+    }
+  }
+});

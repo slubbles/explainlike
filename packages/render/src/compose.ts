@@ -247,9 +247,12 @@ function eventTimes(words: WordTiming[], phrases: string[][], start: number, end
   return out.map((t) => Math.min(t, Math.max(start, end)));
 }
 
-const HELPER_VERB = /^(do|does|did|can|could|will|would|should|may|might|must)$/;
 /** Words that lead into what follows; a caption phrase does not end on one. */
-const LEADS_ON = /^(a|an|the|of|on|to|in|at|for|with|by|from|into|onto|about|just|and|or|but|its|their|your|my|our|his|her|this|that|these|those|every|each)$/;
+const LEADS_ON = /^(how|why|what|which|because|than|not|a|an|the|of|on|to|in|at|for|with|by|from|into|onto|about|just|and|or|but|its|their|your|my|our|his|her|this|that|these|those|every|each)$/;
+/** Words that open a noun phrase (or a number in one): a break between one of them and its noun splits the thing being named. */
+const DETERMINER = /^(a|an|the|its|their|your|my|our|his|her|this|these|those|every|each|any|some|with|of|for|from|into|one|two|three|four|five|six|seven|eight|nine|ten|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|hundred|thousand|million)$/;
+/** Words a phrase can start on: a break just before one falls between two parts of a sentence. */
+const OPENS = /^(a|an|the|and|or|but|so|then|to|on|in|at|for|with|by|from|into|onto|about|where|which|who|when|while|because|if|against|without|citing|its|their|your|this|that|these|those|every|each|any|it|you|we|they)$/;
 
 /** Shortest time a short phrase can stay up and still be read (the demo's caption check uses the same bound). */
 const READ_S = 0.7;
@@ -257,58 +260,63 @@ const READ_S = 0.7;
 /** Shortest time a caption phrase stays up before the next one replaces it (seconds of speech). */
 const MIN_PHRASE_S = 0.85;
 
+const bare = (w: string) => w.toLowerCase().replace(/[^a-z']/g, "");
+
+/** What it costs to end a phrase after word j: low between parts of a sentence, high inside a noun phrase. */
+function breakCost(words: WordTiming[], from: number, j: number) {
+  const lw = words[j].word, nw = bare(words[j + 1].word);
+  if (/[.!?,;:]$/.test(lw)) return 0;
+  if (LEADS_ON.test(bare(lw))) return 15;
+  // "the back | of the envelope", "a piece | of code": "of" binds the two nouns into one thing
+  if (nw === "of") return 10;
+  // "an X | post,": the word that closes a clause stays with it
+  if (/[.!?,;:]$/.test(words[j + 1].word)) return 9;
+  // "the resulting | video", "a second Muse Spark | pass": after a determiner the noun is still to come, unless the
+  // next word starts a new part ("and", "with") or reads as a verb ("the live chat | fans out" stays apart from "checks")
+  let k = j;
+  while (k >= from && !DETERMINER.test(bare(words[k].word)) && !OPENS.test(bare(words[k].word)) && !/[,;:]$/.test(words[k].word)) k--;
+  if (k >= from && DETERMINER.test(bare(words[k].word)) && !OPENS.test(nw) && !/[^s]s$/.test(nw)) return 10;
+  return OPENS.test(nw) ? 1 : 4;
+}
+
+/**
+ * Cuts a scene's spoken words into caption phrases. Every way of cutting a sentence is weighed and the cheapest
+ * kept: phrases near the size limits, up long enough to read, breaking between parts of a sentence rather
+ * than inside a noun phrase ("the back of the envelope math"), and never reading as a grammar slip alone.
+ */
 export function captionsFor(scene: string, words: WordTiming[], offset: number, sceneEnd: number, maxWords = 8, maxChars = 46): Caption[] {
-  const caps: Caption[] = [];
-  let cur: WordTiming[] = [];
-  const flush = () => { if (cur.length) caps.push({ scene, t0: offset + cur[0].start - 0.08, t1: 0, words: cur.map((w) => ({ w: w.word, s: offset + w.start, e: offset + w.end })) }); cur = []; };
-  words.forEach((w, i) => {
-    cur.push(w);
-    const chars = cur.map((x) => x.word).join(" ").length, next = words[i + 1];
-    // a sentence's last word stays with its phrase when it fits, rather than starting the next one alone ("here. You paste a")
-    // the same for the word that closes a clause ("Point it at a real | app," -> "Point it at a real app,")
-    const endsNext = !!next && /[.!?,;:]$/.test(next.word) && chars + 1 + next.word.length <= maxChars + (/[.!?]$/.test(next.word) ? 4 : 0) && cur.length <= maxWords + 1;
-    // a phrase spoken fast ("the back of the", "an X post,") would flash by too quickly to read, so it
-    // takes the next word or two while they still fit; a sentence end always closes the phrase
-    const tooQuick = !!next && next.start - cur[0].start < MIN_PHRASE_S && chars + 1 + next.word.length <= maxChars + 4 && cur.length < maxWords + 2;
-    if (/[.!?]$/.test(w.word) && cur.length >= 2) flush();
-    else if (((/[,;:]$/.test(w.word) && cur.length >= Math.min(4, maxWords - 1)) || ((cur.length >= maxWords || chars > maxChars) && !endsNext)) && !tooQuick) {
-      // when the sentence's last word cannot join this phrase, it takes the word before it along ("the pipeline.", not "pipeline. Metual.")
-      const carry = next && /[.!?]$/.test(next.word) && cur.length >= 3 ? cur.pop() : undefined;
-      flush();
-      if (carry) cur.push(carry);
+  const n = words.length;
+  const text = (i: number, j: number) => words.slice(i, j + 1).map((w) => w.word).join(" ");
+  const lineSlips = new Set(agreementSlips(text(0, n - 1)).map((x) => x.phrase));
+  const phraseCost = (i: number, j: number) => {
+    const len = j - i + 1, chars = text(i, j).length;
+    if (len > 1 && (len > maxWords + 2 || chars > maxChars + 6)) return Infinity;
+    let c = 2 * Math.max(0, len - maxWords) + 0.5 * Math.max(0, chars - maxChars);
+    // a sentence ending inside the phrase ("pipeline. Metual.") only when the phrase is a single word long otherwise
+    for (let k = i; k < j; k++) if (/[.!?]$/.test(words[k].word)) c += k === i ? 5 : 50;
+    const whole = (i === 0 || /[.!?]$/.test(words[i - 1].word)) && (j === n - 1 || /[.!?]$/.test(words[j].word));
+    if (len === 1 && !whole) c += 6;
+    else if (len === 2 && !whole) c += 1.5;
+    const up = (j + 1 < n ? words[j + 1].start : words[j].end + 0.6) - words[i].start;
+    if (up < READ_S) c += 20;
+    else if (up < MIN_PHRASE_S) c += 3;
+    // "how does | a pasted link become" reads as "a pasted link become": a phrase must not read as a slip alone
+    // (a reading the whole line already has, "a second Muse Spark pass checks", is not one the cut made)
+    if (agreementSlips(text(i, j)).some((x) => !lineSlips.has(x.phrase))) c += 30;
+    if (j + 1 < n) c += breakCost(words, i, j);
+    return c;
+  };
+  const best: number[] = Array(n + 1).fill(Infinity), from: number[] = Array(n + 1).fill(0);
+  best[0] = 0;
+  for (let j = 1; j <= n; j++) {
+    for (let i = Math.max(0, j - maxWords - 2); i < j; i++) {
+      const c = best[i] + phraseCost(i, j - 1);
+      if (c < best[j]) { best[j] = c; from[j] = i; }
     }
-  });
-  flush();
-  // a phrase read on its own must not show a grammar slip: "how does | a pasted link become" reads as
-  // "a pasted link become", so the helper verb (and the question word before it) moves to the next phrase
-  for (let i = 0; i + 1 < caps.length; i++) {
-    const text = (c: Caption) => c.words.map((w) => w.w).join(" ");
-    if (!agreementSlips(text(caps[i + 1])).length || agreementSlips(`${text(caps[i])} ${text(caps[i + 1])}`).length) continue;
-    const ws = caps[i].words.map((w) => w.w.toLowerCase().replace(/[^a-z]/g, ""));
-    let k = ws.length - 1;
-    while (k >= 0 && !HELPER_VERB.test(ws[k])) k--;
-    if (k < 0) continue;
-    if (k > 0 && /^(how|why|what|when|where|who|which)$/.test(ws[k - 1])) k--;
-    const moved = caps[i].words.splice(k);
-    caps[i + 1].words.unshift(...moved);
-    caps[i + 1].t0 = caps[i + 1].words[0].s - 0.08;
-    if (!caps[i].words.length) caps.splice(i--, 1);
   }
-  // a phrase does not end on a word that leads into the next one ("a deep dive on just | that box."): those
-  // words move on with what they lead into, so each phrase reads whole and the leading word is not cut short
-  for (let i = 0; i + 1 < caps.length; i++) {
-    const ws = caps[i].words;
-    let moved = 0;
-    while (ws.length > 2 && LEADS_ON.test(ws[ws.length - 1].w.toLowerCase()) && caps[i + 1].words.length < maxWords) { caps[i + 1].words.unshift(ws.pop()!); moved++; }
-    if (!moved) continue;
-    caps[i + 1].t0 = caps[i + 1].words[0].s - 0.08;
-    // what is left would flash by ("deep dive"): it takes the last word of the phrase before when that phrase
-    // keeps enough words and ends mid-clause ("Render a twenty | second deep dive | on just that box."), else the move is undone
-    const quick = () => caps[i + 1].words[0].s - ws[0].s < READ_S;
-    const prev = caps[i - 1]?.words;
-    if (quick() && prev && prev.length > 2 && !/[.!?,;:]$/.test(prev[prev.length - 1].w)) { ws.unshift(prev.pop()!); caps[i].t0 = ws[0].s - 0.08; }
-    if (quick()) { ws.push(...caps[i + 1].words.splice(0, moved)); caps[i + 1].t0 = caps[i + 1].words[0].s - 0.08; }
-  }
+  const cuts: [number, number][] = [];
+  for (let j = n; j > 0; j = from[j]) cuts.unshift([from[j], j]);
+  const caps: Caption[] = cuts.map(([i, j]) => ({ scene, t0: offset + words[i].start - 0.08, t1: 0, words: words.slice(i, j).map((w) => ({ w: w.word, s: offset + w.start, e: offset + w.end })) }));
   for (let i = 0; i < caps.length; i++) {
     // a phrase never replaces the one before while that one's last word is still being said
     if (i > 0) caps[i].t0 = Math.max(caps[i].t0, Math.min(caps[i - 1].words[caps[i - 1].words.length - 1].e, caps[i].words[0].s));
