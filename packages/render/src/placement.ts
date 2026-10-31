@@ -284,18 +284,20 @@ function reframe(p: Placed, it: Item, t: number): string | undefined {
   const { film } = p, ks = film.camera.filter((k) => k.t <= t);
   const k: CamKey | undefined = ks[ks.length - 1];
   if (!k) return undefined;
-  const pad = 30, b = it.box;
+  const pad = 30, b = it.box, rest = settled(film, t);
+  // a mark's own label (same group, already written) rides along so the title never covers it either
+  const top = Math.min(b.y, ...items(p).filter((o) => o.kind === "text" && it.kind !== "text" && it.g && o.g === it.g && o.t0 <= rest).map((o) => o.box.y));
   const x0 = Math.min(k.x, b.x - pad), x1 = Math.max(k.x + k.w, b.x + b.w + pad), y1 = Math.max(k.y + k.h, b.y + b.h + pad);
   let y0 = Math.min(k.y, b.y - pad), w = 0, h = 0;
   // when the shot grows upward to reach the item while a scene title is up, leave the title its band
-  const titled = film.headings.some((x) => t >= x.t0 && t < x.t1), up = b.y - pad < k.y;
+  const titled = film.headings.some((x) => t >= x.t0 && t < x.t1), up = top - pad < k.y;
   for (let i = 0; i < (titled && up ? 4 : 1); i++) {
     w = Math.max(x1 - x0, ((y1 - y0) * film.width) / film.height);
     h = (w * film.height) / film.width;
-    if (titled && up) y0 = b.y - pad - (TITLE_BAND * h) / film.height;
+    if (titled && up) y0 = top - pad - (TITLE_BAND * h) / film.height;
   }
   // unless that room would slice something already lit on the board: then reach just the item, as before
-  const rest = settled(film, t), cut = (f: Box) => items(p).some((o) => o.kind !== "wire" && o.t0 <= rest && opacity(film, o.g, rest) > 0.6 && area(f, o.box) > 0 && area(f, o.box) < o.box.w * o.box.h - 1);
+  const cut = (f: Box) => items(p).some((o) => o.kind !== "wire" && o.t0 <= rest && opacity(film, o.g, rest) > 0.6 && area(f, o.box) > 0 && area(f, o.box) < o.box.w * o.box.h - 1);
   if (titled && up && cut({ x: (x0 + x1) / 2 - w / 2, y: (y0 + y1) / 2 - h / 2, w, h })) {
     y0 = Math.min(k.y, b.y - pad);
     w = Math.max(x1 - x0, ((y1 - y0) * film.width) / film.height);
