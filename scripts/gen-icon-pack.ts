@@ -37,7 +37,7 @@ const ICONS: Record<string, { subject: string; aliases: string[]; sam?: string }
   search: { subject: "a magnifying glass", aliases: ["find", "index", "elasticsearch", "lookup"] },
   money: { subject: "a stack of coins", aliases: ["cost", "price", "billing", "payments", "stripe"], sam: "coins" },
   rocket: { subject: "a rocket", aliases: ["deploy", "launch", "ci", "release"] },
-  video: { subject: "a film strip", aliases: ["media", "stream", "clip", "movie"], sam: "film strip" },
+  video: { subject: "a movie clapperboard, open, with diagonal stripes on the clapper", aliases: ["media", "stream", "clip", "movie"], sam: "clapperboard" },
   chat: { subject: "two speech bubbles", aliases: ["message", "realtime", "websocket", "comments"], sam: "speech bubble" },
   folder: { subject: "a folder", aliases: ["repo", "directory", "project"] },
   network: { subject: "five small circles connected by lines like a network graph", aliases: ["graph", "cluster", "distributed", "nodes"], sam: "network diagram" },
