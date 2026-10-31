@@ -201,7 +201,7 @@ export default function Home() {
         <div><b>Interactive</b>Tap a box to ask about it, render a deep dive on it, or ask what breaks at 10x traffic.</div>
         <div><b>Yours to edit</b>Open the .tldr in tldraw.com and keep drawing. Open source, MIT.</div>
       </div>
-      <footer>Powered by Meta Muse models · voice by Deepgram · drawn with rough.js and Excalifont</footer>
+      <footer>Powered by Meta Muse models · voice by Deepgram · drawn with rough.js, perfect-freehand and Shantell Sans</footer>
     </main>
   );
 }

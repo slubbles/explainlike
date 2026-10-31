@@ -7,7 +7,7 @@ const hand = localFont({ src: "../../../packages/render/assets/fonts/Excalifont-
 
 export const metadata: Metadata = {
   title: "metual — whiteboard explainers from any repo, post or article",
-  description: "Paste a GitHub repo, X post or article. Get a whiteboard explainer video and an editable Excalidraw diagram. Powered by Meta Muse models.",
+  description: "Paste a GitHub repo, X post or article. Get a whiteboard explainer video and an editable board that opens in tldraw.com. Powered by Meta Muse models.",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

@@ -1,8 +1,8 @@
 # metual
 
-Paste a GitHub repo, an X post or an article. Get a **whiteboard explainer video** (mp4) and an **editable Excalidraw diagram** of it.
+Paste a GitHub repo, an X post or an article. Get a **whiteboard explainer video** (mp4) and an **editable board** of it (a `.tldr` file that opens in tldraw.com).
 
-- Black canvas, hand-drawn rough strokes, Excalifont, colors that mean something: red = problem, orange/yellow = key idea, green = fix, blue = actors.
+- A light whiteboard, marker-pen lines that swell and thin, a friendly handwriting font (Shantell Sans), and colors that mean something: red = problem, orange/yellow = key idea, green = fix, blue = actors.
 - **Repos** become a system design explainer on one evolving canvas: the architecture is built layer by layer, a dot walks one real request through it, then red circles show what breaks at 10x/100x and green boxes show the fix. Every box is grounded in files from the repo, and a second model pass reviews each box against the code before anything is drawn.
 - **Posts and articles** become an annotated screenshot of the source (quotes underlined and boxed) followed by small concept boards. Every board node carries a verbatim quote from the source as evidence; quotes that are not in the source are dropped.
 - **Levels**: explain it like I'm 5, I'm new, I'm interviewing, or I'm senior. Interviewing adds requirements, a back-of-envelope estimate and trade-offs; senior adds failure modes, consistency and cost. Every assumed number is tagged as an estimate on screen.
@@ -16,7 +16,7 @@ This is Metual run on its own repo (`--level new`, $0.12 of Muse Spark and $0.04
 
 ![contact sheet of the self-diagram video](docs/media/metual-self.contact.jpg)
 
-The same pipeline in the `whiteboard-light` theme, on umami:
+The clips above use the older black `caleb-dark` look, which is still one flag away (`--theme caleb-dark`). The same pipeline in the `whiteboard-light` theme, on umami:
 
 ![umami in the whiteboard-light theme](docs/media/umami-light.contact.jpg)
 
@@ -42,7 +42,7 @@ Outputs land in `metual-out/<name>-<level>/`:
 | file | what |
 | --- | --- |
 | `<name>.mp4` | 1920x1080 video with narration and karaoke captions |
-| `<name>.excalidraw` | the full diagram; open it at excalidraw.com and keep editing |
+| `<name>.tldr` | the full diagram as an editable board; open it in tldraw.com and keep editing (see below) |
 | `<name>.contact.jpg` | contact sheet of frames, for a quick look |
 | `architecture.json`, `review.json` | repo only: components, evidence files, review verdict |
 | `plan.json` | scenes and narration (cached; delete it or use `--fresh` to re-plan) |
@@ -54,7 +54,7 @@ Outputs land in `metual-out/<name>-<level>/`:
 metual <github-url | local-repo-dir | x.com post url | article url> [options]
   --level <five|new|interviewing|senior>   default new
   --level-file <file.json>                 your own level (see docs/plugins.md)
-  --theme <caleb-dark|whiteboard-light>    default caleb-dark
+  --theme <pen-light|caleb-dark|whiteboard-light>   default pen-light
   --out <dir>                              output folder
   --name <owner/repo>                      display name (useful for local folders)
   --voice <deepgram|silent>                default deepgram when DEEPGRAM_API_KEY is set
@@ -65,6 +65,7 @@ metual <github-url | local-repo-dir | x.com post url | article url> [options]
   --workers <n>                            parallel frame renderers
   --no-qa                                  skip the Muse Transcribe voiceover check
   --pace <lively|calm>                     lively: new shot every ~2.7 s, section cards, captions by the boxes (default lively)
+  --export <tldr|excalidraw>               editable board file (default tldr; excalidraw writes a .excalidraw instead)
   --json                                   progress as JSON lines (used by the web app)
 
 follow-ups on an earlier repo run (same input, new --out):
@@ -85,7 +86,7 @@ Paste a link, pick a level, and watch progress with a live cost meter. When it f
 
 - **Play** the video. Hit areas over the diagram line up with the boxes; tap one for a short explanation from Muse Spark, grounded in that box's evidence files, and a button to render a 15-20 s deep-dive clip on it.
 - **What if 10x traffic?** renders a follow-up clip that circles what breaks and draws the fix. Every number in it is labelled as an assumption.
-- **Open in Excalidraw**: download the `.excalidraw` and open it at excalidraw.com (menu, Open, pick the file) to keep editing.
+- **Open in tldraw**: download the `.tldr` and open it in tldraw.com to keep editing (steps below).
 
 Jobs are written to disk (`METUAL_JOBS_DIR`, default `metual-out/web`), so they survive restarts. URLs pointing at private networks are refused, and local paths are only accepted with `METUAL_ALLOW_LOCAL=1`.
 
@@ -98,6 +99,16 @@ It is not deployed publicly on purpose: every job spends the operator's API cred
 - SSRF: the hostname check blocks private ranges, but it does not resolve DNS, so a public name pointing at a private IP (DNS rebinding) would get through. Resolve and re-check the IP before fetching, or run ingest in a sandbox with no internal network.
 - Isolation: clone and render in a throwaway sandbox (repos are untrusted input), with disk and time limits.
 
+## Keep editing the board
+
+Every run saves `<name>.tldr` next to the video. It is written by Metual's own exporter from tldraw's public file format; no tldraw code is bundled.
+
+1. Go to [tldraw.com](https://www.tldraw.com) and sign in (free; importing files needs an account).
+2. Open the account menu and choose **Import file…**, then pick the `.tldr`. Dragging the file onto the canvas works too.
+3. Every box is a normal rectangle grouped with its icon, every arrow is tied to its boxes, and every note is plain text, so you can move, restyle or add to anything.
+
+Want Excalidraw instead? Run with `--export excalidraw` and open the `.excalidraw` at excalidraw.com (menu, Open).
+
 ## How it works
 
 ```
@@ -107,7 +118,7 @@ packages/
   ingest   repo digest (secret files never opened, secrets redacted), X post via fxtwitter, article via Readability; source card screenshot + quote boxes
   planner  architecture extraction -> validation against real files -> review pass -> revise; scene planning per level
   voice    Deepgram Aura TTS + Nova word timestamps (cached), or silent timing
-  render   elk layout -> rough.js strokes -> one SVG world with camera keyframes -> Playwright frames -> ffmpeg; Excalidraw export
+  render   elk layout -> rough.js strokes (marker-pen outlines via perfect-freehand) -> one SVG world with camera keyframes -> Playwright frames -> ffmpeg; .tldr and .excalidraw export
   cli      `metual` command and the pipeline
 apps/web   Next.js front end
 ```
@@ -119,7 +130,7 @@ Animation events (a box drawing in, an arrow, a circle) are timed to the word in
 See [docs/plugins.md](docs/plugins.md). There are three plugin points:
 
 - **Packs** are folders with a `manifest.json` that add icons and *components*: building blocks detected from file evidence. For example, `d1_databases` in `wrangler.jsonc` means a D1 database. Detected blocks are passed to the architecture pass as hints and get consistent icons. Two packs are built in: `cloudflare` and `cloud-generic` (AWS/GCP/Azure-style object store, queues, functions, CDN and more). Both use doodle icons only, with no vendor logos. A worked example lives in [examples/packs/supabase](examples/packs/supabase).
-- **Themes**: `caleb-dark` and `whiteboard-light` are built in. Add your own with `registerTheme()`.
+- **Themes**: `pen-light` (default), `caleb-dark` and `whiteboard-light` are built in. Add your own with `registerTheme()`.
 - **Levels** are JSON files (`--level-file`). Example: [examples/levels/product-manager.json](examples/levels/product-manager.json).
 
 ## Tests

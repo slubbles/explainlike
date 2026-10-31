@@ -87,7 +87,9 @@ To make your own icons in the same style, run `pnpm icons:generate`. It uses `sc
 
 ## Themes
 
-Two themes ship: `caleb-dark` (black canvas, the default) and `whiteboard-light` (an off-white board with dark ink; icons are inverted automatically). Pick one with `--theme`.
+Three themes ship: `pen-light` (the default: a soft white board, marker-pen lines that swell and thin, Shantell Sans handwriting), `caleb-dark` (black canvas, rough double strokes, Excalifont) and `whiteboard-light` (an off-white board with dark ink). On light themes icons are inverted automatically. Pick one with `--theme`.
+
+A theme can also set `hand` (`excalifont` or `shantell`) and `stroke` (`rough` or `pen`).
 
 ```ts
 import { registerTheme, getTheme } from "@metual/core";
