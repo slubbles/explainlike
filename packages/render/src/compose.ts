@@ -258,7 +258,19 @@ function captionsFor(scene: string, words: WordTiming[], offset: number, sceneEn
   return caps;
 }
 
-function trunc(s: string, n: number) { return s.length > n ? s.slice(0, n - 1).trimEnd() + "…" : s; }
+/**
+ * Shorten a box description to n characters by dropping whole trailing words, so it never
+ * ends in a cut-off word or an ellipsis that reads as clipped. One over-long word is cut as a last resort.
+ */
+export function shortSub(s: string, n: number) {
+  if (s.length <= n) return s;
+  const ws = s.split(/\s+/);
+  while (ws.length > 1 && ws.join(" ").length > n) ws.pop();
+  // a description should not end on a joining word ("... via", "... the")
+  while (ws.length > 1 && /^(via|and|or|with|for|of|to|the|a|an|on|in|from|by)$/i.test(ws[ws.length - 1])) ws.pop();
+  const out = ws.join(" ").replace(/[\s,;:–-]+$/, "");
+  return out.length <= n ? out : out.slice(0, n - 1) + "…";
+}
 
 /** Fix node icon: a pack icon named in the fix, else a check mark style fallback. */
 function fixIcon(pack: IconPack, fix: string) {
@@ -289,7 +301,7 @@ export async function compose(inp: ComposeInput): Promise<Composed> {
     const order = new Map<string, number>();
     plan.scenes.forEach((s) => s.add_components.forEach((id) => { if (!order.has(id)) order.set(id, order.size); }));
     const comps = [...a.components].sort((x, y) => (order.get(x.id) ?? 99) - (order.get(y.id) ?? 99));
-    const gnodes: GNode[] = comps.map((c) => ({ id: c.id, keyword: c.keyword, sub: trunc(c.name.toLowerCase(), 30), icon: c.icon, color: C(inp.colorOf ? inp.colorOf(c) : "white") }));
+    const gnodes: GNode[] = comps.map((c) => ({ id: c.id, keyword: c.keyword, sub: shortSub(c.name.toLowerCase(), 30), icon: c.icon, color: C(inp.colorOf ? inp.colorOf(c) : "white") }));
     const gedges: GEdge[] = a.connections.map((c) => ({ from: c.from, to: c.to, label: c.label }));
     a.scale.forEach((r, i) => {
       const id = `fix-${i}`;
