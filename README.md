@@ -112,6 +112,94 @@ Every run saves `<name>.tldr` and `<name>.excalidraw` next to the video. Both ar
 
 For Excalidraw, open the `.excalidraw` at excalidraw.com (menu, Open).
 
+## Use it from your coding agent (MCP)
+
+`packages/mcp` is an MCP server (`explainlike-mcp`, stdio) that runs Explain Like on your own machine. Ask your agent something like
+
+```
+/explainlike explain what this repo is about https://github.com/milind-soni/OpenMausBot
+```
+
+and it renders the video locally and answers with the paths of the mp4, the `.tldr` and the `.excalidraw`. The keys are read from the environment the client gives the server (`MODEL_API_KEY`, `DEEPGRAM_API_KEY`); nothing is uploaded except the calls to the Meta Model API and Deepgram that every run makes.
+
+What the server offers:
+
+- **`explain`**: `source` (a GitHub, x.com or article URL, or a local repo folder), plus optional `question` (what you want to understand), `audience`, `depth` (`overview`, `working`, `deep`), `alsoCover`, `outDir`, `voice` (`deepgram` or `silent`) and `fresh`. Follow-up clips take `followUpOf` (an earlier repo video's folder) with `focus` (a component id) or `whatIf` (`10x`, `100x`).
+- **`explain_status`**: progress, then the paths once it is done. It is marked read-only, so clients that skip approval for read-only tools poll it without asking.
+- **`explain_cancel`**: stop a render.
+- **`explainlike`** prompt: shows up as `/explainlike` in clients that list MCP prompts as commands. In clients that don't, a plain request such as "explain what this repo is about <url>" works the same way.
+
+A render takes a few minutes, longer than many clients wait for one tool call. So `explain` waits up to 50 s (`EXPLAINLIKE_MCP_WAIT_SEC`), sending MCP progress notifications while it works, then returns a job id that `explain_status` keeps waiting on. One render runs at a time.
+
+Files go to `~/explainlike-videos/<name>` unless you pass `outDir` or set `EXPLAINLIKE_OUT_DIR`. Running the same source again into the same folder reuses its plan and voiceover, so it costs almost nothing; `fresh` plans again. A `question` gets its own folder, because it changes the plan.
+
+Replace `/path/to/explainlike` with where you cloned this repo (after `pnpm install`).
+
+**Muse Code**: in `~/.config/muse/settings.json` (merge with what is there; Muse Code fills `${VAR}` from your shell environment):
+
+```json
+{
+  "schema_version": 1,
+  "mcp_servers": {
+    "explainlike": {
+      "transport": "stdio",
+      "command": "node",
+      "args": ["/path/to/explainlike/packages/mcp/bin/explainlike-mcp.mjs"],
+      "env": { "MODEL_API_KEY": "${MODEL_API_KEY}", "DEEPGRAM_API_KEY": "${DEEPGRAM_API_KEY}" },
+      "mode": "optional"
+    }
+  }
+}
+```
+
+`mode: "optional"` means Muse Code starts without it, with a warning, if the server can't start. Check it with `/mcp` inside Muse Code.
+
+**Claude Desktop**: in `claude_desktop_config.json` (Settings, Developer, Edit Config):
+
+```json
+{
+  "mcpServers": {
+    "explainlike": {
+      "command": "node",
+      "args": ["/path/to/explainlike/packages/mcp/bin/explainlike-mcp.mjs"],
+      "env": { "MODEL_API_KEY": "your Meta Model API key", "DEEPGRAM_API_KEY": "your Deepgram key" }
+    }
+  }
+}
+```
+
+Claude Desktop does not read your shell environment, so the keys go in this file. Keep it private.
+
+**Cursor**: in `~/.cursor/mcp.json` (or `.cursor/mcp.json` in a project):
+
+```json
+{
+  "mcpServers": {
+    "explainlike": {
+      "command": "node",
+      "args": ["/path/to/explainlike/packages/mcp/bin/explainlike-mcp.mjs"],
+      "env": { "MODEL_API_KEY": "${env:MODEL_API_KEY}", "DEEPGRAM_API_KEY": "${env:DEEPGRAM_API_KEY}" }
+    }
+  }
+}
+```
+
+To try the server without any client: `pnpm --filter explainlike-mcp try https://github.com/owner/repo [outDir]` starts it over stdio, calls `explain` and prints the progress and the result.
+
+### Local HTTP API
+
+`packages/api` runs the same jobs from code (`new JobRunner().start({ input })`) or over HTTP on your machine:
+
+```bash
+node packages/api/bin/explainlike-api.mjs            # http://127.0.0.1:7311 (--port or EXPLAINLIKE_API_PORT)
+curl -s -X POST localhost:7311/v1/jobs -H 'content-type: application/json' \
+  -d '{"input":"https://github.com/milind-soni/OpenMausBot","goal":"how a chat message reaches the tools"}'
+curl -s 'localhost:7311/v1/jobs/<id>?wait=60'        # waits up to 60 s, then returns the job: state, pct, message, outputs
+curl -s -X DELETE localhost:7311/v1/jobs/<id>        # cancel
+```
+
+The JSON body takes `input` plus the same options as the `explain` tool, named as in `JobRequest` (`goal`, `audience`, `depth`, `also`, `out`, `voice`, `fresh`, `from`, `focus`, `whatIf`). It only listens on 127.0.0.1 and refuses requests from web pages (any `Origin` header) or another `Host`, so a site you visit can't start a paid render. There is no auth, so don't expose the port.
+
 ## How it works
 
 ```
@@ -123,6 +211,8 @@ packages/
   voice    Deepgram Aura TTS + Nova word timestamps (cached), or silent timing
   render   elk layout -> rough.js strokes (marker-pen outlines via perfect-freehand) -> one SVG world with camera keyframes -> placement check -> Playwright frames -> frame check -> ffmpeg; checked .tldr and .excalidraw export
   cli      `explainlike` command and the pipeline
+  api      job runner (spawns the CLI, tracks progress and outputs) + localhost HTTP API
+  mcp      `explainlike-mcp` MCP server over stdio: explain, explain_status, explain_cancel, /explainlike
 apps/web   Next.js front end
 ```
 
