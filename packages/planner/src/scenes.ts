@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { ScenePlan, coverageSeconds, lower, norm, tidySpeech, wordCount, quoteInSource, type Architecture, type ExplainSpec, type Progress, type NoteItem, type Scene, type SourceDoc } from "@explainlike/core";
+import { ScenePlan, coverageSeconds, lower, norm, tidySpeech, wordCount, quoteInSource, phraseAt, spokenWords, missingArticles, type Architecture, type ExplainSpec, type Progress, type NoteItem, type Scene, type SourceDoc } from "@explainlike/core";
 import { sparkJson, type CostLedger } from "@explainlike/models";
 
 const STYLE = [
@@ -97,10 +97,12 @@ export function checkStory(plan: ScenePlan, arch: Architecture, analogy = ""): s
   if (wi < 0 && arch.walkthrough.steps.length) issues.push("there is no 'walkthrough' scene telling the core flow end to end");
   if (wi >= 0) {
     const w = norm(sc[wi].narration);
+    const ws = spokenWords(sc[wi].narration);
     let at = 0;
     const missing: string[] = [];
-    for (const st of arch.walkthrough.steps) { const k = w.indexOf(norm(st.label), at); if (k < 0) missing.push(st.label); else at = k + 1; }
-    if (missing.length) issues.push(`the walkthrough must say each step label word for word, in order; missing or out of order: ${missing.map((m) => `"${m}"`).join(", ")}`);
+    // "sends the message" says the step "send message": small words between and verb endings are fine
+    for (const st of arch.walkthrough.steps) { const k = phraseAt(ws, st.label, at); if (k < 0) missing.push(st.label); else at = k + 1; }
+    if (missing.length) issues.push(`the walkthrough must say each step label in order (articles between its words and verb endings are fine); missing or out of order: ${missing.map((m) => `"${m}"`).join(", ")}`);
     if (/\bstep (one|two|three|1|2|3)\b/.test(w)) issues.push("the walkthrough reads like a numbered list ('step one is ...'); tell it as a story where each part does its step");
     const before = sc.slice(0, wi);
     const late = path.filter((id) => !before.some((s) => s.add_components.includes(id)));
@@ -117,17 +119,40 @@ export function checkStory(plan: ScenePlan, arch: Architecture, analogy = ""): s
     const said = path.filter((id) => r.includes(norm(kwOf(id))) || words4(kwOf(id)).some((x) => r.includes(x)));
     if (said.length < Math.min(3, path.length)) issues.push("the recap must retell the trip, saying the journey parts in order");
   }
+  return [...issues, ...speechIssues(plan, arch, analogy)];
+}
+
+/**
+ * Lines that would not sound like a person talking: a missing article ("will run agent"), the same
+ * sentence opener over and over, or a scene heading read out as if it were a part ("next it reaches
+ * save then work").
+ */
+export function speechIssues(plan: ScenePlan, arch: Architecture, analogy = ""): string[] {
+  const issues: string[] = [];
+  for (const s of plan.scenes) {
+    const miss = missingArticles(s.narration);
+    if (miss.length) issues.push(`${s.id}: missing article in ${miss.map((m) => `"${m}"`).join(", ")}; say "the" or "a" before the noun`);
+  }
   // the same sentence opener three times over reads like a template, not a person talking
   const openers = new Map<string, number>();
-  for (const sent of sc.flatMap((x) => x.narration.split(/(?<=[.!?])\s+/))) {
+  for (const sent of plan.scenes.flatMap((x) => x.narration.split(/(?<=[.!?])\s+/))) {
     const k = norm(sent).split(" ").slice(0, 3).join(" ");
     if (k.split(" ").length === 3) openers.set(k, (openers.get(k) ?? 0) + 1);
   }
   for (const [k, n] of openers) if (n >= 3) issues.push(`${n} sentences open with '${k}'; vary them`);
+  const keywords = new Set(arch.components.map((c) => norm(c.keyword)));
+  const labels = new Set(arch.walkthrough.steps.map((x) => norm(x.label)));
+  const an = norm(analogy);
+  for (const s of plan.scenes) {
+    if (s.kind !== "layer" && s.kind !== "walkthrough" && s.kind !== "scale") continue;
+    const h = norm(s.heading).replace(/\s*cont$/, "").trim();
+    if (h.split(" ").length < 2 || keywords.has(h) || labels.has(h) || (an && an.includes(h))) continue;
+    if (` ${norm(s.narration)} `.includes(` ${h} `)) issues.push(`${s.id}: the heading "${h}" is spoken as if it were a part; name the actual part or say it in plain words`);
+  }
   return issues;
 }
 
-export async function planRepoScenes(o: { ledger: CostLedger; arch: Architecture; spec: ExplainSpec; progress?: Progress }): Promise<ScenePlan & { repairs: string[]; check: { first: string[]; final: string[]; revised: boolean } }> {
+export async function planRepoScenes(o: { ledger: CostLedger; arch: Architecture; spec: ExplainSpec; progress?: Progress }): Promise<ScenePlan & { repairs: string[]; check: { first: string[]; final: string[]; revised: boolean }}> {
   const L = o.spec;
   const [lo, hi] = coverageSeconds(L, { components: o.arch.components.length, steps: o.arch.walkthrough.steps.length, scale: o.arch.scale.length });
   o.progress?.({ stage: "plan", message: "writing the scene plan" });

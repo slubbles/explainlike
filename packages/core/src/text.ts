@@ -120,3 +120,47 @@ export function soundsLikeKeywords(text: string): boolean {
   if (ws.length < 8) return false;
   return ws.filter((w) => GLUE.test(w)).length / ws.length < 0.05;
 }
+
+/** Small words a speaker slips into a step ("sends the message", "returns its reply"). */
+const FILLER = /^(a|an|the|your|its|their|his|her|this|that|our|it|back|them|you)$/;
+const inflects = (a: string, b: string) => a.startsWith(b) && /^(s|es|ed|d|ing|ning|ned)$/.test(a.slice(b.length));
+const stemMatch = (a: string, b: string) => a === b || inflects(a, b) || inflects(b, a) || (a.length >= 4 && b.length >= 4 && (a.startsWith(b.slice(0, 4)) || b.startsWith(a.slice(0, 4))));
+/**
+ * Where a short phrase such as a step label is said in a run of spoken words: each word of the phrase
+ * in order, matching on its stem ("send" ~ "sends"), with up to two small words between them
+ * ("sends the message"). Returns the index of the first matched word, or -1.
+ */
+export function phraseAt(spoken: string[], phrase: string, from = 0): number {
+  const toks = phrase.toLowerCase().split(/[\s\-_/]+/).map((w) => w.replace(/[^a-z0-9]/g, "")).filter(Boolean);
+  const ws = spoken.map((w) => w.toLowerCase().replace(/[^a-z0-9]/g, ""));
+  if (!toks.length) return -1;
+  for (let i = from; i < ws.length; i++) {
+    if (!stemMatch(ws[i], toks[0])) continue;
+    let at = i, ok = true;
+    for (let j = 1; j < toks.length && ok; j++) {
+      let k = at + 1, skipped = 0;
+      while (k < ws.length && !stemMatch(ws[k], toks[j]) && FILLER.test(ws[k]) && skipped < 2) { k++; skipped++; }
+      ok = k < ws.length && stemMatch(ws[k], toks[j]);
+      at = k;
+    }
+    if (ok) return i;
+  }
+  return -1;
+}
+export const spokenWords = (s: string) => s.split(/\s+/).filter(Boolean);
+
+// Singular nouns that are almost never verbs and always need an article in speech.
+const BARE_NOUNS = /^(message|reply|request|question|task|job|file|server|database|bot|agent|browser|window|worker|response|result|page|user|queue|cache|engine|notebook|ledger|manager|concierge|counter|logbook|helper)$/;
+const NEEDS_OBJECT = /^(send|sends|sent|save|saves|saved|run|runs|ran|return|returns|returned|show|shows|showed|get|gets|got|reach|reaches|reached|hit|hits|start|starts|started|open|opens|opened|call|calls|called|use|uses|used|take|takes|took|pick|picks|picked|wake|wakes|ask|asks|asked|with|into|onto|is|was)$/;
+/** "will run agent", "send message to manager": a verb or preposition right before a bare singular noun. */
+export function missingArticles(text: string): string[] {
+  const raw = spokenWords(text);
+  const ws = raw.map((w) => w.toLowerCase().replace(/[^a-z']/g, ""));
+  const out: string[] = [];
+  for (let i = 1; i < ws.length; i++) {
+    if (!BARE_NOUNS.test(ws[i]) || !NEEDS_OBJECT.test(ws[i - 1]) || /[,.;:!?]$/.test(raw[i - 1])) continue;
+    out.push(`${ws[i - 1]} ${ws[i]}`);
+  }
+  for (let i = 1; i < ws.length; i++) if (ws[i - 1] === "to" && /^(manager|counter|user|server|database|agent|browser|worker|engine|notebook|ledger|logbook)$/.test(ws[i])) out.push(`to ${ws[i]}`);
+  return out;
+}

@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import type { Architecture, NoteItem, Scene } from "@explainlike/core";
-import { validateNotes, validateArchitecture, repairRepoPlan, checkStory, journeyOrder } from "@explainlike/planner";
+import { validateNotes, validateArchitecture, repairRepoPlan, checkStory, journeyOrder, speechIssues } from "@explainlike/planner";
 
 const item = (text: string, extra: Partial<NoteItem> = {}): NoteItem => ({ text, color: "white", icon: "", target: "", estimate: false, evidence: "", ...extra });
 const ids = new Set(["d1-db", "edge"]);
@@ -100,7 +100,7 @@ test("repo plans are put in story order: journey parts, the walk, side parts, th
     sc("layer", "The bot harness and the agent drivers.", ["srv", "bot"]),
     sc("layer", "The team chat and the front door.", ["ui", "edge"]),
     sc("recap", "Team chat, front door, bot harness, agent drivers."),
-    sc("walkthrough", "You send message, the door will forward it, the harness will run bot."),
+    sc("walkthrough", "You send a message, the door will forward it, and the harness runs the bot."),
   ] }, storyArch, { perScene: 2 });
   assert.deepEqual(plan.scenes.map((s) => s.kind), ["hook", "layer", "layer", "walkthrough", "layer", "recap"]);
   assert.deepEqual(plan.scenes[1].add_components, ["ui", "edge"]);
@@ -156,3 +156,16 @@ test("splitting a crowded one-sentence layer never speaks a line twice", () => {
 test("journeyOrder lists parts in the order one request meets them", () => {
   assert.deepEqual(journeyOrder(storyArch), { path: ["ui", "edge", "srv", "bot"], side: ["auth"] });
 });
+
+test("the speech check flags missing articles and a heading read out as a part", () => {
+  const plan = { title: "x", subtitle: "", scenes: [
+    { ...sc("walkthrough", "The guest will send message to the manager, and the harness will run bot."), id: "s04-walkthrough", heading: "ask the desk" },
+    { ...sc("layer", "Next it reaches save then work, where the bot harness keeps notes.", ["srv"]), id: "s05-layer", heading: "save then work" },
+  ] };
+  const issues = speechIssues(plan, storyArch, "a hotel front desk");
+  assert.ok(issues.some((i) => /s04-walkthrough: missing article in "send message", "run bot"/.test(i)), issues.join("; "));
+  assert.ok(issues.some((i) => /heading "save then work" is spoken/.test(i)), issues.join("; "));
+  const fine = { title: "x", subtitle: "", scenes: [{ ...sc("layer", "Your message lands in the team chat, and the front door lets it in.", ["ui", "edge"]), heading: "team chat" }] };
+  assert.deepEqual(speechIssues(fine, storyArch, "a hotel front desk"), []);
+});
+

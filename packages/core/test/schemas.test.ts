@@ -92,3 +92,18 @@ test("a noun after a singular subject is not read as a verb: 'a write queue that
     assert.equal(tidySpeech(ok), ok);
 });
 
+test("phraseAt finds a step label as people say it", async () => {
+  const { phraseAt, spokenWords } = await import("@explainlike/core");
+  const w = spokenWords("Then the agent sends the message back, and the app shows you the reply.");
+  assert.equal(phraseAt(w, "send message"), 3);
+  assert.equal(phraseAt(w, "show reply"), 10);
+  assert.equal(phraseAt(spokenWords("and the harness runs the bot"), "run bot"), 3);
+  assert.equal(phraseAt(w, "save messages"), -1);
+  assert.equal(phraseAt(spokenWords("send it to the very busy server"), "send server"), -1, "only two small words may sit between");
+});
+
+test("missing articles before common nouns are caught", async () => {
+  const { missingArticles } = await import("@explainlike/core");
+  assert.deepEqual(missingArticles("The guest will send message to manager, then we run agent."), ["send message", "run agent", "to manager"]);
+  assert.deepEqual(missingArticles("The guest sends a message to the manager, who saves messages and runs the agent."), []);
+});
