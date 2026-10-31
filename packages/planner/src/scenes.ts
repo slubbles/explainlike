@@ -39,7 +39,7 @@ function repoSystem(arch: Architecture, L: ExplainSpec, lo: number, hi: number):
     `2. 'layer' scenes along the journey: add exactly these components, in this order, at most ${L.perScene} per scene: ${path.map(kw).join(", ")}. Tell it as the request moving forward ('First...', 'Next it reaches...'). For each added component say its keyword out loud (in add_components order), what it does in plain words, its role in the analogy, and why it is there.`,
     `3. one 'walkthrough' scene right after them: the core flow told once, end to end, as one short story. Say these step labels word for word, in order, each inside a natural sentence about who does what (the analogy role first, then the label as the action): ${steps}. Good: 'You type a question and the counter will send message to the manager.' Bad: 'Step one is send message.' Never number the steps out loud. End with the concrete thing the user gets back (e.g. 'a working fix in your chat'), not 'an answer'. Heading like 'one message, start to end'. About ${Math.round(L.wordsPerScene * 1.6)} words. add_components empty.`,
     side.length
-      ? `4. then 'layer' scene(s) for the side parts the request does not pass through: ${side.map(kw).join(", ")}. Keep them short: one scene, one short clause per part (its keyword and plain job), opening with one tie-back to the journey such as 'Around the manager sit a few helpers:'. Do not repeat the same opener for each part.`
+      ? `4. then 'layer' scene(s) for the side parts the request does not pass through: ${side.map(kw).join(", ")}. Keep them short: as few scenes as fit (at most ${L.perScene} parts per scene), one short clause per part (its keyword and plain job), opening with one tie-back to the journey such as 'Around the manager sit a few helpers:'. Do not repeat the same opener for each part.`
       : "4. (no side parts)",
     arch.scale.length
       ? `5. ${arch.scale.length} short 'scale' scene(s), one per scale risk, in the given order: what breaks at that traffic level and why (problem keyword), then the fix (fix keyword), in 2 short plain sentences ('The fix is ...'). callouts: [{target: component id, text: problem keyword, color: red}, {target: component id, text: fix keyword, color: green}].`
@@ -220,11 +220,19 @@ export function repairRepoPlan(plan: ScenePlan, arch: Architecture, L: { perScen
       if (!add.length) { repairs.push(`empty layer scene "${s.heading}" dropped`); continue; }
       if (add.length > L.perScene) {
         // split: keep sentences with the components they mention
-        const sentences = s.narration.match(/[^.!?]+[.!?]*/g) ?? [s.narration];
+        // too few sentences to go round: fall back to clauses, so no line is ever spoken twice
+        const parts = Math.ceil(add.length / L.perScene);
+        let pieces: string[] = s.narration.match(/[^.!?]+[.!?]*/g) ?? [s.narration];
+        if (pieces.length < parts) pieces = s.narration.split(/(?<=[.!?,;:])\s+/);
+        const tidy = (t: string) => { const x = t.trim().replace(/[,;:]$/, "."); return x ? x[0].toUpperCase() + x.slice(1) : x; };
+        let used = 0;
         for (let i = 0; i < add.length; i += L.perScene) {
           const chunk = add.slice(i, i + L.perScene);
-          const n0 = Math.floor((i / add.length) * sentences.length), n1 = Math.floor(((i + chunk.length) / add.length) * sentences.length);
-          scenes.push(blank({ ...s, id: `${s.id}-${i}`, heading: i ? s.heading + " cont." : s.heading, add_components: chunk, narration: sentences.slice(n0, Math.max(n0 + 1, n1)).join(" ").trim() }));
+          const n1 = Math.min(pieces.length, Math.max(used + 1, Math.round(((i + chunk.length) / add.length) * pieces.length)));
+          const own = pieces.slice(used, n1).join(" ").trim();
+          used = Math.max(used, n1);
+          const said = own || chunk.map((id) => { const c = arch.components.find((x) => x.id === id)!; return `The ${c.keyword}: ${c.what}`; }).join(" ");
+          scenes.push(blank({ ...s, id: `${s.id}-${i}`, heading: i ? s.heading + " cont." : s.heading, add_components: chunk, narration: own ? tidy(said) : said }));
         }
         repairs.push(`layer scene "${s.heading}" split`);
         continue;

@@ -139,6 +139,20 @@ test("the self-check flags a numbered-list walkthrough and a repeated opener", (
   assert.ok(issues.some((i) => /open with 'off to the'/.test(i)), issues.join("; "));
 });
 
+test("splitting a crowded one-sentence layer never speaks a line twice", () => {
+  const plan = repairRepoPlan({ title: "x", subtitle: "", scenes: [
+    sc("hook", "A chat where bots help you."),
+    sc("layer", "Around the desk sit the team chat that you type in, the front door that lets you in, the bot harness that routes work, and the agent drivers that do it.", ["ui", "edge", "srv", "bot"]),
+    sc("walkthrough", "You send message, the door will forward, the harness will run bot."),
+    sc("recap", "Team chat to front door to bot harness to agent drivers."),
+  ] }, storyArch, { perScene: 2 });
+  const layers = plan.scenes.filter((x) => x.kind === "layer" && x.add_components.some((id) => ["ui", "edge", "srv", "bot"].includes(id)));
+  assert.equal(layers.length, 2);
+  assert.notEqual(layers[0].narration, layers[1].narration);
+  assert.match(layers[0].narration, /team chat/);
+  assert.match(layers[1].narration, /agent drivers/);
+});
+
 test("journeyOrder lists parts in the order one request meets them", () => {
   assert.deepEqual(journeyOrder(storyArch), { path: ["ui", "edge", "srv", "bot"], side: ["auth"] });
 });
