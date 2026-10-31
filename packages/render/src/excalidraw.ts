@@ -3,9 +3,11 @@ import crypto from "node:crypto";
 import type { Sketch } from "./compose.js";
 import { textWidth } from "./measure.js";
 import { NODE } from "./layout.js";
+import { tidySketch } from "./tidy.js";
 
 /** Write an editable .excalidraw scene from the final state of the video's canvas. */
-export function toExcalidraw(sk: Sketch, opts: { background: string; source?: string; ink?: string; muted?: string; edgeLabel?: string }) {
+export function toExcalidraw(raw: Sketch, opts: { background: string; source?: string; ink?: string; muted?: string; edgeLabel?: string }) {
+  const sk = tidySketch(raw);
   let seed = 1000;
   const els: any[] = [];
   const files: Record<string, any> = {};

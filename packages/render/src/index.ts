@@ -9,3 +9,4 @@ export * from "./excalidraw.js";
 export * from "./reveal.js";
 export * from "./check.js";
 export * from "./annotate.js";
+export * from "./tidy.js";
