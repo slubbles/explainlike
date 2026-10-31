@@ -1,0 +1,398 @@
+{
+  "id": "doodle",
+  "generatedWith": "muse-image-1.0 + sam-3.1",
+  "icons": {
+    "bell": {
+      "file": "bell.png",
+      "aliases": [
+        "notifications",
+        "push",
+        "alert"
+      ],
+      "prompt": "a notification bell"
+    },
+    "bolt": {
+      "file": "bolt.png",
+      "aliases": [
+        "speed",
+        "performance",
+        "throughput"
+      ],
+      "prompt": "a speedometer gauge with the needle on fast"
+    },
+    "book": {
+      "file": "book.png",
+      "aliases": [
+        "learn",
+        "knowledge",
+        "training-data",
+        "dataset"
+      ],
+      "prompt": "an open book"
+    },
+    "box": {
+      "file": "box.png",
+      "aliases": [
+        "package",
+        "container",
+        "docker",
+        "npm"
+      ],
+      "prompt": "a cardboard box"
+    },
+    "brain": {
+      "file": "brain.png",
+      "aliases": [
+        "ai",
+        "llm",
+        "model",
+        "ml",
+        "inference"
+      ],
+      "prompt": "a brain"
+    },
+    "browser": {
+      "file": "browser.png",
+      "aliases": [
+        "web",
+        "frontend",
+        "website",
+        "spa"
+      ],
+      "prompt": "a web browser window with three dots in the top bar"
+    },
+    "bucket": {
+      "file": "bucket.png",
+      "aliases": [
+        "object-storage",
+        "s3",
+        "r2",
+        "blob",
+        "files"
+      ],
+      "prompt": "a storage bucket pail"
+    },
+    "cache": {
+      "file": "cache.png",
+      "aliases": [
+        "redis",
+        "kv",
+        "memcached",
+        "fast"
+      ],
+      "prompt": "a lightning bolt"
+    },
+    "chart": {
+      "file": "chart.png",
+      "aliases": [
+        "analytics",
+        "metrics",
+        "dashboard",
+        "growth"
+      ],
+      "prompt": "a bar chart with an upward arrow"
+    },
+    "chat": {
+      "file": "chat.png",
+      "aliases": [
+        "message",
+        "realtime",
+        "websocket",
+        "comments"
+      ],
+      "prompt": "two speech bubbles"
+    },
+    "check": {
+      "file": "check.png",
+      "aliases": [
+        "done",
+        "success",
+        "fix",
+        "ok"
+      ],
+      "prompt": "a big check mark inside a circle"
+    },
+    "chip": {
+      "file": "chip.png",
+      "aliases": [
+        "cpu",
+        "hardware",
+        "processor"
+      ],
+      "prompt": "a computer chip with pins on all sides"
+    },
+    "clock": {
+      "file": "clock.png",
+      "aliases": [
+        "cron",
+        "schedule",
+        "timer",
+        "latency"
+      ],
+      "prompt": "an alarm clock"
+    },
+    "cloud": {
+      "file": "cloud.png",
+      "aliases": [
+        "edge",
+        "cdn",
+        "worker",
+        "serverless"
+      ],
+      "prompt": "a puffy cloud"
+    },
+    "database": {
+      "file": "database.png",
+      "aliases": [
+        "db",
+        "sql",
+        "postgres",
+        "mysql",
+        "sqlite"
+      ],
+      "prompt": "a database cylinder made of three stacked discs"
+    },
+    "document": {
+      "file": "document.png",
+      "aliases": [
+        "file",
+        "page",
+        "article",
+        "paper",
+        "docs"
+      ],
+      "prompt": "a paper document with a folded corner and lines of text"
+    },
+    "folder": {
+      "file": "folder.png",
+      "aliases": [
+        "repo",
+        "directory",
+        "project"
+      ],
+      "prompt": "a folder"
+    },
+    "function": {
+      "file": "function.png",
+      "aliases": [
+        "lambda",
+        "serverless-function"
+      ],
+      "prompt": "a lambda symbol inside a circle"
+    },
+    "gear": {
+      "file": "gear.png",
+      "aliases": [
+        "config",
+        "settings",
+        "process",
+        "pipeline"
+      ],
+      "prompt": "a gear cog"
+    },
+    "globe": {
+      "file": "globe.png",
+      "aliases": [
+        "internet",
+        "dns",
+        "world",
+        "region"
+      ],
+      "prompt": "a globe with latitude and longitude lines"
+    },
+    "gpu": {
+      "file": "gpu.png",
+      "aliases": [
+        "graphics-card",
+        "accelerator",
+        "compute"
+      ],
+      "prompt": "a graphics card with two fans"
+    },
+    "key": {
+      "file": "key.png",
+      "aliases": [
+        "token",
+        "secret",
+        "api-key"
+      ],
+      "prompt": "an old fashioned key"
+    },
+    "laptop": {
+      "file": "laptop.png",
+      "aliases": [
+        "desktop",
+        "computer",
+        "dev"
+      ],
+      "prompt": "an open laptop"
+    },
+    "lock": {
+      "file": "lock.png",
+      "aliases": [
+        "auth",
+        "login",
+        "security",
+        "session"
+      ],
+      "prompt": "a padlock"
+    },
+    "mail": {
+      "file": "mail.png",
+      "aliases": [
+        "email",
+        "smtp",
+        "notification-email"
+      ],
+      "prompt": "an envelope"
+    },
+    "memory": {
+      "file": "memory.png",
+      "aliases": [
+        "ram",
+        "kv-cache",
+        "context",
+        "memory-stick"
+      ],
+      "prompt": "a RAM memory stick"
+    },
+    "money": {
+      "file": "money.png",
+      "aliases": [
+        "cost",
+        "price",
+        "billing",
+        "payments",
+        "stripe"
+      ],
+      "prompt": "a stack of coins"
+    },
+    "network": {
+      "file": "network.png",
+      "aliases": [
+        "graph",
+        "cluster",
+        "distributed",
+        "nodes"
+      ],
+      "prompt": "five small circles connected by lines like a network graph"
+    },
+    "phone": {
+      "file": "phone.png",
+      "aliases": [
+        "mobile",
+        "app",
+        "ios",
+        "android"
+      ],
+      "prompt": "a smartphone with a play button on the screen"
+    },
+    "queue": {
+      "file": "queue.png",
+      "aliases": [
+        "kafka",
+        "jobs",
+        "stream",
+        "pubsub",
+        "worker-queue"
+      ],
+      "prompt": "a horizontal row of four small square boxes with an arrow pointing right underneath them"
+    },
+    "robot": {
+      "file": "robot.png",
+      "aliases": [
+        "agent",
+        "bot",
+        "assistant"
+      ],
+      "prompt": "a friendly little robot"
+    },
+    "rocket": {
+      "file": "rocket.png",
+      "aliases": [
+        "deploy",
+        "launch",
+        "ci",
+        "release"
+      ],
+      "prompt": "a rocket"
+    },
+    "scale": {
+      "file": "scale.png",
+      "aliases": [
+        "tradeoff",
+        "balance",
+        "compare"
+      ],
+      "prompt": "a balance scale"
+    },
+    "search": {
+      "file": "search.png",
+      "aliases": [
+        "find",
+        "index",
+        "elasticsearch",
+        "lookup"
+      ],
+      "prompt": "a magnifying glass"
+    },
+    "server": {
+      "file": "server.png",
+      "aliases": [
+        "api",
+        "backend",
+        "service",
+        "app-server"
+      ],
+      "prompt": "a server rack with three stacked units and small lights"
+    },
+    "shield": {
+      "file": "shield.png",
+      "aliases": [
+        "firewall",
+        "rate-limit",
+        "waf",
+        "protection"
+      ],
+      "prompt": "a shield"
+    },
+    "user": {
+      "file": "user.png",
+      "aliases": [
+        "person",
+        "visitor",
+        "customer"
+      ],
+      "prompt": "a simple person bust, head and shoulders"
+    },
+    "users": {
+      "file": "users.png",
+      "aliases": [
+        "crowd",
+        "traffic",
+        "audience"
+      ],
+      "prompt": "a small crowd of three people busts"
+    },
+    "video": {
+      "file": "video.png",
+      "aliases": [
+        "media",
+        "stream",
+        "clip",
+        "movie"
+      ],
+      "prompt": "a film strip"
+    },
+    "warning": {
+      "file": "warning.png",
+      "aliases": [
+        "error",
+        "risk",
+        "problem",
+        "bottleneck"
+      ],
+      "prompt": "a warning triangle with an exclamation mark"
+    }
+  }
+}

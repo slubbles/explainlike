@@ -1,0 +1,15 @@
+node_modules/
+.next/
+dist/
+out/
+.env
+.env.*
+!.env.example
+.dev.vars
+*.pem
+*.key
+.metual-cache/
+metual-out/
+jobs/
+*.log
+.DS_Store

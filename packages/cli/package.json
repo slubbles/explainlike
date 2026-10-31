@@ -1,0 +1,22 @@
+{
+  "name": "metual",
+  "version": "0.1.0",
+  "type": "module",
+  "license": "MIT",
+  "description": "Turn a GitHub repo, X post or article into a whiteboard explainer video + editable Excalidraw diagram, powered by Meta Muse models.",
+  "bin": {
+    "metual": "./bin/metual.mjs"
+  },
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@metual/core": "workspace:*",
+    "@metual/models": "workspace:*",
+    "@metual/ingest": "workspace:*",
+    "@metual/planner": "workspace:*",
+    "@metual/voice": "workspace:*",
+    "@metual/render": "workspace:*",
+    "tsx": "^4.19.2"
+  }
+}

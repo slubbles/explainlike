@@ -1,0 +1,23 @@
+{
+  "name": "metual-monorepo",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Metual: paste a repo, X post or article, get a whiteboard explainer video and an editable Excalidraw diagram. Powered by Meta Muse models.",
+  "license": "MIT",
+  "type": "module",
+  "packageManager": "pnpm@9.15.9",
+  "scripts": {
+    "metual": "tsx packages/cli/src/bin.ts",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "web": "pnpm --filter @metual/web dev",
+    "icons:generate": "tsx scripts/gen-icon-pack.ts"
+  },
+  "devDependencies": {
+    "@metual/core": "workspace:^",
+    "@metual/models": "workspace:^",
+    "@metual/render": "workspace:^",
+    "@types/node": "^22.10.0",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2"
+  }
+}
