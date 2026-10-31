@@ -264,7 +264,12 @@ export function applyTempo(film: Film, scenes: Span[], tempo: TempoLimits = DEFA
       return out;
     };
     // the overview is a shot of its own, so it holds a full beat before the first glide
-    const plan = glides(k.t + Math.max(tempo.minBeat, k.move + OVERVIEW_S));
+    // ...unless something new would be drawn while it holds: a word drawn in a far-off shot is unreadable,
+    // so the camera goes straight to the first readable framing instead
+    const holdUntil = k.t + Math.max(tempo.minBeat, k.move + OVERVIEW_S);
+    const early = boxes.some(({ e, b }) => (e.k === "text" || e.k === "img") && e.t0 >= k.t - 0.05 && e.t0 < holdUntil && inside(b, wide));
+    const plan = glides(early ? k.t : holdUntil);
+    if (early && plan.length) { const [first, ...rest] = plan; Object.assign(k, { x: first.x, y: first.y, w: first.w, h: first.h }); plan.splice(0, plan.length, ...rest); }
     for (const key of plan) { optional.add(key); film.camera.push(key); }
     sortCam();
   }

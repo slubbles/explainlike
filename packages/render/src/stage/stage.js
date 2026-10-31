@@ -193,8 +193,9 @@
       let still = 0, moving = 0, n = 0;
       for (let t = c.t0 + 0.05; t < c.t1; t += 0.2) {
         if (coverAt(t)) continue;
-        const cam = camera(t), s = F.width / cam.w, nx = camera(t + 0.05), ns = F.width / nx.w;
-        const drift = (Math.abs(nx.x - cam.x) * s + Math.abs(nx.y - cam.y) * s + Math.abs(F.width - cam.w * ns) * 0.5) / 0.05;
+        const cam = camera(t), s = F.width / cam.w;
+        // px a second the view drifts; looking a quarter second ahead counts the eased first moments of a glide as motion
+        const drift = Math.max(...[0.05, 0.25].map((dt) => { const nx = camera(t + dt), ns = F.width / nx.w; return (Math.abs(nx.x - cam.x) * s + Math.abs(nx.y - cam.y) * s + Math.abs(F.width - cam.w * ns) * 0.5) / dt; }));
         let hit = 0;
         for (const it of items) {
           if (!(t >= it.e.t0 && (it.e.g ? interp(F.groups[it.e.g], t, 1) : 1) > 0.6) || !it.boxes.length) continue;
@@ -203,6 +204,8 @@
           const x1 = Math.max(...it.boxes.map((b) => b.x + b.w)), y1 = Math.max(...it.boxes.map((b) => b.y + b.h));
           const vw = Math.max(0, Math.min(x1, cam.x + cam.w) - Math.max(x0, cam.x)), vh = Math.max(0, Math.min(y1, cam.y + cam.h) - Math.max(y0, cam.y));
           if (vw * vh < 0.5 * Math.max(1, (x1 - x0) * (y1 - y0))) continue;
+          // a long wire taller than the space between title and captions is structure, not a subject (as in pace.ts)
+          if ((y1 - y0) * s > (F.height - 170 - 150) * 0.6) continue;
           for (const b of it.boxes) {
             const q = { x: (b.x - cam.x) * s, y: (b.y - cam.y) * s, w: b.w * s, h: b.h * s };
             const ox = Math.min(rect.x + rect.w, q.x + q.w) - Math.max(rect.x, q.x), oy = Math.min(rect.y + rect.h, q.y + q.h) - Math.max(rect.y, q.y);
@@ -318,8 +321,29 @@
         const hide = p >= 1 ? 0 : 1; it.c.setAttribute("opacity", hide); it.glow.setAttribute("opacity", hide * 0.25);
       }
       it.g.setAttribute("opacity", o);
+      it.op = o; it.prog = p;
     }
     renderHud(t);
+  };
+
+  // what is actually on screen at t, in screen pixels: the frame self-check reads these after render
+  window.frameBoxes = function (t) {
+    window.render(t);
+    const r = (el) => { const b = el.getBoundingClientRect(); return { x: b.x, y: b.y, w: b.width, h: b.height }; };
+    const shown = (el) => el && getComputedStyle(el).display !== "none" && Number(getComputedStyle(el).opacity) > 0.5;
+    const els = [];
+    for (const it of items) {
+      if (it.g.style.display === "none" || !(it.op > 0.05)) continue;
+      const e = it.e;
+      if (e.k !== "text" && e.k !== "img" && !e.mark) continue;
+      els.push({ id: e.id, k: e.k, text: e.text, anim: e.anim, g: e.g, mark: !!e.mark, op: it.op, done: it.prog >= 1, size: e.size, rect: r(it.tx || it.g) });
+    }
+    const hud = [];
+    if (shown(cap)) hud.push({ k: "caption", rect: r(cap) });
+    for (const s of slots) if (Number(s.el.style.opacity) > 0.5) hud.push({ k: "heading", rect: r(s.el) });
+    const brand = document.getElementById("brand");
+    if (brand) hud.push({ k: "brand", rect: r(brand) });
+    return { t, els, hud, end: !!(F.end && t >= F.end.t0) };
   };
 
   window.ready = (async () => { await document.fonts.ready; await Promise.all([...document.images].map((i) => i.decode().catch(() => {}))); measure(); await planCaptions(); window.render(0); return true; })();
