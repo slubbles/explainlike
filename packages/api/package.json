@@ -1,0 +1,17 @@
+{
+  "name": "@explainlike/api",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "license": "MIT",
+  "description": "Run Explain Like jobs from your own code, or over a small HTTP API on localhost.",
+  "bin": {
+    "explainlike-api": "./bin/explainlike-api.mjs"
+  },
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "tsx": "^4.19.2"
+  }
+}
