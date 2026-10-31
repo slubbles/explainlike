@@ -3,13 +3,13 @@ import { useEffect, useState } from "react";
 
 export type Usd = { meta: number; voice: number; total: number };
 export type Job = {
-  id: string; kind: "video" | "focus" | "what-if"; input: string; level: string; voice: string;
+  id: string; kind: "video" | "focus" | "what-if"; input: string; voice: string; approach?: string;
   state: "running" | "done" | "error"; stage: string; message: string; pct: number; error?: string; title?: string;
   durationSec?: number; costUsd?: number; usd?: Usd; interactive?: boolean; focus?: string; whatIf?: string; parent?: string;
   outputs?: { mp4?: string; tldr?: string; excalidraw?: string; contactSheet?: string };
 };
 /** A job as the jobs list returns it. */
-export type Listed = Pick<Job, "id" | "kind" | "input" | "level" | "voice" | "state" | "title" | "parent" | "focus" | "whatIf" | "costUsd" | "durationSec"> & { started: number; mp4?: string };
+export type Listed = Pick<Job, "id" | "kind" | "input" | "approach" | "voice" | "state" | "title" | "parent" | "focus" | "whatIf" | "costUsd" | "durationSec"> & { started: number; mp4?: string };
 export type Explain = { component: { id: string; name: string; keyword: string; evidence: string[] }; summary: string; points: { text: string; file: string }[]; usd: number };
 
 export const money = (n?: number) => `$${(n ?? 0).toFixed(3)}`;

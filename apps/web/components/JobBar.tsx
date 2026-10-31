@@ -1,9 +1,9 @@
 "use client";
 import { useState } from "react";
-import { LEVELS, VOICES, type Form } from "../lib/form";
+import { VOICES, type Form } from "../lib/form";
 import { Arrow, Chevron } from "./Icons";
 
-/** The compact form above a job: change the link, level or voice and draw again. On a phone result page it folds to one line until you tap Change. The button only turns blue once the link, level or voice differs from the video shown. */
+/** The compact form above a job: change the link or voice and draw again. On a phone result page it folds to one line until you tap Change. The button only turns blue once the link or voice differs from the video shown. */
 export default function JobBar({ form, set, go, busy, fold, quiet }: { form: Form; set: (f: Partial<Form>) => void; go: () => void; busy: boolean; fold?: boolean; quiet?: boolean }) {
   const [open, setOpen] = useState(false);
   const ready = !!form.input.trim() && !busy;
@@ -12,9 +12,6 @@ export default function JobBar({ form, set, go, busy, fold, quiet }: { form: For
       <input className="in" type="text" aria-label="Link to explain" value={form.input} onChange={(e) => set({ input: e.target.value })} spellCheck={false} autoComplete="off" onFocus={() => setOpen(true)} />
       <button type="button" className="btn edit" onClick={() => setOpen(true)}>Change</button>
       <div className="opts">
-        <label className="pick"><span className="sr">Explain it like</span>
-          <select value={form.level} onChange={(e) => set({ level: e.target.value })} disabled={busy}>{LEVELS.map((l) => <option key={l.id} value={l.id}>{l.label}</option>)}</select><Chevron />
-        </label>
         <label className="pick"><span className="sr">Voice</span>
           <select value={form.voice} onChange={(e) => set({ voice: e.target.value })} disabled={busy}>{VOICES.map((v) => <option key={v.id} value={v.id}>{v.label}</option>)}</select><Chevron />
         </label>

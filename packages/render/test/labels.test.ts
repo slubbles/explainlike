@@ -28,7 +28,7 @@ test("box descriptions keep code names as the code writes them and lower-case th
 });
 
 test("box sublabels are big and dark enough to read in a wide shot, and still fit inside their box", { timeout: 60_000 }, async () => {
-  const { getTheme, getLevel } = await import("@explainlike/core");
+  const { getTheme, specFromBrief, DEFAULT_BRIEF } = await import("@explainlike/core");
   const { compose, loadIconPack } = await import("../src/index.js");
   const fs = await import("node:fs");
   const fx = new URL("./fixtures/", import.meta.url);
@@ -39,7 +39,7 @@ test("box sublabels are big and dark enough to read in a wide shot, and still fi
     return { sceneId: s.id, duration: ws.length * 0.38, words: ws.map((w: string, i: number) => ({ word: w, start: i * 0.38, end: i * 0.38 + 0.3 })) };
   });
   const theme = getTheme("pen-light");
-  const { film } = await compose({ plan, audio, theme, level: getLevel("interviewing"), pack: loadIconPack(), sourceLabel: "x", arch, pace: "lively" });
+  const { film } = await compose({ plan, audio, theme, spec: specFromBrief(DEFAULT_BRIEF), pack: loadIconPack(), sourceLabel: "x", arch, pace: "lively" });
   const lum = (hex: string) => {
     const c = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255).map((v) => (v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4));
     return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2];

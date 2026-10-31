@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import rough from "roughjs";
 import { agreementSlips } from "@explainlike/core";
-import type { Architecture, ScenePlan, Scene, SceneAudio, Theme, LevelSpec, Color, WordTiming, NoteItem } from "@explainlike/core";
+import type { Architecture, ScenePlan, Scene, SceneAudio, Theme, ExplainSpec, Color, WordTiming, NoteItem } from "@explainlike/core";
 import type { Film, FElement, CamKey, Caption, Heading } from "./film.js";
 import { applyPace, LIVELY, type Pace } from "./pace.js";
 import { layoutGraph, unionBox, shiftLayout, wrapText, NODE, type Box, type GNode, type GEdge, type Layout, type PlacedNode, type PlacedEdge } from "./layout.js";
@@ -56,7 +56,7 @@ export interface ComposeInput {
   plan: ScenePlan;
   audio: SceneAudio[];
   theme: Theme;
-  level: LevelSpec;
+  spec: ExplainSpec;
   pack: IconPack;
   /** short label of the source for the end card, e.g. "github.com/umami-software/umami" */
   sourceLabel: string;
@@ -783,7 +783,7 @@ export async function compose(inp: ComposeInput): Promise<Composed> {
     fonts: { hand: fontDataUrl(HAND_FONTS[theme.hand ?? "excalifont"].woff2, "font/woff2"), sans: fontDataUrl("Nunito-Variable.ttf", "font/ttf") },
     elements: B.els, groups: B.groups, camera: B.cam.length ? B.cam : [{ t: 0, x: 0, y: 0, w: W, h: H, move: 0 }],
     headings, captions, fades, cards,
-    end: { t0: T, title: plan.title.toLowerCase(), lines: [inp.sourceLabel, `explained like ${inp.level.label.toLowerCase()}`], credit: "Powered by Meta Muse models" },
+    end: { t0: T, title: plan.title.toLowerCase(), lines: [inp.sourceLabel, `explained for ${inp.spec.audience.toLowerCase()}`], credit: "Powered by Meta Muse models" },
     brand,
   };
   if (lively) applyPace(film, timeline);

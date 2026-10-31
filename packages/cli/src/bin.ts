@@ -1,6 +1,5 @@
 import fs from "node:fs";
 import path from "node:path";
-import { listLevels, listThemes, loadLevelFile, type Level } from "@explainlike/core";
 import { runExplainLike } from "./pipeline.js";
 import { builtinPackIds } from "@explainlike/render";
 
@@ -15,9 +14,10 @@ for (const f of [".env", ".env.local"]) {
 
 const HELP = `explainlike <github-url | local-repo-dir | x.com post url | article url> [options]
 
-  --level <five|new|interviewing|senior>   explain like I'm 5 / I'm new / I'm interviewing / a senior (default new)
-  --theme <${listThemes().join("|")}>      (default pen-light)
-  --out <dir>                              output folder (default ./explainlike-out/<name>-<level>)
+  Muse Spark reads the source first and decides the approach (analogy, story, step by step...),
+  the depth, the tempo and the look. There are no levels or themes to pick.
+
+  --out <dir>                              output folder (default ./explainlike-out/<name>)
   --name <owner/repo>                      display name (useful for local folders)
   --voice <deepgram|silent>                default: deepgram when DEEPGRAM_API_KEY is set
   --pack <id|dir>                          icon/component pack: built-in ${builtinPackIds().join(", ")} or a folder (repeatable;
@@ -26,9 +26,7 @@ const HELP = `explainlike <github-url | local-repo-dir | x.com post url | articl
   --fresh                                  ignore cached architecture/plan in the output folder
   --json                                   progress as JSON lines (for the web app)
   --workers <n>                            parallel render pages
-  --level-file <file.json>                 add your own level (see docs/plugins.md) and use it
   --no-qa                                  skip the Muse Transcribe voiceover check
-  --pace <lively|calm>                     lively: new shot every ~2.7 s, section cards, captions by the boxes (default lively)
   --export <tldr|excalidraw>               editable board file: .tldr opens in tldraw.com (default tldr)
 
 follow-ups on an earlier repo run (same input, new --out):
@@ -48,23 +46,18 @@ const flags = new Set(["--fresh", "--json", "--no-qa", "--no-packs"]);
 if (argv[0] === "explain") await explain();
 const input = argv.find((a, i) => !a.startsWith("--") && (i === 0 || !argv[i - 1].startsWith("--") || flags.has(argv[i - 1])));
 if (!input) { process.stderr.write(HELP); process.exit(1); }
-const levelFile = opt("--level-file");
-const level = (levelFile ? loadLevelFile(path.resolve(levelFile)).id : opt("--level") ?? "new") as Level;
-if (!listLevels().some((l) => l.id === level)) { process.stderr.write(`unknown level ${level}\n`); process.exit(1); }
 const json = argv.includes("--json");
 
 const started = Date.now();
 const whatIf = opt("--what-if");
-const pace = opt("--pace") ?? "lively";
-if (pace !== "lively" && pace !== "calm") { process.stderr.write("--pace takes lively or calm\n"); process.exit(1); }
 const exportAs = opt("--export") ?? "tldr";
 if (exportAs !== "tldr" && exportAs !== "excalidraw") { process.stderr.write("--export takes tldr or excalidraw\n"); process.exit(1); }
 if (whatIf && whatIf !== "10x" && whatIf !== "100x") { process.stderr.write("--what-if takes 10x or 100x\n"); process.exit(1); }
 runExplainLike({
   from: opt("--from") && path.resolve(opt("--from")!), focus: opt("--focus"), whatIf: whatIf as "10x" | "100x" | undefined,
   input: fs.existsSync(input) ? path.resolve(input) : input,
-  level, theme: opt("--theme"), out: opt("--out") && path.resolve(opt("--out")!), name: opt("--name"), voice: opt("--voice"),
-  packs: argv.includes("--no-packs") ? [] : [...many("--pack"), ...many("--icons")].length ? [...many("--pack"), ...many("--icons")].map((d) => (fs.existsSync(d) ? path.resolve(d) : d)) : undefined, fresh: argv.includes("--fresh"), workers: opt("--workers") ? Number(opt("--workers")) : undefined, qa: !argv.includes("--no-qa"), pace, export: exportAs,
+  out: opt("--out") && path.resolve(opt("--out")!), name: opt("--name"), voice: opt("--voice"),
+  packs: argv.includes("--no-packs") ? [] : [...many("--pack"), ...many("--icons")].length ? [...many("--pack"), ...many("--icons")].map((d) => (fs.existsSync(d) ? path.resolve(d) : d)) : undefined, fresh: argv.includes("--fresh"), workers: opt("--workers") ? Number(opt("--workers")) : undefined, qa: !argv.includes("--no-qa"), export: exportAs,
   progress: (e) => {
     if (json) process.stdout.write(JSON.stringify({ type: "progress", ...e }) + "\n");
     else process.stderr.write(`[${((Date.now() - started) / 1000).toFixed(0).padStart(4)}s] $${(e.usd?.total ?? 0).toFixed(3).padStart(6)}  ${e.stage.padEnd(12)} ${e.message}\n`);
@@ -94,7 +87,7 @@ async function explain() {
     const read = repoDir ? digestRepo(repoDir).read : () => "";
     const evidence = evidencePack({ ...arch, components: [c], connections: [], scale: [] }, read, 12000);
     const ledger = new CostLedger();
-    const r = await explainComponent({ ledger, arch, id, evidence, level: m.level, question: opt("--question") });
+    const r = await explainComponent({ ledger, arch, id, evidence, audience: m.brief?.audience ?? "a developer new to this codebase", question: opt("--question") });
     out({ type: "explain", component: { id: c.id, name: c.name, keyword: c.keyword, evidence: c.evidence }, ...r, usd: Number(ledger.total.toFixed(4)) });
   } catch (e) {
     process.stdout.write(JSON.stringify({ type: "error", message: String((e as Error)?.message ?? e) }) + "\n");

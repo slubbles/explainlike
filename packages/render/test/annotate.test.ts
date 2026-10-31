@@ -3,13 +3,13 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { getTheme, getLevel, type Architecture, type ScenePlan } from "@explainlike/core";
+import { getTheme, specFromBrief, DEFAULT_BRIEF, type Architecture, type ScenePlan } from "@explainlike/core";
 import { compose, loadIconPack, offFrameTexts, boxOf, textWidth, overlaps, polyBox, placeRingLabel, ringOf, scaleArrow } from "@explainlike/render";
 
 const fx = path.join(path.dirname(fileURLToPath(import.meta.url)), "fixtures");
 const plan = JSON.parse(fs.readFileSync(path.join(fx, "example-app.plan.json"), "utf8")) as ScenePlan;
 const arch = JSON.parse(fs.readFileSync(path.join(fx, "example-app.architecture.json"), "utf8")) as Architecture;
-const composed = compose({ plan, audio: [], theme: getTheme("caleb-dark"), level: getLevel("interviewing"), pack: loadIconPack(), sourceLabel: "github.com/karpathy/minbpe", arch, colorOf: (c) => (c.kind === "database" ? "blue" : "white") as any });
+const composed = compose({ plan, audio: [], theme: getTheme("chalk-dark"), spec: specFromBrief(DEFAULT_BRIEF), pack: loadIconPack(), sourceLabel: "github.com/karpathy/minbpe", arch, colorOf: (c) => (c.kind === "database" ? "blue" : "white") as any });
 
 test("every text is fully inside the frame when it finishes appearing", async () => {
   const { film } = await composed;

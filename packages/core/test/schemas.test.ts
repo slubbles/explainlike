@@ -1,35 +1,37 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { Architecture, NoteItem, LevelSpec, listLevels, getLevel, registerLevel, getTheme, registerTheme, listThemes, isKeyword, quoteInSource, strictJsonSchema, agreementSlips, tidySpeech, soundsLikeKeywords } from "@explainlike/core";
+import { Architecture, NoteItem, Brief, DEFAULT_BRIEF, LOOKS, MIN_CUTS_PER_MIN, TEMPOS, coverageSeconds, specFromBrief, getTheme, listThemes, isKeyword, quoteInSource, strictJsonSchema, agreementSlips, tidySpeech, soundsLikeKeywords } from "@explainlike/core";
 
-test("the four built-in levels load from their JSON config", () => {
-  assert.deepEqual(listLevels().map((l) => l.id).sort(), ["five", "interviewing", "new", "senior"]);
-  // interviewing and senior carry their own whiteboard list scenes
-  assert.ok(getLevel("interviewing").notes.some((n) => /requirement/i.test(n.heading)));
-  assert.ok(getLevel("senior").notes.length > 0);
-  assert.equal(getLevel("five").notes.length, 0);
+test("the brief sets tempo from complexity and list scenes from depth", () => {
+  const tech = specFromBrief({ ...DEFAULT_BRIEF, complexity: "technical", depth: "deep", extras: ["requirements", "trade-offs", "failure modes"] });
+  assert.equal(tech.tempo.id, "slow");
+  assert.ok(tech.tempo.minBeat >= 3.5);
+  assert.equal(tech.perScene, 2, "technical topics add fewer boxes per beat");
+  assert.deepEqual(tech.notes.map((n) => n.heading), ["requirements", "trade-offs"], "deep allows two extras");
+  const easy = specFromBrief({ ...DEFAULT_BRIEF, complexity: "simple", depth: "overview", approach: "analogy", analogy: "a post office", extras: ["requirements"] });
+  assert.equal(easy.tempo.id, "brisk");
+  assert.equal(easy.notes.length, 0, "an overview has no list scenes");
+  assert.match(easy.voice, /post office/);
+  for (const t of Object.values(TEMPOS)) assert.ok(t.minBeat >= 3.5 && 60 / t.minBeat >= MIN_CUTS_PER_MIN);
+  assert.equal(Brief.safeParse({ ...DEFAULT_BRIEF, approach: "interpretive dance" }).success, false);
 });
 
-test("a level file is validated before it is used", () => {
-  const good = { id: "pm", label: "a product manager", minComponents: 3, maxComponents: 6, perScene: 2, scaleItems: 1, scaleAt: ["10x"], wordsPerScene: 30, seconds: [60, 90], voice: "plain words" };
-  assert.equal(registerLevel(good).id, "pm");
-  assert.equal(getLevel("pm").notes.length, 0, "notes default to none");
-  assert.throws(() => registerLevel({ ...good, id: "Bad Id" }));
-  assert.throws(() => registerLevel({ ...good, minComponents: 9, maxComponents: 4 }), /minComponents/);
-  assert.throws(() => registerLevel({ ...good, scaleAt: [] }));
-  assert.equal(LevelSpec.safeParse({ ...good, notes: [{ after: "outro", heading: "x", brief: "y" }] }).success, false);
+test("video length follows what has to be covered", () => {
+  const spec = specFromBrief(DEFAULT_BRIEF);
+  const small = coverageSeconds(spec, { components: 4, steps: 3, scale: 1 });
+  const big = coverageSeconds(spec, { components: 10, steps: 6, scale: 2 });
+  assert.ok(big[0] > small[0]);
+  assert.ok(small[0] >= 34 && big[1] <= 276);
 });
 
-test("themes: the built-ins exist, the pen look is the default, unknown ids fail loudly, plugins register", () => {
-  assert.deepEqual(listThemes().slice(0, 3), ["pen-light", "caleb-dark", "whiteboard-light"]);
+test("themes: the built-in looks exist, the pen look is the default, unknown ids fail loudly", () => {
+  assert.deepEqual(listThemes().slice(0, 3).sort(), Object.keys(LOOKS).sort());
   assert.equal(getTheme().id, "pen-light");
   assert.equal(getTheme().stroke, "pen");
   // each colour must be distinct so the editable board can map it back to a named colour
   for (const id of listThemes()) assert.equal(new Set(Object.values(getTheme(id).colors)).size, 10, id);
   assert.equal(getTheme("whiteboard-light").invertIcons, true);
   assert.throws(() => getTheme("neon"), /unknown theme/);
-  registerTheme({ ...getTheme(), id: "test-theme", accent: "#123456" });
-  assert.equal(getTheme("test-theme").accent, "#123456");
 });
 
 test("Architecture schema rejects a component with an unknown kind", () => {

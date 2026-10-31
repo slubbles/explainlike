@@ -1,20 +1,21 @@
 import { z } from "zod";
-import { ScenePlan, getLevel, lower, tidySpeech, wordCount, quoteInSource, type Architecture, type Level, type Progress, type NoteItem, type Scene, type SourceDoc } from "@explainlike/core";
+import { ScenePlan, coverageSeconds, lower, tidySpeech, wordCount, quoteInSource, type Architecture, type ExplainSpec, type Progress, type NoteItem, type Scene, type SourceDoc } from "@explainlike/core";
 import { sparkJson, type CostLedger } from "@explainlike/models";
 
 const STYLE = [
-  "Style of the video: a calm engineer at a black whiteboard, like the YouTube channel Caleb Writes Code.",
+  "Style of the video: a calm, clear engineer drawing on a whiteboard while talking.",
   "Narration is spoken; write it for the ear: short sentences, concrete, no filler ('in this video', 'let's dive in', 'robust', 'seamless', 'leverage' are banned).",
   "Every narration sentence is complete and grammatical: each verb agrees with its subject, and articles (a, an, the) are not dropped.",
   "Headings are 2 to 4 lowercase words that the narration of that scene actually says (the viewer reads the heading while hearing it). Keywords 1 to 3 lowercase words.",
-  "A visual change every 2 to 5 seconds: one new thing per sentence.",
+  "One new thing per sentence, and each sentence long enough to watch it being drawn (no two-word sentences).",
 ].join("\n");
 
 // ---------------------------------------------------------------------------
 // Repo: build the architecture layer by layer on one evolving canvas.
 // ---------------------------------------------------------------------------
-export async function planRepoScenes(o: { ledger: CostLedger; arch: Architecture; level: Level; progress?: Progress }): Promise<ScenePlan> {
-  const L = getLevel(o.level);
+export async function planRepoScenes(o: { ledger: CostLedger; arch: Architecture; spec: ExplainSpec; progress?: Progress }): Promise<ScenePlan> {
+  const L = o.spec;
+  const [lo, hi] = coverageSeconds(L, { components: o.arch.components.length, steps: o.arch.walkthrough.steps.length, scale: o.arch.scale.length });
   o.progress?.({ stage: "plan", message: "writing the scene plan" });
   const compact = {
     product: o.arch.product, one_liner: o.arch.one_liner,
@@ -29,7 +30,7 @@ export async function planRepoScenes(o: { ledger: CostLedger; arch: Architecture
       { role: "system", content: [
         "You write the scene plan for a system design explainer video of one repository. The renderer draws one evolving architecture canvas.",
         STYLE,
-        `Audience: ${L.label}. ${L.voice}`,
+        L.voice,
         "Scene order and rules:",
         "1. one 'hook' scene: what the product is and the one question the video answers. add_components empty.",
         `2. 'layer' scenes: each adds at most ${L.perScene} components (by id), starting where requests start (the client) and moving inward, in flow order. Every component is added exactly once. The narration must say each added component's keyword out loud, in the order listed in add_components, and say what it does here.`,
@@ -37,7 +38,7 @@ export async function planRepoScenes(o: { ledger: CostLedger; arch: Architecture
         `4. ${o.arch.scale.length} 'scale' scenes, one per scale risk, in the given order: say what breaks at that traffic level and why (problem keyword), then the fix (fix keyword), in 2 or 3 short plain sentences ('The fix is ...'), not a run-on or a string of jargon. callouts: [{target: component id, text: problem keyword, color: red}, {target: component id, text: fix keyword, color: green}].`,
         "5. one 'recap' scene: the whole picture in two or three sentences.",
         ...notesRules(L.notes),
-        `Each scene's narration is about ${L.wordsPerScene} words (hook and recap can be shorter). Whole video ${L.seconds[0]} to ${L.seconds[1]} seconds at 2.6 words per second.`,
+        `Each scene's narration is about ${L.wordsPerScene} words (hook and recap can be shorter). Whole video ${lo} to ${hi} seconds at ${L.tempo.wps} words per second: long enough to cover every part, no padding.`,
         "Leave add_connections, board_nodes, board_edges, highlights empty (the renderer derives them). callouts empty except in scale scenes. items empty except in notes scenes.",
         "Never state a traffic, user, latency or cost number as a fact about this app: the repo does not tell you its real load. Numbers only appear as clearly labelled assumptions.",
         "title: the product name in lowercase. subtitle: under 8 lowercase words.",
@@ -45,7 +46,7 @@ export async function planRepoScenes(o: { ledger: CostLedger; arch: Architecture
       { role: "user", content: JSON.stringify(compact) },
     ],
   });
-  return repairRepoPlan(plan, o.arch, o.level);
+  return repairRepoPlan(plan, o.arch, o.spec);
 }
 
 function notesRules(slots: { after: string; heading: string; brief: string }[]): string[] {
@@ -86,8 +87,7 @@ export function validateNotes(items: NoteItem[], o: { ids?: Set<string>; files?:
 }
 
 /** Deterministic checker + repair, so the renderer can trust the plan. */
-export function repairRepoPlan(plan: ScenePlan, arch: Architecture, level: Level): ScenePlan & { repairs: string[] } {
-  const L = getLevel(level);
+export function repairRepoPlan(plan: ScenePlan, arch: Architecture, L: { perScene: number }): ScenePlan & { repairs: string[] } {
   const repairs: string[] = [];
   const ids = new Set(arch.components.map((c) => c.id));
   const seen = new Set<string>();
@@ -164,20 +164,21 @@ export function repairRepoPlan(plan: ScenePlan, arch: Architecture, level: Level
 // ---------------------------------------------------------------------------
 // X posts and articles: annotated source + concept boards, every node quoted.
 // ---------------------------------------------------------------------------
-export async function planConceptScenes(o: { ledger: CostLedger; doc: SourceDoc; level: Level; icons: string; progress?: Progress }): Promise<ScenePlan & { repairs: string[] }> {
-  const L = getLevel(o.level);
+export async function planConceptScenes(o: { ledger: CostLedger; doc: SourceDoc; spec: ExplainSpec; icons: string; progress?: Progress }): Promise<ScenePlan & { repairs: string[] }> {
+  const L = o.spec;
+  const [lo, hi] = coverageSeconds(L, { components: 0, steps: 0, scale: 0, boards: 4 });
   o.progress?.({ stage: "plan", message: "breaking the source into concepts" });
   const sys = [
     `You turn a dense ${o.doc.kind === "x-post" ? "X post" : "article"} into a whiteboard explainer video.`,
     STYLE,
-    `Audience: ${L.label}. ${L.voice}`,
+    L.voice,
     "Scenes:",
     "1. 'hook': the one question this source answers, in plain words.",
     "2. 'source' scene(s): the reader sees the real post/article screenshot. highlights: 2 to 4 phrases (2 to 10 words) copied VERBATIM from the source text, each with a 1 to 3 word note and a color (red = problem/claim to question, orange = key idea, green = result/fix, blue = actor/entity). Narration explains why those phrases matter.",
     `3. 3 to 5 'board' scenes: each is a fresh mini diagram of one idea with 2 to ${Math.max(3, L.perScene + 1)} board_nodes and edges between them, drawn left to right in reading order. Every board node's evidence is an exact quote (3 to 12 words) from the source that justifies it (it is printed under the node, so pick the most telling words). count is 1, or 3 to 9 when the node means 'many of these' (8 GPUs, many workers, lots of docs): it becomes an icon grid. callouts: at most 1 per board, circling the node that matters most (target = board node id, text 1 to 3 words). Use colors semantically. icon from: ${o.icons}`,
     "Optionally one 'notes' scene (after the source scene) when the source lists concrete things (features, steps, numbers, stack): 3 to 6 items, text 2 to 7 words, evidence an exact quote, target empty, estimate false (a number the author states is their claim, not our estimate). icon from the same list.",
     "4. 'recap': the whole idea in two sentences, what to remember.",
-    `Each narration about ${L.wordsPerScene} words; total ${L.seconds[0]}-${L.seconds[1]} seconds at 2.6 words/sec. Do not claim anything the source does not say; say 'the author claims' when it is a claim.`,
+    `Each narration about ${L.wordsPerScene} words; total ${lo}-${hi} seconds at ${L.tempo.wps} words/sec. Do not claim anything the source does not say; say 'the author claims' when it is a claim.`,
     "Leave add_components, add_connections empty. callouts only on boards. items only in notes scenes.",
     "title: under 6 lowercase words. subtitle: who wrote it, lowercase.",
   ].join("\n");

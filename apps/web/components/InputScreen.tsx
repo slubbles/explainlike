@@ -1,5 +1,5 @@
 "use client";
-import { LEVELS, VOICES, type Form, levelLabel, shortLink, sourceKind } from "../lib/form";
+import { VOICES, type Form, shortLink, sourceKind } from "../lib/form";
 import { fileUrl, secs, type Listed } from "../lib/client";
 import { Arrow } from "./Icons";
 
@@ -13,16 +13,11 @@ export default function InputScreen({ form, set, go, busy, err, gallery }: Props
     <>
       <section className="hero">
         <h1>Any repo, post or article,{" "}<br />explained on a <em>whiteboard</em>.</h1>
-        <p className="lede">Paste a link. Explain Like reads the code or the text, draws the system piece by piece, walks one real request through it, and narrates it at your level. You get an mp4 and an editable .tldr board.</p>
+        <p className="lede">Paste a link. Explain Like reads the code or the text, draws the system piece by piece, walks one real request through it, and narrates it, choosing the analogy, depth and pace that fit the topic. You get an mp4 plus editable .tldr and .excalidraw boards.</p>
         <form className="prompt" onSubmit={(e) => { e.preventDefault(); if (ready) go(); }}>
           <input className="field" type="text" aria-label="Link to explain" placeholder="github.com/owner/repo, an X post, or an article URL"
             value={form.input} onChange={(e) => set({ input: e.target.value })} autoComplete="off" spellCheck={false} />
           <div className="pbar">
-            <div className="group" role="radiogroup" aria-label="Explain it like">
-              <span className="label">Explain it like</span>
-              {LEVELS.map((l) => <button type="button" role="radio" aria-checked={form.level === l.id} key={l.id} className={`chip ${form.level === l.id ? "on" : ""}`} onClick={() => set({ level: l.id })}>{l.label}</button>)}
-            </div>
-            <div className="sep" />
             <div className="group" role="radiogroup" aria-label="Voice">
               <span className="label">Voice</span>
               {VOICES.map((v) => <button type="button" role="radio" aria-checked={form.voice === v.id} key={v.id} className={`chip ${form.voice === v.id ? "on" : ""}`} onClick={() => set({ voice: v.id })}>{v.label}</button>)}
@@ -42,7 +37,7 @@ export default function InputScreen({ form, set, go, busy, err, gallery }: Props
               <a className="card" key={j.id} href={`/?job=${j.id}`}>
                 <div className="screen"><video src={`${fileUrl(j.id, j.mp4)}#t=${((j.durationSec ?? 30) * 0.55).toFixed(1)}`} preload="metadata" muted playsInline tabIndex={-1} /></div>
                 <div className="t">{j.title ?? shortLink(j.input)}</div>
-                <div className="m">{levelLabel(j.level)} · {secs(j.durationSec)} · {sourceKind(j.input)}</div>
+                <div className="m">{j.approach ? `${j.approach} · ` : ""}{secs(j.durationSec)} · {sourceKind(j.input)}</div>
               </a>
             ))}
           </div>

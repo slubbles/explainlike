@@ -1,16 +1,16 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
-import { getTheme, getLevel } from "@explainlike/core";
+import { getTheme, specFromBrief, DEFAULT_BRIEF } from "@explainlike/core";
 import { compose, loadIconPack, toTldraw, indexKey, TLDR_SCHEMA } from "../src/index.js";
 
 const fx = new URL("./fixtures/", import.meta.url);
 const plan = JSON.parse(fs.readFileSync(new URL("example-app.plan.json", fx), "utf8"));
 const arch = JSON.parse(fs.readFileSync(new URL("example-app.architecture.json", fx), "utf8"));
 const audio = plan.scenes.map((s: any) => ({ sceneId: s.id, duration: 6, words: [] }));
-const theme = getTheme("caleb-dark");
+const theme = getTheme("chalk-dark");
 const board = async () => {
-  const { sketch } = await compose({ plan, audio, theme, level: getLevel("interviewing"), pack: loadIconPack(), sourceLabel: "x", arch });
+  const { sketch } = await compose({ plan, audio, theme, spec: specFromBrief(DEFAULT_BRIEF), pack: loadIconPack(), sourceLabel: "x", arch });
   const colorNames = Object.fromEntries(Object.entries(theme.colors).map(([k, v]) => [v.toLowerCase(), k]));
   return { sketch, doc: await toTldraw(sketch, { colorNames, darkIcons: true }) };
 };

@@ -1,9 +1,0 @@
-{
-  "id": "new",
-  "label": "I'm new",
-  "minComponents": 6, "maxComponents": 9, "perScene": 3,
-  "scaleItems": 2, "scaleAt": ["10x"],
-  "wordsPerScene": 30, "seconds": [55, 80],
-  "voice": "Explain to a junior developer in their first job. Name the real technologies, say in plain words what each one does and why it is there. One small analogy is fine.",
-  "notes": []
-}

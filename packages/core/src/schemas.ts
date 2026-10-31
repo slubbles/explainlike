@@ -16,10 +16,6 @@ export const COLOR_MEANING: Record<Color, string> = {
   gray: "third party, ops",
 };
 
-/** built-ins: five, new, interviewing, senior; more via registerLevel() */
-export const Level = z.string();
-export type Level = z.infer<typeof Level>;
-
 export const SourceKind = z.enum(["repo", "x-post", "article"]);
 export type SourceKind = z.infer<typeof SourceKind>;
 
