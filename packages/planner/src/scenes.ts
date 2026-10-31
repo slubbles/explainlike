@@ -224,7 +224,7 @@ export async function polishNarration(o: { ledger: CostLedger; plan: ScenePlan; 
     parts: o.arch.components.map((c) => ({ id: c.id, name: c.keyword, what: c.what })),
     scenes: p.scenes.map((s) => ({ id: s.id, kind: s.kind, heading: s.heading, words: wordCount(s.narration), must_say: syncPhrases(s, o.arch), narration: s.narration })),
   });
-  const ask = (msgs: { role: "system" | "user" | "assistant"; content: string }[], step: string) => sparkJson({ ledger: o.ledger, step, schema: Polish, name: "narration_polish", effort: "low", maxTokens: 6000, messages: msgs });
+  const ask = (msgs: { role: "system" | "user" | "assistant"; content: string }[], step: string) => sparkJson({ ledger: o.ledger, step, schema: Polish, name: "narration_polish", effort: "low", maxTokens: 12000, messages: msgs });
   const apply = (base: ScenePlan, out: z.infer<typeof Polish>, renames: Map<string, string>) => {
     const kept: string[] = [];
     let rewritten = 0;
@@ -238,7 +238,12 @@ export async function polishNarration(o: { ledger: CostLedger; plan: ScenePlan; 
     return { plan: { ...base, scenes }, kept, rewritten };
   };
   const msgs: { role: "system" | "user" | "assistant"; content: string }[] = [{ role: "system", content: sys }, { role: "user", content: payload(o.plan) }];
-  const out = await ask(msgs, "narration-polish");
+  // polish only improves wording: an empty answer gets one more try, then the plan goes on as written
+  const out = await ask(msgs, "narration-polish").catch(() => ask(msgs, "narration-polish-again")).catch((e: unknown) => {
+    o.progress?.({ stage: "plan", message: "narration polish failed; keeping the narration as written" });
+    return e instanceof Error ? e : new Error(String(e));
+  });
+  if (out instanceof Error) return { plan: o.plan, renames: [], rewritten: 0, kept: o.plan.scenes.map((x) => x.id), issues: [`narration polish skipped: ${out.message}`, ...speechIssues(o.plan, o.arch, o.analogy)] };
   const taken = new Set(o.arch.components.map((c) => c.keyword));
   const renames = new Map<string, string>();
   for (const r of out.renames) {
