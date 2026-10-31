@@ -6,10 +6,11 @@ Metual is MIT licensed (see `LICENSE`). It bundles or depends on the following.
 
 | Asset | Where | License |
 |---|---|---|
-| Excalifont (by Excalidraw) | `packages/render/assets/fonts/Excalifont-Regular.*` | SIL Open Font License 1.1 (`packages/render/assets/fonts/OFL.txt`) |
+| Excalifont (by Excalidraw) | `packages/render/assets/fonts/Excalifont-Regular.*` | SIL Open Font License 1.1 (`packages/render/assets/fonts/OFL-Excalifont.txt`) |
+| Nunito (The Nunito Project Authors) | `packages/render/assets/fonts/Nunito-Variable.ttf` | SIL Open Font License 1.1 (`packages/render/assets/fonts/OFL-Nunito.txt`) |
 | Doodle icon pack | `packages/render/packs/doodle/*.png` | Generated for this project with Meta Muse Image; released under MIT with this repo |
 
-The font is redistributed unmodified apart from a WOFF2 to TTF container conversion
+The fonts are redistributed unmodified apart from a WOFF2 to TTF container conversion
 (needed to read glyph outlines). It is not sold by itself.
 
 ## Runtime dependencies (not vendored, installed from npm)

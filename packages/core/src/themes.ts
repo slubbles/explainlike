@@ -18,7 +18,7 @@ const dark: Theme = {
   id: "caleb-dark",
   background: "#000000",
   ink: "#f2f2f2",
-  dimOpacity: 0.22,
+  dimOpacity: 0.3,
   edge: "#c8c8c8",
   edgeLabel: "#bdbdbd",
   caption: { color: "#e9e9e9", highlight: "#ffd23f", background: "rgba(0,0,0,0.72)" },
