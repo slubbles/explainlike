@@ -53,6 +53,7 @@ const BARE_VERBS = new Set(("become turn send store read write fetch draw run ma
 const SINGULAR_DET = /^(a|an|each|every|this)$/;
 const HELPERS = /^(do|does|did|can|could|will|would|shall|should|may|might|must|to|let|lets|help|helps|helped|make|makes|made|watch|watches|see|sees|saw|hear|hears|why|not)$/;
 const NOT_ONE_THING = /^(and|or|few|couple|lot|lots|number|bunch|pair|of|plus|both|many)$/;
+const NOUN_NEXT = /^(that|which|who|is|was|will|can|could|would|should|might|must|has|had)$/;
 const thirdPerson = (v: string) =>
   ({ have: "has", do: "does", go: "goes", be: "is" } as Record<string, string>)[v] ??
   (/(s|sh|ch|x|z)$/.test(v) ? v + "es" : /[^aeiou]y$/.test(v) ? v.slice(0, -1) + "ies" : v + "s");
@@ -79,7 +80,10 @@ export function agreementSlips(text: string): { phrase: string; index: number; f
     for (let j = i + 2; j <= i + 4 && j < words.length; j++) {
       if (ends[j - 1] || NOT_ONE_THING.test(words[j - 1])) break;
       // "an X post, or an article": a noun that closes a list item with a comma is not a verb
-      if (BARE_VERBS.has(words[j]) && !words[j - 1].endsWith("'s") && !/,["')]?$/.test(raw[j])) {
+      // "a write queue that lines up", "the fix is a write queue.": a word that ends the sentence or
+      // is followed by a relative pronoun or helper is the noun, not the verb
+      const nounish = ends[j] || (j + 1 < words.length && NOUN_NEXT.test(words[j + 1]));
+      if (BARE_VERBS.has(words[j]) && !nounish && !words[j - 1].endsWith("'s") && !/,["')]?$/.test(raw[j])) {
         // "an api call return": the first of two such words is still part of the subject
         if (!ends[j] && j + 1 < words.length && BARE_VERBS.has(words[j + 1])) j++;
         out.push({ phrase: raw.slice(i, j + 1).join(" "), index: j, fix: thirdPerson(words[j]) });
