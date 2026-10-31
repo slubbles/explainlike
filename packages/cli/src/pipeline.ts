@@ -5,13 +5,15 @@ import { CostLedger, museTranscribe } from "@metual/models";
 import { ingestRepo } from "@metual/ingest";
 import { extractArchitecture, validateArchitecture, evidencePack, reviewArchitecture, reviseArchitecture, planRepoScenes, planFocus, planWhatIf, kindColor } from "@metual/planner";
 import { pickVoice, wordOverlap, DeepgramVoice, type VoiceProvider } from "@metual/voice";
-import { loadIconPack, mergePacks, builtinPackIds, detectComponents, packHints, type DetectedComponent, iconCatalog, resolveIcon, compose, captureFrames, mixNarration, encodeMp4, contactSheet, toExcalidraw, type IconPack, type SourceShot } from "@metual/render";
+import { loadIconPack, mergePacks, builtinPackIds, detectComponents, packHints, type DetectedComponent, iconCatalog, resolveIcon, compose, captureFrames, mixNarration, encodeMp4, contactSheet, toExcalidraw, toTldraw, type IconPack, type SourceShot } from "@metual/render";
 
 export interface RunOptions {
   input: string;
   level?: Level;
   /** how busy the video feels (default lively) */
   pace?: "lively" | "calm";
+  /** editable board format (default tldr) */
+  export?: "tldr" | "excalidraw";
   theme?: string;
   out?: string;
   name?: string;
@@ -174,9 +176,13 @@ export async function runMetual(o: RunOptions) {
   });
   fs.writeFileSync(path.join(out, "film.json"), JSON.stringify({ ...film, fonts: undefined, elements: film.elements.length }, null, 1));
   const base = slug(o.name ?? plan.title) || "metual";
-  const exc = toExcalidraw(sketch, { background: theme.background, ink: theme.ink, muted: theme.colors.gray, edgeLabel: theme.edgeLabel });
-  const excFile = path.join(out, `${base}.excalidraw`);
-  fs.writeFileSync(excFile, JSON.stringify(exc));
+  // the editable board: a .tldr file by default, or .excalidraw when asked
+  const exportAs = o.export ?? "tldr";
+  const board = exportAs === "excalidraw"
+    ? toExcalidraw(sketch, { background: theme.background, ink: theme.ink, muted: theme.colors.gray, edgeLabel: theme.edgeLabel })
+    : await toTldraw(sketch, { colorNames: Object.fromEntries(Object.entries(theme.colors).map(([k, v]) => [v.toLowerCase(), k])), darkIcons: true, name: o.name ?? plan.title });
+  const boardFile = path.join(out, `${base}.${exportAs}`);
+  fs.writeFileSync(boardFile, JSON.stringify(board));
 
   // interactive player: where each architecture box is on screen over time (same camera keys the stage uses)
   if (arch) {
@@ -219,7 +225,7 @@ export async function runMetual(o: RunOptions) {
   const voiceUsd = voice instanceof DeepgramVoice ? voice.usd : 0;
   const manifest = {
     tool: "metual", input: o.input, kind, level: level.id, repoDir, followUp: o.focus ? { focus: o.focus } : o.whatIf ? { whatIf: o.whatIf } : undefined, theme: theme.id, packs: { loaded: extra.map((p) => p.id), detected: detected.map((d) => ({ pack: d.pack, id: d.component.id, name: d.component.name, evidence: d.evidence })) }, title: plan.title, durationSec: Number(film.duration.toFixed(1)),
-    outputs: { mp4, excalidraw: excFile, contactSheet: sheet, plan: path.join(out, "plan.json"), architecture: arch ? path.join(out, "architecture.json") : undefined },
+    outputs: { mp4, [exportAs]: boardFile, contactSheet: sheet, plan: path.join(out, "plan.json"), architecture: arch ? path.join(out, "architecture.json") : undefined },
     scenes: timeline, repairs: plan.repairs ?? [], notes, qa,
     cost: { metaUsd: Number(ledger.total.toFixed(4)), byModel: ledger.byModel(), entries: ledger.entries, voiceUsd: Number(voiceUsd.toFixed(4)), voice: voice.id },
     seconds: Math.round((Date.now() - t0) / 1000),
