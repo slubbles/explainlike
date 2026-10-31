@@ -5,12 +5,10 @@ import { CostLedger, museTranscribe } from "@explainlike/models";
 import { ingestRepo } from "@explainlike/ingest";
 import { planBrief, extractArchitecture, validateArchitecture, evidencePack, reviewArchitecture, reviseArchitecture, planRepoScenes, planFocus, planWhatIf, kindColor } from "@explainlike/planner";
 import { pickVoice, wordOverlap, DeepgramVoice, type VoiceProvider } from "@explainlike/voice";
-import { captionMismatches, loadIconPack, mergePacks, builtinPackIds, detectComponents, packHints, type DetectedComponent, iconCatalog, resolveIcon, compose, captureFrames, mixNarration, encodeMp4, contactSheet, frameCheck, toExcalidraw, toTldraw, type IconPack, type SourceShot } from "@explainlike/render";
+import { captionMismatches, loadIconPack, mergePacks, builtinPackIds, detectComponents, packHints, type DetectedComponent, iconCatalog, resolveIcon, compose, captureFrames, mixNarration, encodeMp4, contactSheet, frameCheck, checkTldr, checkExcalidraw, toExcalidraw, toTldraw, type IconPack, type SourceShot } from "@explainlike/render";
 
 export interface RunOptions {
   input: string;
-  /** editable board format (default tldr) */
-  export?: "tldr" | "excalidraw";
   out?: string;
   name?: string;
   voice?: string;
@@ -202,13 +200,15 @@ export async function runExplainLike(o: RunOptions) {
   if (bad.length) throw new Error(`captions do not match the narration in ${bad.map((b) => `${b.scene}: said "${b.said}" but shown "${b.shown}"`).join("; ")}`);
   fs.writeFileSync(path.join(out, "film.json"), JSON.stringify({ ...film, fonts: undefined, elements: film.elements.length }, null, 1));
   const base = slug(o.name ?? plan.title) || "explainlike";
-  // the editable board: a .tldr file by default, or .excalidraw when asked
-  const exportAs = o.export ?? "tldr";
-  const board = exportAs === "excalidraw"
-    ? toExcalidraw(sketch, { background: theme.background, ink: theme.ink, muted: theme.colors.gray, edgeLabel: theme.edgeLabel })
-    : await toTldraw(sketch, { colorNames: Object.fromEntries(Object.entries(theme.colors).map(([k, v]) => [v.toLowerCase(), k])), darkIcons: true, name: o.name ?? plan.title });
-  const boardFile = path.join(out, `${base}.${exportAs}`);
-  fs.writeFileSync(boardFile, JSON.stringify(board));
+  // the editable boards: a .tldr for tldraw.com and an .excalidraw for excalidraw.com, each checked after writing
+  const tldrFile = path.join(out, `${base}.tldr`), excalidrawFile = path.join(out, `${base}.excalidraw`);
+  fs.writeFileSync(tldrFile, JSON.stringify(await toTldraw(sketch, { colorNames: Object.fromEntries(Object.entries(theme.colors).map(([k, v]) => [v.toLowerCase(), k])), darkIcons: true, name: o.name ?? plan.title })));
+  fs.writeFileSync(excalidrawFile, JSON.stringify(toExcalidraw(sketch, { background: theme.background, ink: theme.ink, muted: theme.colors.gray, edgeLabel: theme.edgeLabel })));
+  // read back what landed on disk, so the check sees exactly what the user opens
+  const boardCheck = [checkTldr(JSON.parse(fs.readFileSync(tldrFile, "utf8")), sketch), checkExcalidraw(JSON.parse(fs.readFileSync(excalidrawFile, "utf8")), sketch)];
+  fs.writeFileSync(path.join(out, "board-check.json"), JSON.stringify(boardCheck, null, 1));
+  const badBoards = boardCheck.filter((c) => !c.ok);
+  if (badBoards.length) throw new Error(`board check failed (see board-check.json): ${badBoards.map((c) => `${c.format}: ${c.problems.slice(0, 4).join("; ")}`).join(" | ")}`);
 
   // interactive player: where each architecture box is on screen over time (same camera keys the stage uses)
   if (arch) {
@@ -260,8 +260,9 @@ export async function runExplainLike(o: RunOptions) {
   const voiceUsd = voice instanceof DeepgramVoice ? voice.usd : 0;
   const manifest = {
     tool: "explainlike", input: o.input, kind, brief: spec.brief, tempo: spec.tempo, pace, repoDir, followUp: o.focus ? { focus: o.focus } : o.whatIf ? { whatIf: o.whatIf } : undefined, look: theme.id, packs: { loaded: extra.map((p) => p.id), detected: detected.map((d) => ({ pack: d.pack, id: d.component.id, name: d.component.name, evidence: d.evidence })) }, title: plan.title, durationSec: Number(film.duration.toFixed(1)),
-    outputs: { mp4, [exportAs]: boardFile, contactSheet: sheet, plan: path.join(out, "plan.json"), architecture: arch ? path.join(out, "architecture.json") : undefined },
+    outputs: { mp4, tldr: tldrFile, excalidraw: excalidrawFile, contactSheet: sheet, plan: path.join(out, "plan.json"), architecture: arch ? path.join(out, "architecture.json") : undefined },
     scenes: timeline, repairs: plan.repairs ?? [], notes, qa,
+    boardCheck: boardCheck.map((c) => ({ format: c.format, ok: c.ok, ...c.counts })),
     frameCheck: { ok: fc.ok, samples: fc.samples, issues: fc.issues.length, file: path.join(out, "frame-check.json") },
     // captions that found no fully free spot (empty when every caption clears the drawing)
     captionsCovering: cap.captions.filter((c) => c.overlapPx > 0),

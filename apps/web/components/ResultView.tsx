@@ -51,9 +51,10 @@ export default function ResultView({ job, map, picked, expl, explBusy, clips, pi
           <div className="dl">
             {o.mp4 && <a className="btn solid" href={fileUrl(job.id, o.mp4, true)}>Download mp4</a>}
             {o.tldr && <a className="btn" href={fileUrl(job.id, o.tldr, true)}>Download .tldr</a>}
+            {o.excalidraw && <a className="btn" href={fileUrl(job.id, o.excalidraw, true)}>Download .excalidraw</a>}
             {o.contactSheet && <a className="link" href={fileUrl(job.id, o.contactSheet)} target="_blank" rel="noreferrer">Contact sheet</a>}
           </div>
-          {o.tldr && <div className="note">Keep drawing at <a href="https://www.tldraw.com" target="_blank" rel="noreferrer">tldraw.com</a>: open the site and drag the .tldr file onto the canvas.</div>}
+          {o.tldr && <div className="note">Keep drawing at <a href="https://www.tldraw.com" target="_blank" rel="noreferrer">tldraw.com</a>: open the site and drag the .tldr file onto the canvas, or open the .excalidraw at <a href="https://excalidraw.com" target="_blank" rel="noreferrer">excalidraw.com</a>.</div>}
         </div>
         {map && <div className="tip"><Info />Tap any box on the diagram to ask Muse Spark what it does. The answer only cites files that box was built from.</div>}
         {err && <div className="err" role="alert">{err}</div>}

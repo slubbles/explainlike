@@ -15,3 +15,4 @@ export * from "./pace.js";
 export * from "./music.js";
 export * from "./placement.js";
 export * from "./framecheck.js";
+export * from "./boardcheck.js";
