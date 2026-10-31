@@ -47,14 +47,14 @@ export async function planFocus(o: { ledger: CostLedger; arch: Architecture; id:
       { role: "system", content: [
         `Write a 15 to 20 second deep dive on one box of the "${o.arch.product}" diagram. Audience: ${o.level}.`,
         "intro: one sentence (about 10 words) naming the box and where it sits. heading: 2 to 4 lowercase words.",
-        `items: 3 or 4 notes pinned on the diagram. target is one of: ${[...near].join(", ")} (mostly "${c.id}"). text 2 to 7 lowercase words. evidence: one exact file path from the evidence files. color: blue, green, orange, purple, yellow or red. icon: "" is fine. estimate false unless the text holds an assumed number.`,
+        `items: 3 or 4 notes pinned on the diagram. target is always "${c.id}" (mention neighbours in the text if needed). text 2 to 7 lowercase words. evidence: one exact file path from the evidence files. color: blue, green, orange, purple, yellow or red. icon: "" is fine. estimate false unless the text holds an assumed number.`,
         "narration: about 35 words, reads the notes in order, and says each note's first words out loud. Only facts the evidence files show; no traffic, latency or cost numbers.",
       ].join("\n") },
       { role: "user", content: JSON.stringify({ component: c, connections: o.arch.connections.filter((x) => near.has(x.from) && near.has(x.to)) }) + "\n\nEVIDENCE FILES:\n" + o.evidence },
     ],
   });
   const files = new Set(o.arch.components.flatMap((x) => x.evidence));
-  const v = validateNotes(r.items.map((i) => ({ ...i, target: near.has(i.target) ? i.target : c.id })), { ids: near, files, evidenceOf: (id) => o.arch.components.find((x) => x.id === id)?.evidence[0] ?? "" });
+  const v = validateNotes(r.items.slice(0, 4).map((i) => ({ ...i, target: c.id })), { ids: near, files, evidenceOf: (id) => o.arch.components.find((x) => x.id === id)?.evidence[0] ?? "" });
   const notes = { ...blank("focus", "notes", r.heading || c.keyword, r.narration), items: v.items.slice(0, 4) };
   return { title: lower(o.arch.product), subtitle: `deep dive: ${c.keyword}`, scenes: [blank("establish", "establish", "where it sits", r.intro), notes], repairs: v.repairs } as ScenePlan & { repairs: string[] };
 }

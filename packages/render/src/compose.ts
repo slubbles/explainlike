@@ -571,7 +571,8 @@ export async function compose(inp: ComposeInput): Promise<Composed> {
           const cx = n.x + n.w / 2;
           const sameTarget = items.slice(0, i).filter((x) => x.target === it.target).length;
           const cands: Box[] = [
-            { x: cx - tw / 2, y: n.y - 30 - 64 * (sameTarget + 1), w: tw, h: 60 },
+            // stacked above in reading order: the first note sits highest
+            { x: cx - tw / 2, y: n.y - 30 - 64 * (items.filter((x) => x.target === it.target).length - sameTarget), w: tw, h: 60 },
             { x: cx - tw / 2, y: n.y + n.h + 24 + 64 * sameTarget, w: tw, h: 60 },
             { x: n.x - tw - 40, y: n.y + n.h / 2 - 30 + 64 * sameTarget, w: tw, h: 60 },
             { x: n.x + n.w + 40, y: n.y + n.h / 2 - 30 + 64 * sameTarget, w: tw, h: 60 },
