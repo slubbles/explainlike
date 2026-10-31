@@ -12,3 +12,9 @@ test("box descriptions shorten at whole words, never mid-word", () => {
     assert.ok(out.length <= 30 && s.startsWith(out) && !out.endsWith("…"), out);
   }
 });
+
+test("a shortened box description never ends on a dangling + or joining word", () => {
+  assert.equal(shortSub("ingest via playwright + readability", 36), "ingest via playwright + readability");
+  assert.equal(shortSub("ingest via playwright + readability", 30), "ingest via playwright");
+  assert.equal(shortSub("zip or git page-to text and more words", 20), "zip or git page-to");
+});

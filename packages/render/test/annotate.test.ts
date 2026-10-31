@@ -122,3 +122,15 @@ test("ring geometry: every corner of the box sits well inside the loop", () => {
     }
   }
 });
+
+test("every box's name and description fit inside the box, never cut off by its edge", async () => {
+  const { film, sketch } = await composed;
+  for (const n of sketch.nodes) {
+    for (const t of [n.keyword, n.sub].filter(Boolean) as string[]) {
+      const e = film.elements.find((x) => x.k === "text" && x.text === t && Math.abs(x.x - (n.box.x + n.box.w / 2)) < 2);
+      assert.ok(e, `${n.id}: "${t}" is drawn`);
+      const b = boxOf(e!)!;
+      assert.ok(b.x >= n.box.x + 8 && b.x + b.w <= n.box.x + n.box.w - 8, `${n.id}: "${t}" runs past the box edge`);
+    }
+  }
+});

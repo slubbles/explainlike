@@ -290,7 +290,7 @@ export function shortSub(s: string, n: number) {
   const ws = s.split(/\s+/);
   while (ws.length > 1 && ws.join(" ").length > n) ws.pop();
   // a description should not end on a joining word ("... via", "... the")
-  while (ws.length > 1 && /^(via|and|or|with|for|of|to|the|a|an|on|in|from|by)$/i.test(ws[ws.length - 1])) ws.pop();
+  while (ws.length > 1 && /^(via|and|or|with|for|of|to|the|a|an|on|in|from|by|\+|&|\/|-|–)$/i.test(ws[ws.length - 1])) ws.pop();
   const out = ws.join(" ").replace(/[\s,;:–-]+$/, "");
   return out.length <= n ? out : out.slice(0, n - 1) + "…";
 }
@@ -324,7 +324,7 @@ export async function compose(inp: ComposeInput): Promise<Composed> {
     const order = new Map<string, number>();
     plan.scenes.forEach((s) => s.add_components.forEach((id) => { if (!order.has(id)) order.set(id, order.size); }));
     const comps = [...a.components].sort((x, y) => (order.get(x.id) ?? 99) - (order.get(y.id) ?? 99));
-    const gnodes: GNode[] = comps.map((c) => ({ id: c.id, keyword: c.keyword, sub: shortSub(c.name.toLowerCase(), 30), icon: c.icon, color: C(inp.colorOf ? inp.colorOf(c) : "white") }));
+    const gnodes: GNode[] = comps.map((c) => ({ id: c.id, keyword: c.keyword, sub: shortSub(c.name.toLowerCase(), 36), icon: c.icon, color: C(inp.colorOf ? inp.colorOf(c) : "white") }));
     const gedges: GEdge[] = a.connections.map((c) => ({ from: c.from, to: c.to, label: c.label }));
     a.scale.forEach((r, i) => {
       const id = `fix-${i}`;
