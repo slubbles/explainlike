@@ -636,8 +636,11 @@ export async function compose(inp: ComposeInput): Promise<Composed> {
       const RW = readableWidth({ width: W, height: H });
       const fitsRW = (b: Box) => b.w <= RW * 0.8 && b.h <= RW * 0.8 * (H / W);
       // a step whose ends are too far apart to read in one shot frames where the dot lands; it travels in from off screen
+      // the previous hop stays in frame too, so the part the dot just left is never cut off
       const stepBox = (i: number) => {
         const ends = unionBox([steps[i].from, steps[i].to].map((id) => graph!.nodes.get(id)!).filter(Boolean), 70);
+        const both = i > 0 ? unionBox([steps[i - 1].from, steps[i - 1].to, steps[i].from, steps[i].to].map((id) => graph!.nodes.get(id)!).filter(Boolean), 70) : ends;
+        if (fitsRW(both)) return both;
         const to = graph!.nodes.get(steps[i].to);
         return fitsRW(ends) || !to ? ends : unionBox([to], 70);
       };
