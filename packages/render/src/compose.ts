@@ -251,6 +251,9 @@ const HELPER_VERB = /^(do|does|did|can|could|will|would|should|may|might|must)$/
 /** Words that lead into what follows; a caption phrase does not end on one. */
 const LEADS_ON = /^(a|an|the|of|on|to|in|at|for|with|by|from|into|onto|about|just|and|or|but|its|their|your|my|our|his|her|this|that|these|those|every|each)$/;
 
+/** Shortest time a short phrase can stay up and still be read (the demo's caption check uses the same bound). */
+const READ_S = 0.7;
+
 /** Shortest time a caption phrase stays up before the next one replaces it (seconds of speech). */
 const MIN_PHRASE_S = 0.85;
 
@@ -301,7 +304,7 @@ export function captionsFor(scene: string, words: WordTiming[], offset: number, 
     caps[i + 1].t0 = caps[i + 1].words[0].s - 0.08;
     // what is left would flash by ("deep dive"): it takes the last word of the phrase before when that phrase
     // keeps enough words and ends mid-clause ("Render a twenty | second deep dive | on just that box."), else the move is undone
-    const quick = () => caps[i + 1].words[0].s - ws[0].s < MIN_PHRASE_S;
+    const quick = () => caps[i + 1].words[0].s - ws[0].s < READ_S;
     const prev = caps[i - 1]?.words;
     if (quick() && prev && prev.length > 2 && !/[.!?,;:]$/.test(prev[prev.length - 1].w)) { ws.unshift(prev.pop()!); caps[i].t0 = ws[0].s - 0.08; }
     if (quick()) { ws.push(...caps[i + 1].words.splice(0, moved)); caps[i + 1].t0 = caps[i + 1].words[0].s - 0.08; }
