@@ -6,12 +6,12 @@
 export interface Base { id: string; t0: number; dur: number; g?: string }
 export interface FPath extends Base { k: "path"; d: string; stroke: string; sw: number; fill?: string; anim?: "draw" | "pop" | "fade"; origin?: [number, number] }
 export interface FImage extends Base { k: "img"; href: string; x: number; y: number; w: number; h: number; anim?: "pop" | "fade"; invert?: boolean }
-export interface FText extends Base { k: "text"; text: string; x: number; y: number; size: number; color: string; anchor?: "start" | "middle" | "end"; font?: "hand" | "sans"; weight?: number; bg?: string; anim?: "wipe" | "fade" }
+export interface FText extends Base { k: "text"; text: string; x: number; y: number; size: number; color: string; anchor?: "start" | "middle" | "end"; font?: "hand" | "sans"; weight?: number; bg?: string; anim?: "wipe" | "fade" | "count"; count?: { from: number; to: number; suffix: string } }
 export interface FDot extends Base { k: "dot"; pts: [number, number][]; color: string; r: number; trail?: string }
 export type FElement = FPath | FImage | FText | FDot;
 
 export interface CamKey { t: number; x: number; y: number; w: number; h: number; move: number }
-export interface Caption { t0: number; t1: number; words: { w: string; s: number; e: number }[] }
+export interface Caption { t0: number; t1: number; words: { w: string; s: number; e: number }[]; /** world box the caption sits next to (lively pace); bottom of the screen when absent */ at?: { x: number; y: number; w: number; h: number } }
 export interface Heading { t0: number; t1: number; text: string }
 
 export interface Film {
@@ -24,6 +24,8 @@ export interface Film {
   headings: Heading[];
   captions: Caption[];
   fades: { t: number; dur: number }[];
+  /** black section cards between parts of the video */
+  cards?: { t0: number; t1: number; text: string }[];
   end?: { t0: number; title: string; lines: string[]; credit: string };
   brand: string;
 }

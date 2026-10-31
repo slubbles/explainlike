@@ -10,6 +10,8 @@ import { loadIconPack, mergePacks, builtinPackIds, detectComponents, packHints, 
 export interface RunOptions {
   input: string;
   level?: Level;
+  /** how busy the video feels (default lively) */
+  pace?: "lively" | "calm";
   theme?: string;
   out?: string;
   name?: string;
@@ -167,7 +169,7 @@ export async function runMetual(o: RunOptions) {
   // ---------- compose + render ----------
   P({ stage: "compose", message: "laying out the canvas", pct: 44 });
   const { film, sketch, timeline } = await compose({
-    plan, audio, theme, level, pack, sourceLabel, arch, shot,
+    plan, audio, theme, level, pack, sourceLabel, arch, shot, pace: o.pace,
     colorOf: (c) => kindColor(c.kind) as any,
   });
   fs.writeFileSync(path.join(out, "film.json"), JSON.stringify({ ...film, fonts: undefined, elements: film.elements.length }, null, 1));

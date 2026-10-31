@@ -115,6 +115,26 @@
   const slots = [headA, headB].map((el) => ({ el, txt: el.querySelector("span"), line: el.querySelector("div"), text: null }));
   const cap = document.getElementById("captions"), bar = document.getElementById("bar"), fade = document.getElementById("fade"), end = document.getElementById("end");
   let lastCap = null;
+  const card = document.createElement("div"); card.id = "card";
+  const cardText = document.createElement("div"); cardText.id = "cardText"; card.appendChild(cardText);
+  document.getElementById("barwrap").before(card);
+  const capwrap = document.getElementById("capwrap");
+
+  // Lively captions sit next to what they talk about: under the box when it fits, else above, else the usual bottom spot.
+  function placeCaption(c, t) {
+    const pop = 0.88 + 0.12 * easeOut(clamp((t - c.t0) / 0.18, 0, 1));
+    if (!c.at) { capwrap.className = ""; capwrap.style.left = capwrap.style.top = ""; cap.style.transform = ""; return; }
+    capwrap.className = "near";
+    const cam = camera(t), s = F.width / cam.w;
+    const bx = (c.at.x - cam.x) * s, by = (c.at.y - cam.y) * s, bw = c.at.w * s, bh = c.at.h * s;
+    const cw = cap.offsetWidth, ch = cap.offsetHeight, gap = 22, top = 170, bottom = F.height - 40;
+    let y = by + bh + gap;
+    if (y + ch > bottom) y = by - gap - ch;
+    if (y < top) y = bottom - ch - 24;
+    const x = clamp(bx + bw / 2 - cw / 2, 40, F.width - 40 - cw);
+    capwrap.style.left = `${x.toFixed(1)}px`; capwrap.style.top = `${y.toFixed(1)}px`;
+    cap.style.transform = `scale(${pop.toFixed(3)})`;
+  }
   const HIN = 0.55, HOUT = 0.45;
 
   function drawHead(slot, h, inP, outP, lineP) {
@@ -156,7 +176,18 @@
         spans[i].className = t >= w.s && t < (c.words[i + 1] ? c.words[i + 1].s : w.e + 0.3) ? "on" : t >= w.s ? "said" : "";
       }
       cap.style.display = "inline-block";
+      placeCaption(c, t);
     } else { cap.style.display = "none"; lastCap = null; }
+
+    // black section card
+    const sc = (F.cards || []).find((x) => t >= x.t0 && t < x.t1);
+    if (sc) {
+      card.style.display = "flex";
+      if (cardText.textContent !== sc.text) cardText.textContent = sc.text;
+      const p = clamp((t - sc.t0) / 0.3, 0, 1);
+      cardText.style.opacity = p.toFixed(3);
+      cardText.style.transform = `scale(${(0.9 + 0.1 * easeOut(p)).toFixed(3)})`;
+    } else card.style.display = "none";
 
     bar.style.width = `${(clamp(t / F.duration, 0, 1) * 100).toFixed(3)}%`;
     let fo = 0;
@@ -189,7 +220,16 @@
         if ((e.anim || "pop") === "pop") { const s = 0.5 + 0.5 * back(p); const cx = e.x + e.w / 2, cy = e.y + e.h / 2; it.g.setAttribute("transform", `translate(${cx} ${cy}) scale(${s}) translate(${-cx} ${-cy})`); o *= clamp(p * 2.5, 0, 1); }
         else o *= p;
       } else if (e.k === "text") {
-        if ((e.anim || "wipe") === "wipe") {
+        if (e.anim === "count" && e.count) {
+          // a number that ticks up while it pops in, e.g. 1x -> 10x
+          const n = Math.round(e.count.from + (e.count.to - e.count.from) * easeOut(p));
+          it.words[0].textContent = `${n}${e.count.suffix}`;
+          for (let i = 1; i < it.words.length; i++) it.words[i].textContent = "";
+          const s = 0.5 + 0.5 * back(clamp(p * 1.6, 0, 1));
+          it.g.setAttribute("transform", `translate(${e.x} ${e.y}) scale(${s}) translate(${-e.x} ${-e.y})`);
+          if (it.bg && it.bb) { const w = it.bb.width * (String(n).length + e.count.suffix.length) / Math.max(1, e.text.length); it.bg.setAttribute("x", e.x - w / 2 - 12); it.bg.setAttribute("width", w + 24); }
+          o *= clamp(p * 4, 0, 1);
+        } else if ((e.anim || "wipe") === "wipe") {
           const ops = wordOpacities(it.words.length, easeOut(p));
           for (let i = 0; i < ops.length; i++) it.words[i].setAttribute("fill-opacity", ops[i].toFixed(3));
           if (it.bg) it.bg.setAttribute("opacity", clamp(p * 4, 0, 1).toFixed(3));

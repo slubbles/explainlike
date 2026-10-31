@@ -2,6 +2,7 @@ import fs from "node:fs";
 import rough from "roughjs";
 import type { Architecture, ScenePlan, Scene, SceneAudio, Theme, LevelSpec, Color, WordTiming, NoteItem } from "@metual/core";
 import type { Film, FElement, CamKey, Caption, Heading } from "./film.js";
+import { applyPace, LIVELY, type Pace } from "./pace.js";
 import { layoutGraph, unionBox, shiftLayout, wrapText, NODE, type Box, type GNode, type GEdge, type Layout, type PlacedNode, type PlacedEdge } from "./layout.js";
 import { textWidth, fontDataUrl } from "./measure.js";
 import type { IconPack } from "./icons.js";
@@ -60,6 +61,8 @@ export interface ComposeInput {
   arch?: Architecture;
   colorOf?: (c: Architecture["components"][number]) => Color;
   shot?: SourceShot;
+  /** how busy the video feels (default lively, see pace.ts) */
+  pace?: Pace;
 }
 
 const normW = (w: string) => w.toLowerCase().replace(/[^a-z0-9]/g, "");
@@ -234,14 +237,14 @@ function eventTimes(words: WordTiming[], phrases: string[][], start: number, end
   return out.map((t) => Math.min(t, Math.max(start, end)));
 }
 
-function captionsFor(words: WordTiming[], offset: number, sceneEnd: number): Caption[] {
+function captionsFor(words: WordTiming[], offset: number, sceneEnd: number, maxWords = 8, maxChars = 46): Caption[] {
   const caps: Caption[] = [];
   let cur: WordTiming[] = [];
   const flush = () => { if (cur.length) caps.push({ t0: offset + cur[0].start - 0.08, t1: 0, words: cur.map((w) => ({ w: w.word, s: offset + w.start, e: offset + w.end })) }); cur = []; };
   for (const w of words) {
     cur.push(w);
     const chars = cur.map((x) => x.word).join(" ").length;
-    if ((/[.!?]$/.test(w.word) && cur.length >= 2) || (/[,;:]$/.test(w.word) && cur.length >= 4) || cur.length >= 8 || chars > 46) flush();
+    if ((/[.!?]$/.test(w.word) && cur.length >= 2) || (/[,;:]$/.test(w.word) && cur.length >= Math.min(4, maxWords - 1)) || cur.length >= maxWords || chars > maxChars) flush();
   }
   flush();
   for (let i = 0; i < caps.length; i++) {
@@ -360,7 +363,16 @@ export async function compose(inp: ComposeInput): Promise<Composed> {
   const dim = theme.dimOpacity;
   const boardShown: { id: string; heading: string; keys: string[]; g: string }[] = [];
 
+  const lively = (inp.pace ?? "lively") === "lively";
+  const cards: { t0: number; t1: number; text: string }[] = [];
+  const SECTION: Record<string, string> = { layer: "how it's built", walkthrough: "follow one request", scale: "what breaks at scale", recap: "the whole picture", source: "the source" };
   for (const [si, s] of plan.scenes.entries()) {
+    // lively: a black card names each new part of the video before it starts
+    const prevKind = plan.scenes[si - 1]?.kind;
+    if (lively && si > 0 && s.kind !== prevKind && s.kind !== "outro") {
+      cards.push({ t0: T, t1: T + LIVELY.card, text: SECTION[s.kind] ?? s.heading.toLowerCase() });
+      T += LIVELY.card;
+    }
     const au = audio.get(s.id) ?? { sceneId: s.id, duration: Math.max(2.5, s.narration.split(/\s+/).length / 2.6), words: [] };
     const minD = s.kind === "hook" ? 5 : s.kind === "recap" ? 5 : 3.2;
     const D = Math.max(minD, LEAD + au.duration + TAIL);
@@ -369,7 +381,7 @@ export async function compose(inp: ComposeInput): Promise<Composed> {
     timeline.push({ id: s.id, kind: s.kind, start: T, end: T + D });
     const scaleRisk = s.kind === "scale" ? inp.arch?.scale[plan.scenes.filter((x) => x.kind === "scale").indexOf(s)] : undefined;
     if (s.kind !== "hook") headings.push({ t0: T, t1: T + D, text: spokenHeading(s.heading, s.narration, scaleRisk ? [scaleRisk.problem] : []) });
-    captions.push(...captionsFor(au.words, T + LEAD, T + D));
+    captions.push(...(lively ? captionsFor(au.words, T + LEAD, T + D, LIVELY.capWords, LIVELY.capChars) : captionsFor(au.words, T + LEAD, T + D)));
 
     if (s.kind === "hook") {
       const title = plan.title.toLowerCase();
@@ -465,6 +477,12 @@ export async function compose(inp: ComposeInput): Promise<Composed> {
         const others = [...graph.nodes.values()].filter((n) => n.id !== c.id && n.id !== f.id);
         const L = placeRingLabel(ring.box, lw, 60, [...others, f, ...(poly ? [polyBox(poly)] : []), ...graph.edges.flatMap((e) => (e.labelBox ? [e.labelBox] : []))]);
         B.text({ text: lab, x: L.x, y: L.y, size: 44, color: C("red"), anchor: L.anchor, t0: t1 + 0.5, dur: 0.6, g: `s:${k}`, bg: true });
+        // lively: the size of the jump counts up big over the box ("1x" to "10x"), then gets out of the way
+        const mult = Number(/^(\d+)x$/i.exec(r.at.trim())?.[1]);
+        if (lively && mult > 1) {
+          B.els.push({ k: "text", id: B.id("t"), text: `${mult}x`, x: c.x + c.w / 2, y: c.y + c.h / 2 + 50, size: 150, color: C("red"), anchor: "middle", t0: t1, dur: 0.8, g: `cnt:${k}`, bg: theme.background, anim: "count", count: { from: 1, to: mult, suffix: "x" } });
+          B.setOp(`cnt:${k}`, t1 + 1.6, 0, 0.3);
+        }
         // the camera holds everything this scene draws, label included
         B.fit(unionBox([c, f, ring.box, L.box, ...(poly ? [polyBox(poly)] : [])], 60), T, 1.0);
         B.node(f, t2 + 0.55, nodeGroup(f.id));
@@ -657,9 +675,10 @@ export async function compose(inp: ComposeInput): Promise<Composed> {
     theme: { background: theme.background, ink: theme.ink, accent: theme.accent, caption: theme.caption },
     fonts: { hand: fontDataUrl("Excalifont-Regular.woff2", "font/woff2"), sans: fontDataUrl("Nunito-Variable.ttf", "font/ttf") },
     elements: B.els, groups: B.groups, camera: B.cam.length ? B.cam : [{ t: 0, x: 0, y: 0, w: W, h: H, move: 0 }],
-    headings, captions, fades,
+    headings, captions, fades, cards,
     end: { t0: T, title: plan.title.toLowerCase(), lines: [inp.sourceLabel, `explained like ${inp.level.label.toLowerCase()}`], credit: "Powered by Meta Muse models" },
     brand,
   };
+  if (lively) applyPace(film, timeline);
   return { film, sketch: B.sketch, timeline };
 }

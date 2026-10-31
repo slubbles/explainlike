@@ -10,3 +10,4 @@ export * from "./reveal.js";
 export * from "./check.js";
 export * from "./annotate.js";
 export * from "./tidy.js";
+export * from "./pace.js";
