@@ -30,36 +30,49 @@ export function run(cmd: string, args: string[]): Promise<void> {
  */
 export interface CaptionSpot { t0: number; text: string; spot: string; stacked: boolean; small?: boolean; overlapPx: number; movingPx: number; rect?: { x: number; y: number; w: number; h: number } }
 
-/** Render frames with N parallel headless pages, each seeking window.render(t). */
-export async function captureFrames(film: Film, dir: string, opts: { workers?: number; onProgress?: (done: number, total: number) => void; only?: number[] } = {}) {
+/**
+ * Render frames with N headless Chromes, one page each, pulling frame numbers from a shared queue.
+ * Separate browsers scale far better than pages in one browser, which all wait on that browser's single compositor.
+ * Each frame is handed to `onFrame` as soon as it is drawn (frames arrive out of order) and written to `dir`.
+ */
+export async function captureFrames(film: Film, dir: string, opts: { workers?: number; onProgress?: (done: number, total: number) => void; only?: number[]; onFrame?: (f: number, jpeg: Buffer) => Promise<void> | void } = {}) {
   fs.mkdirSync(dir, { recursive: true });
   const html = path.join(dir, "stage.html");
   fs.writeFileSync(html, stageHtml(film));
   const total = Math.ceil(film.duration * film.fps);
   const frames = opts.only ?? [...Array(total).keys()];
-  const workers = Math.max(1, Math.min(opts.workers ?? Math.max(2, Math.min(6, os.cpus().length - 1)), frames.length));
-  const browser = await chromium.launch({ executablePath: findChrome(), args: ["--disable-gpu", "--font-render-hinting=none", "--hide-scrollbars"] });
-  let done = 0;
+  const workers = Math.max(1, Math.min(opts.workers ?? defaultWorkers(), frames.length));
+  let next = 0, done = 0, failed = false;
   let captions: CaptionSpot[] = [];
-  try {
-    await Promise.all([...Array(workers).keys()].map(async (w) => {
+  await Promise.all([...Array(workers).keys()].map(async (w) => {
+    const browser = await chromium.launch({ executablePath: findChrome(), args: ["--disable-gpu", "--font-render-hinting=none", "--hide-scrollbars"] });
+    try {
       const page = await browser.newPage({ viewport: { width: film.width, height: film.height }, deviceScaleFactor: 1 });
       await page.goto("file://" + html);
       await page.evaluate(() => (window as any).ready);
       if (w === 0) captions = await page.evaluate(() => (window as any).captionReport ?? []);
-      for (let i = w; i < frames.length; i += workers) {
-        const f = frames[i];
+      while (next < frames.length && !failed) {
+        const f = frames[next++];
         await page.evaluate((t) => (window as any).render(t), f / film.fps);
-        await page.screenshot({ path: path.join(dir, `f${String(f).padStart(6, "0")}.jpg`), type: "jpeg", quality: 92 });
+        const jpeg = await page.screenshot({ type: "jpeg", quality: 92 });
+        fs.writeFileSync(path.join(dir, `f${String(f).padStart(6, "0")}.jpg`), jpeg);
+        await opts.onFrame?.(f, jpeg);
         done++;
         if (done % 30 === 0) opts.onProgress?.(done, frames.length);
       }
-      await page.close();
-    }));
-  } finally {
-    await browser.close();
-  }
+    } catch (e) {
+      failed = true; // the other workers stop at their next frame
+      throw e;
+    } finally {
+      await browser.close();
+    }
+  }));
   return { html, total, captions };
+}
+
+/** One Chrome per spare core, at most 6: each holds a full-size page in memory. */
+export function defaultWorkers() {
+  return Math.max(2, Math.min(6, os.cpus().length - 1));
 }
 
 /** Place each scene's WAV at its start time in one 24 kHz mono track. */
