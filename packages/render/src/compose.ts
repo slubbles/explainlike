@@ -450,7 +450,9 @@ export async function compose(inp: ComposeInput): Promise<Composed> {
       const comps = (inp.arch?.components ?? []).filter((c) => present.has(c.id));
       for (const id of all) B.setOp(nodeGroup(id), T, dim);
       const times = eventTimes(words, comps.map((c) => [c.keyword]), t0 + 0.3, tEnd - 1.2, 0.5);
-      comps.forEach((c, i) => B.setOp(nodeGroup(c.id), times[i], 1, 0.35));
+      // a fix lights up together with the component it fixes, so the recap never shows the answers greyed out
+      const fixesOf = (id: string) => (inp.arch?.scale ?? []).flatMap((r, j) => (r.component === id && present.has(fixIds[j]) ? [fixIds[j]] : []));
+      comps.forEach((c, i) => { for (const id of [c.id, ...fixesOf(c.id)]) B.setOp(nodeGroup(id), times[i], 1, 0.35); });
       for (const id of all) B.setOp(nodeGroup(id), tEnd - 0.6, 1, 0.4);
     } else if (s.kind === "source" && inp.shot && shotBox) {
       const sb = shotBox;

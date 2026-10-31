@@ -76,7 +76,8 @@ export async function runMetual(o: RunOptions) {
     const r = await ingestRepo(o.input);
     doc = r;
     const name = o.name ?? r.title;
-    sourceLabel = o.name ? `github.com/${o.name}` : r.url.replace(/^https?:\/\//, "");
+    // a local checkout shows its folder name, never the path on this machine
+    sourceLabel = o.name ? `github.com/${o.name}` : /^https?:\/\//.test(r.url) ? r.url.replace(/^https?:\/\//, "") : path.basename(r.url);
     out = o.out ?? path.resolve("metual-out", slug(name) + "-" + level.id);
     fs.mkdirSync(out, { recursive: true });
     notes.push(`digest: ${r.digest.files.length} files, ${r.digest.text.length} chars; ${r.digest.skippedSecret.length} secret-looking files never opened`);
