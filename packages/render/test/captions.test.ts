@@ -165,4 +165,6 @@ test("a phrase does not end on a word that leads into the next, and is not repla
   assert.equal(shown.join(" "), t.map((x) => x[0]).join(" "));
   for (const p of shown.slice(0, -1)) assert.ok(!/ (a|the|of|on|to|just)$/i.test(p), `a phrase ends on a leading word: "${p}" (${shown.join(" | ")})`);
   for (const c of caps) for (const w of c.words) assert.ok(c.t0 <= w.s + 1e-9 && c.t1 >= w.e - 1e-9, `"${w.w}" is said ${w.s}-${w.e} but its phrase is up ${c.t0.toFixed(2)}-${c.t1.toFixed(2)}`);
+  // moving the leading words on must not leave a phrase that flashes by ("deep dive" for half a second)
+  for (const c of caps) assert.ok(c.t1 - c.t0 >= 0.7, `"${c.words.map((w) => w.w).join(" ")}" is up only ${(c.t1 - c.t0).toFixed(2)} s (${shown.join(" | ")})`);
 });
