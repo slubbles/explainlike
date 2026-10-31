@@ -22,6 +22,7 @@ export default function Home() {
   const [explBusy, setExplBusy] = useState(false);
   const [started, setStarted] = useState<string[]>([]);
   const [bump, setBump] = useState(0);
+  const [talking, setTalking] = useState(false);
   const job = useJob(jobId);
   const listed = useJobs(bump);
 
@@ -57,6 +58,14 @@ export default function Home() {
     scrollTo({ top: 0 });
   }
 
+  // voice mode started the job itself: open it like any other
+  function voiceJob(j: { id: string }) {
+    setTalking(false);
+    history.pushState(null, "", `?job=${j.id}`);
+    setJobId(j.id);
+    scrollTo({ top: 0 });
+  }
+
   async function pick(id: string) {
     if (!job) return;
     setPicked(id); setExpl(null); setExplBusy(true); setErr("");
@@ -83,7 +92,7 @@ export default function Home() {
     <>
       <Nav />
       <main className="page">
-        {!jobId && <InputScreen form={form} set={set} go={go} busy={false} err={err} gallery={gallery} />}
+        {!jobId && <InputScreen form={form} set={set} go={go} busy={false} err={err} gallery={gallery} talking={talking} talk={setTalking} onVoiceJob={voiceJob} />}
         {jobId && (
           <>
             <JobBar form={form} set={set} go={go} busy={busy} fold={job?.state === "done"} quiet={job?.state === "done" && form.input.trim() === job.input && form.voice === job.voice} />

@@ -68,6 +68,31 @@ h1 em { font-style: normal; font-family: var(--hand); font-weight: 400; color: v
 .how div { color: var(--muted); line-height: 1.55; font-size: 14.5px; }
 footer { text-align: center; color: var(--muted); font-size: 13px; padding: 56px 0 0; }
 
+/* voice mode: the link box turns into a quiet transcript */
+.acts { display: flex; align-items: center; gap: 10px; margin-left: auto; }
+.acts .send { margin-left: 0; }
+.mic { width: 42px; height: 42px; flex: none; display: grid; place-items: center; border-radius: 999px; border: 1px solid var(--line); background: #fff; color: var(--ink); }
+.mic:hover { border-color: #c9ccd1; }
+.prompt.voice { padding: 16px 16px 16px 22px; }
+.vhead { display: flex; align-items: center; gap: 10px; }
+.vstat { font-weight: 600; font-size: 14px; color: var(--ink); margin-right: auto; }
+.vdot { width: 10px; height: 10px; border-radius: 50%; background: var(--faint); flex: none; }
+.vdot.listening { background: var(--blue); animation: vpulse 1.6s ease-in-out infinite; }
+.vdot.speaking, .vdot.starting { background: var(--blue); }
+.vdot.thinking { background: var(--blue); opacity: .45; }
+.vdot.error { background: var(--red); }
+@keyframes vpulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(8,102,255,.35); } 50% { box-shadow: 0 0 0 6px rgba(8,102,255,0); } }
+@media (prefers-reduced-motion: reduce) { .vdot.listening { animation: none; } }
+.vlog { margin-top: 12px; max-height: 280px; min-height: 96px; overflow-y: auto; padding-right: 6px; }
+.vline { margin: 0; padding: 7px 0; font-size: 15.5px; line-height: 1.5; color: var(--ink); }
+.vline .who { display: block; font-size: 12px; font-weight: 600; color: var(--muted); margin-bottom: 1px; }
+.vline.user .who { color: var(--blue); }
+.vline.live { color: var(--muted); }
+.vhint { margin: 8px 0 0; color: var(--muted); font-size: 14.5px; }
+.vtype { margin-top: 10px; border-top: 1px solid var(--line); padding-top: 10px; }
+.vtype input { width: 100%; border: 0; outline: 0; background: transparent; font: inherit; font-size: 14.5px; color: var(--ink); padding: 4px 0; }
+.vtype input::placeholder { color: var(--faint); }
+
 /* job screens */
 .jobbar { max-width: 1200px; margin: 28px auto 0; display: flex; align-items: center; gap: 12px; background: #fff; border: 1px solid var(--line); border-radius: 999px; padding: 8px 8px 8px 22px; }
 .jobbar:focus-within { border-color: #c9ccd1; }
@@ -174,6 +199,12 @@ footer { text-align: center; color: var(--muted); font-size: 13px; padding: 56px
   .group { flex: 1 1 100%; flex-wrap: wrap; }
   .group .label { width: 100%; margin: 0 0 2px; }
   .send { margin: 4px 0 0; padding: 12px 18px; }
+  .acts { margin: 4px 0 0; }
+  .acts .send { flex: 1; margin: 0; }
+  .mic { width: 46px; height: 46px; }
+  .prompt.voice { padding: 14px 14px 14px 16px; }
+  .vlog { max-height: 50vh; }
+  .vtype input { font-size: 16px; }
   .try { justify-content: flex-start; }
   .gallery { margin-top: 38px; }
   .grid { grid-template-columns: minmax(0, 1fr); gap: 20px; }
