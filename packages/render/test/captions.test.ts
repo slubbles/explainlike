@@ -3,8 +3,8 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { getTheme, getLevel } from "@metual/core";
-import { compose, loadIconPack, captureFrames, type Film } from "../src/index.js";
+import { getTheme, getLevel, agreementSlips } from "@metual/core";
+import { compose, loadIconPack, captureFrames, captionsFor, type Film } from "../src/index.js";
 
 const fx = new URL("./fixtures/", import.meta.url);
 const plan = JSON.parse(fs.readFileSync(new URL("example-app.plan.json", fx), "utf8"));
@@ -48,4 +48,14 @@ test("beside a screenshot, captions use its empty margins, stacking on two lines
   assert.deepEqual(captions.map((c) => c.overlapPx), [0, 0]);
   assert.ok(captions[0].stacked, "one line is too wide for the margin");
   assert.equal(captions[1].spot, captions[0].spot);
+});
+
+test("a caption phrase never reads as a grammar slip on its own: 'how does' stays with 'a pasted link become'", () => {
+  const said = "The question: how does a pasted link become a watchable video?".split(" ");
+  const words = said.map((word, i) => ({ word, start: i * 0.3, end: i * 0.3 + 0.25 }));
+  const caps = captionsFor("s1", words, 0, 10, 4, 26);
+  const shown = caps.map((c) => c.words.map((w) => w.w).join(" "));
+  assert.equal(shown.join(" "), said.join(" "));
+  assert.ok(shown.includes("how does a pasted link become"), shown.join(" | "));
+  for (const p of shown) assert.deepEqual(agreementSlips(p), [], p);
 });

@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import rough from "roughjs";
+import { agreementSlips } from "@metual/core";
 import type { Architecture, ScenePlan, Scene, SceneAudio, Theme, LevelSpec, Color, WordTiming, NoteItem } from "@metual/core";
 import type { Film, FElement, CamKey, Caption, Heading } from "./film.js";
 import { applyPace, LIVELY, type Pace } from "./pace.js";
@@ -246,7 +247,9 @@ function eventTimes(words: WordTiming[], phrases: string[][], start: number, end
   return out.map((t) => Math.min(t, Math.max(start, end)));
 }
 
-function captionsFor(scene: string, words: WordTiming[], offset: number, sceneEnd: number, maxWords = 8, maxChars = 46): Caption[] {
+const HELPER_VERB = /^(do|does|did|can|could|will|would|should|may|might|must)$/;
+
+export function captionsFor(scene: string, words: WordTiming[], offset: number, sceneEnd: number, maxWords = 8, maxChars = 46): Caption[] {
   const caps: Caption[] = [];
   let cur: WordTiming[] = [];
   const flush = () => { if (cur.length) caps.push({ scene, t0: offset + cur[0].start - 0.08, t1: 0, words: cur.map((w) => ({ w: w.word, s: offset + w.start, e: offset + w.end })) }); cur = []; };
@@ -256,6 +259,21 @@ function captionsFor(scene: string, words: WordTiming[], offset: number, sceneEn
     if ((/[.!?]$/.test(w.word) && cur.length >= 2) || (/[,;:]$/.test(w.word) && cur.length >= Math.min(4, maxWords - 1)) || cur.length >= maxWords || chars > maxChars) flush();
   }
   flush();
+  // a phrase read on its own must not show a grammar slip: "how does | a pasted link become" reads as
+  // "a pasted link become", so the helper verb (and the question word before it) moves to the next phrase
+  for (let i = 0; i + 1 < caps.length; i++) {
+    const text = (c: Caption) => c.words.map((w) => w.w).join(" ");
+    if (!agreementSlips(text(caps[i + 1])).length || agreementSlips(`${text(caps[i])} ${text(caps[i + 1])}`).length) continue;
+    const ws = caps[i].words.map((w) => w.w.toLowerCase().replace(/[^a-z]/g, ""));
+    let k = ws.length - 1;
+    while (k >= 0 && !HELPER_VERB.test(ws[k])) k--;
+    if (k < 0) continue;
+    if (k > 0 && /^(how|why|what|when|where|who|which)$/.test(ws[k - 1])) k--;
+    const moved = caps[i].words.splice(k);
+    caps[i + 1].words.unshift(...moved);
+    caps[i + 1].t0 = caps[i + 1].words[0].s - 0.08;
+    if (!caps[i].words.length) caps.splice(i--, 1);
+  }
   for (let i = 0; i < caps.length; i++) {
     const last = caps[i].words[caps[i].words.length - 1];
     caps[i].t1 = Math.min(caps[i + 1]?.t0 ?? Infinity, last.e + 0.6, sceneEnd);

@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { Architecture, NoteItem, LevelSpec, listLevels, getLevel, registerLevel, getTheme, registerTheme, listThemes, isKeyword, quoteInSource, strictJsonSchema } from "@metual/core";
+import { Architecture, NoteItem, LevelSpec, listLevels, getLevel, registerLevel, getTheme, registerTheme, listThemes, isKeyword, quoteInSource, strictJsonSchema, agreementSlips, tidySpeech } from "@metual/core";
 
 test("the four built-in levels load from their JSON config", () => {
   assert.deepEqual(listLevels().map((l) => l.id).sort(), ["five", "interviewing", "new", "senior"]);
@@ -65,4 +65,14 @@ test("narration is tidied mechanically before it is voiced", async () => {
   assert.equal(tidySpeech("  the  the cache holds rows ,then  drops them. at 10x traffic, writes queue up"), "The cache holds rows, then drops them. At 10x traffic, writes queue up.");
   assert.equal(tidySpeech("Use a queue, e.g. a durable one. it said that that was fine!"), "Use a queue, e.g. a durable one. It said that that was fine!");
   assert.equal(tidySpeech("How does a pasted link become a video?"), "How does a pasted link become a video?");
+});
+
+test("subject-verb agreement: 'a pasted link become' is a slip, but 'how does a pasted link become' is not", () => {
+  assert.deepEqual(agreementSlips("a pasted link become").map((s) => s.phrase), ["a pasted link become"]);
+  assert.equal(tidySpeech("A pasted link become a watchable video."), "A pasted link becomes a watchable video.");
+  assert.equal(tidySpeech("Each worker fetch the repo."), "Each worker fetches the repo.");
+  assert.equal(tidySpeech("An api call return data."), "An api call returns data.");
+  // a helper verb carries the agreement, and two singular subjects make a plural one
+  for (const ok of ["The question: how does a pasted link become a watchable video?", "Let a worker run it.", "A user and a bot send links.", "Why can a single room become hot?"])
+    assert.equal(tidySpeech(ok), ok);
 });

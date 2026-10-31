@@ -36,9 +36,70 @@ export function tidySpeech(s: string): string {
     .replace(/([,;:])(?=[A-Za-z])/g, "$1 ")
     .replace(/\.{2,}(?!\.)/g, ".")
     .replace(/\b(\w+) \1\b/gi, (m, w: string) => (/^(that|had|is)$/i.test(w) ? m : w));
+  t = fixAgreement(t);
   // a new sentence starts with a capital; "e.g." or "vs." do not end one
   t = t.replace(/(^|(\S*)[.!?] )([a-z])/g, (m, a: string, w: string | undefined, c: string) =>
     /^(e\.g|i\.e|vs|etc|approx)$/i.test(w ?? "") ? m : a + c.toUpperCase());
   if (t && !/[.!?]["')]?$/.test(t)) t += ".";
   return t;
+}
+
+// Common verbs in their bare form. A singular subject ("a pasted link") followed by one of these,
+// with no helper verb before it ("does", "can", "to" ...), is a subject-verb agreement slip.
+const BARE_VERBS = new Set(("become turn send store read write fetch draw run make take get give need use keep go show hold call build " +
+  "load save start stop wait break fail grow scale serve handle return render play pick check ask answer find hit cache queue " +
+  "split join pass push pull post sit live talk mean let help hand look feel seem stay move bring come have do be explain " +
+  "decide own track sync know see say want work open close").split(" "));
+const SINGULAR_DET = /^(a|an|each|every|this)$/;
+const HELPERS = /^(do|does|did|can|could|will|would|shall|should|may|might|must|to|let|lets|help|helps|helped|make|makes|made|watch|watches|see|sees|saw|hear|hears|why|not)$/;
+const NOT_ONE_THING = /^(and|or|few|couple|lot|lots|number|bunch|pair|of|plus|both|many)$/;
+const thirdPerson = (v: string) =>
+  ({ have: "has", do: "does", go: "goes", be: "is" } as Record<string, string>)[v] ??
+  (/(s|sh|ch|x|z)$/.test(v) ? v + "es" : /[^aeiou]y$/.test(v) ? v.slice(0, -1) + "ies" : v + "s");
+
+/**
+ * Agreement slips in a piece of text: a singular subject such as "a pasted link" followed by a bare
+ * verb such as "become", with no helper verb earlier in the same clause. "How does a pasted link
+ * become a video?" is fine (the helper "does" carries the agreement); "a pasted link become" read on
+ * its own is not. Returns the slipped phrase, the verb's word index and its fixed form.
+ */
+export function agreementSlips(text: string): { phrase: string; index: number; fix: string }[] {
+  const raw = text.split(/\s+/).filter(Boolean);
+  const words = raw.map((w) => w.toLowerCase().replace(/[^a-z']/g, ""));
+  const ends = raw.map((w) => /[,.;:!?]["')]?$/.test(w));
+  const out: { phrase: string; index: number; fix: string }[] = [];
+  for (let i = 0; i < words.length; i++) {
+    if (!SINGULAR_DET.test(words[i])) continue;
+    // "a user and a bot send" has a plural subject
+    if (i > 0 && NOT_ONE_THING.test(words[i - 1])) continue;
+    // a helper earlier in the same clause carries the agreement
+    let helped = false;
+    for (let k = i - 1; k >= 0 && k >= i - 5 && !ends[k]; k--) if (HELPERS.test(words[k])) { helped = true; break; }
+    if (helped) continue;
+    for (let j = i + 2; j <= i + 4 && j < words.length; j++) {
+      if (ends[j - 1] || NOT_ONE_THING.test(words[j - 1])) break;
+      if (BARE_VERBS.has(words[j]) && !words[j - 1].endsWith("'s")) {
+        // "an api call return": the first of two such words is still part of the subject
+        if (!ends[j] && j + 1 < words.length && BARE_VERBS.has(words[j + 1])) j++;
+        out.push({ phrase: raw.slice(i, j + 1).join(" "), index: j, fix: thirdPerson(words[j]) });
+        break;
+      }
+      if (ends[j]) break;
+    }
+  }
+  return out;
+}
+
+/** Fix agreement slips ("a pasted link become a video" -> "a pasted link becomes a video"). */
+export function fixAgreement(text: string): string {
+  const raw = text.split(/(\s+)/);
+  const slips = agreementSlips(text);
+  if (!slips.length) return text;
+  let wi = -1;
+  return raw.map((part) => {
+    if (/^\s+$/.test(part) || !part) return part;
+    wi++;
+    const s = slips.find((x) => x.index === wi);
+    return s ? part.replace(/^[A-Za-z]+/, (w) => (w[0] === w[0].toUpperCase() ? s.fix[0].toUpperCase() + s.fix.slice(1) : s.fix)) : part;
+  }).join("");
 }
