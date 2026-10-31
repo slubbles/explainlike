@@ -93,3 +93,9 @@ test("lively: the jump counter covers only the icon, never the box's name or des
     assert.ok(b.x >= r.x && b.y >= r.y && b.x + b.w <= r.x + r.w && b.y + b.h <= r.y + r.h + 0.01, `${c.text} fits its backdrop`);
   }
 });
+
+test("a new caption line over a still board still counts as a still picture", () => {
+  const film = { elements: [], camera: [], headings: [], cards: [], fades: [],
+    captions: [1, 2, 3].map((t) => ({ scene: "s", t0: t, t1: t + 1, words: [{ w: "hi", s: t, e: t + 0.5 }] })) } as any;
+  assert.deepEqual(stillGaps(film, 0, 4), [{ t0: 0, t1: 4 }]);
+});

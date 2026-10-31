@@ -48,14 +48,14 @@ function fitView(film: Film, b: Box, minW: number): Omit<CamKey, "t" | "move"> {
 const PUNCH_KINDS = new Set(["layer", "walkthrough", "scale", "recap", "notes", "board", "establish"]);
 
 /**
- * Every moment something changes on screen: an element starting to appear,
- * the camera moving, a new caption phrase, a heading or a section card.
+ * Every moment the picture changes: an element starting to appear, the camera
+ * moving, a heading or a section card. Caption phrases do not count: a new line
+ * of text over a still board still reads as a frozen frame.
  */
 export function changes(film: Film): [number, number][] {
   const out: [number, number][] = [];
   for (const e of film.elements) out.push([e.t0, e.t0 + e.dur]);
   for (const k of film.camera) out.push([k.t, k.t + k.move]);
-  for (const c of film.captions) out.push([c.t0, c.t0 + 0.15]);
   for (const h of film.headings) out.push([h.t0, h.t0 + 0.5]);
   for (const c of film.cards ?? []) out.push([c.t0, c.t1]);
   for (const f of film.fades) out.push([f.t - f.dur, f.t + f.dur]);
@@ -157,7 +157,8 @@ export function applyPace(film: Film, scenes: Span[]) {
   for (const s of scenes) {
     for (const g of stillGaps(film, s.start, s.end)) {
       if (g.t1 - g.t0 <= LIVELY.hold) continue;
-      const cur = cameraAt(film, g.t0), z = 0.96;
+      // the push grows with the stretch so a long one is clearly moving, not a near-freeze
+      const cur = cameraAt(film, g.t0), z = Math.max(0.88, 1 - 0.035 * (g.t1 - g.t0));
       film.camera.push({ t: g.t0, x: cur.x + (cur.w * (1 - z)) / 2, y: cur.y + (cur.h * (1 - z)) / 2, w: cur.w * z, h: cur.h * z, move: g.t1 - g.t0 - 0.05 });
       film.camera.sort((a, b) => a.t - b.t);
     }
