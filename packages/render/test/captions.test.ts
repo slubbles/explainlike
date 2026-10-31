@@ -157,8 +157,12 @@ test("a caption keeps clear of the box it talks about and its ring, also while t
 });
 
 test("a phrase does not end on a word that leads into the next, and is not replaced before its last word is said", () => {
-  // real timings from the voiceover: "just" was said 0.08 s after the next phrase replaced it
-  const t = [["Want", 0, 0.2], ["more?", 0.2, 0.6], ["Render", 0.9, 1.2], ["a", 1.2, 1.28], ["twenty", 1.28, 1.6], ["second", 1.6, 1.96], ["deep", 1.96, 2.2], ["dive", 2.2, 2.5], ["on", 2.5, 2.62], ["just", 2.62, 2.92], ["that", 2.84, 3.04], ["box.", 3.04, 3.5]] as const;
+  // the real voiceover timings ("just" was said 0.08 s after the next phrase replaced it), and a faster read
+  const t = [["Want", 0.16, 0.48], ["more?", 0.48, 1.12], ["Render", 1.12, 1.44], ["a", 1.76, 1.92], ["twenty", 1.92, 2.16], ["second", 2.16, 2.4], ["deep", 2.4, 2.72], ["dive", 2.72, 2.96], ["on", 2.96, 3.12], ["just", 3.12, 3.28], ["that", 3.28, 3.52], ["box.", 3.52, 3.92]] as const;
+  const fast = [["Want", 0, 0.2], ["more?", 0.2, 0.6], ["Render", 0.9, 1.2], ["a", 1.2, 1.28], ["twenty", 1.28, 1.6], ["second", 1.6, 1.96], ["deep", 1.96, 2.2], ["dive", 2.2, 2.5], ["on", 2.5, 2.62], ["just", 2.62, 2.92], ["that", 2.84, 3.04], ["box.", 3.04, 3.5]] as const;
+  for (const tt of [t, fast]) check(tt);
+});
+function check(t: readonly (readonly [string, number, number])[]) {
   const words = t.map(([word, start, end]) => ({ word, start, end }));
   const caps = captionsFor("s1", words, 0, 20, 4, 26);
   const shown = caps.map((c) => c.words.map((w) => w.w).join(" "));
@@ -167,4 +171,4 @@ test("a phrase does not end on a word that leads into the next, and is not repla
   for (const c of caps) for (const w of c.words) assert.ok(c.t0 <= w.s + 1e-9 && c.t1 >= w.e - 1e-9, `"${w.w}" is said ${w.s}-${w.e} but its phrase is up ${c.t0.toFixed(2)}-${c.t1.toFixed(2)}`);
   // moving the leading words on must not leave a phrase that flashes by ("deep dive" for half a second)
   for (const c of caps) assert.ok(c.t1 - c.t0 >= 0.7, `"${c.words.map((w) => w.w).join(" ")}" is up only ${(c.t1 - c.t0).toFixed(2)} s (${shown.join(" | ")})`);
-});
+}
