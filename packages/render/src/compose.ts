@@ -836,11 +836,12 @@ export async function compose(inp: ComposeInput): Promise<Composed> {
         const placed: Box[] = [];
         const nodesAll = [...graph.nodes.values()].filter((n) => present.has(n.id));
         const hit = (b: Box) => [...nodesAll, ...placed].some((n) => b.x < n.x + n.w && b.x + b.w > n.x && b.y < n.y + n.h && b.y + b.h > n.y);
-        const boxes: Box[] = [];
+        // where each note goes first, so the camera can be planned before anything is drawn
+        const pins: { i: number; it: (typeof items)[number]; n: PlacedNode; lb: Box; first: boolean }[] = [];
         items.forEach((it, i) => {
           const n = graph!.nodes.get(it.target);
           if (!n) return;
-          const col = C(it.color), size = 44;
+          const size = 44;
           const tw = textWidth(it.text, size) + (it.estimate ? textWidth("estimate", 26) + 46 : 0) + 20;
           const cx = n.x + n.w / 2;
           const sameTarget = items.slice(0, i).filter((x) => x.target === it.target).length;
@@ -854,13 +855,37 @@ export async function compose(inp: ComposeInput): Promise<Composed> {
           ];
           const lb = cands.find((b) => !hit(b)) ?? cands[0];
           placed.push(lb);
-          if (!sameTarget) B.ring(gen.rectangle(n.x - 14, n.y - 14, n.w + 28, n.h + 28, { seed: B.seed++, stroke: col, strokeWidth: 4.5, roughness: 1.5 }), times[i], 0.5, g);
-          B.text({ text: it.text, x: lb.x + 10, y: lb.y + 44, size, color: col === C("white") ? theme.ink : col, t0: times[i] + 0.3, g, bg: true });
-          if (it.estimate) B.tag("estimate", lb.x + 10 + textWidth(it.text, size) + 20, lb.y + 40, 26, C("orange"), times[i] + 0.7, g);
-          boxes.push(n, lb);
+          pins.push({ i, it, n, lb, first: !sameTarget });
         });
-        if (boxes.length) B.fit(unionBox(boxes, 70), T, 1.0, 1.15);
-        B.setOp(g, T + D - 0.2, 0, 0.4);
+        // the whole set in one shot when its words stay readable; past that the camera follows the notes
+        // as they are pinned, and each note waits until its shot has settled
+        const RW = readableWidth({ width: W, height: H });
+        const all = pins.length ? unionBox(pins.flatMap((p) => [p.n, p.lb]), 70) : undefined;
+        const at = pins.map((p) => times[p.i]);
+        // each note is its own group, so a note the camera has moved away from can step back
+        const pg = (k: number) => `${g}:${k}`;
+        if (all && (pins.length < 2 || (all.w <= RW && all.h <= (RW * H) / W))) B.fit(all, T, 1.0, 1.15);
+        else if (all) {
+          // notes stacked on one box share its shot
+          const own = (k: number) => unionBox([pins[k].n, ...pins.slice(0, k + 1).filter((q) => q.n === pins[k].n).map((q) => q.lb)], 70);
+          const ev = pins.map((_, k) => ({ t: at[k], box: own(k), wide: own(k) }));
+          const shots = followShots(ev, T, T + D + 0.3, tempo, W, H);
+          holdUntilSettled(at, shots, tempo.move);
+          shots.forEach((sh, k) => B.fit(sh.box, sh.t, k === 0 ? 1.0 : tempo.move, 1.15));
+          // a note left behind by the camera dims as it moves on, so nothing lit is sliced by the frame edge
+          const inBox = (o: Box, b: Box) => b.x >= o.x - 1 && b.y >= o.y - 1 && b.x + b.w <= o.x + o.w + 1 && b.y + b.h <= o.y + o.h + 1;
+          pins.forEach((_, k) => {
+            const later = shots.filter((sh) => sh.first > k && !inBox(sh.box, own(k)));
+            if (later.length) B.setOp(pg(k), later[0].t, dim, 0.4);
+          });
+        }
+        pins.forEach(({ it, n, lb, first }, k) => {
+          const col = C(it.color), size = 44, t = at[k];
+          if (first) B.ring(gen.rectangle(n.x - 14, n.y - 14, n.w + 28, n.h + 28, { seed: B.seed++, stroke: col, strokeWidth: 4.5, roughness: 1.5 }), t, 0.5, pg(k));
+          B.text({ text: it.text, x: lb.x + 10, y: lb.y + 44, size, color: col === C("white") ? theme.ink : col, t0: t + 0.3, g: pg(k), bg: true });
+          if (it.estimate) B.tag("estimate", lb.x + 10 + textWidth(it.text, size) + 20, lb.y + 40, 26, C("orange"), t + 0.7, pg(k));
+        });
+        pins.forEach((_, k) => B.setOp(pg(k), T + D - 0.2, 0, 0.4));
       }
     } else if (s.kind === "establish" && graph) {
       // draw the whole known system quickly (deep dives and what-ifs start here)
