@@ -12,7 +12,7 @@ export interface Job {
   stage: string; message: string; pct: number; started: number; finished?: number;
   /** follow-up clips point at the video they came from */
   parent?: string; focus?: string; whatIf?: string;
-  outputs?: { mp4?: string; excalidraw?: string; contactSheet?: string };
+  outputs?: { mp4?: string; tldr?: string; excalidraw?: string; contactSheet?: string };
   /** live cost meter while running, final spend when done (Meta models + voice, USD) */
   usd?: { meta: number; voice: number; total: number };
   costUsd?: number; error?: string; title?: string; durationSec?: number; interactive?: boolean;
