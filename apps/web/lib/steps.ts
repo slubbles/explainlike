@@ -40,3 +40,8 @@ export function stepStates(steps: Step[], stage: string, state: "running" | "don
   const at = Math.max(0, steps.findIndex((s) => s.stage === stage));
   return steps.map((_, i) => (i < at ? "ok" : i > at ? "todo" : state === "error" ? "fail" : "now"));
 }
+
+/** A step label as the page shows it: first letter capitalized. */
+export function cap(s: string) {
+  return s ? s[0].toUpperCase() + s.slice(1) : s;
+}

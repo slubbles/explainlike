@@ -91,10 +91,7 @@ export default function Home() {
             {job && job.state !== "done" && (
               <div className="main">
                 <div className="col">
-                  <div className="screen"><div className="wait">
-                    <div className="h">{job.state === "error" ? "Failed" : job.message}</div>
-                    <div className="bar"><i className={job.state === "error" ? "fail" : ""} style={{ width: `${Math.max(2, job.pct)}%` }} /></div>
-                  </div></div>
+                  <div className="screen wait">{job.state === "error" ? "No video: this run stopped before the end." : "The video shows up here when it is ready."}</div>
                   {err && <div className="err" role="alert">{err}</div>}
                 </div>
                 <Steps job={job} />

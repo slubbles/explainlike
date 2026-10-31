@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { stepsFor, stepStates } from "../lib/steps.ts";
+import { cap, stepsFor, stepStates } from "../lib/steps.ts";
 
 const repo = { kind: "video", input: "https://github.com/karpathy/minbpe", voice: "deepgram" };
 
@@ -21,4 +21,10 @@ test("steps before the current stage are done, later ones wait, and a failure ma
   assert.deepEqual(stepStates(s, "start", "running").slice(0, 2), ["now", "todo"]);
   assert.equal(stepStates(s, "review", "error")[2], "fail");
   assert.ok(stepStates(s, "qa", "done").every((x) => x === "ok"));
+});
+
+test("step labels show with a capital first letter", () => {
+  assert.equal(cap("reading the repository"), "Reading the repository");
+  assert.equal(cap("Muse Spark is mapping the architecture"), "Muse Spark is mapping the architecture");
+  assert.equal(cap(""), "");
 });
