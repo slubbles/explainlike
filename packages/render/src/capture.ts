@@ -99,17 +99,12 @@ export function mixNarration(parts: { file: string; at: number }[], duration: nu
   fs.writeFileSync(out, Buffer.concat([h, pcm]));
 }
 
-/**
- * Frames, the narration (if any) and the music bed (unless `music` is false) into one mp4.
- * The bed sits well under the voice and ducks while it speaks (see music.ts).
- */
-export async function encodeMp4(frameDir: string, fps: number, out: string, audio?: string, opts: { music?: boolean; duration?: number } = {}) {
-  const args = ["-y", "-loglevel", "error", "-framerate", String(fps), "-i", path.join(frameDir, "f%06d.jpg")];
-  const frames = fs.readdirSync(frameDir).filter((f) => /^f\d+\.jpg$/.test(f)).length;
-  const duration = opts.duration ?? frames / fps;
+/** ffmpeg arguments for the mp4 after the video input: narration, the music bed (unless `music` is false), codecs. */
+function mp4Args(fps: number, duration: number, out: string, bedDir: string, audio: string | undefined, music: boolean | undefined) {
+  const args: string[] = [];
   let bed: string | undefined;
-  if (opts.music !== false) {
-    bed = path.join(frameDir, "bed.wav");
+  if (music !== false) {
+    bed = path.join(bedDir, "bed.wav");
     makeBed(duration + 1, bed);
   }
   if (audio) args.push("-i", audio);
@@ -118,7 +113,54 @@ export async function encodeMp4(frameDir: string, fps: number, out: string, audi
   args.push("-c:v", "libx264", "-preset", "medium", "-crf", "20", "-pix_fmt", "yuv420p", "-movflags", "+faststart");
   if (audio || bed) args.push("-c:a", "aac", "-b:a", "160k", "-t", duration.toFixed(3));
   args.push(out);
-  await run("ffmpeg", args);
+  return args;
+}
+
+/**
+ * Frames on disk, the narration (if any) and the music bed (unless `music` is false) into one mp4.
+ * The bed sits well under the voice and ducks while it speaks (see music.ts).
+ */
+export async function encodeMp4(frameDir: string, fps: number, out: string, audio?: string, opts: { music?: boolean; duration?: number } = {}) {
+  const frames = fs.readdirSync(frameDir).filter((f) => /^f\d+\.jpg$/.test(f)).length;
+  const duration = opts.duration ?? frames / fps;
+  await run("ffmpeg", ["-y", "-loglevel", "error", "-framerate", String(fps), "-i", path.join(frameDir, "f%06d.jpg"), ...mp4Args(fps, duration, out, frameDir, audio, opts.music)]);
+}
+
+/**
+ * The same mp4 as encodeMp4, encoded while the frames are still being drawn: hand each JPEG to `frame`
+ * in any order (it is fed to ffmpeg in frame order), then await `done`.
+ */
+export function mp4Encoder(fps: number, out: string, opts: { duration: number; workDir: string; audio?: string; music?: boolean }) {
+  fs.mkdirSync(opts.workDir, { recursive: true });
+  const args = ["-y", "-loglevel", "error", "-f", "image2pipe", "-c:v", "mjpeg", "-framerate", String(fps), "-i", "pipe:0", ...mp4Args(fps, opts.duration, out, opts.workDir, opts.audio, opts.music)];
+  const p = spawn("ffmpeg", args, { stdio: ["pipe", "ignore", "pipe"] });
+  let err = "", failure: Error | undefined;
+  p.stderr.on("data", (d) => (err = (err + d).slice(-4000)));
+  p.stdin.on("error", () => {}); // a dead ffmpeg is reported by `closed` below
+  const closed = new Promise<void>((res, rej) => {
+    p.on("error", (e) => rej((failure = e)));
+    p.on("close", (c) => (c === 0 ? res() : rej((failure = new Error(`ffmpeg exited ${c}: ${err}`)))));
+  });
+  closed.catch(() => {});
+  const waiting = new Map<number, Buffer>();
+  let nextFrame = 0;
+  return {
+    async frame(f: number, jpeg: Buffer) {
+      if (failure) throw failure;
+      waiting.set(f, jpeg);
+      while (waiting.has(nextFrame)) {
+        const buf = waiting.get(nextFrame)!;
+        waiting.delete(nextFrame++);
+        if (!p.stdin.write(buf)) await new Promise<void>((res) => { p.stdin.once("drain", res); closed.catch(res); });
+      }
+    },
+    async done() {
+      if (waiting.size) throw new Error(`frames missing before ${Math.min(...waiting.keys())}: got up to ${nextFrame}`);
+      p.stdin.end();
+      await closed;
+    },
+    abort() { p.kill("SIGKILL"); },
+  };
 }
 
 export async function contactSheet(video: string, out: string, every = 3) {

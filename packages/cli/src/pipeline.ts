@@ -5,7 +5,7 @@ import { CostLedger, museTranscribe } from "@explainlike/models";
 import { ingestRepo } from "@explainlike/ingest";
 import { planBrief, extractArchitecture, validateArchitecture, evidencePack, reviewArchitecture, reviseArchitecture, planRepoScenes, planFocus, planWhatIf, kindColor } from "@explainlike/planner";
 import { pickVoice, wordOverlap, DeepgramVoice, type VoiceProvider } from "@explainlike/voice";
-import { captionMismatches, loadIconPack, mergePacks, builtinPackIds, detectComponents, packHints, type DetectedComponent, iconCatalog, resolveIcon, compose, captureFrames, mixNarration, encodeMp4, contactSheet, frameCheck, checkTldr, checkExcalidraw, toExcalidraw, toTldraw, type IconPack, type SourceShot } from "@explainlike/render";
+import { captionMismatches, loadIconPack, mergePacks, builtinPackIds, detectComponents, packHints, type DetectedComponent, iconCatalog, resolveIcon, compose, captureFrames, mixNarration, mp4Encoder, contactSheet, frameCheck, checkTldr, checkExcalidraw, toExcalidraw, toTldraw, type IconPack, type SourceShot } from "@explainlike/render";
 
 export interface RunOptions {
   input: string;
@@ -230,10 +230,27 @@ export async function runExplainLike(o: RunOptions) {
 
   const frames = path.join(out, "frames");
   fs.rmSync(frames, { recursive: true, force: true });
+  let narration: string | undefined;
+  if (audio.some((a) => a.file)) {
+    narration = path.join(out, "narration.wav");
+    mixNarration(audio.filter((a) => a.file).map((a) => ({ file: a.file!, at: timeline.find((t) => t.id === a.sceneId)!.start + 0.3 })), film.duration, narration);
+  }
+  // ffmpeg encodes each frame as soon as it is drawn, instead of waiting for all of them
+  const mp4 = path.join(out, `${base}.mp4`);
+  const encoder = mp4Encoder(film.fps, mp4, { duration: film.duration, workDir: frames, audio: narration, music: o.music });
   P({ stage: "render", message: "drawing frames", pct: 48 });
-  const cap = await captureFrames(film, frames, { workers: o.workers, onProgress: (d, t) => P({ stage: "render", message: `drawing frames ${d}/${t}`, pct: 48 + Math.round((d / t) * 42) }) });
+  let cap: Awaited<ReturnType<typeof captureFrames>>;
+  try {
+    cap = await captureFrames(film, frames, { workers: o.workers, onFrame: encoder.frame, onProgress: (d, t) => P({ stage: "render", message: `drawing frames ${d}/${t}`, pct: 48 + Math.round((d / t) * 42) }) });
+  } catch (e) {
+    encoder.abort();
+    throw e;
+  }
   const covering = cap.captions.filter((c) => c.overlapPx > 0);
   if (covering.length) notes.push(`${covering.length} caption(s) could not find fully free space: ${covering.map((c) => `${c.t0.toFixed(1)}s "${c.text}"`).join(", ")}`);
+  // ffmpeg finishes the last frames while the frame check runs
+  const encoded = encoder.done();
+  encoded.catch(() => {});
   // look at the picture itself: where every word, ring and caption actually landed, frame by frame
   P({ stage: "render", message: "checking the rendered frames", pct: 91 });
   const fc = await frameCheck(film, { workDir: path.join(out, "frame-check"), frameDir: frames, visionFrames: o.visionReview ? 8 : 0, ledger });
@@ -241,14 +258,8 @@ export async function runExplainLike(o: RunOptions) {
   fs.writeFileSync(path.join(out, "frame-check.json"), JSON.stringify(fc, null, 1));
   notes.push(`frame check: ${fc.atRest} of ${fc.samples} sampled frames at rest, ${fc.issues.length} issue(s)${fc.issues.length ? `: ${fc.issues.slice(0, 4).map((i) => `${i.t}s ${i.rule} ${i.detail}`).join("; ")}` : ""}`);
   if (fc.vision) notes.push(`vision review: ${fc.vision.reduce((n, f) => n + f.problems.length, 0)} problem(s) across ${fc.vision.length} frames`);
-  let narration: string | undefined;
-  if (audio.some((a) => a.file)) {
-    narration = path.join(out, "narration.wav");
-    mixNarration(audio.filter((a) => a.file).map((a) => ({ file: a.file!, at: timeline.find((t) => t.id === a.sceneId)!.start + 0.3 })), film.duration, narration);
-  }
   P({ stage: "encode", message: "encoding the mp4", pct: 92 });
-  const mp4 = path.join(out, `${base}.mp4`);
-  await encodeMp4(frames, film.fps, mp4, narration, { music: o.music, duration: film.duration });
+  await encoded;
   const sheet = path.join(out, `${base}.contact.jpg`);
   await contactSheet(mp4, sheet, Math.max(2, Math.ceil(film.duration / 40)));
   fs.copyFileSync(cap.html, path.join(out, "stage.html"));
