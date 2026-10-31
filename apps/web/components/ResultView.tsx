@@ -46,25 +46,17 @@ export default function ResultView({ job, map, picked, expl, explBusy, clips, pi
       <div className="col">
         {o.mp4 && <Player src={fileUrl(job.id, o.mp4)} map={map} selected={picked} onPick={pick} />}
         <div className="under">
-          <div>
-            <div className="t">{job.title}</div>
-            <div className="m muted">{secs(job.durationSec)}{job.costUsd ? ` · cost ${money(job.costUsd)}` : null}</div>
-          </div>
+          <div className="t">{job.title}</div>
+          <div className="m muted">{secs(job.durationSec)}{job.costUsd ? ` · cost ${money(job.costUsd)}` : null}</div>
           <div className="dl">
             {o.mp4 && <a className="btn solid" href={fileUrl(job.id, o.mp4, true)}>Download mp4</a>}
             {o.tldr && <a className="btn" href={fileUrl(job.id, o.tldr, true)}>Download .tldr</a>}
-            {o.contactSheet && <a className="btn" href={fileUrl(job.id, o.contactSheet)} target="_blank" rel="noreferrer">Contact sheet</a>}
+            {o.contactSheet && <a className="link" href={fileUrl(job.id, o.contactSheet)} target="_blank" rel="noreferrer">Contact sheet</a>}
           </div>
+          {o.tldr && <div className="note">Keep drawing at <a href="https://www.tldraw.com" target="_blank" rel="noreferrer">tldraw.com</a>: open the site and drag the .tldr file onto the canvas.</div>}
         </div>
         {map && <div className="tip"><Info />Tap any box on the diagram to ask Muse Spark what it does. The answer only cites files that box was built from.</div>}
         {err && <div className="err" role="alert">{err}</div>}
-        {o.tldr && (
-          <div className="excal"><b>Keep drawing at tldraw.com</b><ol>
-            <li>Click <i>Download .tldr</i> above to save the board file.</li>
-            <li>Go to <a href="https://www.tldraw.com" target="_blank" rel="noreferrer">tldraw.com</a>, sign in (free), open the account menu and choose <i>Import file</i>, or just drag the file onto the canvas.</li>
-            <li>Every box, arrow and label is a normal shape, so you can move, restyle or add to it.</li>
-          </ol></div>
-        )}
       </div>
 
       {side && (
