@@ -3,6 +3,12 @@ import Player, { type Interactive } from "./Player";
 import { fileUrl, money, secs, useJob, type Explain, type Job } from "../lib/client";
 import { Info } from "./Icons";
 
+/** The answer's opening sentence, so the cited points lead. */
+function firstSentence(s: string) {
+  const m = s.match(/^.+?[.!?](?=\s|$)/);
+  return m ? m[0] : s;
+}
+
 /** One follow-up clip in the side list: progress while it draws, then a still you can open. */
 function Clip({ id }: { id: string }) {
   const job = useJob(id);
@@ -17,9 +23,9 @@ function Clip({ id }: { id: string }) {
       </a>
       <div>
         <b>{what}</b>
-        {job.state === "running" && <span>{job.message} · {money(job.usd?.total)}</span>}
+        {job.state === "running" && <span>{job.message}</span>}
         {job.state === "error" && <span className="err">Failed: {job.error}</span>}
-        {job.state === "done" && <span>{secs(job.durationSec)} · cost {money(job.costUsd)} · <a href={fileUrl(id, mp4, true)}>download</a></span>}
+        {job.state === "done" && <span>{secs(job.durationSec)} · <a href={fileUrl(id, mp4, true)}>download</a></span>}
       </div>
     </div>
   );
@@ -41,7 +47,7 @@ export default function ResultView({ job, map, picked, expl, explBusy, clips, pi
         <div className="under">
           <div>
             <div className="t">{job.title}</div>
-            <div className="m muted">{secs(job.durationSec)}{job.costUsd ? <> · model {money(job.usd?.meta)} + voice {money(job.usd?.voice)} = {money(job.costUsd)}</> : null}</div>
+            <div className="m muted">{secs(job.durationSec)}{job.costUsd ? ` · cost ${money(job.costUsd)}` : null}</div>
           </div>
           <div className="dl">
             {o.mp4 && <a className="btn solid" href={fileUrl(job.id, o.mp4, true)}>Download mp4</a>}
@@ -73,12 +79,11 @@ export default function ResultView({ job, map, picked, expl, explBusy, clips, pi
               <>
                 <h3>{expl?.component.name ?? names[picked] ?? picked}</h3>
                 <span className="kw">{names[picked] ?? expl?.component.keyword}</span>
-                {explBusy && <p className="sum muted">Reading the files behind this box…</p>}
+                {explBusy && <p className="busy">Reading the files behind this box…</p>}
                 {expl && (
                   <>
-                    <p className="sum">{expl.summary}</p>
+                    <p className="sum">{firstSentence(expl.summary)}</p>
                     <ul className="pts">{expl.points.map((p, i) => <li key={i}>{p.text}<br /><code>{p.file}</code></li>)}</ul>
-                    <div className="ev">Evidence: {expl.component.evidence.map((f) => <code key={f}>{f}</code>)}<span>· cost {money(expl.usd)}</span></div>
                   </>
                 )}
                 <button type="button" className="btn wide" disabled={explBusy} onClick={() => followUp({ focus: picked })}>Render a 20 s deep dive on this box</button>
