@@ -6,7 +6,7 @@ type Usd = { meta: number; voice: number; total: number };
 type Job = {
   id: string; kind: "video" | "focus" | "what-if"; state: "running" | "done" | "error"; message: string; pct: number; error?: string; title?: string;
   durationSec?: number; costUsd?: number; usd?: Usd; interactive?: boolean; focus?: string; whatIf?: string;
-  outputs?: { mp4?: string; excalidraw?: string; contactSheet?: string };
+  outputs?: { mp4?: string; tldr?: string; excalidraw?: string; contactSheet?: string };
 };
 type Explain = { component: { id: string; name: string; keyword: string; evidence: string[] }; summary: string; points: { text: string; file: string }[]; usd: number };
 
@@ -128,7 +128,7 @@ export default function Home() {
         <a className="gh" href="https://github.com/slubbles/metual">GitHub</a>
       </div>
       <h1>Any repo, post or article,<br />explained on a <em>whiteboard</em>.</h1>
-      <p className="lede">Paste a link. Metual reads the code or the text, draws the system piece by piece, walks one real request through it, and narrates it at your level. You get an mp4 and an editable Excalidraw file.</p>
+      <p className="lede">Paste a link. Metual reads the code or the text, draws the system piece by piece, walks one real request through it, and narrates it at your level. You get an mp4 and an editable board that opens in tldraw.com.</p>
 
       <div className="card">
         <div className="row">
@@ -153,7 +153,8 @@ export default function Home() {
             {map && <div className="tip">Tap any box on the diagram to ask Muse Spark what it does. The answer only cites files that box was built from.</div>}
             <div className="dl">
               <a className="primary" href={fileUrl(job.id, job.outputs.mp4, true)}>Download mp4</a>
-              <a href={fileUrl(job.id, job.outputs.excalidraw, true)}>Open in Excalidraw</a>
+              {job.outputs.tldr && <a href={fileUrl(job.id, job.outputs.tldr, true)}>Open in tldraw</a>}
+              {job.outputs.excalidraw && <a href={fileUrl(job.id, job.outputs.excalidraw, true)}>Open in Excalidraw</a>}
               <a href={fileUrl(job.id, job.outputs.contactSheet)} target="_blank">Contact sheet</a>
             </div>
             <div className="meta">{job.title} · {job.durationSec?.toFixed(0)} s · <span className="cost">model {money(job.usd?.meta)} + voice {money(job.usd?.voice)} = {money(job.costUsd)}</span></div>
@@ -184,11 +185,11 @@ export default function Home() {
             {follow.length > 0 && <div className="follow">{follow.map((id) => <FollowUp key={id} id={id} />)}</div>}
 
             <div className="excal">
-              <b>Keep drawing in Excalidraw</b>
+              <b>Keep drawing in tldraw</b>
               <ol>
-                <li>Click <i>Open in Excalidraw</i> above to download the <code>.excalidraw</code> file.</li>
-                <li>Go to <a href="https://excalidraw.com" target="_blank" rel="noreferrer">excalidraw.com</a>, open the menu (top left) and choose <i>Open</i>, or just drag the file onto the canvas.</li>
-                <li>Every box, arrow and label is a normal Excalidraw shape, so you can move, restyle or add to it.</li>
+                <li>Click <i>Open in tldraw</i> above to download the <code>.tldr</code> file.</li>
+                <li>Go to <a href="https://www.tldraw.com" target="_blank" rel="noreferrer">tldraw.com</a> and sign in (free). Open the account menu and choose <i>Import file…</i>, or drag the file onto the page.</li>
+                <li>Every box, arrow and label is a normal tldraw shape. Arrows stay tied to their boxes when you move them.</li>
               </ol>
             </div>
           </div>
@@ -198,7 +199,7 @@ export default function Home() {
       <div className="how">
         <div><b>Grounded</b>Every box on the board points at real files. A second Muse Spark pass checks each one against the code.</div>
         <div><b>Interactive</b>Tap a box to ask about it, render a deep dive on it, or ask what breaks at 10x traffic.</div>
-        <div><b>Yours to edit</b>Open the .excalidraw in excalidraw.com and keep drawing. Open source, MIT.</div>
+        <div><b>Yours to edit</b>Open the .tldr in tldraw.com and keep drawing. Open source, MIT.</div>
       </div>
       <footer>Powered by Meta Muse models · voice by Deepgram · drawn with rough.js and Excalifont</footer>
     </main>
