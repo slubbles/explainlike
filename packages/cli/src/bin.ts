@@ -28,6 +28,7 @@ const HELP = `explainlike <github-url | local-repo-dir | x.com post url | articl
   --workers <n>                            parallel render pages
   --no-qa                                  skip the Muse Transcribe voiceover check
   --no-music                               no music bed (by default a quiet original bed sits 22 dB under the voice)
+  --vision-review                          also show 8 rendered frames to Muse Spark for a look-over (costs a little; off by default)
   --export <tldr|excalidraw>               editable board file: .tldr opens in tldraw.com (default tldr)
 
 follow-ups on an earlier repo run (same input, new --out):
@@ -43,7 +44,7 @@ const argv = process.argv.slice(2);
 if (!argv.length || argv.includes("--help") || argv.includes("-h")) { process.stdout.write(HELP); process.exit(0); }
 const opt = (k: string) => { const i = argv.indexOf(k); return i >= 0 ? argv[i + 1] : undefined; };
 const many = (k: string) => argv.flatMap((a, i) => (a === k ? [argv[i + 1]] : []));
-const flags = new Set(["--fresh", "--json", "--no-qa", "--no-packs", "--no-music"]);
+const flags = new Set(["--fresh", "--json", "--no-qa", "--no-packs", "--no-music", "--vision-review"]);
 if (argv[0] === "explain") await explain();
 const input = argv.find((a, i) => !a.startsWith("--") && (i === 0 || !argv[i - 1].startsWith("--") || flags.has(argv[i - 1])));
 if (!input) { process.stderr.write(HELP); process.exit(1); }
@@ -58,7 +59,7 @@ runExplainLike({
   from: opt("--from") && path.resolve(opt("--from")!), focus: opt("--focus"), whatIf: whatIf as "10x" | "100x" | undefined,
   input: fs.existsSync(input) ? path.resolve(input) : input,
   out: opt("--out") && path.resolve(opt("--out")!), name: opt("--name"), voice: opt("--voice"),
-  packs: argv.includes("--no-packs") ? [] : [...many("--pack"), ...many("--icons")].length ? [...many("--pack"), ...many("--icons")].map((d) => (fs.existsSync(d) ? path.resolve(d) : d)) : undefined, fresh: argv.includes("--fresh"), workers: opt("--workers") ? Number(opt("--workers")) : undefined, qa: !argv.includes("--no-qa"), music: !argv.includes("--no-music"), export: exportAs,
+  packs: argv.includes("--no-packs") ? [] : [...many("--pack"), ...many("--icons")].length ? [...many("--pack"), ...many("--icons")].map((d) => (fs.existsSync(d) ? path.resolve(d) : d)) : undefined, fresh: argv.includes("--fresh"), workers: opt("--workers") ? Number(opt("--workers")) : undefined, qa: !argv.includes("--no-qa"), music: !argv.includes("--no-music"), visionReview: argv.includes("--vision-review"), export: exportAs,
   progress: (e) => {
     if (json) process.stdout.write(JSON.stringify({ type: "progress", ...e }) + "\n");
     else process.stderr.write(`[${((Date.now() - started) / 1000).toFixed(0).padStart(4)}s] $${(e.usd?.total ?? 0).toFixed(3).padStart(6)}  ${e.stage.padEnd(12)} ${e.message}\n`);

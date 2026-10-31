@@ -5,7 +5,7 @@ import { CostLedger, museTranscribe } from "@explainlike/models";
 import { ingestRepo } from "@explainlike/ingest";
 import { planBrief, extractArchitecture, validateArchitecture, evidencePack, reviewArchitecture, reviseArchitecture, planRepoScenes, planFocus, planWhatIf, kindColor } from "@explainlike/planner";
 import { pickVoice, wordOverlap, DeepgramVoice, type VoiceProvider } from "@explainlike/voice";
-import { captionMismatches, loadIconPack, mergePacks, builtinPackIds, detectComponents, packHints, type DetectedComponent, iconCatalog, resolveIcon, compose, captureFrames, mixNarration, encodeMp4, contactSheet, toExcalidraw, toTldraw, type IconPack, type SourceShot } from "@explainlike/render";
+import { captionMismatches, loadIconPack, mergePacks, builtinPackIds, detectComponents, packHints, type DetectedComponent, iconCatalog, resolveIcon, compose, captureFrames, mixNarration, encodeMp4, contactSheet, frameCheck, toExcalidraw, toTldraw, type IconPack, type SourceShot } from "@explainlike/render";
 
 export interface RunOptions {
   input: string;
@@ -19,6 +19,8 @@ export interface RunOptions {
   fresh?: boolean;
   workers?: number;
   qa?: boolean;
+  /** also send a handful of rendered frames to Muse Spark for a look-over (costs money; off by default) */
+  visionReview?: boolean;
   /** false: no music bed under the voice */
   music?: boolean;
   progress?: Progress;
@@ -224,6 +226,13 @@ export async function runExplainLike(o: RunOptions) {
   const cap = await captureFrames(film, frames, { workers: o.workers, onProgress: (d, t) => P({ stage: "render", message: `drawing frames ${d}/${t}`, pct: 48 + Math.round((d / t) * 42) }) });
   const covering = cap.captions.filter((c) => c.overlapPx > 0);
   if (covering.length) notes.push(`${covering.length} caption(s) could not find fully free space: ${covering.map((c) => `${c.t0.toFixed(1)}s "${c.text}"`).join(", ")}`);
+  // look at the picture itself: where every word, ring and caption actually landed, frame by frame
+  P({ stage: "render", message: "checking the rendered frames", pct: 91 });
+  const fc = await frameCheck(film, { workDir: path.join(out, "frame-check"), frameDir: frames, visionFrames: o.visionReview ? 8 : 0, ledger });
+  fs.rmSync(path.join(out, "frame-check"), { recursive: true, force: true });
+  fs.writeFileSync(path.join(out, "frame-check.json"), JSON.stringify(fc, null, 1));
+  notes.push(`frame check: ${fc.atRest} of ${fc.samples} sampled frames at rest, ${fc.issues.length} issue(s)${fc.issues.length ? `: ${fc.issues.slice(0, 4).map((i) => `${i.t}s ${i.rule} ${i.detail}`).join("; ")}` : ""}`);
+  if (fc.vision) notes.push(`vision review: ${fc.vision.reduce((n, f) => n + f.problems.length, 0)} problem(s) across ${fc.vision.length} frames`);
   let narration: string | undefined;
   if (audio.some((a) => a.file)) {
     narration = path.join(out, "narration.wav");
@@ -253,6 +262,7 @@ export async function runExplainLike(o: RunOptions) {
     tool: "explainlike", input: o.input, kind, brief: spec.brief, tempo: spec.tempo, pace, repoDir, followUp: o.focus ? { focus: o.focus } : o.whatIf ? { whatIf: o.whatIf } : undefined, look: theme.id, packs: { loaded: extra.map((p) => p.id), detected: detected.map((d) => ({ pack: d.pack, id: d.component.id, name: d.component.name, evidence: d.evidence })) }, title: plan.title, durationSec: Number(film.duration.toFixed(1)),
     outputs: { mp4, [exportAs]: boardFile, contactSheet: sheet, plan: path.join(out, "plan.json"), architecture: arch ? path.join(out, "architecture.json") : undefined },
     scenes: timeline, repairs: plan.repairs ?? [], notes, qa,
+    frameCheck: { ok: fc.ok, samples: fc.samples, issues: fc.issues.length, file: path.join(out, "frame-check.json") },
     // captions that found no fully free spot (empty when every caption clears the drawing)
     captionsCovering: cap.captions.filter((c) => c.overlapPx > 0),
     cost: { metaUsd: Number(ledger.total.toFixed(4)), byModel: ledger.byModel(), entries: ledger.entries, voiceUsd: Number(voiceUsd.toFixed(4)), voice: voice.id },
