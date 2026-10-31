@@ -1,12 +1,12 @@
 import { z } from "zod";
-import { ScaleRisk, NoteItem, lower, type Architecture, type Level, type Progress, type Scene, type ScenePlan } from "@metual/core";
+import { ScaleRisk, NoteItem, lower, tidySpeech, type Architecture, type Level, type Progress, type Scene, type ScenePlan } from "@metual/core";
 import { sparkJson, type CostLedger } from "@metual/models";
 import { validateNotes } from "./scenes.js";
 
 // Follow-up clips that reuse an earlier run's architecture: a deep dive on one box, and "what if 10x traffic?".
 
 const blank = (id: string, kind: Scene["kind"], heading: string, narration: string): Scene => ({
-  id, kind, heading: lower(heading), narration, add_components: [], add_connections: [], board_nodes: [], board_edges: [], highlights: [], callouts: [], items: [],
+  id, kind, heading: lower(heading), narration: tidySpeech(narration), add_components: [], add_connections: [], board_nodes: [], board_edges: [], highlights: [], callouts: [], items: [],
 });
 
 const neighbours = (arch: Architecture, id: string) =>

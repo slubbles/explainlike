@@ -24,3 +24,21 @@ export function quoteInSource(quote: string, source: string): boolean {
   }
   return false;
 }
+
+/**
+ * Mechanical clean-up of spoken narration before it is voiced and captioned:
+ * single spaces, no space before punctuation, no word said twice in a row,
+ * each sentence starting with a capital and the whole ending with a full stop.
+ */
+export function tidySpeech(s: string): string {
+  let t = s.replace(/\s+/g, " ").trim()
+    .replace(/\s+([,.;:!?])/g, "$1")
+    .replace(/([,;:])(?=[A-Za-z])/g, "$1 ")
+    .replace(/\.{2,}(?!\.)/g, ".")
+    .replace(/\b(\w+) \1\b/gi, (m, w: string) => (/^(that|had|is)$/i.test(w) ? m : w));
+  // a new sentence starts with a capital; "e.g." or "vs." do not end one
+  t = t.replace(/(^|(\S*)[.!?] )([a-z])/g, (m, a: string, w: string | undefined, c: string) =>
+    /^(e\.g|i\.e|vs|etc|approx)$/i.test(w ?? "") ? m : a + c.toUpperCase());
+  if (t && !/[.!?]["')]?$/.test(t)) t += ".";
+  return t;
+}
