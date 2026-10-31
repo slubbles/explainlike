@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { shortSub } from "../src/index.js";
+import { shortSub, plainCase } from "../src/index.js";
 
 test("box descriptions shorten at whole words, never mid-word", () => {
   assert.equal(shortSub("cloudflare cdn clips.spotibai.com edge", 30), "cloudflare cdn");
@@ -17,4 +17,12 @@ test("a shortened box description never ends on a dangling + or joining word", (
   assert.equal(shortSub("ingest via playwright + readability", 36), "ingest via playwright + readability");
   assert.equal(shortSub("ingest via playwright + readability", 30), "ingest via playwright");
   assert.equal(shortSub("zip or git page-to text and more words", 20), "zip or git page-to");
+});
+
+test("box descriptions keep code names as the code writes them and lower-case the plain words", () => {
+  assert.equal(plainCase("ChatLive Durable Object"), "ChatLive durable object");
+  assert.equal(plainCase("Cloudflare D1 via FEEDBACK_DB"), "cloudflare D1 via FEEDBACK_DB");
+  assert.equal(plainCase("Cloudflare Worker via OpenNext"), "cloudflare worker via OpenNext");
+  assert.equal(plainCase("Whiteboard renderer via roughjs"), "whiteboard renderer via roughjs");
+  assert.equal(plainCase("Local Disk Job Store"), "local disk job store");
 });
