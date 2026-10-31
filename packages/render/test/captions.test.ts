@@ -88,3 +88,16 @@ test("a sentence's last word stays with its phrase instead of opening the next o
   assert.ok(shown.includes("You paste and watch here."), shown.join(" | "));
   for (const p of shown) assert.ok(!/[.!?] \S/.test(p), `a phrase runs across a sentence end: "${p}"`);
 });
+
+test("a phrase spoken fast is not flashed on its own: it takes the next words, so every phrase stays up long enough to read", () => {
+  // real timings from the voiceover: "the back of the" was spoken in under half a second
+  const t = [["and", 3.44, 3.52], ["it", 3.52, 3.68], ["does", 3.68, 3.92], ["the", 3.92, 4], ["back", 4, 4.24], ["of", 4.24, 4.4], ["the", 4.4, 4.48], ["envelope", 4.48, 4.96], ["math,", 4.96, 5.68], ["and", 5.76, 6], ["shows", 6, 6.32], ["where", 6.32, 6.56], ["the", 6.56, 6.72], ["design", 6.72, 7.04], ["breaks.", 7.04, 7.44]] as const;
+  const words = t.map(([word, start, end]) => ({ word, start, end }));
+  const caps = captionsFor("s1", words, 0, 20, 4, 26);
+  assert.equal(caps.flatMap((c) => c.words.map((w) => w.w)).join(" "), t.map((x) => x[0]).join(" "));
+  for (const [i, c] of caps.entries()) {
+    const up = (caps[i + 1]?.t0 ?? c.t1) - c.t0;
+    assert.ok(up >= 0.7 || i === caps.length - 1, `"${c.words.map((w) => w.w).join(" ")}" is up for only ${up.toFixed(2)} s`);
+    assert.ok(c.words.map((w) => w.w).join(" ").length <= 30);
+  }
+});
