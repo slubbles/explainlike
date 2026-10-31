@@ -95,7 +95,13 @@ export async function runMetual(o: RunOptions) {
       const archFile = path.join(o.from ?? out, "architecture.json");
       if (!fs.existsSync(archFile)) throw new Error(`follow-up clips need an earlier run: ${archFile} not found (pass --from <out dir>)`);
       arch = JSON.parse(fs.readFileSync(archFile, "utf8")) as Architecture;
-      if (o.focus) {
+      // a re-run of the same follow-up into the same folder reuses its plan, so re-rendering costs nothing
+      const key = o.focus ? `focus:${o.focus}:${level.id}` : `what-if:${o.whatIf}:${level.id}`;
+      const done = path.join(out, "follow-up.json");
+      const prev = fs.existsSync(done) && !o.fresh ? (JSON.parse(fs.readFileSync(done, "utf8")) as { key: string; plan: typeof plan; arch: Architecture }) : undefined;
+      if (prev?.key === key) {
+        plan = prev.plan; arch = prev.arch;
+      } else if (o.focus) {
         const c = arch.components.find((x) => x.id === o.focus);
         if (!c) throw new Error(`no component "${o.focus}"; try one of: ${arch.components.map((x) => x.id).join(", ")}`);
         const near = new Set([c.id, ...arch.connections.flatMap((x) => (x.from === c.id ? [x.to] : x.to === c.id ? [x.from] : []))]);
@@ -109,6 +115,7 @@ export async function runMetual(o: RunOptions) {
       }
       fs.writeFileSync(path.join(out, "plan.json"), JSON.stringify(plan, null, 1));
       fs.writeFileSync(path.join(out, "architecture.json"), JSON.stringify(arch, null, 1));
+      fs.writeFileSync(done, JSON.stringify({ key, plan, arch }));
     } else {
     arch = await cacheJson(path.join(out, "architecture.json"), async () => {
       P({ stage: "architecture", message: "Muse Spark is mapping the architecture", pct: 8 });
