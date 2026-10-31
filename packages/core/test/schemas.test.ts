@@ -20,9 +20,12 @@ test("a level file is validated before it is used", () => {
   assert.equal(LevelSpec.safeParse({ ...good, notes: [{ after: "outro", heading: "x", brief: "y" }] }).success, false);
 });
 
-test("themes: both built-ins exist, unknown ids fail loudly, plugins register", () => {
-  assert.deepEqual(listThemes().slice(0, 2), ["caleb-dark", "whiteboard-light"]);
-  assert.equal(getTheme().id, "caleb-dark");
+test("themes: the built-ins exist, the pen look is the default, unknown ids fail loudly, plugins register", () => {
+  assert.deepEqual(listThemes().slice(0, 3), ["pen-light", "caleb-dark", "whiteboard-light"]);
+  assert.equal(getTheme().id, "pen-light");
+  assert.equal(getTheme().stroke, "pen");
+  // each colour must be distinct so the editable board can map it back to a named colour
+  for (const id of listThemes()) assert.equal(new Set(Object.values(getTheme(id).colors)).size, 10, id);
   assert.equal(getTheme("whiteboard-light").invertIcons, true);
   assert.throws(() => getTheme("neon"), /unknown theme/);
   registerTheme({ ...getTheme(), id: "test-theme", accent: "#123456" });

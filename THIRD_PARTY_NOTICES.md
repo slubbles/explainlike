@@ -7,17 +7,21 @@ Metual is MIT licensed (see `LICENSE`). It bundles or depends on the following.
 | Asset | Where | License |
 |---|---|---|
 | Excalifont (by Excalidraw) | `packages/render/assets/fonts/Excalifont-Regular.*` | SIL Open Font License 1.1 (`packages/render/assets/fonts/OFL-Excalifont.txt`) |
+| Shantell Sans (The Shantell Sans Project Authors, arrowtype/shantell-sans) | `packages/render/assets/fonts/ShantellSans-Informal.*` | SIL Open Font License 1.1 (`packages/render/assets/fonts/OFL-ShantellSans.txt`) |
 | Nunito (The Nunito Project Authors) | `packages/render/assets/fonts/Nunito-Variable.ttf` | SIL Open Font License 1.1 (`packages/render/assets/fonts/OFL-Nunito.txt`) |
 | Doodle icon pack | `packages/render/packs/doodle/*.png` | Generated for this project with Meta Muse Image; released under MIT with this repo |
 
 The fonts are redistributed unmodified apart from a WOFF2 to TTF container conversion
-(needed to read glyph outlines). It is not sold by itself.
+(needed to read glyph outlines). It is not sold by itself. Shantell Sans is a static
+instance of the upstream variable font (Informal 100, weight 400, no bounce or spacing
+change) cut down to Latin characters with fontTools; the font has no Reserved Font Name.
 
 ## Runtime dependencies (not vendored, installed from npm)
 
 | Package | License | Use |
 |---|---|---|
 | roughjs | MIT | hand-drawn strokes |
+| perfect-freehand | MIT | marker-pen strokes that swell and thin |
 | elkjs | EPL-2.0 | graph layout |
 | opentype.js | MIT | glyph outlines for handwriting text |
 | esbuild | MIT | bundles the stage script |
@@ -34,9 +38,13 @@ The fonts are redistributed unmodified apart from a WOFF2 to TTF container conve
 The `.excalidraw` output follows the open Excalidraw JSON scene format
 (excalidraw/excalidraw, MIT). No Excalidraw source is copied into this repo.
 
+The `.tldr` output is written by our own code from tldraw's public file format
+(schema, record shapes and migration versions). The tldraw SDK is not a dependency and
+no tldraw source is copied into this repo. The file opens in tldraw.com.
+
 ## Trademarks
 
-"Meta", "Muse", "Excalidraw" and other names belong to their owners. Metual is an
+"Meta", "Muse", "Excalidraw", "tldraw" and other names belong to their owners. Metual is an
 independent project; it is not affiliated with or endorsed by Meta. It only calls
 Meta's public Model API, credited in plain text as "Powered by Meta Muse models".
 

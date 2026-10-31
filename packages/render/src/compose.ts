@@ -4,7 +4,8 @@ import type { Architecture, ScenePlan, Scene, SceneAudio, Theme, LevelSpec, Colo
 import type { Film, FElement, CamKey, Caption, Heading } from "./film.js";
 import { applyPace, LIVELY, type Pace } from "./pace.js";
 import { layoutGraph, unionBox, shiftLayout, wrapText, NODE, type Box, type GNode, type GEdge, type Layout, type PlacedNode, type PlacedEdge } from "./layout.js";
-import { textWidth, fontDataUrl } from "./measure.js";
+import { textWidth, fontDataUrl, useHandFont, HAND_FONTS } from "./measure.js";
+import { penOutline } from "./draw.js";
 import type { IconPack } from "./icons.js";
 import { resolveIcon } from "./icons.js";
 import { ringOf, scaleArrow, placeFix, placeRingLabel, polyBox } from "./annotate.js";
@@ -13,7 +14,7 @@ import path from "node:path";
 export const W = 1920, H = 1080, FPS = 30;
 const LEAD = 0.3, TAIL = 0.7;
 const SAFE = { top: 160, bottom: 220, side: 110 };
-const gen = rough.generator();
+let gen = rough.generator();
 
 /** Concept board nodes are big: a large doodle (or an icon grid), a big keyword, the source quote underneath. */
 export const BOARD = { boxH: 260, icon: 150, kw: 54, quote: 28, qLine: 38, qMaxW: 430, label: 34 };
@@ -88,8 +89,11 @@ class Builder {
 
   rough(drawable: any, t0: number, dur: number, g?: string, anim: "draw" | "pop" | "fade" = "draw", origin?: [number, number]) {
     const ps = gen.toPaths(drawable);
+    const pen = this.theme.stroke === "pen";
     ps.forEach((p: any, i: number) => {
-      this.els.push({ k: "path", id: this.id("p"), d: p.d, stroke: p.stroke === "none" ? "none" : p.stroke, sw: p.strokeWidth, fill: p.fill && p.fill !== "none" ? p.fill : undefined, t0: t0 + i * dur * 0.15, dur: dur * (ps.length > 1 ? 0.85 : 1), g, anim, origin });
+      const set = drawable.sets[i];
+      const outline = pen && set?.type !== "fillPath" && p.stroke !== "none" ? penOutline(set.ops, set.type === "fillSketch" ? p.strokeWidth * 0.8 : p.strokeWidth) || undefined : undefined;
+      this.els.push({ k: "path", id: this.id("p"), d: p.d, stroke: p.stroke === "none" ? "none" : p.stroke, sw: p.strokeWidth, fill: p.fill && p.fill !== "none" ? p.fill : undefined, outline, t0: t0 + i * dur * 0.15, dur: dur * (ps.length > 1 ? 0.85 : 1), g, anim, origin });
     });
   }
   text(o: { text: string; x: number; y: number; size: number; color: string; anchor?: "start" | "middle"; t0: number; dur?: number; g?: string; bg?: boolean; font?: "hand" | "sans"; weight?: number; anim?: "wipe" | "fade"; sketch?: boolean }) {
@@ -266,6 +270,9 @@ export interface Composed { film: Film; sketch: Sketch; timeline: { id: string; 
 
 export async function compose(inp: ComposeInput): Promise<Composed> {
   const { plan, theme } = inp;
+  useHandFont(theme.hand ?? "excalifont");
+  // pen lines are drawn once, not twice, so they read as one confident marker stroke
+  gen = rough.generator(theme.stroke === "pen" ? { options: { disableMultiStroke: true, disableMultiStrokeFill: true } } : undefined);
   const B = new Builder(theme, inp.pack);
   const audio = new Map(inp.audio.map((a) => [a.sceneId, a]));
   const timeline: Composed["timeline"] = [];
@@ -673,7 +680,7 @@ export async function compose(inp: ComposeInput): Promise<Composed> {
   const film: Film = {
     width: W, height: H, fps: FPS, duration: T + 4.2,
     theme: { background: theme.background, ink: theme.ink, accent: theme.accent, caption: theme.caption },
-    fonts: { hand: fontDataUrl("Excalifont-Regular.woff2", "font/woff2"), sans: fontDataUrl("Nunito-Variable.ttf", "font/ttf") },
+    fonts: { hand: fontDataUrl(HAND_FONTS[theme.hand ?? "excalifont"].woff2, "font/woff2"), sans: fontDataUrl("Nunito-Variable.ttf", "font/ttf") },
     elements: B.els, groups: B.groups, camera: B.cam.length ? B.cam : [{ t: 0, x: 0, y: 0, w: W, h: H, move: 0 }],
     headings, captions, fades, cards,
     end: { t0: T, title: plan.title.toLowerCase(), lines: [inp.sourceLabel, `explained like ${inp.level.label.toLowerCase()}`], credit: "Powered by Meta Muse models" },

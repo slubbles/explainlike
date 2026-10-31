@@ -33,8 +33,24 @@
       p.setAttribute("fill", e.fill || "none");
       p.setAttribute("stroke-linecap", "round");
       p.setAttribute("stroke-linejoin", "round");
-      g.appendChild(p);
       it.p = p;
+      if (e.outline) {
+        // marker-pen look: show the filled outline, and reveal it with the centre line as a mask while drawing
+        const o = document.createElementNS(NS, "path");
+        o.setAttribute("d", e.outline);
+        o.setAttribute("fill", e.stroke);
+        const m = document.createElementNS(NS, "mask");
+        m.id = `m-${e.id}`;
+        m.setAttribute("maskUnits", "userSpaceOnUse");
+        m.setAttribute("x", -1e5); m.setAttribute("y", -1e5); m.setAttribute("width", 2e5); m.setAttribute("height", 2e5);
+        p.setAttribute("stroke", "#fff");
+        p.setAttribute("stroke-width", e.sw * 3);
+        m.appendChild(p);
+        defs.appendChild(m);
+        if (e.fill) { const f = p.cloneNode(); f.setAttribute("stroke", "none"); f.setAttribute("fill", e.fill); g.appendChild(f); }
+        g.appendChild(o);
+        it.o = o;
+      } else g.appendChild(p);
     } else if (e.k === "img") {
       const im = document.createElementNS(NS, "image");
       im.setAttribute("href", e.href);
@@ -213,6 +229,7 @@
       let o = op;
       if (e.k === "path") {
         const a = e.anim || "draw";
+        if (it.o) { if (a === "draw" && p < 1) it.o.setAttribute("mask", `url(#m-${e.id})`); else it.o.removeAttribute("mask"); }
         if (a === "draw") it.p.setAttribute("stroke-dashoffset", it.len * (1 - easeOut(p)));
         else if (a === "pop") { const s = 0.4 + 0.6 * back(p); const [ox, oy] = e.origin || [0, 0]; it.g.setAttribute("transform", `translate(${ox} ${oy}) scale(${s}) translate(${-ox} ${-oy})`); o *= clamp(p * 3, 0, 1); it.p.setAttribute("stroke-dashoffset", 0); }
         else { o *= p; it.p.setAttribute("stroke-dashoffset", 0); }
