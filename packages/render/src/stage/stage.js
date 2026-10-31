@@ -98,7 +98,8 @@
       if (it.tx) {
         const b = it.tx.getBBox();
         it.bb = b;
-        if (it.bg) { it.bg.setAttribute("x", b.x - 8); it.bg.setAttribute("y", b.y - 2); it.bg.setAttribute("width", b.width + 16); it.bg.setAttribute("height", b.height + 4); }
+        if (it.bg && it.e.bgBox) { const r = it.e.bgBox; it.bg.setAttribute("x", r.x); it.bg.setAttribute("y", r.y); it.bg.setAttribute("width", r.w); it.bg.setAttribute("height", r.h); }
+        else if (it.bg) { it.bg.setAttribute("x", b.x - 8); it.bg.setAttribute("y", b.y - 2); it.bg.setAttribute("width", b.width + 16); it.bg.setAttribute("height", b.height + 4); }
       }
       if (it.tp) { it.tlen = it.L; it.tp.setAttribute("stroke-dasharray", `${it.L} ${it.L}`); }
     }
@@ -336,7 +337,7 @@
           for (let i = 1; i < it.words.length; i++) it.words[i].textContent = "";
           const s = 0.5 + 0.5 * back(clamp(p * 1.6, 0, 1));
           it.g.setAttribute("transform", `translate(${e.x} ${e.y}) scale(${s}) translate(${-e.x} ${-e.y})`);
-          if (it.bg && it.bb) { const w = it.bb.width * (String(n).length + e.count.suffix.length) / Math.max(1, e.text.length); it.bg.setAttribute("x", e.x - w / 2 - 12); it.bg.setAttribute("width", w + 24); }
+          if (it.bg && it.bb && !e.bgBox) { const w = it.bb.width * (String(n).length + e.count.suffix.length) / Math.max(1, e.text.length); it.bg.setAttribute("x", e.x - w / 2 - 12); it.bg.setAttribute("width", w + 24); }
           o *= clamp(p * 4, 0, 1);
         } else if ((e.anim || "wipe") === "wipe") {
           const ops = wordOpacities(it.words.length, easeOut(p));

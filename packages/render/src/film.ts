@@ -6,7 +6,7 @@
 export interface Base { id: string; t0: number; dur: number; g?: string }
 export interface FPath extends Base { k: "path"; d: string; stroke: string; sw: number; fill?: string; outline?: string; anim?: "draw" | "pop" | "fade"; origin?: [number, number] }
 export interface FImage extends Base { k: "img"; href: string; x: number; y: number; w: number; h: number; anim?: "pop" | "fade"; invert?: boolean }
-export interface FText extends Base { k: "text"; text: string; x: number; y: number; size: number; color: string; anchor?: "start" | "middle" | "end"; font?: "hand" | "sans"; weight?: number; bg?: string; anim?: "wipe" | "fade" | "count"; count?: { from: number; to: number; suffix: string } }
+export interface FText extends Base { k: "text"; text: string; x: number; y: number; size: number; color: string; anchor?: "start" | "middle" | "end"; font?: "hand" | "sans"; weight?: number; bg?: string; /** fixed backdrop rectangle in world units, instead of one hugging the text */ bgBox?: { x: number; y: number; w: number; h: number }; anim?: "wipe" | "fade" | "count"; count?: { from: number; to: number; suffix: string } }
 export interface FDot extends Base { k: "dot"; pts: [number, number][]; color: string; r: number; trail?: string }
 export type FElement = FPath | FImage | FText | FDot;
 
