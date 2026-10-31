@@ -133,13 +133,11 @@
   const slots = [headA, headB].map((el) => ({ el, txt: el.querySelector("span"), line: el.querySelector("div"), text: null }));
   const cap = document.getElementById("captions"), bar = document.getElementById("bar"), fade = document.getElementById("fade"), end = document.getElementById("end");
   let lastCap = null;
-  const capwrap = document.getElementById("capwrap");
 
-  // Captions never cover the drawing. Before the first frame, each caption picks one spot:
-  // next to the box it talks about (below, above, right, left, a little further out),
-  // else a free band at the bottom or top. A spot is free when, at every moment the caption
-  // is up, it clears every visible stroke, word and image. window.captionReport lists the picks.
-  const TOP = 170, BOT = F.height - 40, SIDE = 40;
+  // Captions sit in one fixed spot, centred at the bottom, one line at a time (Netflix style). The camera
+  // keeps what each shot is about out of the bottom band, so a caption covers none of it; window.captionReport records, for
+  // each caption, its box and how much visible drawing it overlapped (expected 0) so the frame check can prove it.
+
   // the part of an image that is not plain page background (a screenshot's empty margins are free space)
   async function inkBox(e) {
     const whole = { x: e.x, y: e.y, w: e.w, h: e.h };
@@ -184,111 +182,42 @@
   }
   const visibleAt = (e, t) => t >= e.t0 && (e.g ? interp(F.groups[e.g], t, 1) : 1) > 0.05;
   const coverAt = (t) => (F.end && t >= F.end.t0);
-  function spotXY(spot, c, t, cw, ch) {
-    let x, y;
-    if (spot.grid) return { x: spot.grid[0], y: spot.grid[1] };
-    if (spot.world) { const cam = camera(t), s = F.width / cam.w; return { x: clamp((spot.world[0] - cam.x) * s, SIDE, F.width - SIDE - cw), y: clamp((spot.world[1] - cam.y) * s, TOP, BOT - ch) }; }
-    if (spot.side) {
-      const cam = camera(t), s = F.width / cam.w;
-      const a = around(c.at), bx = (a.x - cam.x) * s, by = (a.y - cam.y) * s, bw = a.w * s, bh = a.h * s, g = spot.gap;
-      if (spot.side === "below") { x = bx + bw / 2 - cw / 2; y = by + bh + g; }
-      else if (spot.side === "above") { x = bx + bw / 2 - cw / 2; y = by - g - ch; }
-      else if (spot.side === "right") { x = bx + bw + g; y = by + bh / 2 - ch / 2; }
-      else { x = bx - g - cw; y = by + bh / 2 - ch / 2; }
-    } else {
-      x = spot.band[0] === "l" ? 60 : spot.band[0] === "r" ? F.width - 60 - cw : F.width / 2 - cw / 2;
-      y = spot.band[1] === "t" ? TOP + 10 : BOT - 24 - ch;
-    }
-    return { x: clamp(x, SIDE, F.width - SIDE - cw), y: clamp(y, TOP, BOT - ch) };
-  }
-  // the box a caption talks about, grown to where its ring is drawn (same sizes as ringOf in annotate.ts);
-  // a caption keeps FOCUS_GAP screen px clear of that, and a shot counts as moving above FAST_PX_S screen px a second
-  const RING_K = 2 ** 0.25 * 1.035, RING_PAD = 26 * 1.035, FOCUS_GAP = 16, FAST_PX_S = 400;
-  const around = (b) => { const rx = (b.w / 2) * RING_K + RING_PAD, ry = (b.h / 2) * RING_K + RING_PAD; return { x: b.x + b.w / 2 - rx, y: b.y + b.h / 2 - ry, w: 2 * rx, h: 2 * ry }; };
-  const BANDS = [["cb"], ["ct"], ["lb"], ["rb"], ["lt"], ["rt"]].map(([band]) => ({ band }));
-  const NEAR = [30, 70, 130].flatMap((gap) => ["below", "above", "right", "left"].map((side) => ({ side, gap })));
   async function planCaptions() {
     await worldShapes();
     const report = [];
-    let prev = null;
+    cap.style.display = "inline-block";
     for (const c of F.captions) {
       cap.innerHTML = c.words.map((w) => `<span>${w.w.replace(/&/g, "&amp;").replace(/</g, "&lt;")}</span>`).join(" ");
-      cap.style.display = "inline-block"; capwrap.style.left = capwrap.style.top = "0px";
-      // one line first; stacked on two lines when that fits a narrow margin (beside a screenshot, say)
-      // and, when even that covers something, stacked in a smaller type that fits a tighter margin
-      const shapes = [false, true, "small"].map((stack) => {
-        c.stack = stack; capwrap.className = capClass(c);
-        return { stack, cw: cap.offsetWidth, ch: cap.offsetHeight };
-      });
-      const times = [];
-      for (let t = c.t0 + 0.05; t < c.t1; t += 0.2) if (!coverAt(t)) times.push(t);
-      if (c.t1 - 0.02 > c.t0 && !coverAt(c.t1 - 0.02)) times.push(c.t1 - 0.02);
-      const shots = times.map((t) => {
-        const cam = camera(t), s = F.width / cam.w, out = [];
-        for (const it of items) {
-          if (!visibleAt(it.e, t)) continue;
-          for (const b of it.boxes) {
-            const r = { x: (b.x - cam.x) * s, y: (b.y - cam.y) * s, w: b.w * s, h: b.h * s };
-            if (r.x + r.w > 0 && r.x < F.width && r.y + r.h > 0 && r.y < F.height) out.push(r);
-          }
-        }
-        // the thing the caption talks about keeps a clear border around it (its ring sits there), so the caption
-        // does not sit against the box the viewer is looking at; a soft rule: when the camera is in so close that
-        // no spot clears the border, a spot that only crosses the empty border still beats one covering ink
-        if (c.at) { const a = around(c.at), g = FOCUS_GAP; out.push({ x: (a.x - cam.x) * s - g, y: (a.y - cam.y) * s - g, w: a.w * s + 2 * g, h: a.h * s + 2 * g, soft: true }); }
-        const nx = camera(t + 0.05), ns = F.width / nx.w;
-        // during a fast push everything is in motion, so covering something then matters far less than on a still
-        // frame; a slow drift reads as a still frame, so it counts as one (measured as screen pixels moved per second)
+      const r = cap.getBoundingClientRect(), rect = { x: r.left, y: r.top, w: r.width, h: r.height };
+      const lines = Math.round((r.height - 32) / 60);
+      let still = 0, moving = 0, n = 0;
+      for (let t = c.t0 + 0.05; t < c.t1; t += 0.2) {
+        if (coverAt(t)) continue;
+        const cam = camera(t), s = F.width / cam.w, nx = camera(t + 0.05), ns = F.width / nx.w;
         const drift = (Math.abs(nx.x - cam.x) * s + Math.abs(nx.y - cam.y) * s + Math.abs(F.width - cam.w * ns) * 0.5) / 0.05;
-        return { t, boxes: out, weight: drift > FAST_PX_S ? 1 : 1000 };
-      });
-      let best = null;
-      for (const { stack, cw, ch } of shapes) {
-      // last resort: any free spot on screen, nearest to the box first (or to the usual bottom spot)
-      const cam0 = camera(c.t0), s0 = F.width / cam0.w;
-      const ax = c.at ? (c.at.x + c.at.w / 2 - cam0.x) * s0 : F.width / 2, ay = c.at ? (c.at.y + c.at.h / 2 - cam0.y) * s0 : BOT;
-      const grid = [];
-      for (let y = TOP; y <= BOT - ch; y += 30) for (let x = SIDE; x <= F.width - SIDE - cw; x += 40) grid.push({ grid: [x, y], d: Math.hypot(x + cw / 2 - ax, y + ch / 2 - ay) });
-      grid.sort((a, b) => a.d - b.d);
-      // the same spots pinned to the drawing, so a caption rides along when the camera pushes mid-phrase
-      const pinned = [];
-      for (const tt of times.length ? [times[times.length - 1], times[0]] : [c.t1]) {
-        const camS = camera(tt), sS = camS.w / F.width;
-        for (const g of grid) pinned.push({ world: [camS.x + g.grid[0] * sS, camS.y + g.grid[1] * sS] });
-      }
-      // the spot the last caption of this scene used comes first, so captions do not hop around the screen
-      const again = prev && prev.scene === c.scene && prev.stack === stack ? [prev.spot] : [];
-      for (const spot of [...again, ...(c.at ? NEAR : []), ...BANDS, ...grid, ...pinned]) {
-        let hit = 0, still = 0, soft = 0;
-        for (const sh of shots) {
-          const p = spotXY(spot, c, sh.t, cw, ch), m = 10;
-          for (const r of sh.boxes) {
-            const ox = Math.min(p.x + cw + m, r.x + r.w) - Math.max(p.x - m, r.x), oy = Math.min(p.y + ch + m, r.y + r.h) - Math.max(p.y - m, r.y);
-            if (ox > 0 && oy > 0) {
-              if (r.soft) { const v = ox * oy * 0.001; hit += v; soft += v; continue; }
-              hit += ox * oy * sh.weight; if (sh.weight > 1) still += ox * oy;
-            }
+        let hit = 0;
+        for (const it of items) {
+          if (!(t >= it.e.t0 && (it.e.g ? interp(F.groups[it.e.g], t, 1) : 1) > 0.6) || !it.boxes.length) continue;
+          // only what the shot is about counts: dimmed context, or an element mostly off screen, may pass under the pill
+          const x0 = Math.min(...it.boxes.map((b) => b.x)), y0 = Math.min(...it.boxes.map((b) => b.y));
+          const x1 = Math.max(...it.boxes.map((b) => b.x + b.w)), y1 = Math.max(...it.boxes.map((b) => b.y + b.h));
+          const vw = Math.max(0, Math.min(x1, cam.x + cam.w) - Math.max(x0, cam.x)), vh = Math.max(0, Math.min(y1, cam.y + cam.h) - Math.max(y0, cam.y));
+          if (vw * vh < 0.5 * Math.max(1, (x1 - x0) * (y1 - y0))) continue;
+          for (const b of it.boxes) {
+            const q = { x: (b.x - cam.x) * s, y: (b.y - cam.y) * s, w: b.w * s, h: b.h * s };
+            const ox = Math.min(rect.x + rect.w, q.x + q.w) - Math.max(rect.x, q.x), oy = Math.min(rect.y + rect.h, q.y + q.h) - Math.max(rect.y, q.y);
+            if (ox > 0 && oy > 0) hit += ox * oy;
           }
-          if (best && hit >= best.hit) break;
         }
-        if (!best || hit < best.hit) best = { spot, hit, still, soft, stack };
-        if (hit === 0) break;
+        n++; if (drift > 400) moving += hit; else still += hit;
       }
-      if (best.hit === 0) break;
-      }
-      c.spot = best.spot; c.stack = best.stack; prev = { scene: c.scene, spot: best.spot, stack: best.stack };
-      report.push({ t0: c.t0, text: c.words.map((w) => w.w).join(" "), spot: best.spot.side ? `${best.spot.side}+${best.spot.gap}` : best.spot.band ?? (best.spot.grid ? `at ${best.spot.grid.join(",")}` : "pinned"), stacked: !!best.stack, small: best.stack === "small", overlapPx: Math.round(best.still / Math.max(1, shots.length)), movingPx: Math.round((best.hit - best.still * 1000 - best.soft) / Math.max(1, shots.length)), rect: (() => { const sh = shapes.find((x) => x.stack === best.stack), p = spotXY(best.spot, c, c.t0 + 0.05, sh.cw, sh.ch); return { x: Math.round(p.x), y: Math.round(p.y), w: Math.round(sh.cw), h: Math.round(sh.ch) }; })() });
+      report.push({ t0: c.t0, text: c.words.map((w) => w.w).join(" "), spot: "bottom", stacked: lines > 1, overlapPx: Math.round(still / Math.max(1, n)), movingPx: Math.round(moving / Math.max(1, n)), rect: { x: Math.round(rect.x), y: Math.round(rect.y), w: Math.round(rect.w), h: Math.round(rect.h) } });
     }
     cap.style.display = "none"; cap.innerHTML = "";
     window.captionReport = report;
   }
-  function capClass(c) { return (c.at ? "near placed" : "placed") + (c.stack ? " stack" : "") + (c.stack === "small" ? " small" : ""); }
   function placeCaption(c, t) {
-    const pop = 0.88 + 0.12 * easeOut(clamp((t - c.t0) / 0.18, 0, 1));
-    capwrap.className = capClass(c);
-    const p = spotXY(coverAt(t) ? BANDS[0] : c.spot || BANDS[0], c, t, cap.offsetWidth, cap.offsetHeight);
-    capwrap.style.left = `${p.x.toFixed(1)}px`; capwrap.style.top = `${p.y.toFixed(1)}px`;
-    cap.style.transform = `scale(${pop.toFixed(3)})`;
+    cap.style.transform = `translateY(${(8 * (1 - easeOut(clamp((t - c.t0) / 0.15, 0, 1)))).toFixed(2)}px)`;
   }
   const HIN = 0.55, HOUT = 0.45;
 
