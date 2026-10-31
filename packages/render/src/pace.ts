@@ -41,6 +41,10 @@ const union = (bs: Box[]): Box | undefined => {
   return { x: x0, y: y0, w: Math.max(...bs.map((b) => b.x + b.w)) - x0, h: Math.max(...bs.map((b) => b.y + b.h)) - y0 };
 };
 const overlaps = (b: Box, v: Box) => b.x < v.x + v.w && v.x < b.x + b.w && b.y < v.y + v.h && v.y < b.y + b.h;
+const intersect = (a: Box, b: Box): Box | undefined => {
+  const x = Math.max(a.x, b.x), y = Math.max(a.y, b.y), w = Math.min(a.x + a.w, b.x + b.w) - x, h = Math.min(a.y + a.h, b.y + b.h) - y;
+  return w > 0 && h > 0 ? { x, y, w, h } : undefined;
+};
 const inside = (b: Box, v: Box) => b.x >= v.x && b.y >= v.y && b.x + b.w <= v.x + v.w && b.y + b.h <= v.y + v.h;
 
 /** Camera view that frames b below the heading and above the captions (same margins as the composer). */
@@ -161,12 +165,17 @@ export function applyPace(film: Film, scenes: Span[]) {
       let view: Omit<CamKey, "t" | "move"> | undefined;
       if (punched) view = { x: base.x, y: base.y, w: base.w, h: base.h };
       else if (focus) {
-        let f: Box = focus;
-        for (let i = 0; i < 4 && f.w < base.w * 0.6 && f.h < base.h * 0.6; i++) {
-          // a close-up stays inside the wide shot, so cutting back out never slices what it showed
-          const v = within(fitView(film, f, base.w * 0.55), base), cut = sliced(v);
-          if (!cut.length) { view = v; break; }
-          f = union([f, ...cut])!;
+        // tightest first; on a crowded board a gentler push-in is still a clear change of shot
+        for (const frac of [0.55, 0.7, 0.8]) {
+          let f: Box = focus;
+          for (let i = 0; i < 4 && f.w < base.w * (frac + 0.05) && f.h < base.h * (frac + 0.05); i++) {
+            // a close-up stays inside the wide shot, so cutting back out never slices what it showed
+            const v = within(fitView(film, f, base.w * frac), base), cut = sliced(v);
+            if (v.w > base.w * 0.9 || v.h > base.h * 0.9) break;
+            if (!cut.length) { view = v; break; }
+            f = union([f, ...cut])!;
+          }
+          if (view) break;
         }
       }
       if (!view && !punched && !soon.length) {
@@ -234,7 +243,11 @@ export function applyPace(film: Film, scenes: Span[]) {
         v = g;
       }
       v = within(v, wide);
-      film.camera.push({ t, ...v, move: 0.7 });
+      // a jump to another part of the board is a cut, like an editor's; a step along it is a glide
+      const from = cameraAt(film, t), common = intersect(from, v);
+      const far = !common || (common.w * common.h) / Math.min(from.w * from.h, v.w * v.h) < 0.35;
+      film.camera.push({ t, ...v, move: far ? 0 : 0.7 });
+      film.camera.sort((a, b) => a.t - b.t);
       t = tn;
     }
   }
