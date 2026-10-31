@@ -6,6 +6,7 @@ export * from "./compose.js";
 export * from "./stage.js";
 export * from "./capture.js";
 export * from "./excalidraw.js";
+export * from "./tldraw.js";
 export * from "./reveal.js";
 export * from "./check.js";
 export * from "./annotate.js";
