@@ -640,7 +640,8 @@ export async function compose(inp: ComposeInput): Promise<Composed> {
       const stepBox = (i: number) => {
         const ends = unionBox([steps[i].from, steps[i].to].map((id) => graph!.nodes.get(id)!).filter(Boolean), 70);
         const both = i > 0 ? unionBox([steps[i - 1].from, steps[i - 1].to, steps[i].from, steps[i].to].map((id) => graph!.nodes.get(id)!).filter(Boolean), 70) : ends;
-        if (fitsRW(both)) return both;
+        // two hops may use the whole readable width; labels still meet the minimum size there
+        if (both.w <= RW && both.h <= RW * (H / W)) return both;
         const to = graph!.nodes.get(steps[i].to);
         return fitsRW(ends) || !to ? ends : unionBox([to], 70);
       };
