@@ -86,3 +86,9 @@ test("a keyword list is told apart from spoken sentences", () => {
   assert.ok(!soundsLikeKeywords("This box is you, the viewer, pasting a GitHub, X, or article link into the web app."));
   assert.ok(!soundsLikeKeywords("Short label text."));
 });
+
+test("a noun after a singular subject is not read as a verb: 'a write queue that lines up'", () => {
+  for (const ok of ["The fix is a write queue that lines up the saves.", "The fix is a write queue.", "Each message cache is small."])
+    assert.equal(tidySpeech(ok), ok);
+});
+
