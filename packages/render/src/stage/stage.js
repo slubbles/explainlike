@@ -142,11 +142,30 @@
   // else a free band at the bottom or top. A spot is free when, at every moment the caption
   // is up, it clears every visible stroke, word and image. window.captionReport lists the picks.
   const TOP = 170, BOT = F.height - 40, SIDE = 40;
-  function worldShapes() {
+  // the part of an image that is not plain page background (a screenshot's empty margins are free space)
+  async function inkBox(e) {
+    const whole = { x: e.x, y: e.y, w: e.w, h: e.h };
+    try {
+      const im = new Image(); im.src = e.href; await im.decode();
+      const k = Math.min(e.w / im.naturalWidth, e.h / im.naturalHeight), dw = im.naturalWidth * k, dh = im.naturalHeight * k;
+      const dx = e.x + (e.w - dw) / 2, dy = e.y + (e.h - dh) / 2, W = 160, H = Math.max(1, Math.round((W * dh) / dw));
+      const cv = document.createElement("canvas"); cv.width = W; cv.height = H;
+      const g = cv.getContext("2d"); g.drawImage(im, 0, 0, W, H);
+      const d = g.getImageData(0, 0, W, H).data, bg = [d[0], d[1], d[2]];
+      let x0 = W, y0 = H, x1 = -1, y1 = -1;
+      for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+        const i = (y * W + x) * 4;
+        if (d[i + 3] > 20 && Math.abs(d[i] - bg[0]) + Math.abs(d[i + 1] - bg[1]) + Math.abs(d[i + 2] - bg[2]) > 40) { x0 = Math.min(x0, x); y0 = Math.min(y0, y); x1 = Math.max(x1, x); y1 = Math.max(y1, y); }
+      }
+      if (x1 < 0) return whole;
+      return { x: dx + ((x0 - 1) / W) * dw, y: dy + ((y0 - 1) / H) * dh, w: ((x1 - x0 + 3) / W) * dw, h: ((y1 - y0 + 3) / H) * dh };
+    } catch { return whole; }
+  }
+  async function worldShapes() {
     for (const it of items) {
       const e = it.e, bx = [];
       if (it.bb) { const b = it.bb; bx.push({ x: b.x - 10, y: b.y - 4, w: b.width + 20, h: b.height + 8 }); }
-      else if (e.k === "img") bx.push({ x: e.x, y: e.y, w: e.w, h: e.h });
+      else if (e.k === "img") bx.push(await inkBox(e));
       else if (it.p && it.len > 0) {
         // stroke boxes along the line; jumps between sub-paths start a new box
         const step = 10, pad = (e.sw || 2) / 2 + 3, n = Math.max(2, Math.ceil(it.len / step));
@@ -186,14 +205,18 @@
   }
   const BANDS = [["cb"], ["ct"], ["lb"], ["rb"], ["lt"], ["rt"]].map(([band]) => ({ band }));
   const NEAR = [22, 60, 120].flatMap((gap) => ["below", "above", "right", "left"].map((side) => ({ side, gap })));
-  function planCaptions() {
-    worldShapes();
+  async function planCaptions() {
+    await worldShapes();
     const report = [];
+    let prev = null;
     for (const c of F.captions) {
-      capwrap.className = c.at ? "near placed" : "placed"; capwrap.style.left = capwrap.style.top = "0px";
       cap.innerHTML = c.words.map((w) => `<span>${w.w.replace(/&/g, "&amp;").replace(/</g, "&lt;")}</span>`).join(" ");
-      cap.style.display = "inline-block";
-      const cw = cap.offsetWidth, ch = cap.offsetHeight;
+      cap.style.display = "inline-block"; capwrap.style.left = capwrap.style.top = "0px";
+      // one line first; stacked on two lines when that fits a narrow margin (beside a screenshot, say)
+      const shapes = [false, true].map((stack) => {
+        c.stack = stack; capwrap.className = capClass(c);
+        return { stack, cw: cap.offsetWidth, ch: cap.offsetHeight };
+      });
       const times = [];
       for (let t = c.t0 + 0.05; t < c.t1; t += 0.2) if (!coverAt(t)) times.push(t);
       if (c.t1 - 0.02 > c.t0 && !coverAt(c.t1 - 0.02)) times.push(c.t1 - 0.02);
@@ -212,6 +235,7 @@
         return { t, boxes: out, weight: moving ? 1 : 1000 };
       });
       let best = null;
+      for (const { stack, cw, ch } of shapes) {
       // last resort: any free spot on screen, nearest to the box first (or to the usual bottom spot)
       const cam0 = camera(c.t0), s0 = F.width / cam0.w;
       const ax = c.at ? (c.at.x + c.at.w / 2 - cam0.x) * s0 : F.width / 2, ay = c.at ? (c.at.y + c.at.h / 2 - cam0.y) * s0 : BOT;
@@ -224,7 +248,9 @@
         const camS = camera(tt), sS = camS.w / F.width;
         for (const g of grid) pinned.push({ world: [camS.x + g.grid[0] * sS, camS.y + g.grid[1] * sS] });
       }
-      for (const spot of [...(c.at ? NEAR : []), ...BANDS, ...grid, ...pinned]) {
+      // the spot the last caption of this scene used comes first, so captions do not hop around the screen
+      const again = prev && prev.scene === c.scene && prev.stack === stack ? [prev.spot] : [];
+      for (const spot of [...again, ...(c.at ? NEAR : []), ...BANDS, ...grid, ...pinned]) {
         let hit = 0, still = 0;
         for (const sh of shots) {
           const p = spotXY(spot, c, sh.t, cw, ch), m = 10;
@@ -234,18 +260,21 @@
           }
           if (best && hit >= best.hit) break;
         }
-        if (!best || hit < best.hit) best = { spot, hit, still };
+        if (!best || hit < best.hit) best = { spot, hit, still, stack };
         if (hit === 0) break;
       }
-      c.spot = best.spot;
-      report.push({ t0: c.t0, text: c.words.map((w) => w.w).join(" "), spot: best.spot.side ? `${best.spot.side}+${best.spot.gap}` : best.spot.band ?? (best.spot.grid ? `at ${best.spot.grid.join(",")}` : "pinned"), overlapPx: Math.round(best.still / Math.max(1, shots.length)), movingPx: Math.round((best.hit - best.still * 1000) / Math.max(1, shots.length)) });
+      if (best.hit === 0) break;
+      }
+      c.spot = best.spot; c.stack = best.stack; prev = { scene: c.scene, spot: best.spot, stack: best.stack };
+      report.push({ t0: c.t0, text: c.words.map((w) => w.w).join(" "), spot: best.spot.side ? `${best.spot.side}+${best.spot.gap}` : best.spot.band ?? (best.spot.grid ? `at ${best.spot.grid.join(",")}` : "pinned"), stacked: best.stack, overlapPx: Math.round(best.still / Math.max(1, shots.length)), movingPx: Math.round((best.hit - best.still * 1000) / Math.max(1, shots.length)) });
     }
     cap.style.display = "none"; cap.innerHTML = "";
     window.captionReport = report;
   }
+  function capClass(c) { return (c.at ? "near placed" : "placed") + (c.stack ? " stack" : ""); }
   function placeCaption(c, t) {
     const pop = 0.88 + 0.12 * easeOut(clamp((t - c.t0) / 0.18, 0, 1));
-    capwrap.className = c.at ? "near placed" : "placed";
+    capwrap.className = capClass(c);
     const p = spotXY(c.spot || BANDS[0], c, t, cap.offsetWidth, cap.offsetHeight);
     capwrap.style.left = `${p.x.toFixed(1)}px`; capwrap.style.top = `${p.y.toFixed(1)}px`;
     cap.style.transform = `scale(${pop.toFixed(3)})`;
@@ -362,5 +391,5 @@
     renderHud(t);
   };
 
-  window.ready = (async () => { await document.fonts.ready; await Promise.all([...document.images].map((i) => i.decode().catch(() => {}))); measure(); planCaptions(); window.render(0); return true; })();
+  window.ready = (async () => { await document.fonts.ready; await Promise.all([...document.images].map((i) => i.decode().catch(() => {}))); measure(); await planCaptions(); window.render(0); return true; })();
 })();
