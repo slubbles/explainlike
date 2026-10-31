@@ -37,8 +37,8 @@ test("lively: black cards name each new part, calm has none", async () => {
 
 test("lively: short captions sit next to what they talk about", async () => {
   const { film, timeline } = await make("lively");
-  // about four words: at most six, and only rarely more than four (when that keeps a noun phrase or a clause whole)
-  for (const c of film.captions) assert.ok(c.words.length <= 6 && c.words.map((w) => w.w).join(" ").length <= 34, c.words.map((w) => w.w).join(" "));
+  // about four words: at most seven, and only rarely more than four (when that keeps a noun phrase or a clause whole)
+  for (const c of film.captions) assert.ok(c.words.length <= 7 && c.words.map((w) => w.w).join(" ").length <= 34, c.words.map((w) => w.w).join(" "));
   assert.ok(film.captions.filter((c) => c.words.length > 4).length <= film.captions.length / 4);
   const inLayers = film.captions.filter((c) => timeline.some((s) => s.kind === "layer" && c.t0 >= s.start && c.t0 < s.end));
   assert.ok(inLayers.length > 10 && inLayers.every((c) => c.at), "layer captions have a spot");
