@@ -54,7 +54,7 @@ const PUNCH_KINDS = new Set(["layer", "walkthrough", "scale", "recap", "notes", 
  */
 export function changes(film: Film): [number, number][] {
   const out: [number, number][] = [];
-  for (const e of film.elements) out.push([e.t0, e.t0 + e.dur]);
+  for (const e of film.elements) if (seen(film, e)) out.push([e.t0, e.t0 + e.dur]);
   for (const k of film.camera) out.push([k.t, k.t + k.move]);
   for (const h of film.headings) out.push([h.t0, h.t0 + 0.5]);
   for (const c of film.cards ?? []) out.push([c.t0, c.t1]);
@@ -62,7 +62,25 @@ export function changes(film: Film): [number, number][] {
   return out.sort((a, b) => a[0] - b[0]);
 }
 
-/** Stretches inside [from, to] where nothing at all changes. */
+/** Smallest share of the frame a new element must cover to read as the picture changing. */
+export const SEEN_SHARE = 0.003;
+
+/**
+ * Whether an element is big enough on screen, when it appears, to count as a change.
+ * A small label, a moving dot or a thin wire drawn into a wide shot leaves the frame looking frozen.
+ */
+function seen(film: Film, e: FElement): boolean {
+  if (!film.camera.length) return true;
+  if (e.k === "dot") return false;
+  const b = boxOf(e);
+  if (!b) return false;
+  const v = cameraAt(film, e.t0);
+  const w = Math.min(b.x + b.w, v.x + v.w) - Math.max(b.x, v.x), h = Math.min(b.y + b.h, v.y + v.h) - Math.max(b.y, v.y);
+  if (w <= 0 || h <= 0) return false;
+  return (w * h) / (v.w * v.h) >= SEEN_SHARE;
+}
+
+/** Stretches inside [from, to] where nothing visible changes. */
 export function stillGaps(film: Film, from: number, to: number): { t0: number; t1: number }[] {
   const gaps: { t0: number; t1: number }[] = [];
   let busy = from;
@@ -157,9 +175,23 @@ export function applyPace(film: Film, scenes: Span[]) {
   for (const s of scenes) {
     for (const g of stillGaps(film, s.start, s.end)) {
       if (g.t1 - g.t0 <= LIVELY.hold) continue;
-      // the push grows with the stretch so a long one is clearly moving, not a near-freeze
+      // the push grows with the stretch so a long one is clearly moving, not a near-freeze;
+      // it closes in on what is on screen without cropping any of it, or eases out when it can't
       const cur = cameraAt(film, g.t0), z = Math.max(0.88, 1 - 0.035 * (g.t1 - g.t0));
-      film.camera.push({ t: g.t0, x: cur.x + (cur.w * (1 - z)) / 2, y: cur.y + (cur.h * (1 - z)) / 2, w: cur.w * z, h: cur.h * z, move: g.t1 - g.t0 - 0.05 });
+      const onScreen = union(boxes.filter(({ e, b }) => e.k !== "dot" && e.t0 < g.t1 && overlaps(b, cur)).map((x) => x.b));
+      const tight = onScreen && fitView(film, onScreen, (cur.w * z * (film.width - 220)) / film.width);
+      const out = { x: cur.x - (cur.w * (1 / z - 1)) / 2, y: cur.y - (cur.h * (1 / z - 1)) / 2, w: cur.w / z, h: cur.h / z };
+      const inward = { x: cur.x + (cur.w * (1 - z)) / 2, y: cur.y + (cur.h * (1 - z)) / 2, w: cur.w * z, h: cur.h * z };
+      // a later hard cut was framed so it slices nothing on screen before it; keep that true
+      const next = film.camera.find((k) => k.t >= g.t1 - 0.05);
+      const keepsCut = (v: Box) => !next || next.move > 0 || !boxes.some(({ e, b }) => e.k !== "path" && e.t0 < next.t && inside(b, v) && overlaps(b, next) && !inside(b, next));
+      // and words that finish appearing while this framing holds stay whole on screen
+      const until = next?.t ?? Infinity, m = (8 * cur.w) / film.width;
+      const keepsNew = (v: Box) => boxes.every(({ e, b }) => e.k !== "text" || e.t0 + e.dur < g.t0 || e.t0 + e.dur >= until
+        || inside({ x: b.x - m, y: b.y - m, w: b.w + 2 * m, h: b.h + 2 * m }, v));
+      const to = [tight && tight.w < cur.w * 0.985 ? tight : undefined, inward, out].find((v): v is Box => !!v && keepsCut(v) && keepsNew(v));
+      if (!to) continue;
+      film.camera.push({ t: g.t0, ...to, move: g.t1 - g.t0 - 0.05 });
       film.camera.sort((a, b) => a.t - b.t);
     }
   }
