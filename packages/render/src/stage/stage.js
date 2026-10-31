@@ -45,18 +45,17 @@
     } else if (e.k === "text") {
       if (e.bg) { const r = document.createElementNS(NS, "rect"); r.setAttribute("fill", e.bg); r.setAttribute("rx", 6); g.appendChild(r); it.bg = r; }
       const tx = document.createElementNS(NS, "text");
-      tx.textContent = e.text;
+      // one tspan per word so the reveal shows whole words only (see reveal.ts)
+      it.words = revealWords(e.text).map((w) => { const ts = document.createElementNS(NS, "tspan"); ts.textContent = w; tx.appendChild(ts); return ts; });
+      tx.setAttribute("xml:space", "preserve");
       tx.setAttribute("x", e.x); tx.setAttribute("y", e.y);
       tx.setAttribute("font-size", e.size);
       tx.setAttribute("fill", e.color);
       tx.setAttribute("text-anchor", e.anchor || "start");
       tx.setAttribute("font-family", e.font === "sans" ? "MetualSans" : "Excalifont");
       if (e.weight) tx.setAttribute("font-weight", e.weight);
-      const cp = document.createElementNS(NS, "clipPath"); cp.setAttribute("id", "c_" + e.id);
-      const cr = document.createElementNS(NS, "rect"); cp.appendChild(cr); defs.appendChild(cp);
       g.appendChild(tx);
-      g.setAttribute("clip-path", `url(#c_${e.id})`);
-      it.tx = tx; it.cr = cr;
+      it.tx = tx;
     } else if (e.k === "dot") {
       if (e.trail) {
         const tp = document.createElementNS(NS, "polyline");
@@ -83,7 +82,6 @@
       if (it.tx) {
         const b = it.tx.getBBox();
         it.bb = b;
-        it.cr.setAttribute("x", b.x - 4); it.cr.setAttribute("y", b.y - 8); it.cr.setAttribute("height", b.height + 16);
         if (it.bg) { it.bg.setAttribute("x", b.x - 8); it.bg.setAttribute("y", b.y - 2); it.bg.setAttribute("width", b.width + 16); it.bg.setAttribute("height", b.height + 4); }
       }
       if (it.tp) { it.tlen = it.L; it.tp.setAttribute("stroke-dasharray", `${it.L} ${it.L}`); }
@@ -120,10 +118,15 @@
   const HIN = 0.55, HOUT = 0.45;
 
   function drawHead(slot, h, inP, outP, lineP) {
-    if (slot.text !== h.text) { slot.txt.textContent = h.text; slot.text = h.text; }
+    if (slot.text !== h.text) {
+      slot.txt.textContent = "";
+      slot.words = revealWords(h.text).map((w) => { const sp = document.createElement("span"); sp.textContent = w; sp.style.whiteSpace = "pre"; slot.txt.appendChild(sp); return sp; });
+      slot.text = h.text;
+    }
     slot.el.style.opacity = (1 - outP).toFixed(3);
     slot.el.style.transform = `translateY(${(-30 * easeOut(outP)).toFixed(1)}px)`;
-    slot.txt.style.clipPath = `inset(-20px ${(100 - easeOut(inP) * 100).toFixed(2)}% -20px -10px)`;
+    const ops = wordOpacities(slot.words.length, easeOut(inP));
+    for (let i = 0; i < ops.length; i++) slot.words[i].style.opacity = ops[i].toFixed(3);
     slot.line.style.transform = `scaleX(${easeOut(lineP).toFixed(3)})`;
   }
 
@@ -186,8 +189,11 @@
         if ((e.anim || "pop") === "pop") { const s = 0.5 + 0.5 * back(p); const cx = e.x + e.w / 2, cy = e.y + e.h / 2; it.g.setAttribute("transform", `translate(${cx} ${cy}) scale(${s}) translate(${-cx} ${-cy})`); o *= clamp(p * 2.5, 0, 1); }
         else o *= p;
       } else if (e.k === "text") {
-        if ((e.anim || "wipe") === "wipe") it.cr.setAttribute("width", (it.bb.width + 12) * easeOut(p));
-        else { it.cr.setAttribute("width", it.bb.width + 12); o *= p; }
+        if ((e.anim || "wipe") === "wipe") {
+          const ops = wordOpacities(it.words.length, easeOut(p));
+          for (let i = 0; i < ops.length; i++) it.words[i].setAttribute("fill-opacity", ops[i].toFixed(3));
+          if (it.bg) it.bg.setAttribute("opacity", clamp(p * 4, 0, 1).toFixed(3));
+        } else o *= p;
       } else if (e.k === "dot") {
         const d = it.L * ease(p);
         const [x, y] = pointAt(it, d);
