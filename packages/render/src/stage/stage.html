@@ -4,6 +4,7 @@
 @font-face { font-family: MetualSans; src: url(__SANS__); font-weight: 200 1000; }
 html, body { margin: 0; width: __W__px; height: __H__px; overflow: hidden; background: __BG__; }
 #world { position: absolute; inset: 0; width: __W__px; height: __H__px; }
+#topband { position: absolute; left: 0; top: 0; width: 100%; height: 200px; background: linear-gradient(__BG__ 62%, transparent); pointer-events: none; }
 #heading { position: absolute; left: 84px; top: 52px; font: 64px Excalifont; color: __INK__; }
 #headingText { display: inline-block; white-space: nowrap; }
 #headingLine { height: 7px; margin-top: 6px; border-radius: 4px; background: __ACCENT__; transform-origin: left; width: 100%; }
@@ -23,7 +24,7 @@ html, body { margin: 0; width: __W__px; height: __H__px; overflow: hidden; backg
 #endCredit { margin-top: 64px; font: 800 30px MetualSans; color: #fff; padding: 14px 30px; border-radius: 999px; background: __ACCENT__; }
 </style></head><body>
 <svg id="world" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 __W__ __H__"></svg>
-<div id="heading"><span id="headingText"></span><div id="headingLine"></div></div>
+<div id="topband"></div><div id="heading"><span id="headingText"></span><div id="headingLine"></div></div>
 <div id="brand">__BRAND__</div>
 <div id="capwrap"><div id="captions"></div></div>
 <div id="fade"></div>

@@ -380,24 +380,33 @@ export async function compose(inp: ComposeInput): Promise<Composed> {
       B.fit({ x: sb.x, y: sb.y, w: sb.w, h: Math.min(sb.h, sb.w * 0.52) }, T, 0, 1.0);
       fades.push({ t: T, dur: 0.35 });
       const hs = s.highlights.filter((h) => inp.shot!.rects[h.quote]?.length);
+      const noteYs: number[] = [];
       const times = eventTimes(words, hs.map((h) => [h.note, h.quote.split(" ").slice(0, 2).join(" ")]), t0 + 1.2, tEnd - 0.6, 2.0);
       hs.forEach((h, i) => {
         const rs = inp.shot!.rects[h.quote].map((r) => ({ x: sb.x + r.x * sc, y: sb.y + r.y * sc, w: r.w * sc, h: r.h * sc }));
         const u = unionBox(rs, 10);
-        B.fit({ x: u.x - 250, y: u.y - 120, w: u.w + 500, h: u.h + 300 }, times[i] - 0.7, 0.8, 1.6);
+        // notes live in the right margin of the screenshot so they never cover the text
+        const nw = textWidth(h.note, 44) + 20;
+        let ny = u.y + u.h / 2 + 15;
+        for (const py of noteYs) if (Math.abs(py - ny) < 70) ny = py + 70;
+        noteYs.push(ny);
+        const nx = sb.x + sb.w + 70;
+        const fx0 = Math.min(u.x - 60, nx + nw - 1400);
+        B.fit({ x: fx0, y: Math.min(u.y, ny - 50) - 120, w: nx + nw + 40 - fx0, h: Math.max(u.y + u.h, ny) - Math.min(u.y, ny - 50) + 260 }, times[i] - 0.7, 0.8, 1.6);
         const col = C(h.color);
         for (const r of rs) {
           B.rough(gen.line(r.x, r.y + r.h + 4, r.x + r.w, r.y + r.h + 2, { seed: B.seed++, stroke: col, strokeWidth: 5, roughness: 1.2 }), times[i], 0.45, "src");
         }
         B.rough(gen.rectangle(u.x - 6, u.y - 6, u.w + 12, u.h + 12, { seed: B.seed++, stroke: col, strokeWidth: 4, roughness: 1.6 }), times[i] + 0.2, 0.6, "src");
         B.sketch.ellipses.push({ box: u, color: col });
-        B.text({ text: h.note, x: u.x + u.w / 2, y: u.y + u.h + 62, size: 44, color: col, anchor: "middle", t0: times[i] + 0.6, dur: 0.5, g: "src", bg: true });
+        B.rough(gen.line(sb.x + sb.w + 6, u.y + u.h / 2, nx - 14, ny - 15, { seed: B.seed++, stroke: col, strokeWidth: 3, roughness: 1.3 }), times[i] + 0.5, 0.3, "src");
+        B.text({ text: h.note, x: nx, y: ny, size: 44, color: col, anchor: "start", t0: times[i] + 0.7, dur: 0.5, g: "src", bg: true });
       });
       B.setOp("src", T + D - 0.2, 0, 0.4);
     } else if (s.kind === "board") {
       const l = boardPos.get(s.id)!;
       fades.push({ t: T, dur: 0.35 });
-      B.fit(unionBox([...l.nodes.values()], 70), T, 0, 1.1);
+      B.fit(unionBox([...l.nodes.values()], 70), T, 0, 1.5);
       const nodes = s.board_nodes.filter((n) => l.nodes.has(n.id));
       const times = eventTimes(words, nodes.map((n) => [n.keyword]), t0, tEnd - 0.6, 1.0);
       const ready = new Map<string, number>();

@@ -100,7 +100,7 @@ async function fetchArticle(url: string): Promise<Card & { url: string }> {
 /** pick the blocks that contain the quotes (plus the first block for context), with "…" gaps */
 function selectBlocks(blocks: string[], quotes: string[], maxChars = 2600): (string | null)[] {
   const nb = blocks.map(norm);
-  const want = new Set<number>([0]);
+  const want = new Set<number>([Math.max(0, blocks.findIndex((b) => b.length >= 80))]);
   for (const q of quotes) {
     const nq = norm(q);
     let i = nb.findIndex((b) => b.includes(nq));
@@ -126,6 +126,37 @@ function selectBlocks(blocks: string[], quotes: string[], maxChars = 2600): (str
   return out;
 }
 
+// plain JS (not compiled) so bundler helpers never leak into the page
+const LOCATE_JS = `(qs) => {
+          const n = (c) => c.toLowerCase().replace(/[\u2018\u2019]/g, "'").replace(/[^a-z0-9]/g, "");
+          const card = document.querySelector(".card");
+          const base = card.getBoundingClientRect();
+          const walker = document.createTreeWalker(card, NodeFilter.SHOW_TEXT);
+          const map = []; let s = "";
+          for (let t = walker.nextNode(); t; t = walker.nextNode()) {
+            const v = t.data;
+            for (let i = 0; i < v.length; i++) { const c = n(v[i]); if (c) { s += c; map.push([t, i]); } }
+          }
+          const out = {};
+          for (const q of qs) {
+            let nq = n(q), at = s.indexOf(nq);
+            // fallback: the longest leading part of the quote that is present
+            while (at < 0 && nq.length > 14) { nq = nq.slice(0, Math.floor(nq.length * 0.8)); at = s.indexOf(nq); }
+            if (at < 0) continue;
+            const [sn, so] = map[at], [en, eo] = map[at + nq.length - 1];
+            const r = document.createRange(); r.setStart(sn, so); r.setEnd(en, eo + 1);
+            const lines = [];
+            for (const b of r.getClientRects()) {
+              if (b.width < 2) continue;
+              const last = lines[lines.length - 1];
+              if (last && Math.abs(last.y - (b.top - base.top)) < 4) { const x2 = Math.max(last.x + last.w, b.right - base.left); last.x = Math.min(last.x, b.left - base.left); last.w = x2 - last.x; }
+              else lines.push({ x: b.left - base.left, y: b.top - base.top, w: b.width, h: b.height });
+            }
+            out[q] = lines;
+          }
+          return out;
+        }`;
+
 export async function ingestConcept(input: string, _outDir: string): Promise<ConceptSource> {
   const id = xStatusId(input);
   const card = id ? await fetchX(input, id) : await fetchArticle(input);
@@ -146,35 +177,7 @@ export async function ingestConcept(input: string, _outDir: string): Promise<Con
         const page = await browser.newPage({ viewport: { width: 1280, height: 900 }, deviceScaleFactor: 1.5 });
         await page.setContent(html, { waitUntil: "networkidle", timeout: 30000 }).catch(() => {});
         await page.evaluate(() => document.fonts.ready);
-        const rects: Record<string, Rect[]> = await page.evaluate((qs: string[]) => {
-          const n = (c: string) => c.toLowerCase().replace(/[\u2018\u2019]/g, "'").replace(/[^a-z0-9]/g, "");
-          const card = document.querySelector(".card")!;
-          const base = card.getBoundingClientRect();
-          const walker = document.createTreeWalker(card, NodeFilter.SHOW_TEXT);
-          const map: [Text, number][] = []; let s = "";
-          for (let t = walker.nextNode() as Text | null; t; t = walker.nextNode() as Text | null) {
-            const v = t.data;
-            for (let i = 0; i < v.length; i++) { const c = n(v[i]); if (c) { s += c; map.push([t, i]); } }
-          }
-          const out: Record<string, { x: number; y: number; w: number; h: number }[]> = {};
-          for (const q of qs) {
-            let nq = n(q), at = s.indexOf(nq);
-            // fallback: the longest leading part of the quote that is present
-            while (at < 0 && nq.length > 14) { nq = nq.slice(0, Math.floor(nq.length * 0.8)); at = s.indexOf(nq); }
-            if (at < 0) continue;
-            const [sn, so] = map[at], [en, eo] = map[at + nq.length - 1];
-            const r = document.createRange(); r.setStart(sn, so); r.setEnd(en, eo + 1);
-            const lines: { x: number; y: number; w: number; h: number }[] = [];
-            for (const b of Array.from(r.getClientRects())) {
-              if (b.width < 2) continue;
-              const last = lines[lines.length - 1];
-              if (last && Math.abs(last.y - (b.top - base.top)) < 4) { const x2 = Math.max(last.x + last.w, b.right - base.left); last.x = Math.min(last.x, b.left - base.left); last.w = x2 - last.x; }
-              else lines.push({ x: b.left - base.left, y: b.top - base.top, w: b.width, h: b.height });
-            }
-            out[q] = lines;
-          }
-          return out;
-        }, quotes);
+        const rects = (await page.evaluate(`(${LOCATE_JS})(${JSON.stringify(quotes)})`)) as Record<string, Rect[]>;
         const el = (await page.$(".card"))!;
         const box = (await el.boundingBox())!;
         await el.screenshot({ path: pngPath });
