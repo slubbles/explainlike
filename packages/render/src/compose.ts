@@ -248,6 +248,8 @@ function eventTimes(words: WordTiming[], phrases: string[][], start: number, end
 }
 
 const HELPER_VERB = /^(do|does|did|can|could|will|would|should|may|might|must)$/;
+/** Words that lead into what follows; a caption phrase does not end on one. */
+const LEADS_ON = /^(a|an|the|of|on|to|in|at|for|with|by|from|into|onto|about|just|and|or|but|its|their|your|my|our|his|her|this|that|these|those|every|each)$/;
 
 /** Shortest time a caption phrase stays up before the next one replaces it (seconds of speech). */
 const MIN_PHRASE_S = 0.85;
@@ -288,6 +290,18 @@ export function captionsFor(scene: string, words: WordTiming[], offset: number, 
     caps[i + 1].words.unshift(...moved);
     caps[i + 1].t0 = caps[i + 1].words[0].s - 0.08;
     if (!caps[i].words.length) caps.splice(i--, 1);
+  }
+  // a phrase does not end on a word that leads into the next one ("a deep dive on just | that box."): those
+  // words move on with what they lead into, so each phrase reads whole and the leading word is not cut short
+  for (let i = 0; i + 1 < caps.length; i++) {
+    const ws = caps[i].words;
+    let moved = 0;
+    while (ws.length > 2 && LEADS_ON.test(ws[ws.length - 1].w.toLowerCase()) && caps[i + 1].words.length < maxWords) { caps[i + 1].words.unshift(ws.pop()!); moved++; }
+    if (moved) caps[i + 1].t0 = caps[i + 1].words[0].s - 0.08;
+  }
+  for (let i = 0; i < caps.length; i++) {
+    // a phrase never replaces the one before while that one's last word is still being said
+    if (i > 0) caps[i].t0 = Math.max(caps[i].t0, Math.min(caps[i - 1].words[caps[i - 1].words.length - 1].e, caps[i].words[0].s));
   }
   for (let i = 0; i < caps.length; i++) {
     const last = caps[i].words[caps[i].words.length - 1];

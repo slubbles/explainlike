@@ -155,3 +155,14 @@ test("a caption keeps clear of the box it talks about and its ring, also while t
   const gap = Math.max(rb.x - (r.x + r.w), r.x - (rb.x + rb.w), rb.y - (r.y + r.h), r.y - (rb.y + rb.h));
   assert.ok(gap >= 24, `caption ${JSON.stringify(r)} sits ${gap.toFixed(0)} px from the ring ${JSON.stringify(rb)}`);
 });
+
+test("a phrase does not end on a word that leads into the next, and is not replaced before its last word is said", () => {
+  // real timings from the voiceover: "just" was said 0.08 s after the next phrase replaced it
+  const t = [["Want", 0, 0.2], ["more?", 0.2, 0.6], ["Render", 0.9, 1.2], ["a", 1.2, 1.28], ["twenty", 1.28, 1.6], ["second", 1.6, 1.96], ["deep", 1.96, 2.2], ["dive", 2.2, 2.5], ["on", 2.5, 2.62], ["just", 2.62, 2.92], ["that", 2.84, 3.04], ["box.", 3.04, 3.5]] as const;
+  const words = t.map(([word, start, end]) => ({ word, start, end }));
+  const caps = captionsFor("s1", words, 0, 20, 4, 26);
+  const shown = caps.map((c) => c.words.map((w) => w.w).join(" "));
+  assert.equal(shown.join(" "), t.map((x) => x[0]).join(" "));
+  for (const p of shown.slice(0, -1)) assert.ok(!/ (a|the|of|on|to|just)$/i.test(p), `a phrase ends on a leading word: "${p}" (${shown.join(" | ")})`);
+  for (const c of caps) for (const w of c.words) assert.ok(c.t0 <= w.s + 1e-9 && c.t1 >= w.e - 1e-9, `"${w.w}" is said ${w.s}-${w.e} but its phrase is up ${c.t0.toFixed(2)}-${c.t1.toFixed(2)}`);
+});
