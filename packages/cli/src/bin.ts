@@ -16,7 +16,7 @@ for (const f of [".env", ".env.local"]) {
 const HELP = `metual <github-url | local-repo-dir | x.com post url | article url> [options]
 
   --level <five|new|interviewing|senior>   explain like I'm 5 / I'm new / I'm interviewing / a senior (default new)
-  --theme <${listThemes().join("|")}>      (default caleb-dark)
+  --theme <${listThemes().join("|")}>      (default pen-light)
   --out <dir>                              output folder (default ./metual-out/<name>-<level>)
   --name <owner/repo>                      display name (useful for local folders)
   --voice <deepgram|silent>                default: deepgram when DEEPGRAM_API_KEY is set
