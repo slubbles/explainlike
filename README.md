@@ -64,6 +64,7 @@ metual <github-url | local-repo-dir | x.com post url | article url> [options]
   --fresh                                  ignore cached architecture/plan
   --workers <n>                            parallel frame renderers
   --no-qa                                  skip the Muse Transcribe voiceover check
+  --pace <lively|calm>                     lively: new shot every ~2.7 s, section cards, captions by the boxes (default lively)
   --json                                   progress as JSON lines (used by the web app)
 
 follow-ups on an earlier repo run (same input, new --out):
