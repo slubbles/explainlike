@@ -121,14 +121,14 @@ export function judgeFrames(film: Film, frames: FrameBoxes[]): FrameReport {
 
 /** A frame that is one flat colour (nothing drawn) is a broken frame. Reads the rendered JPEGs. */
 export async function blankFrames(film: Film, frameDir: string, times: number[]): Promise<FrameIssue[]> {
-  const out: FrameIssue[] = [];
-  for (const t of times) {
+  // all at once: sharp spreads the decodes over its thread pool
+  const flat = await Promise.all(times.map(async (t) => {
     const file = path.join(frameDir, `f${String(Math.round(t * film.fps)).padStart(6, "0")}.jpg`);
-    if (!fs.existsSync(file)) continue;
+    if (!fs.existsSync(file)) return false;
     const s = await sharp(file).stats();
-    if (Math.max(...s.channels.map((c) => c.stdev)) < 2) out.push({ rule: "blank", t, until: t, samples: 1, ids: [], detail: "frame is a flat colour" });
-  }
-  return out;
+    return Math.max(...s.channels.map((c) => c.stdev)) < 2;
+  }));
+  return times.filter((_, i) => flat[i]).map((t): FrameIssue => ({ rule: "blank", t, until: t, samples: 1, ids: [], detail: "frame is a flat colour" }));
 }
 
 /** Run the whole self-check. visionFrames > 0 also sends that many frames to Muse Spark (costs money; off by default). */
