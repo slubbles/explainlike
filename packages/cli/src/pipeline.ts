@@ -147,6 +147,8 @@ export async function runExplainLike(o: RunOptions) {
       P({ stage: "plan", message: "writing the scene plan", pct: 32 });
       return planRepoScenes({ ledger, arch: arch!, spec, progress: P });
     });
+    const chk = (plan as { check?: { first: string[]; final: string[]; revised: boolean } }).check;
+    if (chk) notes.push(`plan self-check: ${chk.first.length} issue(s)${chk.revised ? `, revised once, ${chk.final.length} left` : ""}${chk.final.length ? `: ${chk.final.join("; ")}` : ""}`);
     }
     repoDir = r.repoDir;
   } else {
