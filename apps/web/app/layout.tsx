@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import localFont from "next/font/local";
 import "./globals.css";
 
-const sans = localFont({ src: "../../../packages/render/assets/fonts/Nunito-Variable.ttf", variable: "--sans", weight: "200 1000" });
-const hand = localFont({ src: "../../../packages/render/assets/fonts/Excalifont-Regular.ttf", variable: "--hand" });
+const sans = localFont({ src: "./fonts/InterVariable.woff2", variable: "--sans", weight: "100 900", display: "swap" });
+const hand = localFont({ src: "../../../packages/render/assets/fonts/Excalifont-Regular.woff2", variable: "--hand", display: "swap" });
 
 export const metadata: Metadata = {
   title: "metual — whiteboard explainers from any repo, post or article",

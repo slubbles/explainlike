@@ -9,12 +9,14 @@ Metual is MIT licensed (see `LICENSE`). It bundles or depends on the following.
 | Excalifont (by Excalidraw) | `packages/render/assets/fonts/Excalifont-Regular.*` | SIL Open Font License 1.1 (`packages/render/assets/fonts/OFL-Excalifont.txt`) |
 | Shantell Sans (The Shantell Sans Project Authors, arrowtype/shantell-sans) | `packages/render/assets/fonts/ShantellSans-Informal.*` | SIL Open Font License 1.1 (`packages/render/assets/fonts/OFL-ShantellSans.txt`) |
 | Nunito (The Nunito Project Authors) | `packages/render/assets/fonts/Nunito-Variable.ttf` | SIL Open Font License 1.1 (`packages/render/assets/fonts/OFL-Nunito.txt`) |
+| Inter 4.1 (The Inter Project Authors, rsms/inter) | `apps/web/app/fonts/InterVariable.woff2` | SIL Open Font License 1.1 (`apps/web/app/fonts/OFL-Inter.txt`) |
 | Doodle icon pack | `packages/render/packs/doodle/*.png` | Generated for this project with Meta Muse Image; released under MIT with this repo |
 
 The fonts are redistributed unmodified apart from a WOFF2 to TTF container conversion
 (needed to read glyph outlines). It is not sold by itself. Shantell Sans is a static
 instance of the upstream variable font (Informal 100, weight 400, no bounce or spacing
 change) cut down to Latin characters with fontTools; the font has no Reserved Font Name.
+Inter is the upstream web build (`InterVariable.woff2` from the v4.1 release), unchanged.
 
 ## Runtime dependencies (not vendored, installed from npm)
 
