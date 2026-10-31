@@ -1,4 +1,4 @@
-/* Light, restrained: brand blues on white and soft grey, Inter for text, the handwritten face only for the wordmark and drawn words. */
+/* Light, restrained: brand blues on white and soft grey, Inter for text, the handwritten face only for the accent word in the headline (and inside the videos). */
 :root { --blue: #0866ff; --blue2: #0064e0; --ink: #1c2b33; --muted: #65676b; --faint: #a8abaf; --line: #e4e6eb; --bg: #f7f8fa; --soft: #f0f2f5; --red: #c4262e; --gut: 40px; }
 * { box-sizing: border-box; }
 html { -webkit-text-size-adjust: 100%; }
@@ -14,8 +14,8 @@ code { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 12.5px
 
 /* nav */
 .nav { height: 64px; display: flex; align-items: center; justify-content: space-between; padding: 0 max(var(--gut), calc((100vw - 1200px) / 2)); background: #fff; border-bottom: 1px solid var(--line); }
-.brand { font-family: var(--hand); font-size: 28px; color: var(--ink); }
-.brand b { color: var(--blue); font-weight: 400; }
+.brand { font-size: 21px; font-weight: 700; letter-spacing: -0.03em; color: var(--ink); }
+.brand b { color: var(--blue); font-weight: 700; }
 .gh { font-weight: 600; font-size: 14px; padding: 8px 14px; border-radius: 999px; border: 1px solid var(--line); background: #fff; }
 .gh:hover { border-color: #c9ccd1; }
 .page { padding: 0 var(--gut) 56px; }
@@ -55,7 +55,7 @@ h1 em { font-style: normal; font-family: var(--hand); font-weight: 400; color: v
 .try { display: flex; justify-content: center; flex-wrap: wrap; gap: 8px; margin-top: 18px; align-items: center; }
 .try .label { margin-right: 2px; }
 .try .chip { color: var(--muted); max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
-.gallery { max-width: 1200px; margin: 96px auto 0; }
+.gallery { max-width: 1200px; margin: 64px auto 0; }
 .gallery h2 { font-size: 18px; font-weight: 600; margin: 0 0 18px; letter-spacing: -0.01em; }
 .grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 24px; }
 .card { display: block; }
@@ -163,7 +163,7 @@ footer { text-align: center; color: var(--muted); font-size: 13px; padding: 56px
 @media (max-width: 600px) {
   :root { --gut: 16px; }
   body { font-size: 14.5px; }
-  .brand { font-size: 26px; }
+  .brand { font-size: 20px; }
   .hero { padding-top: 40px; }
   h1 { font-size: 30px; }
   h1 br { display: none; }
@@ -175,7 +175,7 @@ footer { text-align: center; color: var(--muted); font-size: 13px; padding: 56px
   .group .label { width: 100%; margin: 0 0 2px; }
   .send { margin: 4px 0 0; padding: 12px 18px; }
   .try { justify-content: flex-start; }
-  .gallery { margin-top: 56px; }
+  .gallery { margin-top: 38px; }
   .grid { grid-template-columns: minmax(0, 1fr); gap: 20px; }
   .how { margin-top: 48px; }
   .jobbar { flex-wrap: wrap; border-radius: 20px; padding: 10px; margin-top: 16px; }
