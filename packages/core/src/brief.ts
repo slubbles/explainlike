@@ -43,10 +43,10 @@ export const Brief = z.object({
   audience: z.string().describe("who will get the most from this video, e.g. 'a developer new to agent frameworks'"),
   depth: z.enum(["overview", "working", "deep"]).describe("overview: the big idea only; working: enough to start contributing; deep: internals and trade-offs"),
   approach: z.enum(APPROACH_IDS),
-  analogy: z.string().describe("the one analogy to carry through, or empty if the approach is not analogy-led"),
+  analogy: z.string().describe("one everyday analogy for the whole system (a restaurant kitchen, a post office, a front desk), used in the hook and on the journey; never empty"),
   why: z.string().describe("one sentence: why this approach and depth fit this source"),
   look: z.enum(LOOK_IDS),
-  extras: z.array(z.enum(NOTE_IDS)).describe("0 to 2 extra list scenes worth adding; empty for overview depth"),
+  extras: z.array(z.enum(NOTE_IDS)).describe("0 or 1 extra list scene, only when the topic truly needs it; usually empty"),
 });
 export type Brief = z.infer<typeof Brief>;
 
@@ -86,9 +86,10 @@ export interface ExplainSpec {
 }
 
 const DEPTH = {
-  overview: { minComponents: 4, maxComponents: 6, perScene: 2, scaleItems: 1, scaleAt: ["10x"], wordsPerScene: 24, extras: 0 },
-  working: { minComponents: 6, maxComponents: 9, perScene: 3, scaleItems: 2, scaleAt: ["10x"], wordsPerScene: 30, extras: 1 },
-  deep: { minComponents: 8, maxComponents: 12, perScene: 3, scaleItems: 2, scaleAt: ["10x", "100x"], wordsPerScene: 32, extras: 2 },
+  // the core flow is the video; depth only buys a short extra beat or two after it (docs/explaining-playbook.md)
+  overview: { minComponents: 4, maxComponents: 6, perScene: 2, scaleItems: 0, scaleAt: ["10x"], wordsPerScene: 26, extras: 0 },
+  working: { minComponents: 5, maxComponents: 8, perScene: 2, scaleItems: 1, scaleAt: ["10x"], wordsPerScene: 30, extras: 0 },
+  deep: { minComponents: 6, maxComponents: 10, perScene: 3, scaleItems: 1, scaleAt: ["10x"], wordsPerScene: 32, extras: 1 },
 } as const;
 
 export function specFromBrief(b: Brief): ExplainSpec {
@@ -100,7 +101,7 @@ export function specFromBrief(b: Brief): ExplainSpec {
   const voice = [
     `Explain to ${b.audience}.`,
     `Approach: ${b.approach}: ${APPROACHES[b.approach]}.`,
-    b.analogy ? `The analogy to keep: ${b.analogy}. Say the real name of each part right after its analogy.` : "",
+    b.analogy ? `The everyday analogy: ${b.analogy}. Use it in the hook and give each part on the journey its role in it, then say the real name.` : "",
     tempoId === "slow" ? "This is technical: one idea per sentence, name each thing before using it, no stacked jargon." : tempoId === "brisk" ? "This is simple: keep it light and quick, lean on the analogy." : "",
   ].filter(Boolean).join(" ");
   return {
@@ -116,7 +117,8 @@ export function specFromBrief(b: Brief): ExplainSpec {
  */
 export function coverageSeconds(spec: ExplainSpec, c: { components: number; steps: number; scale: number; boards?: number }): [number, number] {
   const perBox = spec.tempo.id === "slow" ? 7 : spec.tempo.id === "brisk" ? 5 : 6;
-  const base = 9 + c.components * perBox + c.steps * 3.5 + c.scale * 13 + spec.notes.length * 15 + (c.boards ?? 0) * 14 + 9;
+  // the core flow is told as a story, so each hop of the walk gets a full sentence
+  const base = 9 + c.components * perBox + c.steps * 5 + c.scale * 13 + spec.notes.length * 15 + (c.boards ?? 0) * 14 + 9;
   const mid = Math.max(40, Math.min(240, base));
   return [Math.round(mid * 0.85), Math.round(mid * 1.15)];
 }
