@@ -3,14 +3,11 @@ import { NODE, type Box } from "./layout.js";
 import { textWidth } from "./measure.js";
 import { cameraAt } from "./check.js";
 
-/**
- * How busy the video feels. "calm" is the original slow explainer.
- * "lively" follows the short-form explainer rules: a new shot every ~2.7 s,
- * something new on screen at least every ~1.2 s, black section cards,
- * captions next to the thing being talked about.
- */
-export type Pace = "calm" | "lively";
-export const LIVELY = { shot: 2.7, hold: 1.2, punch: 0, push: 0.6, card: 1.0, capWords: 4, capChars: 26 };
+import { MIN_CUTS_PER_MIN } from "@explainlike/core";
+
+/** Pacing limits the composer works to; ExplainSpec.tempo in @explainlike/core fills these from the brief. */
+export interface TempoLimits { id: string; minBeat: number; maxCutsPerMin: number; move: number; tail: number }
+export const DEFAULT_TEMPO: TempoLimits = { id: "steady", minBeat: 4.0, maxCutsPerMin: 13, move: 1.1, tail: 0.8 };
 
 /** Smallest on-screen height, in pixels of a 1080p frame, for a box's name in a resting shot. */
 export const MIN_LABEL_PX = 26;
@@ -62,11 +59,9 @@ function fitView(film: Film, b: Box, minW: number): Omit<CamKey, "t" | "move"> {
  */
 export const READ_KINDS = new Set(["layer", "scale", "notes", "board", "establish"]);
 
-const PUNCH_KINDS = new Set(["layer", "walkthrough", "scale", "recap", "notes", "board", "establish"]);
-
 /**
  * Every moment the picture changes: an element starting to appear, the camera
- * moving, a heading or a section card. Caption phrases do not count: a new line
+ * moving or a heading. Caption phrases do not count: a new line
  * of text over a still board still reads as a frozen frame.
  */
 export function changes(film: Film): [number, number][] {
@@ -74,7 +69,6 @@ export function changes(film: Film): [number, number][] {
   for (const e of film.elements) if (seen(film, e)) out.push([e.t0, e.t0 + e.dur]);
   for (const k of film.camera) out.push([k.t, k.t + k.move]);
   for (const h of film.headings) out.push([h.t0, h.t0 + 0.5]);
-  for (const c of film.cards ?? []) out.push([c.t0, c.t1]);
   for (const f of film.fades) out.push([f.t - f.dur, f.t + f.dur]);
   return out.sort((a, b) => a[0] - b[0]);
 }
@@ -113,24 +107,23 @@ export function stillGaps(film: Film, from: number, to: number): { t0: number; t
 const bigChange = (a: Omit<CamKey, "t" | "move">, b: Omit<CamKey, "t" | "move">) =>
   Math.abs(Math.log(b.w / a.w)) > 0.15 || Math.hypot(b.x + b.w / 2 - a.x - a.w / 2, b.y + b.h / 2 - a.y - a.h / 2) / a.w > 0.15;
 
-/** Times a new shot starts: section cards, and camera moves that change the framing a lot. */
+/** Times a new shot starts: camera moves that change the framing a lot (a slow push is not a new shot). */
 export function shotStarts(film: Film): number[] {
-  const out = (film.cards ?? []).flatMap((c) => [c.t0, c.t1]);
-  let prev = film.camera[0];
-  for (const k of film.camera.slice(1)) {
-    if (bigChange(prev, k)) out.push(k.t);
-    prev = k;
-  }
-  return out.sort((a, b) => a - b);
+  const keys = [...film.camera].sort((a, b) => a.t - b.t), out: number[] = [];
+  for (const k of keys.slice(1)) if (bigChange(cameraAt({ ...film, camera: keys }, k.t - 1e-3), k)) out.push(k.t);
+  return out;
 }
 
-/**
- * Turn a calm film into a lively one, in place.
- * 1. quicker slide/push moves between scenes
- * 2. a hard cut to a close-up of what is being drawn, or back out, whenever a shot runs long
- * 3. a slow push wherever the picture would otherwise sit still
- * 4. captions placed next to what they talk about
- */
+/** Opacity of an element's group at time t (1 when it has no group keys). */
+function opacityAt(film: Film, e: FElement, t: number): number {
+  const k = e.g ? film.groups?.[e.g] : undefined;
+  if (!k?.length) return 1;
+  if (t <= k[0][0]) return k[0][1];
+  for (let i = 1; i < k.length; i++) if (t < k[i][0]) { const [t0, v0] = k[i - 1], [t1, v1] = k[i]; return v0 + ((v1 - v0) * (t - t0)) / Math.max(1e-6, t1 - t0); }
+  return k[k.length - 1][1];
+}
+const visibleAt = (film: Film, e: FElement, t: number) => t >= e.t0 && opacityAt(film, e, t) > 0.05;
+
 /** Slide view v so it lies inside outer (when it is smaller). */
 function within(v: Box, outer: Box): Box {
   const x = v.w <= outer.w ? Math.min(Math.max(v.x, outer.x), outer.x + outer.w - v.w) : v.x;
@@ -138,64 +131,87 @@ function within(v: Box, outer: Box): Box {
   return { ...v, x, y };
 }
 
-export function applyPace(film: Film, scenes: Span[]) {
-  film.camera.sort((a, b) => a.t - b.t);
-  for (const k of film.camera) if (k.move > LIVELY.push && scenes.some((s) => Math.abs(k.t - s.start) < 0.05)) k.move = LIVELY.push;
-  const home = film.camera.map((k) => ({ ...k }));
-  const homeAt = (t: number) => cameraAt({ ...film, camera: home }, t);
+/** The smallest 16:9 view holding both views, centred on them. */
+function joinViews(a: Box, b: Box, film: Film): Box {
+  const u = union([a, b])!, r = film.width / film.height;
+  const w = Math.max(u.w, u.h * r), h = w / r;
+  return { x: u.x + u.w / 2 - w / 2, y: u.y + u.h / 2 - h / 2, w, h };
+}
+
+export interface PaceReport {
+  tempo: string;
+  /** new shots a minute, end card excluded */
+  cutsPerMin: number;
+  shots: number;
+  /** shortest time between two shot starts (the opening counts as one) */
+  shortestHold: number;
+  medianHold: number;
+  minBeat: number;
+  maxCutsPerMin: number;
+  /** camera moves still overlapping a ring, arrow or dot being drawn */
+  panDuringDraw: number;
+  /** hard rules broken: a hold under the minimum beat, too many cuts, a pan while drawing */
+  problems: string[];
+  /** soft targets missed, such as fewer than MIN_CUTS_PER_MIN cuts when long holds could not be split cleanly */
+  notes: string[];
+}
+
+/** Measure the pacing of a finished film. */
+export function paceReport(film: Film, tempo: TempoLimits): PaceReport {
+  const end = film.end?.t0 ?? film.duration;
+  const shots = shotStarts(film).filter((t) => t < end);
+  const marks = markSpans(film);
+  const keys = [...film.camera].sort((a, b) => a.t - b.t);
+  const pans = keys.filter((k, i) => i > 0 && k.move > 0 && marks.some(([a, b]) => k.t < b - OVERLAP_OK && k.t + k.move > a + OVERLAP_OK)), panning = pans.length;
+  const starts = [0, ...shots], holds = starts.map((t, i) => (starts[i + 1] ?? end) - t).filter((d) => d > 0);
+  const sorted = [...holds].sort((a, b) => a - b);
+  const r: PaceReport = {
+    tempo: tempo.id, cutsPerMin: Number(((shots.length + 1) / (end / 60)).toFixed(2)), shots: shots.length + 1,
+    shortestHold: Number((sorted[0] ?? end).toFixed(2)), medianHold: Number((sorted[sorted.length >> 1] ?? end).toFixed(2)),
+    minBeat: tempo.minBeat, maxCutsPerMin: tempo.maxCutsPerMin, panDuringDraw: panning, problems: [], notes: [],
+  };
+  if (r.shortestHold < tempo.minBeat - 0.05) r.problems.push(`a shot holds only ${r.shortestHold} s (minimum ${tempo.minBeat} s)`);
+  if (r.cutsPerMin > tempo.maxCutsPerMin + 0.01) r.problems.push(`${r.cutsPerMin} cuts a minute (maximum ${tempo.maxCutsPerMin})`);
+  if (r.cutsPerMin < MIN_CUTS_PER_MIN - 0.01) r.notes.push(`${r.cutsPerMin} cuts a minute, under the ${MIN_CUTS_PER_MIN} target: the long holds left had no clean place to split`);
+  if (panning) r.problems.push(`camera moves at ${pans.map((k) => `${k.t.toFixed(1)} s`).join(", ")} overlap a ring, arrow or dot being drawn`);
+  return r;
+}
+
+/**
+ * Overlap tolerated between a camera move and a drawing at either end: an eased move has
+ * shifted the view by well under one percent 0.1 s from its start or end.
+ */
+const OVERLAP_OK = 0.1;
+
+/** When annotations (rings, arrows, walking dots) are being drawn, merged into spans. */
+function markSpans(film: Film): [number, number][] {
+  const sp = film.elements.filter((e) => e.mark && e.dur > 0).map((e) => [e.t0, e.t0 + e.dur] as [number, number]).sort((a, b) => a[0] - b[0]);
+  const out: [number, number][] = [];
+  for (const s of sp) { const l = out.at(-1); if (l && s[0] <= l[1] + 0.05) l[1] = Math.max(l[1], s[1]); else out.push([...s]); }
+  return out;
+}
+
+/**
+ * Pace a composed film, in place, to the tempo the brief chose.
+ * 1. every camera move eases over the tempo's move time
+ * 2. a wide overview too small to read glides in, one readable beat at a time
+ * 3. shots never start closer than the tempo's minimum beat, and stay under its cuts a minute:
+ *    two close moves become one framing that holds both targets
+ * 4. a slow push through a long still stretch, so a held shot is not a frozen frame
+ * 5. the camera never moves while a ring, arrow or dot is being drawn
+ */
+export function applyTempo(film: Film, scenes: Span[], tempo: TempoLimits = DEFAULT_TEMPO): PaceReport {
+  // keys this pass adds: pushes get refitted around drawings; readability glides and split shots get
+  // dropped when nothing else keeps them clear of a drawing
+  const pushes = new WeakSet<CamKey>(), optional = new WeakSet<CamKey>();
+  const sortCam = () => film.camera.sort((a, b) => a.t - b.t);
+  sortCam();
+  for (const k of film.camera) if (k.move > 0 && k.move < tempo.move) k.move = tempo.move;
   const boxes = film.elements.map((e) => ({ e, b: boxOf(e) })).filter((x): x is { e: FElement; b: Box } => !!x.b);
+  const beat = Math.max(tempo.minBeat, 60 / tempo.maxCutsPerMin);
 
-  // 2. shots
-  for (const s of scenes) {
-    if (!PUNCH_KINDS.has(s.kind)) continue;
-    let cut = s.start, punched = false;
-    while (cut + LIVELY.shot < s.end - 1.0) {
-      const tp = cut + LIVELY.shot;
-      // the scene's own camera move only counts as a new shot when it changes the framing a lot
-      const own = home.find((k, i) => k.t > cut + 0.05 && k.t <= tp + 0.8 && i > 0 && bigChange(home[i - 1], k));
-      if (own) { cut = own.t; punched = false; continue; }
-      const base = homeAt(tp + 0.01);
-      const next = Math.min(tp + LIVELY.shot, s.end);
-      const soon = boxes.filter(({ e, b }) => e.t0 + e.dur >= tp - 0.3 && e.t0 < next && inside(b, base)).map((x) => x.b);
-      const recent = boxes.filter(({ e, b }) => e.t0 >= tp - 1.6 && e.t0 < tp && e.k !== "path" && inside(b, base)).map((x) => x.b);
-      const focus = union(soon.length ? soon : recent);
-      // boxes and words already on screen: a close-up may leave them out, but never slice one in half
-      const shown = boxes.filter(({ e, b }) => e.k !== "path" && e.t0 < next && inside(b, base)).map((x) => x.b);
-      const sliced = (v: Box) => shown.filter((b) => overlaps(b, v) && !inside(b, v));
-      let view: Omit<CamKey, "t" | "move"> | undefined;
-      if (punched) view = { x: base.x, y: base.y, w: base.w, h: base.h };
-      else if (focus) {
-        // tightest first; on a crowded board a gentler push-in is still a clear change of shot
-        for (const frac of [0.55, 0.7, 0.8]) {
-          let f: Box = focus;
-          for (let i = 0; i < 4 && f.w < base.w * (frac + 0.05) && f.h < base.h * (frac + 0.05); i++) {
-            // a close-up stays inside the wide shot, so cutting back out never slices what it showed
-            const v = within(fitView(film, f, base.w * frac), base), cut = sliced(v);
-            if (v.w > base.w * 0.9 || v.h > base.h * 0.9) break;
-            if (!cut.length) { view = v; break; }
-            f = union([f, ...cut])!;
-          }
-          if (view) break;
-        }
-      }
-      if (!view && !punched && !soon.length) {
-        const z = 0.88, v = { x: base.x + (base.w * (1 - z)) / 2, y: base.y + (base.h * (1 - z)) / 2, w: base.w * z, h: base.h * z };
-        if (!sliced(v).length) view = v;
-      }
-      if (view && soon.every((b) => inside(b, view!))) {
-        film.camera.push({ t: tp, ...view, move: LIVELY.punch });
-        film.camera.sort((a, b) => a.t - b.t);
-        punched = !punched;
-      }
-      cut = tp;
-    }
-    // end each scene on its own framing so the next scene starts from a known view
-    if (punched) { const b = homeAt(s.end - 0.6); film.camera.push({ t: s.end - 0.6, ...b, move: 0.4 }); film.camera.sort((a, b) => a.t - b.t); }
-  }
-
-  // 2b. wide shots stay readable: an overview too wide to read rests for a beat, then the
-  // camera glides in to a readable framing that follows what is being drawn, or sweeps
-  // across the board when nothing new appears
+  // 2. wide shots stay readable: rest a moment on the overview, then glide in to a readable
+  // framing that follows what is being drawn, or sweeps across the board when nothing new appears
   const RW = readableWidth(film);
   const keys = [...film.camera];
   for (let i = 0; i < keys.length; i++) {
@@ -203,30 +219,29 @@ export function applyPace(film: Film, scenes: Span[]) {
     if (k.w <= RW * 1.05) continue;
     const sc = scenes.find((s) => k.t >= s.start - 0.05 && k.t < s.end);
     if (!sc || !READ_KINDS.has(sc.kind)) continue;
-    // the last view holds until the next key, which may come after the scene ends
     const hold = keys[i + 1]?.t ?? sc.end, end = Math.min(hold, sc.end);
     const wide: Box = { x: k.x, y: k.y, w: k.w, h: k.h };
-    let t = k.t + k.move + OVERVIEW_S, sweep = 0;
+    // the overview is a shot of its own, so it holds a full beat before the first glide
+    let t = k.t + Math.max(tempo.minBeat, k.move + OVERVIEW_S), sweep = 0;
     const done = new Set<FElement>();
     const shown = (until: number) => boxes.filter(({ e, b }) => e.k !== "path" && e.k !== "dot" && e.t0 < until && overlaps(b, wide));
-    while (t < end - 0.5) {
-      let tn = t + LIVELY.shot < end - 0.9 ? t + LIVELY.shot : hold;
-      // follow the pen: things drawn in this beat, in drawing order, while they fit a readable view
-      // a word must be on screen when it finishes appearing, so the view takes in everything
-      // that finishes in this beat; the beat ends early when the next thing would not fit
+    while (t < end - tempo.minBeat * 0.5) {
+      let tn = t + beat < end - 0.9 ? t + beat : hold;
       const fresh = boxes.filter(({ e, b }) => e.k !== "dot" && e.k !== "path" && !done.has(e) && e.t0 + e.dur >= t && e.t0 < tn && inside(b, wide)).sort((a, b) => a.e.t0 + a.e.dur - b.e.t0 - b.e.dur);
       let f: Box | undefined;
       for (const x of fresh) {
         const u = union(f ? [f, x.b] : [x.b])!, fin = x.e.t0 + x.e.dur;
-        // the next glide (0.7 s) starts in time to arrive as the word finishes
-        const next = Math.max(t + 0.9, fin - 0.7);
-        if (f && next < Math.min(tn, end - 0.5) && (u.w > RW * 0.85 || u.h > (RW * 0.85 * film.height) / film.width)) { tn = next; break; }
+        // the next glide starts in time to arrive as the word finishes, but never before a full beat has passed
+        const next = Math.max(t + tempo.minBeat, fin - tempo.move);
+        // (only when there is room left for that glide and it arrives as the word finishes: otherwise this
+        // framing widens to take the word in too, since a word must be whole on screen as it finishes)
+        const room = next < Math.min(tn, end - tempo.minBeat * 0.5) && next + tempo.move <= fin + 0.05;
+        if (f && room && (u.w > RW * 0.85 || u.h > (RW * 0.85 * film.height) / film.width)) { tn = next; break; }
         f = u;
         done.add(x.e);
       }
       const swept = !f;
       if (!f) {
-        // nothing new: sweep across what is on screen, half the board at a time
         const all = union(shown(tn).map((x) => x.b));
         if (!all) break;
         const tall = all.h / all.w > film.height / film.width, half = sweep++ % 2;
@@ -243,50 +258,195 @@ export function applyPace(film: Film, scenes: Span[]) {
         v = g;
       }
       v = within(v, wide);
-      // a jump to another part of the board is a cut, like an editor's; a step along it is a glide
-      const from = cameraAt(film, t), common = intersect(from, v);
-      const far = !common || (common.w * common.h) / Math.min(from.w * from.h, v.w * v.h) < 0.35;
-      film.camera.push({ t, ...v, move: far ? 0 : 0.7 });
-      film.camera.sort((a, b) => a.t - b.t);
+      const key = { t, ...v, move: tempo.move };
+      optional.add(key);
+      film.camera.push(key);
+      sortCam();
       t = tn;
     }
   }
-  film.camera.sort((a, b) => a.t - b.t);
 
-  // 3. no dead holds: a slow push through any still stretch
+  // 2c. a long hold is split in two: the camera moves in on what is drawn (or was just drawn) in its
+  // second half, so the video lands between MIN_CUTS_PER_MIN and the tempo's maximum
+  const target = 60 / ((MIN_CUTS_PER_MIN + tempo.maxCutsPerMin) / 2);
   for (const s of scenes) {
+    if (s.kind === "hook" || s.kind === "walkthrough") continue;
+    for (let n = 0; n < 3; n++) {
+      sortCam();
+      const pts = [s.start, ...shotStarts(film).filter((t) => t > s.start + 0.01 && t < s.end - 0.01), s.end];
+      const seg = pts.slice(1).map((b, i) => [pts[i], b]).find(([a, b]) => b - a >= target * 1.6 && b - a >= 2 * tempo.minBeat + tempo.move);
+      if (!seg) break;
+      const [a, b] = seg, cur = cameraAt(film, a + tempo.move + 0.05);
+      const marks = markSpans(film), lo = a + tempo.minBeat, hi = b - tempo.minBeat;
+      const ideal = Math.min(hi, Math.max(lo, (a + b) / 2 - tempo.move));
+      const cands = [...Array(Math.ceil((hi - lo) / 0.1) + 1).keys()].map((i) => lo + i * 0.1).sort((x, y) => Math.abs(x - ideal) - Math.abs(y - ideal));
+      const m = cands.find((t) => !marks.some(([p, q]) => t < q + 0.05 && t + tempo.move > p - 0.05));
+      if (m === undefined) break;
+      const drawn = (t0: number, t1: number) => boxes.filter(({ e }) => e.k !== "dot" && e.t0 >= t0 && e.t0 < t1).map((x) => x.b);
+      const f = union(drawn(m, b)) ?? union(drawn(a, m).filter((x) => overlaps(x, cur)));
+      if (!f) break;
+      // the tightest framing around it that slices no visible box or word
+      const vis = boxes.filter(({ e }) => e.k !== "path" && e.k !== "dot" && (visibleAt(film, e, m + tempo.move) || visibleAt(film, e, b - 0.1))).map((x) => x.b);
+      const base = fitView(film, f, Math.max(cur.w * 0.6, film.width * 0.8)), cx = base.x + base.w / 2, cy = base.y + base.h / 2;
+      let v: Box | undefined;
+      for (let w = base.w; !v && w <= Math.max(cur.w, RW) * 1.05; w *= 1.06) {
+        const h = (w * film.height) / film.width;
+        for (const [dx, dy] of [[0, 0], [-0.15, 0], [0.15, 0], [0, -0.15], [0, 0.15]]) {
+          const c: Box = { x: cx - w / 2 + dx * w, y: cy - h / 2 + dy * h, w, h };
+          const safe: Box = { x: c.x + (110 / film.width) * w, y: c.y + (160 / film.height) * h, w: w * (1 - 220 / film.width), h: h * (1 - 380 / film.height) };
+          if (inside(f, safe) && !vis.some((x) => overlaps(x, c) && !inside(x, c))) { v = c; break; }
+        }
+      }
+      if (!v) break;
+      if (!bigChange(cur, v) || v.w > Math.max(cur.w, RW) * 1.05) break;
+      const key = { t: m, ...v, move: tempo.move };
+      optional.add(key);
+      film.camera.push(key);
+    }
+  }
+  sortCam();
+
+  const end = film.end?.t0 ?? film.duration;
+  // nothing new appears outside view v between t0 and t1 (so the camera may leave early)
+  const quiet = (t0: number, t1: number, v: Box) => boxes.every(({ e, b }) => e.t0 + e.dur < t0 || e.t0 >= t1 || inside(b, v));
+
+  // 3. minimum beat and cuts a minute
+  const beats = () => {
+  for (let pass = 0; pass < 200; pass++) {
+    sortCam();
+    const cuts = shotStarts(film).filter((t) => t < end);
+    const starts = [0, ...cuts];
+    const gaps = starts.slice(1).map((t, i) => ({ a: starts[i], b: t, d: t - starts[i] }));
+    const tooMany = (cuts.length + 1) / (end / 60) > tempo.maxCutsPerMin;
+    const short = gaps.filter((g) => g.d < tempo.minBeat - 0.01);
+    const pick = short[0] ?? (tooMany ? [...gaps].sort((x, y) => x.d - y.d)[0] : undefined);
+    if (!pick) break;
+    const ka = film.camera.find((k) => Math.abs(k.t - pick.a) < 1e-6) ?? film.camera[0];
+    const kb = film.camera.find((k) => Math.abs(k.t - pick.b) < 1e-6)!;
+    const j = joinViews(ka, kb, film);
+    // join the two framings when the result is still readable and not much wider; else hold the
+    // first one a full beat and move on after it, and drop the move when the next one takes over
+    if (j.w <= Math.max(ka.w, kb.w) * 1.35 && (j.w <= RW * 1.25 || Math.max(ka.w, kb.w) > RW)) {
+      // the joined framing lands on the earlier key, unless that one is an extra move that would pan
+      // across a drawing: then it lands on the planned key, on its own cue
+      const drawing = film.elements.some((e) => e.mark && ka.t < e.t0 + e.dur - OVERLAP_OK && ka.t + ka.move > e.t0 + OVERLAP_OK);
+      const [keep, drop] = optional.has(ka) && !optional.has(kb) && drawing ? [kb, ka] : [ka, kb];
+      Object.assign(keep, { x: j.x, y: j.y, w: j.w, h: j.h });
+      film.camera.splice(film.camera.indexOf(drop), 1);
+    } else {
+      const nt = pick.a + tempo.minBeat;
+      const next = film.camera.find((k) => k.t > kb.t + 1e-6);
+      if (next && nt + kb.move >= next.t - 0.1) film.camera.splice(film.camera.indexOf(kb), 1);
+      else kb.t = nt;
+    }
+  }
+  sortCam();
+  };
+  beats();
+
+  // 4. no frozen holds: a slow push through any long still stretch
+  for (const s of scenes) {
+    // a walkthrough is never still: its dot is the motion
+    if (s.kind === "walkthrough") continue;
     for (const g of stillGaps(film, s.start, s.end)) {
-      if (g.t1 - g.t0 <= LIVELY.hold) continue;
-      // the push grows with the stretch so a long one is clearly moving, not a near-freeze;
-      // it closes in on what is on screen without cropping any of it, or eases out when it can't
-      const cur = cameraAt(film, g.t0), z = Math.max(0.88, 1 - 0.035 * (g.t1 - g.t0));
+      if (g.t1 - g.t0 <= 1.6) continue;
+      const cur = cameraAt(film, g.t0), z = Math.max(0.9, 1 - 0.03 * (g.t1 - g.t0));
       const onScreen = union(boxes.filter(({ e, b }) => e.k !== "dot" && e.t0 < g.t1 && overlaps(b, cur)).map((x) => x.b));
       const tight = onScreen && fitView(film, onScreen, (cur.w * z * (film.width - 220)) / film.width);
       const out = { x: cur.x - (cur.w * (1 / z - 1)) / 2, y: cur.y - (cur.h * (1 / z - 1)) / 2, w: cur.w / z, h: cur.h / z };
       const inward = { x: cur.x + (cur.w * (1 - z)) / 2, y: cur.y + (cur.h * (1 - z)) / 2, w: cur.w * z, h: cur.h * z };
-      // a later hard cut was framed so it slices nothing on screen before it; keep that true
+      // words that finish appearing while this framing holds stay whole on screen
       const next = film.camera.find((k) => k.t >= g.t1 - 0.05);
-      const keepsCut = (v: Box) => !next || next.move > 0 || !boxes.some(({ e, b }) => e.k !== "path" && e.t0 < next.t && inside(b, v) && overlaps(b, next) && !inside(b, next));
-      // and words that finish appearing while this framing holds stay whole on screen
       const until = next?.t ?? Infinity, m = (8 * cur.w) / film.width;
       const keepsNew = (v: Box) => boxes.every(({ e, b }) => e.k !== "text" || e.t0 + e.dur < g.t0 || e.t0 + e.dur >= until
         || inside({ x: b.x - m, y: b.y - m, w: b.w + 2 * m, h: b.h + 2 * m }, v));
-      const to = [tight && tight.w < cur.w * 0.985 ? tight : undefined, inward, out].find((v): v is Box => !!v && keepsCut(v) && keepsNew(v));
+      const to = [tight && tight.w < cur.w * 0.985 && tight.w > cur.w * 0.85 ? tight : undefined, inward, out].find((v): v is Box => !!v && keepsNew(v));
       if (!to) continue;
-      film.camera.push({ t: g.t0, ...to, move: g.t1 - g.t0 - 0.05 });
-      film.camera.sort((a, b) => a.t - b.t);
+      const key = { t: g.t0, ...to, move: g.t1 - g.t0 - 0.05 };
+      pushes.add(key);
+      film.camera.push(key);
+      sortCam();
     }
   }
 
-  // 4. captions sit by the thing being said
-  for (const c of film.captions) {
-    const sc = scenes.find((s) => c.t0 >= s.start && c.t0 < s.end);
-    if (!sc || !PUNCH_KINDS.has(sc.kind)) continue;
-    const near = boxes.filter(({ e }) => e.k !== "path" && e.k !== "dot" && e.t0 >= Math.max(sc.start, c.t0 - 1.5) && e.t0 < c.t1);
-    const last = boxes.filter(({ e }) => e.k !== "path" && e.k !== "dot" && e.t0 >= sc.start && e.t0 < c.t1).at(-1);
-    const u = union(near.map((x) => x.b));
-    const v = cameraAt(film, c.t0);
-    const at = u && u.w < v.w * 0.5 ? u : last?.b;
-    if (at) c.at = at;
+
+  // 5. hold still while a ring, arrow or dot is drawn: finish the move first, or draw it after the move
+  // where each key sat before still() nudged it, so repeated passes never drift a move more than 1.5 s early
+  const planned = new WeakMap<CamKey, number>();
+  // drop an optional key (and a push into it, which was fitted to it) only if every word that finishes
+  // appearing meanwhile still lands whole on screen
+  const framed = (t0: number, t1: number) => film.elements.every((e) => {
+    if (e.k !== "text" || e.t0 + e.dur < t0 || e.t0 + e.dur >= t1) return true;
+    const b = boxOf(e), v = cameraAt(film, e.t0 + e.dur);
+    return !b || inside(b, v);
+  });
+  const dropKeeps = (i: number) => {
+    const k = film.camera[i], prev = film.camera[i - 1], t1 = film.camera[i + 1]?.t ?? end;
+    const gone = pushes.has(prev) ? [prev, k] : [k], t0 = gone[0].t, before = framed(t0, t1);
+    film.camera = film.camera.filter((c) => !gone.includes(c));
+    if (framed(t0, t1) || !before) return gone.length;
+    film.camera.push(...gone);
+    sortCam();
+    return 0;
+  };
+  const still = () => {
+    for (const k of film.camera) if (!planned.has(k)) planned.set(k, k.t);
+    for (let pass = 0; pass < 8; pass++) {
+      const markEls = film.elements.filter((e) => e.mark && e.dur > 0);
+      let moved = false, dropped = 0;
+      for (let i = 1; i < film.camera.length; i++) {
+        const k = film.camera[i], prev = film.camera[i - 1], nx = film.camera[i + 1]?.t ?? end;
+        if (k.move <= 0) continue;
+        const O = markEls.filter((e) => k.t < e.t0 + e.dur - OVERLAP_OK && k.t + k.move > e.t0 + OVERLAP_OK);
+        if (!O.length) continue;
+        const m = [Math.min(...O.map((e) => e.t0)), Math.max(...O.map((e) => e.t0 + e.dur))];
+        moved = true;
+        const sc = scenes.find((x) => m[0] >= x.start && m[0] < x.end);
+        const early = m[0] - k.move - 0.05, settle = k.t + k.move + 0.05 - m[0];
+        // the annotations drawing then, with everything else in their groups that comes after them in this scene
+        const gs = new Set(O.map((e) => e.g ?? e.id));
+        const late = film.elements.filter((e) => gs.has(e.g ?? e.id) && e.t0 >= m[0] - 1e-6 && (!sc || e.t0 < sc.end));
+        // a later push gets refitted on the next pass, so only a real move or the scene end bounds the delay
+        const nextReal = film.camera.slice(i + 1).find((c) => !pushes.has(c))?.t ?? end;
+        // and everything delayed must still land inside the shot it then finishes in
+        const canDelay = (d: number) => late.every((e) => {
+          const box = boxOf(e), done = e.t0 + d + e.dur;
+          return done <= Math.min(sc?.end ?? end, nextReal) - 0.3 && (!box || inside(box, cameraAt(film, done)));
+        });
+        if (pushes.has(k)) {
+          // a slow push stops before the drawing starts, or starts after it ends, or goes
+          if (m[0] - k.t - 0.05 >= 0.8) k.move = m[0] - k.t - 0.05;
+          else if (nx - m[1] - 0.1 >= 1.0) { k.t = m[1] + 0.05; k.move = nx - k.t - 0.05; }
+          else { film.camera.splice(i, 1); i--; }
+        } else if (early >= prev.t + Math.min(prev.move, tempo.move) && (planned.get(k) ?? k.t) - early <= 1.5 && quiet(early, k.t, k)) {
+          // finish the move before the drawing starts
+          k.t = early;
+          prev.move = Math.min(prev.move, early - prev.t - 0.02);
+        } else if (settle <= 2.0 && canDelay(settle)) {
+          // draw the annotations after the camera settles
+          for (const e of late) e.t0 += settle;
+        } else if (m[1] + 0.05 + k.move < nx - 0.2 && quiet(k.t, m[1] + 0.05, cameraAt(film, k.t))) {
+          // wait for the drawing to finish, then move
+          k.t = m[1] + 0.05;
+        } else if (optional.has(k) && (dropped = dropKeeps(i))) {
+          i -= dropped;
+        } else moved = false;
+      }
+      sortCam();
+      if (!moved) break;
+    }
+    // a move never runs into the next one
+    for (let i = 0; i + 1 < film.camera.length; i++) {
+      const k = film.camera[i], n = film.camera[i + 1];
+      if (k.move > 0 && k.t + k.move > n.t) k.move = Math.max(0.3, n.t - k.t - 0.02);
+    }
+  };
+  // annotation fixes and beats can each nudge a move, so settle them together
+  for (let n = 0; n < 4; n++) {
+    still();
+    const before = JSON.stringify(film.camera);
+    beats();
+    if (JSON.stringify(film.camera) === before) break;
   }
+  return paceReport(film, tempo);
 }

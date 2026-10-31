@@ -3,7 +3,7 @@ import rough from "roughjs";
 import { agreementSlips } from "@explainlike/core";
 import type { Architecture, ScenePlan, Scene, SceneAudio, Theme, ExplainSpec, Color, WordTiming, NoteItem } from "@explainlike/core";
 import type { Film, FElement, CamKey, Caption, Heading } from "./film.js";
-import { applyPace, LIVELY, type Pace } from "./pace.js";
+import { applyTempo, type PaceReport } from "./pace.js";
 import { layoutGraph, unionBox, shiftLayout, wrapText, NODE, type Box, type GNode, type GEdge, type Layout, type PlacedNode, type PlacedEdge } from "./layout.js";
 import { textWidth, fontDataUrl, useHandFont, HAND_FONTS } from "./measure.js";
 import { penOutline } from "./draw.js";
@@ -13,7 +13,7 @@ import { ringOf, scaleArrow, placeFix, placeRingLabel, polyBox } from "./annotat
 import path from "node:path";
 
 export const W = 1920, H = 1080, FPS = 30;
-const LEAD = 0.3, TAIL = 0.7;
+const LEAD = 0.3;
 const SAFE = { top: 160, bottom: 220, side: 110 };
 let gen = rough.generator();
 
@@ -63,8 +63,6 @@ export interface ComposeInput {
   arch?: Architecture;
   colorOf?: (c: Architecture["components"][number]) => Color;
   shot?: SourceShot;
-  /** how busy the video feels (default lively, see pace.ts) */
-  pace?: Pace;
 }
 
 const normW = (w: string) => w.toLowerCase().replace(/[^a-z0-9]/g, "");
@@ -96,6 +94,12 @@ class Builder {
       const outline = pen && set?.type !== "fillPath" && p.stroke !== "none" ? penOutline(set.ops, set.type === "fillSketch" ? p.strokeWidth * 0.8 : p.strokeWidth) || undefined : undefined;
       this.els.push({ k: "path", id: this.id("p"), d: p.d, stroke: p.stroke === "none" ? "none" : p.stroke, sw: p.strokeWidth, fill: p.fill && p.fill !== "none" ? p.fill : undefined, outline, t0: t0 + i * dur * 0.15, dur: dur * (ps.length > 1 ? 0.85 : 1), g, anim, origin });
     });
+  }
+  /** a ring, arrow or highlight: drawn like rough(), and the camera holds still while it draws */
+  ring(drawable: any, t0: number, dur: number, g?: string) {
+    const n = this.els.length;
+    this.rough(drawable, t0, dur, g);
+    for (const e of this.els.slice(n)) e.mark = true;
   }
   text(o: { text: string; x: number; y: number; size: number; color: string; anchor?: "start" | "middle"; t0: number; dur?: number; g?: string; bg?: boolean; font?: "hand" | "sans"; weight?: number; anim?: "wipe" | "fade"; sketch?: boolean }) {
     this.els.push({ k: "text", id: this.id("t"), text: o.text, x: o.x, y: o.y, size: o.size, color: o.color, anchor: o.anchor ?? "start", t0: o.t0, dur: o.dur ?? Math.min(0.9, 0.25 + o.text.length * 0.025), g: o.g, bg: o.bg ? this.theme.background : undefined, font: o.font, weight: o.weight, anim: o.anim });
@@ -155,12 +159,12 @@ class Builder {
     let len = 0;
     for (let i = 1; i < e.points.length; i++) len += Math.hypot(e.points[i][0] - e.points[i - 1][0], e.points[i][1] - e.points[i - 1][1]);
     const dur = Math.max(0.35, Math.min(0.9, len / 900));
-    this.rough(gen.linearPath(e.points, { seed: this.seed++, stroke: color, strokeWidth: 2.6, roughness: 0.7, bowing: 0.5 }), t0, dur, g);
+    this.ring(gen.linearPath(e.points, { seed: this.seed++, stroke: color, strokeWidth: 2.6, roughness: 0.7, bowing: 0.5 }), t0, dur, g);
     const head = (a: [number, number], b: [number, number], t: number) => {
       const ang = Math.atan2(b[1] - a[1], b[0] - a[0]), L = 20;
       const p1: [number, number] = [b[0] - L * Math.cos(ang - 0.5), b[1] - L * Math.sin(ang - 0.5)];
       const p2: [number, number] = [b[0] - L * Math.cos(ang + 0.5), b[1] - L * Math.sin(ang + 0.5)];
-      this.rough(gen.linearPath([p1, b, p2], { seed: this.seed++, stroke: color, strokeWidth: 2.8, roughness: 0.5 }), t, 0.2, g);
+      this.ring(gen.linearPath([p1, b, p2], { seed: this.seed++, stroke: color, strokeWidth: 2.8, roughness: 0.5 }), t, 0.2, g);
     };
     const P = e.points;
     head(P[P.length - 2], P[P.length - 1], t0 + dur);
@@ -360,7 +364,7 @@ function fixIcon(pack: IconPack, fix: string) {
   return resolveIcon(pack, "check") ?? resolveIcon(pack, "bolt");
 }
 
-export interface Composed { film: Film; sketch: Sketch; timeline: { id: string; kind: string; start: number; end: number }[] }
+export interface Composed { film: Film; sketch: Sketch; timeline: { id: string; kind: string; start: number; end: number }[]; pace: PaceReport }
 
 export async function compose(inp: ComposeInput): Promise<Composed> {
   const { plan, theme } = inp;
@@ -464,25 +468,20 @@ export async function compose(inp: ComposeInput): Promise<Composed> {
   const dim = theme.dimOpacity;
   const boardShown: { id: string; heading: string; keys: string[]; g: string }[] = [];
 
-  const lively = (inp.pace ?? "lively") === "lively";
-  const cards: { t0: number; t1: number; text: string }[] = [];
-  const SECTION: Record<string, string> = { layer: "how it's built", walkthrough: "follow one request", scale: "what breaks at scale", recap: "the whole picture", source: "the source" };
+  const tempo = inp.spec.tempo;
   for (const [si, s] of plan.scenes.entries()) {
-    // lively: a black card names each new part of the video before it starts
-    const prevKind = plan.scenes[si - 1]?.kind;
-    if (lively && si > 0 && s.kind !== prevKind && s.kind !== "outro") {
-      cards.push({ t0: T, t1: T + LIVELY.card, text: SECTION[s.kind] ?? s.heading.toLowerCase() });
-      T += LIVELY.card;
-    }
     const au = audio.get(s.id) ?? { sceneId: s.id, duration: Math.max(2.5, s.narration.split(/\s+/).length / 2.6), words: [] };
-    const minD = s.kind === "hook" ? 5 : s.kind === "recap" ? 5 : 3.2;
-    const D = Math.max(minD, LEAD + au.duration + TAIL);
+    // every scene holds at least one beat of the chosen tempo, and breathes for the tempo's tail after the voice
+    const minD = s.kind === "hook" || s.kind === "recap" ? Math.max(5, tempo.minBeat) : tempo.minBeat;
+    let D = Math.max(minD, LEAD + au.duration + tempo.tail);
     const words = au.words.map((w) => ({ ...w, start: T + LEAD + w.start, end: T + LEAD + w.end }));
     const t0 = T + LEAD + 0.15, tEnd = T + D - 0.9;
     timeline.push({ id: s.id, kind: s.kind, start: T, end: T + D });
     const scaleRisk = s.kind === "scale" ? inp.arch?.scale[plan.scenes.filter((x) => x.kind === "scale").indexOf(s)] : undefined;
-    if (s.kind !== "hook") headings.push({ t0: T, t1: T + D, text: spokenHeading(s.heading, s.narration, scaleRisk ? [scaleRisk.problem] : []) });
-    captions.push(...(lively ? captionsFor(s.id, au.words, T + LEAD, T + D, LIVELY.capWords, LIVELY.capChars) : captionsFor(s.id, au.words, T + LEAD, T + D)));
+    // one title on screen at a time: the concept recap titles every board on the wall, so it gets no heading of its own
+    const worldTitles = (s.kind === "recap" || s.kind === "outro") && !graph && boardShown.length > 0;
+    if (s.kind !== "hook" && !worldTitles) headings.push({ t0: T, t1: T + D, text: spokenHeading(s.heading, s.narration, scaleRisk ? [scaleRisk.problem] : []) });
+    captions.push(...captionsFor(s.id, au.words, T + LEAD, T + D));
 
     if (s.kind === "hook") {
       const title = plan.title.toLowerCase();
@@ -498,7 +497,7 @@ export async function compose(inp: ComposeInput): Promise<Composed> {
       const gap = 260, x0 = hookCx - ((prev.length - 1) * gap) / 2;
       prev.forEach((p, i) => {
         const cx = x0 + i * gap, cy = hookCy + 260;
-        B.rough(gen.circle(cx, cy, 170, { seed: B.seed++, stroke: p.color, strokeWidth: 3, roughness: 1.2 }), ts2[i], 0.5, "hook");
+        B.ring(gen.circle(cx, cy, 170, { seed: B.seed++, stroke: p.color, strokeWidth: 3, roughness: 1.2 }), ts2[i], 0.5, "hook");
         const ic = iconHref(inp.pack, p.icon, B.icons);
         B.img({ href: ic.href, x: cx - 50, y: cy - 50, w: 100, h: 100, t0: ts2[i] + 0.2, dur: 0.4, g: "hook" });
       });
@@ -546,9 +545,9 @@ export async function compose(inp: ComposeInput): Promise<Composed> {
         const fwd = e.from === st.from;
         const pts = fwd ? e.points : [...e.points].reverse();
         const dur = Math.min(1.5, Math.max(0.7, (times[i + 1] ?? tEnd + 0.6) - times[i] - 0.25));
-        B.els.push({ k: "dot", id: B.id("d"), pts, color: C("yellow"), r: 13, trail: C("yellow"), t0: times[i], dur, g: "walk" });
+        B.els.push({ k: "dot", id: B.id("d"), pts, color: C("yellow"), r: 13, trail: C("yellow"), t0: times[i], dur, g: "walk", mark: true });
         const tgt = graph!.nodes.get(st.to)!;
-        B.rough(gen.rectangle(tgt.x - 12, tgt.y - 12, tgt.w + 24, tgt.h + 24, { seed: B.seed++, stroke: C("yellow"), strokeWidth: 4, roughness: 1.4 }), times[i] + dur * 0.8, 0.4, `w:${i}`);
+        B.ring(gen.rectangle(tgt.x - 12, tgt.y - 12, tgt.w + 24, tgt.h + 24, { seed: B.seed++, stroke: C("yellow"), strokeWidth: 4, roughness: 1.4 }), times[i] + dur * 0.8, 0.4, `w:${i}`);
         B.setOp(`w:${i}`, times[i] + dur + 1.0, 0, 0.5);
         const lab = `${i + 1}`;
         B.text({ text: lab, x: pts[0][0] + (fwd ? 18 : -18), y: pts[0][1] - 16, size: 34, color: C("yellow"), anchor: "middle", t0: times[i], dur: 0.3, g: "walk", sketch: false });
@@ -565,12 +564,12 @@ export async function compose(inp: ComposeInput): Promise<Composed> {
         for (let j = 0; j < k; j++) { B.setOp(`s:${j}`, T, 0); B.setOp(nodeGroup(`fix-${j}`), T, dim); }
         const [t1, t2] = eventTimes(words, [[r.problem, r.at], [r.fix]], t0 + 0.2, tEnd - 0.4, 1.6);
         const ring = ringOf(c);
-        B.rough(gen.curve(ring.points, { seed: B.seed++, stroke: C("red"), strokeWidth: 5, roughness: 1.2 }), t1, 0.8, `s:${k}`);
+        B.ring(gen.curve(ring.points, { seed: B.seed++, stroke: C("red"), strokeWidth: 5, roughness: 1.2 }), t1, 0.8, `s:${k}`);
         B.sketch.ellipses.push({ box: ring.box, color: C("red") });
         // big blocky red arrow from the ring to the fix (placeFix made room for it)
         const poly = scaleArrow(c, f);
         if (poly) {
-          B.rough(gen.polygon(poly, { seed: B.seed++, stroke: C("red"), strokeWidth: 4, roughness: 1.1, fill: C("red"), fillStyle: "hachure", hachureGap: 9, fillWeight: 3 }), t2, 0.6, `s:${k}`);
+          B.ring(gen.polygon(poly, { seed: B.seed++, stroke: C("red"), strokeWidth: 4, roughness: 1.1, fill: C("red"), fillStyle: "hachure", hachureGap: 9, fillWeight: 3 }), t2, 0.6, `s:${k}`);
           B.sketch.polygons.push({ points: poly, color: C("red") });
         }
         // problem label: first spot around the ring that hits no box, wire label, the fix, the arrow or the ring
@@ -578,10 +577,10 @@ export async function compose(inp: ComposeInput): Promise<Composed> {
         const others = [...graph.nodes.values()].filter((n) => n.id !== c.id && n.id !== f.id);
         const L = placeRingLabel(ring.box, lw, 60, [...others, f, ...(poly ? [polyBox(poly)] : []), ...graph.edges.flatMap((e) => (e.labelBox ? [e.labelBox] : []))]);
         B.text({ text: lab, x: L.x, y: L.y, size: 44, color: C("red"), anchor: L.anchor, t0: t1 + 0.5, dur: 0.6, g: `s:${k}`, bg: true });
-        // lively: the size of the jump counts up over the box's icon ("1x" to "10x"), then gets out of the way.
+        // the size of the jump counts up over the box's icon ("1x" to "10x"), then gets out of the way.
         // It covers only the icon, so the box's name and description stay readable.
         const mult = Number(/^(\d+)x$/i.exec(r.at.trim())?.[1]);
-        if (lively && mult > 1) {
+        if (mult > 1) {
           const back = { x: c.x + 8, y: c.y + 8, w: c.w - 16, h: NODE.icon + 12 };
           const size = Math.min(back.h / 1.25, (back.w - 16) / Math.max(1e-6, textWidth(`${mult}x`, 1)));
           B.els.push({ k: "text", id: B.id("t"), text: `${mult}x`, x: c.x + c.w / 2, y: back.y + size * 0.95 + (back.h - size * 1.25) / 2, size, color: C("red"), anchor: "middle", t0: t1, dur: 0.8, g: `cnt:${k}`, bg: theme.background, bgBox: back, anim: "count", count: { from: 1, to: mult, suffix: "x" } });
@@ -630,9 +629,9 @@ export async function compose(inp: ComposeInput): Promise<Composed> {
         for (const r of rs) {
           B.rough(gen.line(r.x, r.y + r.h + 4, r.x + r.w, r.y + r.h + 2, { seed: B.seed++, stroke: col, strokeWidth: 5, roughness: 1.2 }), times[i], 0.45, gs);
         }
-        B.rough(gen.rectangle(u.x - 6, u.y - 6, u.w + 12, u.h + 12, { seed: B.seed++, stroke: col, strokeWidth: 4, roughness: 1.6 }), times[i] + 0.2, 0.6, gs);
+        B.ring(gen.rectangle(u.x - 6, u.y - 6, u.w + 12, u.h + 12, { seed: B.seed++, stroke: col, strokeWidth: 4, roughness: 1.6 }), times[i] + 0.2, 0.6, gs);
         B.sketch.ellipses.push({ box: u, color: col });
-        B.rough(gen.line(sb.x + sb.w + 6, u.y + u.h / 2, nx - 14, ny - 15, { seed: B.seed++, stroke: col, strokeWidth: 3, roughness: 1.3 }), times[i] + 0.5, 0.3, gs);
+        B.ring(gen.line(sb.x + sb.w + 6, u.y + u.h / 2, nx - 14, ny - 15, { seed: B.seed++, stroke: col, strokeWidth: 3, roughness: 1.3 }), times[i] + 0.5, 0.3, gs);
         B.text({ text: h.note, x: nx, y: ny, size: 44, color: col, anchor: "start", t0: times[i] + 0.7, dur: 0.5, g: gs, bg: true });
       });
       B.setOp(gs, T + D - 0.2, 0, 0.4);
@@ -677,7 +676,7 @@ export async function compose(inp: ComposeInput): Promise<Composed> {
         // the ring goes round the box and the quote lines under it
         const q = n.quote ?? [], qw = Math.max(n.w, ...q.map((l) => textWidth(l, BOARD.quote) + 16));
         const ring = ringOf({ x: n.x + n.w / 2 - qw / 2, y: n.y, w: qw, h: bh + (q.length ? 22 + (q.length + 0.3) * BOARD.qLine : 0) });
-        B.rough(gen.curve(ring.points, { seed: B.seed++, stroke: col, strokeWidth: 5, roughness: 1.2 }), tt, 0.7, g);
+        B.ring(gen.curve(ring.points, { seed: B.seed++, stroke: col, strokeWidth: 5, roughness: 1.2 }), tt, 0.7, g);
         B.sketch.ellipses.push({ box: ring.box, color: col });
         B.text({ text: co.text, x: n.x + n.w / 2, y: ring.box.y - 24, size: 50, color: col, anchor: "middle", t0: tt + 0.4, dur: 0.5, g, bg: true });
       });
@@ -735,7 +734,7 @@ export async function compose(inp: ComposeInput): Promise<Composed> {
           ];
           const lb = cands.find((b) => !hit(b)) ?? cands[0];
           placed.push(lb);
-          if (!sameTarget) B.rough(gen.rectangle(n.x - 14, n.y - 14, n.w + 28, n.h + 28, { seed: B.seed++, stroke: col, strokeWidth: 4.5, roughness: 1.5 }), times[i], 0.5, g);
+          if (!sameTarget) B.ring(gen.rectangle(n.x - 14, n.y - 14, n.w + 28, n.h + 28, { seed: B.seed++, stroke: col, strokeWidth: 4.5, roughness: 1.5 }), times[i], 0.5, g);
           B.text({ text: it.text, x: lb.x + 10, y: lb.y + 44, size, color: col === C("white") ? theme.ink : col, t0: times[i] + 0.3, g, bg: true });
           if (it.estimate) B.tag("estimate", lb.x + 10 + textWidth(it.text, size) + 20, lb.y + 40, 26, C("orange"), times[i] + 0.7, g);
           boxes.push(n, lb);
@@ -773,6 +772,9 @@ export async function compose(inp: ComposeInput): Promise<Composed> {
         if (boardShown.length > 1) B.fit(unionBox(all.map((b) => ({ x: b.x, y: b.y - 200, w: b.w, h: b.h + 200 })), 80), tEnd - 1.2, 1.0, 1.0);
       }
     }
+    // a scene ends only after its last ring or arrow finishes, so the next scene's camera move never cuts one off
+    const drawnTo = Math.max(0, ...B.els.filter((e) => e.mark && e.t0 >= T).map((e) => e.t0 + e.dur));
+    if (drawnTo + 0.15 > T + D) { D = drawnTo + 0.15 - T; timeline[timeline.length - 1].end = T + D; }
     T += D;
   }
 
@@ -782,10 +784,10 @@ export async function compose(inp: ComposeInput): Promise<Composed> {
     theme: { background: theme.background, ink: theme.ink, accent: theme.accent, caption: theme.caption },
     fonts: { hand: fontDataUrl(HAND_FONTS[theme.hand ?? "excalifont"].woff2, "font/woff2"), sans: fontDataUrl("Nunito-Variable.ttf", "font/ttf") },
     elements: B.els, groups: B.groups, camera: B.cam.length ? B.cam : [{ t: 0, x: 0, y: 0, w: W, h: H, move: 0 }],
-    headings, captions, fades, cards,
+    headings, captions, fades,
     end: { t0: T, title: plan.title.toLowerCase(), lines: [inp.sourceLabel, `explained for ${inp.spec.audience.toLowerCase()}`], credit: "Powered by Meta Muse models" },
     brand,
   };
-  if (lively) applyPace(film, timeline);
-  return { film, sketch: B.sketch, timeline };
+  const pace = applyTempo(film, timeline, tempo);
+  return { film, sketch: B.sketch, timeline, pace };
 }
