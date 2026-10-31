@@ -56,7 +56,13 @@ export function alignWords(script: string, spoken: { word: string; start: number
     let b = i + 1; while (b < ws.length && !out[b]) b++;
     const t0 = a >= 0 ? out[a]!.end : 0, t1 = b < ws.length ? out[b]!.start : total;
     const span = (t1 - t0) / (b - a);
-    out[i] = { word: ws[i], start: t0 + span * (i - a - 1) + 0.01, end: t0 + span * (i - a) };
+    out[i] = { word: ws[i], start: t0 + span * (i - a - 1), end: t0 + span * (i - a) };
+  }
+  // keep words in spoken order: each starts no earlier than the one before and ends after it starts
+  for (let i = 0; i < ws.length; i++) {
+    const w = out[i]!, prev = out[i - 1];
+    if (prev && w.start < prev.start) w.start = prev.start;
+    if (w.end < w.start) w.end = w.start;
   }
   return out as WordTiming[];
 }
