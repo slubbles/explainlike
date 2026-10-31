@@ -583,7 +583,7 @@ export async function compose(inp: ComposeInput): Promise<Composed> {
       const adds = s.add_components.filter((id) => graph!.nodes.has(id) && !present.has(id));
       // a wire whose far end is not on the board yet waits for its layer, so the camera never frames empty space for it
       const can = (id: string) => present.has(id) || adds.includes(id);
-      const conns = s.add_connections.map((c) => c.split(">")).map(([f, t]) => findEdge(f, t)).filter((e): e is PlacedEdge => !!e && !drawnEdges.has(edgeKey(e)) && can(e.from) && can(e.to));
+      const conns = s.add_connections.map((c) => c.split(">")).map(([f, t]) => findEdge(f, t)).filter((e, i, all): e is PlacedEdge => !!e && all.indexOf(e) === i && !drawnEdges.has(edgeKey(e)) && can(e.from) && can(e.to));
       const focusIds = new Set(adds);
       for (const e of conns) { focusIds.add(e.from); focusIds.add(e.to); }
       const focus = [...focusIds].map((id) => graph!.nodes.get(id)!).filter(Boolean);

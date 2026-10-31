@@ -57,3 +57,15 @@ test("box sublabels are big and dark enough to read in a wide shot, and still fi
   const { NODE } = await import("../src/layout.js");
   assert.ok(194 + NODE.subSize * 0.3 <= NODE.h);
 });
+
+test("a two-way wire keeps both labels, so the way back is on the board", async () => {
+  const { layoutGraph } = await import("../src/layout.js");
+  const n = (id: string) => ({ id, keyword: id, color: "blue" });
+  const g = await layoutGraph([n("app"), n("api")], [
+    { from: "app", to: "api", label: "send message" },
+    { from: "api", to: "app", label: "show reply" },
+  ]);
+  assert.equal(g.edges.length, 1);
+  assert.equal(g.edges[0].label, "send message / show reply");
+  assert.equal(g.edges[0].both, true);
+});
