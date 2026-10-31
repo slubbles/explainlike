@@ -712,7 +712,8 @@ export async function compose(inp: ComposeInput): Promise<Composed> {
       const all = [...present];
       B.fit(unionBox(all.map((id) => graph!.nodes.get(id)!).filter(Boolean), 60), T, 1.3, 1.0);
       for (const kk of drawnEdges) B.setOp(kk, T, 1);
-      for (let j = 0; j < fixIds.length; j++) B.setOp(`s:${j}`, T, 1);
+      // the red scale ring has made its point; the recap shows the fixed system without it
+      for (let j = 0; j < fixIds.length; j++) B.setOp(`s:${j}`, T, 0, 0.5);
       const comps = (inp.arch?.components ?? []).filter((c) => present.has(c.id));
       for (const id of all) B.setOp(nodeGroup(id), T, dim);
       const times = eventTimes(words, comps.map((c) => [c.keyword]), t0 + 0.3, tEnd - 1.2, 0.5);
