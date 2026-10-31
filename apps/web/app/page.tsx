@@ -86,7 +86,7 @@ export default function Home() {
         {!jobId && <InputScreen form={form} set={set} go={go} busy={false} err={err} gallery={gallery} />}
         {jobId && (
           <>
-            <JobBar form={form} set={set} go={go} busy={busy} fold={job?.state === "done"} />
+            <JobBar form={form} set={set} go={go} busy={busy} fold={job?.state === "done"} quiet={!!job && form.input.trim() === job.input && form.level === job.level && form.voice === job.voice} />
             {!job && <div className="main solo"><div className="screen" /></div>}
             {job && job.state !== "done" && (
               <div className="main">

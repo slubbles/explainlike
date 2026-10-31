@@ -81,6 +81,8 @@ footer { text-align: center; color: var(--muted); font-size: 13px; padding: 56px
 .pick svg { position: absolute; right: 10px; pointer-events: none; color: var(--muted); }
 .go { display: flex; align-items: center; gap: 8px; background: var(--blue); color: #fff; border: 0; font-weight: 600; font-size: 14px; padding: 9px 18px; border-radius: 999px; white-space: nowrap; }
 .go:hover { background: var(--blue2); }
+.go.quiet { background: #fff; color: var(--ink); box-shadow: inset 0 0 0 1px var(--line); }
+.go.quiet:hover { box-shadow: inset 0 0 0 1px #c9ccd1; }
 .go:disabled { cursor: default; background: var(--soft); color: var(--faint); }
 .main { max-width: 1200px; margin: 24px auto 0; display: grid; grid-template-columns: minmax(0, 1fr) 368px; gap: 28px; align-items: start; }
 .main.solo { grid-template-columns: minmax(0, 1fr); max-width: 960px; }

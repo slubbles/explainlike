@@ -3,8 +3,8 @@ import { useState } from "react";
 import { LEVELS, VOICES, type Form } from "../lib/form";
 import { Arrow, Chevron } from "./Icons";
 
-/** The compact form above a job: change the link, level or voice and draw again. On a phone result page it folds to one line until you tap Change. */
-export default function JobBar({ form, set, go, busy, fold }: { form: Form; set: (f: Partial<Form>) => void; go: () => void; busy: boolean; fold?: boolean }) {
+/** The compact form above a job: change the link, level or voice and draw again. On a phone result page it folds to one line until you tap Change. The button only turns blue once the link, level or voice differs from the video shown. */
+export default function JobBar({ form, set, go, busy, fold, quiet }: { form: Form; set: (f: Partial<Form>) => void; go: () => void; busy: boolean; fold?: boolean; quiet?: boolean }) {
   const [open, setOpen] = useState(false);
   const ready = !!form.input.trim() && !busy;
   return (
@@ -18,7 +18,7 @@ export default function JobBar({ form, set, go, busy, fold }: { form: Form; set:
         <label className="pick"><span className="sr">Voice</span>
           <select value={form.voice} onChange={(e) => set({ voice: e.target.value })} disabled={busy}>{VOICES.map((v) => <option key={v.id} value={v.id}>{v.label}</option>)}</select><Chevron />
         </label>
-        <button className="go" type="submit" disabled={!ready}>{busy ? "Drawing…" : <>Explain it <Arrow size={15} /></>}</button>
+        <button className={`go${quiet ? " quiet" : ""}`} type="submit" disabled={!ready}>{busy ? "Drawing…" : <>Explain it <Arrow size={15} /></>}</button>
       </div>
     </form>
   );
