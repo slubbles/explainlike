@@ -43,7 +43,13 @@ export async function layoutGraph(nodes: GNode[], edges: GEdge[], opts: LayoutOp
   for (const e of edges) {
     if (!ids.has(e.from) || !ids.has(e.to) || e.from === e.to) continue;
     const rev = es.find((x) => x.from === e.to && x.to === e.from);
-    if (rev) { rev.both = true; continue; }
+    if (rev) {
+      rev.both = true;
+      // keep the way back readable: "send message / show reply"
+      if (e.label && rev.label && e.label !== rev.label && !rev.label.includes(" / ")) rev.label = `${rev.label} / ${e.label}`;
+      else rev.label ??= e.label;
+      continue;
+    }
     if (!es.some((x) => x.from === e.from && x.to === e.to)) es.push({ ...e });
   }
   const graph = {
