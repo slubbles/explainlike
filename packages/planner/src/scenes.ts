@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { ScenePlan, coverageSeconds, lower, norm, tidySpeech, wordCount, quoteInSource, phraseAt, spokenWords, missingArticles, type Architecture, type ExplainSpec, type Progress, type NoteItem, type Scene, type SourceDoc } from "@explainlike/core";
+import { ScenePlan, coverageSeconds, lower, norm, tidySpeech, wordCount, quoteInSource, phraseAt, spokenWords, missingArticles, soundsLikeKeywords, type Architecture, type ExplainSpec, type Progress, type NoteItem, type Scene, type SourceDoc } from "@explainlike/core";
 import { sparkJson, type CostLedger } from "@explainlike/models";
 
 const STYLE = [
@@ -152,7 +152,106 @@ export function speechIssues(plan: ScenePlan, arch: Architecture, analogy = ""):
   return issues;
 }
 
-export async function planRepoScenes(o: { ledger: CostLedger; arch: Architecture; spec: ExplainSpec; progress?: Progress }): Promise<ScenePlan & { repairs: string[]; check: { first: string[]; final: string[]; revised: boolean }}> {
+const Polish = z.object({
+  scenes: z.array(z.object({ id: z.string(), narration: z.string() })),
+  renames: z.array(z.object({ id: z.string(), keyword: z.string() })),
+});
+
+/** The phrases a scene's narration must keep, in the order it says them, so the board stays in sync. */
+export function syncPhrases(s: Scene, arch: Architecture): string[] {
+  const ws = spokenWords(s.narration);
+  const cands = [...arch.components.map((c) => c.keyword), ...(s.kind === "walkthrough" ? arch.walkthrough.steps.map((x) => x.label) : []), ...(s.items ?? []).map((i) => i.text)];
+  return cands.map((p) => ({ p, at: phraseAt(ws, p) })).filter((x) => x.at >= 0).sort((a, b) => a.at - b.at).map((x) => x.p);
+}
+
+/** True when a rewrite still says every sync phrase in order and stays close to the original length. */
+export function keepsSync(orig: string, next: string, phrases: string[]): boolean {
+  const r = wordCount(next) / Math.max(1, wordCount(orig));
+  if (r < 0.8 || r > 1.25 || soundsLikeKeywords(next)) return false;
+  const ws = spokenWords(next);
+  let at = 0;
+  for (const p of phrases) { const k = phraseAt(ws, p, at); if (k < 0) return false; at = k + 1; }
+  return true;
+}
+
+const okKeyword = (k: string) => /^[a-z][a-z ]{1,30}$/.test(k) && k.trim().split(/\s+/).length <= 3;
+
+/**
+ * Narration polish: one Muse Spark rewrite so every line sounds like a person explaining at a
+ * whiteboard (grammatical, articles, contractions, varied openers), with awkward part names turned into
+ * plain ones. A scene keeps its rewrite only when the board can still sync to it; any speech problems
+ * left get one more try.
+ */
+export async function polishNarration(o: { ledger: CostLedger; plan: ScenePlan; arch: Architecture; analogy?: string; audience: string; progress?: Progress }): Promise<{ plan: ScenePlan; renames: { id: string; keyword: string }[]; rewritten: number; kept: string[]; issues: string[] }> {
+  o.progress?.({ stage: "plan", message: "polishing the narration" });
+  const sys = [
+    "You rewrite narration for a whiteboard explainer video so it sounds like a friendly person talking, the way Crayon Capital or Caleb Writes Code explain systems: short natural sentences, a little warmth, no jargon left unexplained.",
+    `Audience: ${o.audience}.`,
+    "Rules for every scene:",
+    "- Grammatical spoken English: articles before nouns ('the guest sends a message to the manager'), subject and verb agree, contractions where a person would use them (it's, you'd, that's, doesn't).",
+    "- Vary how sentences start; never open three sentences the same way.",
+    "- Keep the meaning, the facts and the order of events exactly. Add nothing new and drop nothing.",
+    "- Keep each scene within 10% of its word count.",
+    "- Each scene lists 'must_say': phrases the board syncs to. Say each one, in that order, with its words in that order. You may put 'the', 'a' or 'your' between its words and change verb endings ('send message' -> 'sends the message'), nothing else.",
+    "- Never read a scene heading aloud as if it were a part of the system.",
+    "Part names: 'parts' lists every part's spoken name. If a name sounds awkward when spoken as a thing (for example 'computer use', a verb phrase, or an internal code name), give it a plain 1 to 3 word lowercase name in 'renames' (for example 'browser robot'), and use the new name in every scene instead of the old one. Rename only names that are genuinely awkward; most need none.",
+    "Return every scene id with its rewritten narration.",
+  ].join("\n");
+  const payload = (p: ScenePlan) => JSON.stringify({
+    analogy: o.analogy ?? "",
+    parts: o.arch.components.map((c) => ({ id: c.id, name: c.keyword, what: c.what })),
+    scenes: p.scenes.map((s) => ({ id: s.id, kind: s.kind, heading: s.heading, words: wordCount(s.narration), must_say: syncPhrases(s, o.arch), narration: s.narration })),
+  });
+  const ask = (msgs: { role: "system" | "user" | "assistant"; content: string }[], step: string) => sparkJson({ ledger: o.ledger, step, schema: Polish, name: "narration_polish", effort: "low", maxTokens: 6000, messages: msgs });
+  const apply = (base: ScenePlan, out: z.infer<typeof Polish>, renames: Map<string, string>) => {
+    const kept: string[] = [];
+    let rewritten = 0;
+    const scenes = base.scenes.map((s) => {
+      const next = out.scenes.find((x) => x.id === s.id)?.narration?.trim();
+      const want = syncPhrases(s, o.arch).map((p) => { const c = o.arch.components.find((x) => x.keyword === p); return c && renames.has(c.id) ? renames.get(c.id)! : p; });
+      if (next && keepsSync(s.narration, next, want)) { rewritten++; return { ...s, narration: tidySpeech(next) }; }
+      kept.push(s.id);
+      return s;
+    });
+    return { plan: { ...base, scenes }, kept, rewritten };
+  };
+  const msgs: { role: "system" | "user" | "assistant"; content: string }[] = [{ role: "system", content: sys }, { role: "user", content: payload(o.plan) }];
+  const out = await ask(msgs, "narration-polish");
+  const taken = new Set(o.arch.components.map((c) => c.keyword));
+  const renames = new Map<string, string>();
+  for (const r of out.renames) {
+    const k = r.keyword.trim().toLowerCase();
+    const c = o.arch.components.find((x) => x.id === r.id);
+    if (c && okKeyword(k) && !taken.has(k) && k !== c.keyword) { renames.set(c.id, k); taken.add(k); }
+  }
+  // a rename only stands if no scene that said the old name kept its old narration
+  let res = apply(o.plan, out, renames);
+  const renamed = (r: Map<string, string>): Architecture => ({ ...o.arch, components: o.arch.components.map((c) => (r.has(c.id) ? { ...c, keyword: r.get(c.id)! } : c)) });
+  const dropBadRenames = () => {
+    for (const [id] of [...renames]) {
+      const old = o.arch.components.find((c) => c.id === id)!.keyword;
+      if (res.plan.scenes.some((s) => phraseAt(spokenWords(s.narration), old) >= 0)) renames.delete(id);
+    }
+  };
+  dropBadRenames();
+  let issues = speechIssues(res.plan, renamed(renames), o.analogy);
+  if (issues.length || res.kept.length) {
+    o.progress?.({ stage: "plan", message: `narration polish: ${issues.length} issue(s), ${res.kept.length} scene(s) kept as is; one more try` });
+    const again = await ask([...msgs, { role: "assistant", content: JSON.stringify(out) }, { role: "user", content: `Fix these and return all scenes again (same renames):\n${[...issues, ...res.kept.map((id) => `${id}: the rewrite dropped a must_say phrase, changed its order, or changed the length by more than 20%`)].map((x, i) => `${i + 1}. ${x}`).join("\n")}` }], "narration-polish-retry").catch(() => undefined);
+    if (again) {
+      const second = apply(o.plan, again, renames);
+      // per scene, prefer the retry when it passed, else the first rewrite
+      const scenes = o.plan.scenes.map((s, i) => (second.kept.includes(s.id) ? res.plan.scenes[i] : second.plan.scenes[i]));
+      const kept = res.kept.filter((id) => second.kept.includes(id));
+      res = { plan: { ...o.plan, scenes }, kept, rewritten: scenes.length - kept.length };
+      dropBadRenames();
+      issues = speechIssues(res.plan, renamed(renames), o.analogy);
+    }
+  }
+  return { plan: res.plan, renames: [...renames].map(([id, keyword]) => ({ id, keyword })), rewritten: res.rewritten, kept: res.kept, issues };
+}
+
+export async function planRepoScenes(o: { ledger: CostLedger; arch: Architecture; spec: ExplainSpec; progress?: Progress }): Promise<ScenePlan & { repairs: string[]; check: { first: string[]; final: string[]; revised: boolean }; renames: { id: string; keyword: string }[]; polish: { rewritten: number; kept: string[]; issues: string[] } }> {
   const L = o.spec;
   const [lo, hi] = coverageSeconds(L, { components: o.arch.components.length, steps: o.arch.walkthrough.steps.length, scale: o.arch.scale.length });
   o.progress?.({ stage: "plan", message: "writing the scene plan" });
@@ -188,7 +287,8 @@ export async function planRepoScenes(o: { ledger: CostLedger; arch: Architecture
     final = await review(plan);
     revised = true;
   }
-  return { ...plan, check: { first, final, revised } };
+  const pol = await polishNarration({ ledger: o.ledger, plan, arch: o.arch, analogy: L.brief.analogy, audience: L.audience, progress: o.progress });
+  return { ...plan, scenes: pol.plan.scenes, check: { first, final, revised }, renames: pol.renames, polish: { rewritten: pol.rewritten, kept: pol.kept, issues: pol.issues } };
 }
 
 function notesRules(slots: { after: string; heading: string; brief: string }[]): string[] {

@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import type { Architecture, NoteItem, Scene } from "@explainlike/core";
-import { validateNotes, validateArchitecture, repairRepoPlan, checkStory, journeyOrder, speechIssues } from "@explainlike/planner";
+import { validateNotes, validateArchitecture, repairRepoPlan, checkStory, journeyOrder, speechIssues, keepsSync, syncPhrases } from "@explainlike/planner";
 
 const item = (text: string, extra: Partial<NoteItem> = {}): NoteItem => ({ text, color: "white", icon: "", target: "", estimate: false, evidence: "", ...extra });
 const ids = new Set(["d1-db", "edge"]);
@@ -169,3 +169,11 @@ test("the speech check flags missing articles and a heading read out as a part",
   assert.deepEqual(speechIssues(fine, storyArch, "a hotel front desk"), []);
 });
 
+test("a polished line is kept only if the board can still sync to it", () => {
+  const s = sc("walkthrough", "You send message, the door will forward, the harness will run bot.");
+  const want = syncPhrases(s, storyArch);
+  assert.deepEqual(want, ["send message", "forward", "run bot"]);
+  assert.ok(keepsSync(s.narration, "You send a message, the door forwards it, and the harness runs the bot.", want));
+  assert.ok(!keepsSync(s.narration, "The harness runs the bot after you send a message and the door forwards it.", want), "order changed");
+  assert.ok(!keepsSync(s.narration, "You send a message and it all just works out somehow in the end, more or less, with the bot doing things.", want), "a step is gone");
+});
