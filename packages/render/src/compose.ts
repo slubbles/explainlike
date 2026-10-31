@@ -290,7 +290,7 @@ export function captionsFor(scene: string, words: WordTiming[], offset: number, 
   const lineSlips = new Set(agreementSlips(text(0, n - 1)).map((x) => x.phrase));
   const phraseCost = (i: number, j: number) => {
     const len = j - i + 1, chars = text(i, j).length;
-    if (len > 1 && (len > maxWords + 2 || chars > maxChars + 6)) return Infinity;
+    if (len > 1 && (len > maxWords + 2 || chars > maxChars + 8)) return Infinity;
     let c = 2 * Math.max(0, len - maxWords) + 0.5 * Math.max(0, chars - maxChars);
     // a sentence ending inside the phrase ("pipeline. Metual.") only when the phrase is a single word long otherwise
     for (let k = i; k < j; k++) if (/[.!?]$/.test(words[k].word)) c += k === i ? 5 : 50;

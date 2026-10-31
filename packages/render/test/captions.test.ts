@@ -188,3 +188,10 @@ test("a phrase does not break inside a noun phrase: 'the back of the envelope ma
     }
   }
 });
+
+test("'the resulting video' stays whole at real speech speed, where 'Then you watch' alone is too quick to read", () => {
+  const t = [["Then", 10.38, 10.62], ["you", 10.62, 10.7], ["watch", 10.7, 10.94], ["the", 10.94, 11.18], ["resulting", 11.18, 11.5], ["video", 11.5, 11.82], ["in", 11.82, 11.98], ["the", 11.98, 12.06], ["player.", 12.06, 12.7]] as const;
+  const words = t.map(([word, start, end]) => ({ word, start, end }));
+  const shown = captionsFor("s1", words, 0, 14, 4, 26).map((c) => c.words.map((w) => w.w).join(" "));
+  assert.ok(shown.some((p) => p.includes("the resulting video")), `"the resulting video" is split: ${shown.join(" | ")}`);
+});
