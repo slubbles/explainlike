@@ -249,6 +249,9 @@ function eventTimes(words: WordTiming[], phrases: string[][], start: number, end
 
 const HELPER_VERB = /^(do|does|did|can|could|will|would|should|may|might|must)$/;
 
+/** Shortest time a caption phrase stays up before the next one replaces it (seconds of speech). */
+const MIN_PHRASE_S = 0.85;
+
 export function captionsFor(scene: string, words: WordTiming[], offset: number, sceneEnd: number, maxWords = 8, maxChars = 46): Caption[] {
   const caps: Caption[] = [];
   let cur: WordTiming[] = [];
@@ -257,8 +260,18 @@ export function captionsFor(scene: string, words: WordTiming[], offset: number, 
     cur.push(w);
     const chars = cur.map((x) => x.word).join(" ").length, next = words[i + 1];
     // a sentence's last word stays with its phrase when it fits, rather than starting the next one alone ("here. You paste a")
-    const endsNext = !!next && /[.!?]$/.test(next.word) && chars + 1 + next.word.length <= maxChars && cur.length <= maxWords;
-    if ((/[.!?]$/.test(w.word) && cur.length >= 2) || (/[,;:]$/.test(w.word) && cur.length >= Math.min(4, maxWords - 1)) || ((cur.length >= maxWords || chars > maxChars) && !endsNext)) flush();
+    // the same for the word that closes a clause ("Point it at a real | app," -> "Point it at a real app,")
+    const endsNext = !!next && /[.!?,;:]$/.test(next.word) && chars + 1 + next.word.length <= maxChars + (/[.!?]$/.test(next.word) ? 4 : 0) && cur.length <= maxWords + 1;
+    // a phrase spoken fast ("the back of the", "an X post,") would flash by too quickly to read, so it
+    // takes the next word or two while they still fit; a sentence end always closes the phrase
+    const tooQuick = !!next && next.start - cur[0].start < MIN_PHRASE_S && chars + 1 + next.word.length <= maxChars + 4 && cur.length < maxWords + 2;
+    if (/[.!?]$/.test(w.word) && cur.length >= 2) flush();
+    else if (((/[,;:]$/.test(w.word) && cur.length >= Math.min(4, maxWords - 1)) || ((cur.length >= maxWords || chars > maxChars) && !endsNext)) && !tooQuick) {
+      // when the sentence's last word cannot join this phrase, it takes the word before it along ("the pipeline.", not "pipeline. Metual.")
+      const carry = next && /[.!?]$/.test(next.word) && cur.length >= 3 ? cur.pop() : undefined;
+      flush();
+      if (carry) cur.push(carry);
+    }
   });
   flush();
   // a phrase read on its own must not show a grammar slip: "how does | a pasted link become" reads as
