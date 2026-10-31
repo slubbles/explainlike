@@ -51,3 +51,9 @@ test("the docs example pack loads", () => {
   const p = loadIconPack(path.join(import.meta.dirname, "../../../examples/packs/supabase"));
   assert.equal(p.components.length, 5);
 });
+
+test("tests, fixtures and examples are not evidence", () => {
+  const files = ["packages/x/test/packs.test.ts", "examples/wrangler.toml", "src/app.spec.ts"];
+  const found = detectComponents([loadIconPack("cloudflare")], files, () => "extends DurableObject\n[[d1_databases]]");
+  assert.deepEqual(found, []);
+});

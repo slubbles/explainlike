@@ -86,7 +86,11 @@ export function mergePacks(packs: IconPack[]): IconPack {
 }
 
 /** Which pack components does this repo use? Only reads files whose path matches a rule, at most `maxReads` per rule. */
-export function detectComponents(packs: IconPack[], files: string[], read: (p: string) => string, maxReads = 200): DetectedComponent[] {
+/** Tests, fixtures and examples mention building blocks without using them. */
+const NOT_EVIDENCE = /(^|\/)(tests?|__tests__|fixtures?|examples?|e2e)\/|\.(test|spec)\.[a-z]+$/i;
+
+export function detectComponents(packs: IconPack[], allFiles: string[], read: (p: string) => string, maxReads = 200): DetectedComponent[] {
+  const files = allFiles.filter((f) => !NOT_EVIDENCE.test(f));
   const found: DetectedComponent[] = [];
   for (const p of packs) for (const c of p.components) {
     const ev = new Set<string>();
