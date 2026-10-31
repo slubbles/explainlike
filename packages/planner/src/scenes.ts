@@ -1,19 +1,124 @@
 import { z } from "zod";
-import { ScenePlan, coverageSeconds, lower, tidySpeech, wordCount, quoteInSource, type Architecture, type ExplainSpec, type Progress, type NoteItem, type Scene, type SourceDoc } from "@explainlike/core";
+import { ScenePlan, coverageSeconds, lower, norm, tidySpeech, wordCount, quoteInSource, type Architecture, type ExplainSpec, type Progress, type NoteItem, type Scene, type SourceDoc } from "@explainlike/core";
 import { sparkJson, type CostLedger } from "@explainlike/models";
 
 const STYLE = [
-  "Style of the video: a calm, clear engineer drawing on a whiteboard while talking.",
+  "Style of the video: a friendly engineer drawing on a whiteboard while talking to a smart newcomer (docs/explaining-playbook.md).",
   "Narration is spoken; write it for the ear: short sentences, concrete, no filler ('in this video', 'let's dive in', 'robust', 'seamless', 'leverage' are banned).",
   "Every narration sentence is complete and grammatical: each verb agrees with its subject, and articles (a, an, the) are not dropped.",
+  "Plain words first. Every technical term (an acronym, a product, a protocol, an internal name) is explained in plain words the first time it is said, in the same sentence: 'Caddy, the web server at the front door, ...'. A term the newcomer does not need is left out.",
+  "Each part gets its why: what it is for, or what would go wrong without it.",
   "Headings are 2 to 4 lowercase words that the narration of that scene actually says (the viewer reads the heading while hearing it). Keywords 1 to 3 lowercase words.",
   "One new thing per sentence, and each sentence long enough to watch it being drawn (no two-word sentences).",
 ].join("\n");
 
+/** Components in the order one request meets them, then the parts the request never touches. */
+export function journeyOrder(arch: Architecture): { path: string[]; side: string[] } {
+  const ids = new Set(arch.components.map((c) => c.id));
+  const path: string[] = [];
+  for (const st of arch.walkthrough.steps) for (const id of [st.from, st.to]) if (ids.has(id) && !path.includes(id)) path.push(id);
+  return { path, side: arch.components.map((c) => c.id).filter((id) => !path.includes(id)) };
+}
+
 // ---------------------------------------------------------------------------
-// Repo: build the architecture layer by layer on one evolving canvas.
+// Repo: tell one request's journey on one evolving canvas (docs/explaining-playbook.md).
 // ---------------------------------------------------------------------------
-export async function planRepoScenes(o: { ledger: CostLedger; arch: Architecture; spec: ExplainSpec; progress?: Progress }): Promise<ScenePlan> {
+function repoSystem(arch: Architecture, L: ExplainSpec, lo: number, hi: number): string {
+  const { path, side } = journeyOrder(arch);
+  const kw = (id: string) => `${id} ("${arch.components.find((c) => c.id === id)?.keyword}")`;
+  const steps = arch.walkthrough.steps.map((s) => `"${s.label}"`).join(", ");
+  const analogy = L.brief.analogy || "an everyday place with clear jobs (a restaurant, a post office)";
+  return [
+    "You write the scene plan for a short whiteboard explainer of one repository. The renderer draws one evolving architecture canvas.",
+    "Goal: a newcomer finishes the video able to say what this project is and how one request flows through it. That flow is the video.",
+    STYLE,
+    L.voice,
+    `Everyday analogy for the whole system: ${analogy}.`,
+    "Scene order and rules:",
+    "1. one 'hook' scene, 2 or 3 sentences: what the product is in plain words (no part names, no jargon), why someone would care (what it lets them do), the everyday analogy, and the promise of the story, e.g. 'Let's follow one message through it.' add_components empty.",
+    `2. 'layer' scenes along the journey: add exactly these components, in this order, at most ${L.perScene} per scene: ${path.map(kw).join(", ")}. Tell it as the request moving forward ('First...', 'Next it reaches...'). For each added component say its keyword out loud (in add_components order), what it does in plain words, its role in the analogy, and why it is there.`,
+    `3. one 'walkthrough' scene right after them: the core flow told once, end to end, as one short story. Say these step labels word for word, in order, one sentence each: ${steps}. End with what the user gets back. Heading like 'one message, start to end'. About ${Math.round(L.wordsPerScene * 1.6)} words. add_components empty.`,
+    side.length
+      ? `4. then 'layer' scene(s) for the side parts the request does not pass through: ${side.map(kw).join(", ")}. One plain sentence each, tied back to the journey ('Off to the side, ...'). At most ${L.perScene} per scene.`
+      : "4. (no side parts)",
+    arch.scale.length
+      ? `5. ${arch.scale.length} short 'scale' scene(s), one per scale risk, in the given order: what breaks at that traffic level and why (problem keyword), then the fix (fix keyword), in 2 short plain sentences ('The fix is ...'). callouts: [{target: component id, text: problem keyword, color: red}, {target: component id, text: fix keyword, color: green}].`
+      : "5. no 'scale' scenes.",
+    ...notesRules(L.notes),
+    "6. one 'recap' scene: retell the flow in one breath, from the user to what they get back, saying the journey keywords in order, then one line on why it matters. Heading like 'the whole trip'.",
+    `Each scene's narration is about ${L.wordsPerScene} words (hook and recap can be shorter). Whole video ${lo} to ${hi} seconds at ${L.tempo.wps} words per second: long enough to tell the story, no padding.`,
+    "Leave add_connections, board_nodes, board_edges, highlights empty (the renderer derives them). callouts empty except in scale scenes. items empty except in notes scenes.",
+    "Never state a traffic, user, latency or cost number as a fact about this app: the repo does not tell you its real load. Numbers only appear as clearly labelled assumptions.",
+    "title: the product name in lowercase. subtitle: under 8 lowercase words, plain.",
+  ].join("\n");
+}
+
+const Critique = z.object({
+  undefined_terms: z.array(z.object({ term: z.string(), scene: z.string() })).describe("terms a newcomer would not know, used without a plain-words explanation at their first use"),
+  flow_clear: z.boolean().describe("true if a newcomer could retell how one request goes from the user to the result"),
+  flow_problem: z.string().describe("what is missing from the flow, or empty"),
+});
+export type Critique = z.infer<typeof Critique>;
+
+/** Model check: read the narration as a newcomer would. */
+async function critiquePlan(ledger: CostLedger, plan: ScenePlan, audience: string): Promise<Critique> {
+  const script = plan.scenes.map((s) => `[${s.id}] ${s.narration}`).join("\n");
+  return sparkJson({
+    ledger, step: "plan-check", schema: Critique, name: "critique", effort: "low", maxTokens: 2000,
+    messages: [
+      { role: "system", content: `You are ${audience}, hearing this explainer narration once, in order. List every term you would not know (an acronym, product, protocol or internal name) that is used without a plain-words explanation at or before its first use. Words every developer knows (server, database, browser, app, API, model) do not count; a part the narration explains in plain words counts as explained. Then say whether you could now retell how one request goes from the user to the result, and if not, what is missing. Be strict but fair; at most 8 terms.` },
+      { role: "user", content: script },
+    ],
+  });
+}
+
+const words4 = (s: string) => norm(s).split(" ").filter((w) => w.length >= 4 && !/^(that|with|from|into|your|this|their|which|where|every)$/.test(w));
+
+/**
+ * Deterministic story check (docs/explaining-playbook.md): what the hook says, that the core flow is
+ * narrated hop by hop and early, that the analogy shows up, and that the recap retells the trip.
+ */
+export function checkStory(plan: ScenePlan, arch: Architecture, analogy = ""): string[] {
+  const issues: string[] = [];
+  const sc = plan.scenes;
+  const kwOf = (id: string) => arch.components.find((c) => c.id === id)?.keyword ?? id;
+  const { path } = journeyOrder(arch);
+  const hook = sc.find((s) => s.kind === "hook");
+  if (!hook || sc[0] !== hook) issues.push("the video must open with a 'hook' scene saying what this is and why you'd care");
+  const parts = arch.components.filter((c) => hook && norm(hook.narration).includes(norm(c.keyword)));
+  if (hook && parts.length > 1) issues.push(`the hook names parts (${parts.map((c) => c.keyword).join(", ")}) before the story starts; say what it is in plain words instead`);
+  if (analogy) {
+    const aw = words4(analogy);
+    const told = sc.filter((s) => s.kind === "hook" || s.kind === "layer" || s.kind === "walkthrough").map((s) => norm(s.narration)).join(" ");
+    if (aw.length && !aw.some((w) => told.includes(w.slice(0, 5)))) issues.push(`the everyday analogy (${analogy}) never appears in the hook or the journey`);
+  }
+  const wi = sc.findIndex((s) => s.kind === "walkthrough");
+  if (wi < 0 && arch.walkthrough.steps.length) issues.push("there is no 'walkthrough' scene telling the core flow end to end");
+  if (wi >= 0) {
+    const w = norm(sc[wi].narration);
+    let at = 0;
+    const missing: string[] = [];
+    for (const st of arch.walkthrough.steps) { const k = w.indexOf(norm(st.label), at); if (k < 0) missing.push(st.label); else at = k + 1; }
+    if (missing.length) issues.push(`the walkthrough must say each step label word for word, in order; missing or out of order: ${missing.map((m) => `"${m}"`).join(", ")}`);
+    const before = sc.slice(0, wi);
+    const late = path.filter((id) => !before.some((s) => s.add_components.includes(id)));
+    if (late.length) issues.push(`parts on the journey are drawn after the walkthrough: ${late.map(kwOf).join(", ")}`);
+    const deep = before.filter((s) => s.kind === "scale" || s.kind === "notes");
+    if (deep.length) issues.push("scale or list scenes come before the core flow; they belong after it");
+    const total = sc.reduce((n, s) => n + wordCount(s.narration), 0);
+    const pre = before.reduce((n, s) => n + wordCount(s.narration), 0);
+    if (total && pre / total > 0.55) issues.push(`the core flow starts ${Math.round((pre / total) * 100)}% of the way in; it should start before the halfway mark`);
+  }
+  const recap = sc.find((s) => s.kind === "recap");
+  if (recap && path.length) {
+    const r = norm(recap.narration);
+    const said = path.filter((id) => r.includes(norm(kwOf(id))) || words4(kwOf(id)).some((x) => r.includes(x)));
+    if (said.length < Math.min(3, path.length)) issues.push("the recap must retell the trip, saying the journey parts in order");
+  }
+  return issues;
+}
+
+export async function planRepoScenes(o: { ledger: CostLedger; arch: Architecture; spec: ExplainSpec; progress?: Progress }): Promise<ScenePlan & { repairs: string[]; check: { first: string[]; final: string[]; revised: boolean } }> {
   const L = o.spec;
   const [lo, hi] = coverageSeconds(L, { components: o.arch.components.length, steps: o.arch.walkthrough.steps.length, scale: o.arch.scale.length });
   o.progress?.({ stage: "plan", message: "writing the scene plan" });
@@ -24,29 +129,32 @@ export async function planRepoScenes(o: { ledger: CostLedger; arch: Architecture
     walkthrough: { name: o.arch.walkthrough.name, steps: o.arch.walkthrough.steps.map((s) => `${s.from}>${s.to} (${s.label})`) },
     scale: o.arch.scale.map((s) => ({ component: s.component, at: s.at, problem: s.problem, why: s.why, fix: s.fix, fix_detail: s.fix_detail })),
   };
-  const plan = await sparkJson({
-    ledger: o.ledger, step: "scene-plan", schema: ScenePlan, name: "scene_plan", effort: "low", maxTokens: 9000,
-    messages: [
-      { role: "system", content: [
-        "You write the scene plan for a system design explainer video of one repository. The renderer draws one evolving architecture canvas.",
-        STYLE,
-        L.voice,
-        "Scene order and rules:",
-        "1. one 'hook' scene: what the product is and the one question the video answers. add_components empty.",
-        `2. 'layer' scenes: each adds at most ${L.perScene} components (by id), starting where requests start (the client) and moving inward, in flow order. Every component is added exactly once. The narration must say each added component's keyword out loud, in the order listed in add_components, and say what it does here.`,
-        "3. one 'walkthrough' scene: narrate the walkthrough request hop by hop, saying each hop's keyword, in order. add_components empty.",
-        `4. ${o.arch.scale.length} 'scale' scenes, one per scale risk, in the given order: say what breaks at that traffic level and why (problem keyword), then the fix (fix keyword), in 2 or 3 short plain sentences ('The fix is ...'), not a run-on or a string of jargon. callouts: [{target: component id, text: problem keyword, color: red}, {target: component id, text: fix keyword, color: green}].`,
-        "5. one 'recap' scene: the whole picture in two or three sentences.",
-        ...notesRules(L.notes),
-        `Each scene's narration is about ${L.wordsPerScene} words (hook and recap can be shorter). Whole video ${lo} to ${hi} seconds at ${L.tempo.wps} words per second: long enough to cover every part, no padding.`,
-        "Leave add_connections, board_nodes, board_edges, highlights empty (the renderer derives them). callouts empty except in scale scenes. items empty except in notes scenes.",
-        "Never state a traffic, user, latency or cost number as a fact about this app: the repo does not tell you its real load. Numbers only appear as clearly labelled assumptions.",
-        "title: the product name in lowercase. subtitle: under 8 lowercase words.",
-      ].join("\n") },
-      { role: "user", content: JSON.stringify(compact) },
-    ],
+  const sys = repoSystem(o.arch, L, lo, hi);
+  const user = JSON.stringify(compact);
+  const ask = (extra: { role: "assistant" | "user"; content: string }[] = []) => sparkJson({
+    ledger: o.ledger, step: extra.length ? "scene-plan-revise" : "scene-plan", schema: ScenePlan, name: "scene_plan", effort: "low", maxTokens: 9000,
+    messages: [{ role: "system", content: sys }, { role: "user", content: user }, ...extra],
   });
-  return repairRepoPlan(plan, o.arch, o.spec);
+  // plan-stage self-check: the flow is told, early and hop by hop, and no term reaches the viewer undefined; one revision if not
+  const review = async (p: ScenePlan) => {
+    const c = await critiquePlan(o.ledger, p, L.audience).catch(() => undefined);
+    return [
+      ...checkStory(p, o.arch, L.brief.analogy),
+      ...(c?.undefined_terms ?? []).map((t) => `"${t.term}" (${t.scene}) is used without a plain-words explanation; explain it in the same sentence or drop it`),
+      ...(c && !c.flow_clear ? [`a newcomer could not retell the flow: ${c.flow_problem}`] : []),
+    ];
+  };
+  const raw = await ask();
+  let plan = repairRepoPlan(raw, o.arch, L);
+  const first = await review(plan);
+  let final = first, revised = false;
+  if (first.length) {
+    o.progress?.({ stage: "plan", message: `self-check: ${first.length} issue(s), revising once` });
+    plan = repairRepoPlan(await ask([{ role: "assistant", content: JSON.stringify(raw) }, { role: "user", content: `A newcomer test of this plan found these problems. Return the full corrected plan, keeping what works:\n${first.map((x, i) => `${i + 1}. ${x}`).join("\n")}` }]), o.arch, L);
+    final = await review(plan);
+    revised = true;
+  }
+  return { ...plan, check: { first, final, revised } };
 }
 
 function notesRules(slots: { after: string; heading: string; brief: string }[]): string[] {
@@ -122,16 +230,35 @@ export function repairRepoPlan(plan: ScenePlan, arch: Architecture, L: { perScen
       scenes.push(blank({ ...s, narration, items: v.items, add_components: [], add_connections: [], callouts: [] }));
     } else scenes.push(blank({ ...s, add_components: [], add_connections: [], items: [] }));
   }
-  // any component never added: give it a layer scene before the walkthrough
+  // any component never added gets its own layer scene: journey parts before the walkthrough, side parts after it
+  const { path, side } = journeyOrder(arch);
   const missing = arch.components.filter((c) => !seen.has(c.id));
   if (missing.length) {
-    const at = Math.max(1, scenes.findIndex((s) => s.kind === "walkthrough"));
-    for (let i = 0; i < missing.length; i += L.perScene) {
-      const chunk = missing.slice(i, i + L.perScene);
-      scenes.splice(at < 0 ? scenes.length : at, 0, blank({ id: `extra-${i}`, kind: "layer", heading: chunk.map((c) => c.keyword).join(" + ").split(" ").slice(0, 4).join(" "), narration: chunk.map((c) => `${c.keyword}: ${c.what}`).join(" "), add_components: chunk.map((c) => c.id) }));
+    for (const group of [path, side]) {
+      const miss = missing.filter((c) => group.includes(c.id));
+      for (let i = 0; i < miss.length; i += L.perScene) {
+        const chunk = miss.slice(i, i + L.perScene);
+        scenes.push(blank({ id: `extra-${chunk[0].id}`, kind: "layer", heading: chunk.map((c) => c.keyword).join(" + ").split(" ").slice(0, 4).join(" "), narration: chunk.map((c) => `The ${c.keyword}: ${c.what}`).join(" "), add_components: chunk.map((c) => c.id) }));
+      }
     }
     repairs.push(`added ${missing.length} missing components`);
   }
+  if (!scenes.some((s) => s.kind === "walkthrough") && arch.walkthrough.steps.length) {
+    scenes.push(blank({ id: "walk", kind: "walkthrough", heading: "follow one request", narration: `Let's follow one request: ${arch.walkthrough.name}. ` + arch.walkthrough.steps.map((s) => s.label).join(", then ") + "." }));
+    repairs.push("walkthrough added");
+  }
+  // story order (docs/explaining-playbook.md): hook, the journey's parts in the order the request meets them,
+  // the walkthrough, side parts, then any deep beats, then the recap
+  const rank = (s: Scene): number => {
+    if (s.kind === "hook") return 0;
+    if (s.kind === "layer") { const k = Math.min(...s.add_components.map((id) => path.indexOf(id)).filter((k) => k >= 0)); return isFinite(k) ? 1 + k / 100 : 3; }
+    if (s.kind === "walkthrough") return 2;
+    if (s.kind === "recap") return 9;
+    return 5;
+  };
+  const before = scenes.map((s) => s.id).join();
+  scenes.splice(0, scenes.length, ...scenes.map((s, i) => ({ s, i })).sort((x, y) => rank(x.s) - rank(y.s) || x.i - y.i).map((x) => x.s));
+  if (scenes.map((s) => s.id).join() !== before) repairs.push("scenes put in story order");
   // connections: draw each as soon as both ends exist
   const present = new Set<string>();
   const drawn = new Set<string>();
@@ -143,11 +270,6 @@ export function repairRepoPlan(plan: ScenePlan, arch: Architecture, L: { perScen
     }
   }
   if (!scenes.some((s) => s.kind === "hook")) { scenes.unshift(blank({ id: "hook", kind: "hook", heading: lower(arch.product).split(/\s+/).slice(0, 4).join(" "), narration: arch.one_liner })); repairs.push("hook added"); }
-  if (!scenes.some((s) => s.kind === "walkthrough") && arch.walkthrough.steps.length) {
-    const at = scenes.findIndex((s) => s.kind === "scale");
-    scenes.splice(at < 0 ? scenes.length : at, 0, blank({ id: "walk", kind: "walkthrough", heading: "follow one request", narration: `Let's follow one request: ${arch.walkthrough.name}. ` + arch.walkthrough.steps.map((s) => s.label).join(", then ") + "." }));
-    repairs.push("walkthrough added");
-  }
   // scale scenes must map 1:1 to scale risks, in order
   const scaleScenes = scenes.filter((s) => s.kind === "scale");
   arch.scale.forEach((r, i) => {

@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import type { Architecture, NoteItem } from "@explainlike/core";
-import { validateNotes, validateArchitecture } from "@explainlike/planner";
+import type { Architecture, NoteItem, Scene } from "@explainlike/core";
+import { validateNotes, validateArchitecture, repairRepoPlan, checkStory, journeyOrder } from "@explainlike/planner";
 
 const item = (text: string, extra: Partial<NoteItem> = {}): NoteItem => ({ text, color: "white", icon: "", target: "", estimate: false, evidence: "", ...extra });
 const ids = new Set(["d1-db", "edge"]);
@@ -78,4 +78,53 @@ test("validateArchitecture: no box without a real file", () => {
   assert.equal(a.walkthrough.steps[0].evidence, "");
   assert.equal(a.scale.length, 0);
   assert.ok(issues.some((i) => i.target === "ghost" && /no evidence/.test(i.problem)));
+});
+
+// ---------------------------------------------------------------------------
+// story order and the plan-stage self-check (docs/explaining-playbook.md)
+// ---------------------------------------------------------------------------
+const part = (id: string, keyword: string) => ({ id, name: id, kind: "api", layer: "app", keyword, what: `${keyword} does its job`, icon: "box", evidence: ["a.ts"] });
+const storyArch = {
+  product: "chatbot", one_liner: "a chat app with bots",
+  components: [part("ui", "team chat"), part("edge", "front door"), part("srv", "bot harness"), part("bot", "agent drivers"), part("auth", "login worker")],
+  connections: [{ from: "ui", to: "edge", label: "send message", evidence: "a.ts" }, { from: "edge", to: "srv", label: "forward", evidence: "a.ts" }, { from: "srv", to: "bot", label: "run bot", evidence: "a.ts" }, { from: "ui", to: "auth", label: "log in", evidence: "a.ts" }],
+  walkthrough: { name: "ask a bot", steps: [{ from: "ui", to: "edge", label: "send message", evidence: "a.ts" }, { from: "edge", to: "srv", label: "forward", evidence: "a.ts" }, { from: "srv", to: "bot", label: "run bot", evidence: "a.ts" }] },
+  scale: [],
+} as unknown as Architecture;
+const sc = (kind: Scene["kind"], narration: string, add: string[] = []): Scene => ({ id: kind, kind, heading: kind, narration, add_components: add, add_connections: [], board_nodes: [], board_edges: [], highlights: [], callouts: [], items: [] });
+
+test("repo plans are put in story order: journey parts, the walk, side parts, then the recap", () => {
+  const plan = repairRepoPlan({ title: "x", subtitle: "", scenes: [
+    sc("hook", "A chat app where your contacts are bots."),
+    sc("layer", "The login worker checks who you are.", ["auth"]),
+    sc("layer", "The bot harness and the agent drivers.", ["srv", "bot"]),
+    sc("layer", "The team chat and the front door.", ["ui", "edge"]),
+    sc("recap", "Team chat, front door, bot harness, agent drivers."),
+    sc("walkthrough", "You send message, the door will forward it, the harness will run bot."),
+  ] }, storyArch, { perScene: 2 });
+  assert.deepEqual(plan.scenes.map((s) => s.kind), ["hook", "layer", "layer", "walkthrough", "layer", "recap"]);
+  assert.deepEqual(plan.scenes[1].add_components, ["ui", "edge"]);
+  assert.deepEqual(plan.scenes[4].add_components, ["auth"], "the side part comes after the core flow");
+  assert.ok(plan.repairs.includes("scenes put in story order"));
+  assert.deepEqual(checkStory(plan, storyArch, "a hotel front desk"), []);
+});
+
+test("the self-check flags a flow that is not narrated hop by hop, a jargon-heavy hook and a missing analogy", () => {
+  const plan = repairRepoPlan({ title: "x", subtitle: "", scenes: [
+    sc("hook", "The team chat talks to the bot harness through the front door."),
+    sc("layer", "The team chat and the front door.", ["ui", "edge"]),
+    sc("layer", "The bot harness and the agent drivers.", ["srv", "bot"]),
+    sc("walkthrough", "Then it runs."),
+    sc("layer", "The login worker.", ["auth"]),
+    sc("recap", "That is it."),
+  ] }, storyArch, { perScene: 2 });
+  const issues = checkStory(plan, storyArch, "a restaurant kitchen");
+  assert.ok(issues.some((i) => /hook names parts/.test(i)));
+  assert.ok(issues.some((i) => /"send message", "forward", "run bot"/.test(i)));
+  assert.ok(issues.some((i) => /analogy/.test(i)));
+  assert.ok(issues.some((i) => /recap must retell/.test(i)));
+});
+
+test("journeyOrder lists parts in the order one request meets them", () => {
+  assert.deepEqual(journeyOrder(storyArch), { path: ["ui", "edge", "srv", "bot"], side: ["auth"] });
 });
