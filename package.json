@@ -10,7 +10,8 @@
     "metual": "tsx packages/cli/src/bin.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "web": "pnpm --filter @metual/web dev",
-    "icons:generate": "tsx scripts/gen-icon-pack.ts"
+    "icons:generate": "tsx scripts/gen-icon-pack.ts",
+    "test": "node --import tsx --test \"packages/*/test/*.test.ts\" \"apps/web/test/*.test.ts\""
   },
   "devDependencies": {
     "@metual/core": "workspace:^",

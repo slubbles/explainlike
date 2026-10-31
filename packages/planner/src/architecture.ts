@@ -6,7 +6,7 @@ export interface ArchIssue { target: string; problem: string }
 
 const KEYWORD_RULE = "Every keyword, label, problem and fix field is 1 to 3 lowercase words, the words a teacher would write on a whiteboard (e.g. 'edge cache', 'ingest api', 'clickhouse').";
 
-function archSystem(level: Level, icons: string) {
+function archSystem(level: Level, icons: string, hints = "") {
   const L = getLevel(level);
   return [
     "You map the REAL architecture of a software repository for a whiteboard explainer video.",
@@ -21,15 +21,16 @@ function archSystem(level: Level, icons: string) {
     `- ${KEYWORD_RULE}`,
     `- icon: pick the closest name from this icon pack: ${icons}`,
     `Audience for wording later: ${L.label}.`,
+    ...(hints ? [hints] : []),
   ].join("\n");
 }
 
-export async function extractArchitecture(o: { ledger: CostLedger; digest: string; name: string; level: Level; icons: string; progress?: Progress }): Promise<Architecture> {
+export async function extractArchitecture(o: { ledger: CostLedger; digest: string; name: string; level: Level; icons: string; hints?: string; progress?: Progress }): Promise<Architecture> {
   o.progress?.({ stage: "plan", message: "mapping the architecture with Muse Spark" });
   return sparkJson({
     ledger: o.ledger, step: "architecture", schema: Architecture, name: "architecture", effort: "medium", maxTokens: 16000,
     messages: [
-      { role: "system", content: archSystem(o.level, o.icons) },
+      { role: "system", content: archSystem(o.level, o.icons, o.hints) },
       { role: "user", content: `Repository: ${o.name}\n\nDIGEST (secrets stripped):\n${o.digest}` },
     ],
   });
@@ -107,12 +108,12 @@ export async function reviewArchitecture(o: { ledger: CostLedger; arch: Architec
   });
 }
 
-export async function reviseArchitecture(o: { ledger: CostLedger; arch: Architecture; issues: { target: string; problem: string; fix?: string }[]; digest: string; name: string; level: Level; icons: string; progress?: Progress }) {
+export async function reviseArchitecture(o: { ledger: CostLedger; arch: Architecture; issues: { target: string; problem: string; fix?: string }[]; digest: string; name: string; level: Level; icons: string; hints?: string; progress?: Progress }) {
   o.progress?.({ stage: "plan", message: `fixing ${o.issues.length} review issues` });
   return sparkJson({
     ledger: o.ledger, step: "architecture-revise", schema: Architecture, name: "architecture", effort: "medium", maxTokens: 16000,
     messages: [
-      { role: "system", content: archSystem(o.level, o.icons) },
+      { role: "system", content: archSystem(o.level, o.icons, o.hints) },
       { role: "user", content: `Repository: ${o.name}\n\nDIGEST (secrets stripped):\n${o.digest}` },
       { role: "assistant", content: JSON.stringify(o.arch) },
       { role: "user", content: `A reviewer checked this against the code and found these issues. Return the corrected full architecture JSON. Keep everything that was right.\n${o.issues.map((i, n) => `${n + 1}. [${i.target}] ${i.problem}${i.fix ? ` -> ${i.fix}` : ""}`).join("\n")}` },

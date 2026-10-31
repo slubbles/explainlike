@@ -2,6 +2,8 @@ import { spawn } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import crypto from "node:crypto";
+import { validInput } from "./validate";
+export { validInput };
 
 export type JobState = "running" | "done" | "error";
 export type JobKind = "video" | "focus" | "what-if";
@@ -47,17 +49,6 @@ function save(job: Job, soon = false) {
   const write = () => { saveTimers.delete(job.id); fs.mkdirSync(path.join(JOBS_DIR, job.id), { recursive: true }); fs.writeFileSync(path.join(JOBS_DIR, job.id, "job.json"), JSON.stringify(job, null, 1)); };
   if (!soon) { clearTimeout(saveTimers.get(job.id)); return write(); }
   if (!saveTimers.has(job.id)) saveTimers.set(job.id, setTimeout(write, 1000));
-}
-
-export function validInput(s: string): boolean {
-  if (/^https?:\/\/(www\.)?(github\.com|x\.com|twitter\.com)\//i.test(s)) return true;
-  if (/^https?:\/\/[^\s]+$/i.test(s)) {
-    // never let the server fetch its own network
-    const h = new URL(s).hostname;
-    return !/^(localhost|127\.|10\.|192\.168\.|169\.254\.|172\.(1[6-9]|2\d|3[01])\.|0\.|\[?::1\]?$|.*\.local$|.*\.internal$)/i.test(h);
-  }
-  // local paths only when explicitly allowed (self-hosted use)
-  return process.env.METUAL_ALLOW_LOCAL === "1" && path.isAbsolute(s) && fs.existsSync(s);
 }
 
 // ---- guard rails for any shared deployment: one render at a time, a per-client hourly cap, an optional demo-only switch

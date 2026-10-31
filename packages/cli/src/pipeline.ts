@@ -5,7 +5,7 @@ import { CostLedger, museTranscribe } from "@metual/models";
 import { ingestRepo } from "@metual/ingest";
 import { extractArchitecture, validateArchitecture, evidencePack, reviewArchitecture, reviseArchitecture, planRepoScenes, planFocus, planWhatIf, kindColor } from "@metual/planner";
 import { pickVoice, wordOverlap, DeepgramVoice, type VoiceProvider } from "@metual/voice";
-import { loadIconPack, mergePacks, iconCatalog, resolveIcon, compose, captureFrames, mixNarration, encodeMp4, contactSheet, toExcalidraw, type IconPack, type SourceShot } from "@metual/render";
+import { loadIconPack, mergePacks, builtinPackIds, detectComponents, packHints, type DetectedComponent, iconCatalog, resolveIcon, compose, captureFrames, mixNarration, encodeMp4, contactSheet, toExcalidraw, type IconPack, type SourceShot } from "@metual/render";
 
 export interface RunOptions {
   input: string;
@@ -14,7 +14,8 @@ export interface RunOptions {
   out?: string;
   name?: string;
   voice?: string;
-  iconPacks?: string[];
+  /** extra icon/component packs: built-in ids (cloudflare, cloud-generic) or folders. Default: every built-in pack, used only where it detects something */
+  packs?: string[];
   fresh?: boolean;
   workers?: number;
   qa?: boolean;
@@ -52,7 +53,9 @@ export async function runMetual(o: RunOptions) {
   };
   const P: Progress = (e) => o.progress?.({ ...e, usd: spend() });
   const t0 = Date.now();
-  const pack: IconPack = o.iconPacks?.length ? mergePacks([loadIconPack(), ...o.iconPacks.map((d) => loadIconPack(d))]) : loadIconPack();
+  const extra = (o.packs ?? builtinPackIds()).map((d) => loadIconPack(d));
+  const pack: IconPack = mergePacks([loadIconPack(), ...extra]);
+  let detected: DetectedComponent[] = [];
   const kind = detectKind(o.input);
   const cacheJson = <T>(file: string, make: () => Promise<T>): Promise<T> => {
     if (!o.fresh && fs.existsSync(file)) return Promise.resolve(JSON.parse(fs.readFileSync(file, "utf8")));
@@ -77,6 +80,9 @@ export async function runMetual(o: RunOptions) {
     out = o.out ?? path.resolve("metual-out", slug(name) + "-" + level.id);
     fs.mkdirSync(out, { recursive: true });
     notes.push(`digest: ${r.digest.files.length} files, ${r.digest.text.length} chars; ${r.digest.skippedSecret.length} secret-looking files never opened`);
+    detected = detectComponents(extra, r.digest.files, (f) => r.digest.read(f, 60_000));
+    if (detected.length) notes.push(`packs detected: ${detected.map((d) => `${d.pack}/${d.component.id}`).join(", ")}`);
+    const hints = packHints(detected);
     const resolve = (n: string) => resolveIcon(pack, n);
     const fb = (k: string) => FALLBACK_ICON[k] ?? "box";
     if (o.focus || o.whatIf) {
@@ -101,17 +107,22 @@ export async function runMetual(o: RunOptions) {
     } else {
     arch = await cacheJson(path.join(out, "architecture.json"), async () => {
       P({ stage: "architecture", message: "Muse Spark is mapping the architecture", pct: 8 });
-      let a = await extractArchitecture({ ledger, digest: r.digest.text, name, level: level.id as Level, icons: iconCatalog(pack), progress: P });
+      let a = await extractArchitecture({ ledger, digest: r.digest.text, name, level: level.id as Level, icons: iconCatalog(pack), hints, progress: P });
       let v = validateArchitecture(a, r.digest.files, resolve, fb);
       P({ stage: "review", message: "second pass: checking every box against the code", pct: 20 });
       const rev = await reviewArchitecture({ ledger, arch: v.arch, evidence: evidencePack(v.arch, r.digest.read), level: level.id as Level, progress: P });
       notes.push(`review verdict: ${rev.verdict}; ${rev.issues.length} issues; validator: ${v.issues.length} fixes`);
       if (rev.verdict === "revise" && rev.issues.length) {
         P({ stage: "review", message: `fixing ${rev.issues.length} review issues`, pct: 26 });
-        a = await reviseArchitecture({ ledger, arch: v.arch, issues: [...rev.issues, ...v.issues], digest: r.digest.text, name, level: level.id as Level, icons: iconCatalog(pack), progress: P });
+        a = await reviseArchitecture({ ledger, arch: v.arch, issues: [...rev.issues, ...v.issues], digest: r.digest.text, name, level: level.id as Level, icons: iconCatalog(pack), hints, progress: P });
         v = validateArchitecture(a, r.digest.files, resolve, fb);
       }
       fs.writeFileSync(path.join(out, "review.json"), JSON.stringify({ review: rev, validator: v.issues }, null, 1));
+      // a box the model drew from a detected pack component gets that pack's icon, so the same block always looks the same
+      for (const c of v.arch.components) {
+        const d = detected.find((x) => x.component.kind === c.kind && (c.evidence.some((e) => x.evidence.includes(e)) || c.name.toLowerCase().includes(x.component.name.toLowerCase())));
+        if (d && resolve(d.component.icon)) c.icon = resolve(d.component.icon)!;
+      }
       return v.arch;
     });
     plan = await cacheJson(path.join(out, "plan.json"), () => {
@@ -204,7 +215,7 @@ export async function runMetual(o: RunOptions) {
 
   const voiceUsd = voice instanceof DeepgramVoice ? voice.usd : 0;
   const manifest = {
-    tool: "metual", input: o.input, kind, level: level.id, repoDir, followUp: o.focus ? { focus: o.focus } : o.whatIf ? { whatIf: o.whatIf } : undefined, theme: theme.id, title: plan.title, durationSec: Number(film.duration.toFixed(1)),
+    tool: "metual", input: o.input, kind, level: level.id, repoDir, followUp: o.focus ? { focus: o.focus } : o.whatIf ? { whatIf: o.whatIf } : undefined, theme: theme.id, packs: { loaded: extra.map((p) => p.id), detected: detected.map((d) => ({ pack: d.pack, id: d.component.id, name: d.component.name, evidence: d.evidence })) }, title: plan.title, durationSec: Number(film.duration.toFixed(1)),
     outputs: { mp4, excalidraw: excFile, contactSheet: sheet, plan: path.join(out, "plan.json"), architecture: arch ? path.join(out, "architecture.json") : undefined },
     scenes: timeline, repairs: plan.repairs ?? [], notes, qa,
     cost: { metaUsd: Number(ledger.total.toFixed(4)), byModel: ledger.byModel(), entries: ledger.entries, voiceUsd: Number(voiceUsd.toFixed(4)), voice: voice.id },

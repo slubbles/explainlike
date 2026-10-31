@@ -1,0 +1,20 @@
+{
+  "id": "supabase",
+  "description": "Example component pack: spot the Supabase pieces of a repo. Uses the base doodle icons, plus one icon of its own.",
+  "icons": {
+    "edge-function": { "file": "edge-function.png", "aliases": ["deno function"] }
+  },
+  "components": [
+    { "id": "sb-postgres", "name": "Supabase Postgres", "kind": "db", "layer": "data", "keyword": "supabase db", "icon": "database",
+      "detect": { "files": ["(^|/)supabase/migrations/.+\\.sql$"], "contains": [{ "file": "(^|/)package\\.json$", "pattern": "@supabase/supabase-js" }] } },
+    { "id": "sb-auth", "name": "Supabase Auth", "kind": "auth", "layer": "auth", "keyword": "supabase auth", "icon": "lock",
+      "detect": { "contains": [{ "file": "\\.(ts|tsx|js)$", "pattern": "supabase\\.auth\\." }] } },
+    { "id": "sb-storage", "name": "Supabase Storage", "kind": "object-storage", "layer": "storage", "keyword": "storage bucket", "icon": "bucket",
+      "detect": { "contains": [{ "file": "\\.(ts|tsx|js)$", "pattern": "supabase\\.storage\\.from\\(" }] } },
+    { "id": "sb-realtime", "name": "Supabase Realtime", "kind": "realtime", "layer": "backend", "keyword": "realtime channel", "icon": "chat",
+      "detect": { "contains": [{ "file": "\\.(ts|tsx|js)$", "pattern": "\\.channel\\(|postgres_changes" }] } },
+    { "id": "sb-edge-fn", "name": "Supabase Edge Function", "kind": "worker", "layer": "backend", "keyword": "edge function", "icon": "edge-function",
+      "detect": { "files": ["(^|/)supabase/functions/[^/]+/index\\.ts$"] },
+      "hint": "Deno functions deployed next to the database" }
+  ]
+}

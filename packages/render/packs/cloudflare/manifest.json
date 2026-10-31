@@ -1,0 +1,31 @@
+{
+  "id": "cloudflare",
+  "description": "Building blocks of apps that run on Cloudflare's developer platform. Generic doodle icons only: no Cloudflare logos or product marks.",
+  "icons": {},
+  "components": [
+    { "id": "cf-worker", "name": "Cloudflare Worker", "kind": "edge", "layer": "edge", "keyword": "edge worker", "icon": "function",
+      "detect": { "files": ["(^|/)wrangler\\.(toml|jsonc?)$"] },
+      "hint": "the request handler named by `main` in the wrangler config" },
+    { "id": "cf-d1", "name": "Cloudflare D1", "kind": "db", "layer": "data", "keyword": "d1 database", "icon": "database",
+      "detect": { "contains": [{ "file": "(^|/)wrangler\\.(toml|jsonc?)$", "pattern": "d1_databases" }, { "file": "\\.(ts|js|mjs)$", "pattern": "D1Database" }] } },
+    { "id": "cf-r2", "name": "Cloudflare R2", "kind": "object-storage", "layer": "storage", "keyword": "r2 storage", "icon": "bucket",
+      "detect": { "contains": [{ "file": "(^|/)wrangler\\.(toml|jsonc?)$", "pattern": "r2_buckets" }, { "file": "\\.(ts|js|mjs)$", "pattern": "R2Bucket" }] } },
+    { "id": "cf-kv", "name": "Workers KV", "kind": "cache", "layer": "cache", "keyword": "kv store", "icon": "cache",
+      "detect": { "contains": [{ "file": "(^|/)wrangler\\.(toml|jsonc?)$", "pattern": "kv_namespaces" }, { "file": "\\.(ts|js|mjs)$", "pattern": "KVNamespace" }] } },
+    { "id": "cf-durable-object", "name": "Durable Object", "kind": "realtime", "layer": "backend", "keyword": "durable object", "icon": "chat",
+      "detect": { "contains": [{ "file": "(^|/)wrangler\\.(toml|jsonc?)$", "pattern": "durable_objects" }, { "file": "\\.(ts|js|mjs)$", "pattern": "extends DurableObject|DurableObjectState" }] },
+      "hint": "one object per key (room, counter, user); good for websockets and strongly ordered counters" },
+    { "id": "cf-queues", "name": "Cloudflare Queues", "kind": "queue", "layer": "async", "keyword": "queue", "icon": "queue",
+      "detect": { "contains": [{ "file": "(^|/)wrangler\\.(toml|jsonc?)$", "pattern": "\"queues\"|\\[\\[queues\\.(producers|consumers)\\]\\]" }] } },
+    { "id": "cf-workers-ai", "name": "Workers AI", "kind": "ai", "layer": "third-party", "keyword": "workers ai", "icon": "brain",
+      "detect": { "contains": [{ "file": "(^|/)wrangler\\.(toml|jsonc?)$", "pattern": "\"ai\"\\s*:|^\\[ai\\]" }] } },
+    { "id": "cf-vectorize", "name": "Vectorize", "kind": "search", "layer": "data", "keyword": "vector index", "icon": "search",
+      "detect": { "contains": [{ "file": "(^|/)wrangler\\.(toml|jsonc?)$", "pattern": "vectorize" }] } },
+    { "id": "cf-hyperdrive", "name": "Hyperdrive", "kind": "db", "layer": "data", "keyword": "db pooler", "icon": "network",
+      "detect": { "contains": [{ "file": "(^|/)wrangler\\.(toml|jsonc?)$", "pattern": "hyperdrive" }] } },
+    { "id": "cf-cron", "name": "Cron Triggers", "kind": "cron", "layer": "ops", "keyword": "cron trigger", "icon": "clock",
+      "detect": { "contains": [{ "file": "(^|/)wrangler\\.(toml|jsonc?)$", "pattern": "\"crons\"|^crons\\s*=" }] } },
+    { "id": "cf-assets", "name": "Workers static assets", "kind": "cdn", "layer": "edge", "keyword": "static assets", "icon": "globe",
+      "detect": { "contains": [{ "file": "(^|/)wrangler\\.(toml|jsonc?)$", "pattern": "\"assets\"\\s*:|^\\[assets\\]|pages_build_output_dir" }] } }
+  ]
+}

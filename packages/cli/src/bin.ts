@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { listLevels, listThemes, loadLevelFile, type Level } from "@metual/core";
 import { runMetual } from "./pipeline.js";
+import { builtinPackIds } from "@metual/render";
 
 // load .env from the working directory without printing anything
 for (const f of [".env", ".env.local"]) {
@@ -19,7 +20,9 @@ const HELP = `metual <github-url | local-repo-dir | x.com post url | article url
   --out <dir>                              output folder (default ./metual-out/<name>-<level>)
   --name <owner/repo>                      display name (useful for local folders)
   --voice <deepgram|silent>                default: deepgram when DEEPGRAM_API_KEY is set
-  --icons <dir>                            extra icon pack (repeatable)
+  --pack <id|dir>                          icon/component pack: built-in ${builtinPackIds().join(", ")} or a folder (repeatable;
+                                           default: all built-in packs, used only where they detect something)
+  --no-packs                               only the base doodle icons
   --fresh                                  ignore cached architecture/plan in the output folder
   --json                                   progress as JSON lines (for the web app)
   --workers <n>                            parallel render pages
@@ -39,7 +42,7 @@ const argv = process.argv.slice(2);
 if (!argv.length || argv.includes("--help") || argv.includes("-h")) { process.stdout.write(HELP); process.exit(0); }
 const opt = (k: string) => { const i = argv.indexOf(k); return i >= 0 ? argv[i + 1] : undefined; };
 const many = (k: string) => argv.flatMap((a, i) => (a === k ? [argv[i + 1]] : []));
-const flags = new Set(["--fresh", "--json", "--no-qa"]);
+const flags = new Set(["--fresh", "--json", "--no-qa", "--no-packs"]);
 if (argv[0] === "explain") await explain();
 const input = argv.find((a, i) => !a.startsWith("--") && (i === 0 || !argv[i - 1].startsWith("--") || flags.has(argv[i - 1])));
 if (!input) { process.stderr.write(HELP); process.exit(1); }
@@ -55,7 +58,7 @@ runMetual({
   from: opt("--from") && path.resolve(opt("--from")!), focus: opt("--focus"), whatIf: whatIf as "10x" | "100x" | undefined,
   input: fs.existsSync(input) ? path.resolve(input) : input,
   level, theme: opt("--theme"), out: opt("--out") && path.resolve(opt("--out")!), name: opt("--name"), voice: opt("--voice"),
-  iconPacks: many("--icons"), fresh: argv.includes("--fresh"), workers: opt("--workers") ? Number(opt("--workers")) : undefined, qa: !argv.includes("--no-qa"),
+  packs: argv.includes("--no-packs") ? [] : [...many("--pack"), ...many("--icons")].length ? [...many("--pack"), ...many("--icons")].map((d) => (fs.existsSync(d) ? path.resolve(d) : d)) : undefined, fresh: argv.includes("--fresh"), workers: opt("--workers") ? Number(opt("--workers")) : undefined, qa: !argv.includes("--no-qa"),
   progress: (e) => {
     if (json) process.stdout.write(JSON.stringify({ type: "progress", ...e }) + "\n");
     else process.stderr.write(`[${((Date.now() - started) / 1000).toFixed(0).padStart(4)}s] $${(e.usd?.total ?? 0).toFixed(3).padStart(6)}  ${e.stage.padEnd(12)} ${e.message}\n`);
