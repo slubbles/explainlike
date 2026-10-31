@@ -5,6 +5,7 @@ import os from "node:os";
 import path from "node:path";
 import { getTheme, getLevel, agreementSlips } from "@metual/core";
 import { compose, loadIconPack, captureFrames, captionsFor, type Film } from "../src/index.js";
+import { ringOf } from "../src/annotate.js";
 
 const fx = new URL("./fixtures/", import.meta.url);
 const plan = JSON.parse(fs.readFileSync(new URL("example-app.plan.json", fx), "utf8"));
@@ -120,4 +121,37 @@ test("when even a stacked caption is too wide for the only free margin, a smalle
   fs.rmSync(dir, { recursive: true, force: true });
   assert.equal(captions[0].overlapPx, 0, JSON.stringify(captions[0]));
   assert.ok(captions[0].small, JSON.stringify(captions[0]));
+});
+
+test("a caption keeps clear of the box it talks about and its ring, also while the camera drifts slowly", { timeout: 60_000 }, async () => {
+  const words = (text: string, at: number) => text.split(" ").map((w, i) => ({ w, s: at + i * 0.3, e: at + i * 0.3 + 0.25 }));
+  // the ring ends ~20 px above the lowest caption spot, as at "because every job's files" in the 10x film
+  const box = { x: 760, y: 618, w: 400, h: 260 };
+  const ring = ringOf(box);
+  const d = "M" + ring.points.map(([x, y]) => `${x.toFixed(1)} ${y.toFixed(1)}`).join(" L");
+  const film = {
+    width: 1920, height: 1080, fps: 30, duration: 6,
+    theme: { background: "#f4f1ea", ink: "#222", accent: "#0866FF", caption: { color: "#111", highlight: "#0866FF", background: "#fff" } },
+    fonts: { hand: "sans-serif", sans: "sans-serif" },
+    elements: [
+      { k: "path", id: "box", t0: 0, dur: 0.2, d: `M${box.x} ${box.y} h${box.w} v${box.h} h${-box.w} Z`, stroke: "#4465e9", sw: 4 },
+      { k: "path", id: "ring", t0: 0.2, dur: 0.3, d, stroke: "#e03131", sw: 5, anim: "draw" },
+    ],
+    groups: {},
+    // a slow drift over the whole caption, like the scale scenes' glides
+    camera: [{ t: 0, x: 0, y: 0, w: 1920, h: 1080, move: 0 }, { t: 1, x: 8, y: 4, w: 1904, h: 1071, move: 3 }],
+    headings: [], fades: [], brand: "metual",
+    captions: [{ t0: 1, t1: 3, scene: "s1", at: box, words: words("because every job's files", 1) }],
+  } as unknown as Film;
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "metual-cap-"));
+  const { captions } = await captureFrames(film, dir, { only: [0], workers: 1 });
+  fs.rmSync(dir, { recursive: true, force: true });
+  const r = captions[0].rect!;
+  assert.equal(captions[0].overlapPx, 0, JSON.stringify(captions[0]));
+  // a slow drift is not a fast move: nothing is covered while it runs either
+  assert.equal(captions[0].movingPx, 0, JSON.stringify(captions[0]));
+  // the ring on screen when the caption appears (the glide has just begun), and a clear border beyond it
+  const rb = ring.box;
+  const gap = Math.max(rb.x - (r.x + r.w), r.x - (rb.x + rb.w), rb.y - (r.y + r.h), r.y - (rb.y + rb.h));
+  assert.ok(gap >= 24, `caption ${JSON.stringify(r)} sits ${gap.toFixed(0)} px from the ring ${JSON.stringify(rb)}`);
 });
