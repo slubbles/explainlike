@@ -624,11 +624,11 @@ export async function compose(inp: ComposeInput): Promise<Composed> {
         drawnEdges.add(edgeKey(e));
       }
     } else if (s.kind === "walkthrough" && graph && inp.arch) {
-      // make sure every node/edge exists (planner repairs should guarantee this)
-      for (const id of graph.nodes.keys()) if (!present.has(id) && !fixIds.includes(id)) { B.node(graph.nodes.get(id)!, T, nodeGroup(id)); present.add(id); }
-      for (const e of graph.edges) if (!drawnEdges.has(edgeKey(e)) && !fixIds.includes(e.to)) { B.edge(e, T + 0.5, edgeKey(e)); drawnEdges.add(edgeKey(e)); }
       const steps = inp.arch.walkthrough.steps;
       const on = new Set(steps.flatMap((x) => [x.from, x.to]));
+      // the walk needs its own path on the board; side parts may still come later in their own layer scenes
+      for (const id of on) if (graph.nodes.has(id) && !present.has(id)) { B.node(graph.nodes.get(id)!, T, nodeGroup(id)); present.add(id); }
+      for (const e of graph.edges) if (!drawnEdges.has(edgeKey(e)) && present.has(e.from) && present.has(e.to)) { B.edge(e, T + 0.5, edgeKey(e)); drawnEdges.add(edgeKey(e)); }
       for (const id of present) B.setOp(nodeGroup(id), T, on.has(id) ? 1 : dim);
       for (const k of drawnEdges) { const [f, t] = k.slice(2).split(">"); B.setOp(k, T, on.has(f) && on.has(t) ? 1 : dim); }
       // the placement check enlarges the step numbers if the walk ends up in one wide shot
