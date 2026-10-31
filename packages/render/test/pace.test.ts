@@ -99,3 +99,13 @@ test("a new caption line over a still board still counts as a still picture", ()
     captions: [1, 2, 3].map((t) => ({ scene: "s", t0: t, t1: t + 1, words: [{ w: "hi", s: t, e: t + 0.5 }] })) } as any;
   assert.deepEqual(stillGaps(film, 0, 4), [{ t0: 0, t1: 4 }]);
 });
+
+test("a small label or a moving dot drawn into a wide shot still counts as a still picture; a new box does not", () => {
+  const base = { headings: [], cards: [], fades: [], captions: [], width: 1920, height: 1080,
+    camera: [{ t: 0, move: 0, x: 0, y: 0, w: 3840, h: 2160 }] };
+  const label = { k: "text", id: "t", t0: 2, dur: 0.3, x: 100, y: 100, text: "rows", size: 18 };
+  const dot = { k: "dot", id: "d", t0: 1, dur: 2, pts: [[0, 0], [3000, 2000]], r: 8, color: "red" };
+  const box = { k: "img", id: "i", t0: 2, dur: 0.5, x: 1000, y: 800, w: 400, h: 300 };
+  assert.deepEqual(stillGaps({ ...base, elements: [label, dot] } as any, 0, 4), [{ t0: 0, t1: 4 }]);
+  assert.deepEqual(stillGaps({ ...base, elements: [label, box] } as any, 0, 4), [{ t0: 0, t1: 2 }, { t0: 2.5, t1: 4 }]);
+});
