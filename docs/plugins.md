@@ -1,11 +1,11 @@
 # Plugins: packs, themes and levels
 
-Metual has three plugin points. All three are plain files or one function call; none needs a fork.
+Explain Like has three plugin points. All three are plain files or one function call; none needs a fork.
 
 | plugin | what it changes | how you add one |
 | --- | --- | --- |
-| **pack** | which building blocks Metual recognises in a repo, and the icons it draws them with | a folder with `manifest.json` (+ PNGs), passed with `--pack <dir>` |
-| **theme** | colours of the canvas, ink, captions and the semantic colours | `registerTheme()` from `@metual/core` |
+| **pack** | which building blocks Explain Like recognises in a repo, and the icons it draws them with | a folder with `manifest.json` (+ PNGs), passed with `--pack <dir>` |
+| **theme** | colours of the canvas, ink, captions and the semantic colours | `registerTheme()` from `@explainlike/core` |
 | **level** | how deep the explanation goes, how many boxes, which extra whiteboard lists | a JSON file, passed with `--level-file <file>` |
 
 ## Packs
@@ -71,14 +71,14 @@ The repo has a worked example in [`examples/packs/supabase`](../examples/packs/s
 ```bash
 # 1. see what the pack detects, without spending anything
 node --import tsx -e '
-  import { digestRepo } from "@metual/ingest";
-  import { loadIconPack, detectComponents, packHints } from "@metual/render";
+  import { digestRepo } from "@explainlike/ingest";
+  import { loadIconPack, detectComponents, packHints } from "@explainlike/render";
   const d = digestRepo(process.argv[1]);
   console.log(packHints(detectComponents([loadIconPack(process.argv[2])], d.files, (f) => d.read(f))) || "nothing detected");
 ' /path/to/a/supabase/app ./examples/packs/supabase
 
 # 2. use it
-node packages/cli/bin/metual.mjs https://github.com/you/your-supabase-app --pack ./examples/packs/supabase
+node packages/cli/bin/explainlike.mjs https://github.com/you/your-supabase-app --pack ./examples/packs/supabase
 ```
 
 Run the first command from `packages/cli` so the workspace packages resolve. `loadIconPack` validates the manifest and lists every problem at once (bad regex, missing PNG, keyword with capitals, missing fields).
@@ -92,7 +92,7 @@ Three themes ship: `pen-light` (the default: a soft white board, marker-pen line
 A theme can also set `hand` (`excalifont` or `shantell`) and `stroke` (`rough` or `pen`).
 
 ```ts
-import { registerTheme, getTheme } from "@metual/core";
+import { registerTheme, getTheme } from "@explainlike/core";
 registerTheme({ ...getTheme("caleb-dark"), id: "midnight", background: "#0b1020", accent: "#7aa2ff" });
 ```
 
@@ -103,7 +103,7 @@ Keep the colour meanings: red = problem, orange/yellow = key idea, green = fix, 
 Levels are JSON files validated with zod (`LevelSpec` in `packages/core/src/levels.ts`); the four built-ins live in `packages/core/levels/`. An example of your own is [`examples/levels/product-manager.json`](../examples/levels/product-manager.json):
 
 ```bash
-node packages/cli/bin/metual.mjs https://github.com/umami-software/umami --level-file examples/levels/product-manager.json
+node packages/cli/bin/explainlike.mjs https://github.com/umami-software/umami --level-file examples/levels/product-manager.json
 ```
 
 `notes` adds whiteboard list scenes after the hook, the walkthrough or the scale scene. The `interviewing` level uses them for requirements, a back-of-envelope estimate and trade-offs; `senior` uses them for failure modes, consistency and cost. Any number written in a list is tagged as an estimate by the validator and footnoted on screen as "assumed numbers for illustration, not measured from the real app".

@@ -13,7 +13,7 @@ export default function InputScreen({ form, set, go, busy, err, gallery }: Props
     <>
       <section className="hero">
         <h1>Any repo, post or article,{" "}<br />explained on a <em>whiteboard</em>.</h1>
-        <p className="lede">Paste a link. Metual reads the code or the text, draws the system piece by piece, walks one real request through it, and narrates it at your level. You get an mp4 and an editable .tldr board.</p>
+        <p className="lede">Paste a link. Explain Like reads the code or the text, draws the system piece by piece, walks one real request through it, and narrates it at your level. You get an mp4 and an editable .tldr board.</p>
         <form className="prompt" onSubmit={(e) => { e.preventDefault(); if (ready) go(); }}>
           <input className="field" type="text" aria-label="Link to explain" placeholder="github.com/owner/repo, an X post, or an article URL"
             value={form.input} onChange={(e) => set({ input: e.target.value })} autoComplete="off" spellCheck={false} />

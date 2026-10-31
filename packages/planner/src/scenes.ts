@@ -1,6 +1,6 @@
 import { z } from "zod";
-import { ScenePlan, getLevel, lower, tidySpeech, wordCount, quoteInSource, type Architecture, type Level, type Progress, type NoteItem, type Scene, type SourceDoc } from "@metual/core";
-import { sparkJson, type CostLedger } from "@metual/models";
+import { ScenePlan, getLevel, lower, tidySpeech, wordCount, quoteInSource, type Architecture, type Level, type Progress, type NoteItem, type Scene, type SourceDoc } from "@explainlike/core";
+import { sparkJson, type CostLedger } from "@explainlike/models";
 
 const STYLE = [
   "Style of the video: a calm engineer at a black whiteboard, like the YouTube channel Caleb Writes Code.",

@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { loadIconPack, builtinPackIds, parsePack, mergePacks, detectComponents, packHints, resolveIcon } from "@metual/render";
+import { loadIconPack, builtinPackIds, parsePack, mergePacks, detectComponents, packHints, resolveIcon } from "@explainlike/render";
 
 test("built-in packs load and every component icon exists in the base doodle pack", () => {
   assert.deepEqual(builtinPackIds(), ["cloud-generic", "cloudflare"]);

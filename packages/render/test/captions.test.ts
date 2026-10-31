@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { getTheme, getLevel, agreementSlips } from "@metual/core";
+import { getTheme, getLevel, agreementSlips } from "@explainlike/core";
 import { compose, loadIconPack, captureFrames, captionsFor, type Film } from "../src/index.js";
 import { ringOf } from "../src/annotate.js";
 
@@ -18,7 +18,7 @@ const audio = plan.scenes.map((s: any) => {
 test("captions find free space: none covers a box, an arrow or a label on a still frame, and barely brushes one mid-glide", { timeout: 120_000 }, async () => {
   for (const theme of ["pen-light", "caleb-dark"]) {
     const { film } = await compose({ plan, audio, theme: getTheme(theme), level: getLevel("interviewing"), pack: loadIconPack(), sourceLabel: "x", arch, pace: "lively" });
-    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "metual-cap-"));
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "explainlike-cap-"));
     const { captions } = await captureFrames(film, dir, { only: [0], workers: 1 });
     fs.rmSync(dir, { recursive: true, force: true });
     assert.equal(captions.length, film.captions.length);
@@ -37,13 +37,13 @@ test("beside a screenshot, captions use its empty margins, stacking on two lines
     theme: { background: "#f4f1ea", ink: "#222", accent: "#0866FF", caption: { color: "#fff", highlight: "#0866FF", background: "#111" } },
     fonts: { hand: "sans-serif", sans: "sans-serif" },
     elements: [{ k: "img", id: "shot", t0: 0, dur: 0.2, href, x: 0, y: 0, w: 1920, h: 1080, anim: "fade" }],
-    groups: {}, camera: [{ t: 0, x: 0, y: 0, w: 1920, h: 1080, move: 0 }], headings: [], fades: [], brand: "metual",
+    groups: {}, camera: [{ t: 0, x: 0, y: 0, w: 1920, h: 1080, move: 0 }], headings: [], fades: [], brand: "Explain Like",
     captions: [
       { t0: 1, t1: 2.6, scene: "s1", words: words("This is Karpathy’s post", 1) },
       { t0: 2.6, t1: 4.2, scene: "s1", words: words("announcing a tiny chat", 2.6) },
     ],
   } as Film;
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "metual-cap-"));
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "explainlike-cap-"));
   const { captions } = await captureFrames(film, dir, { only: [0], workers: 1 });
   fs.rmSync(dir, { recursive: true, force: true });
   assert.deepEqual(captions.map((c) => c.overlapPx), [0, 0]);
@@ -57,11 +57,11 @@ test("a caption spoken over a black section card stays on screen", { timeout: 60
     width: 1920, height: 1080, fps: 30, duration: 4,
     theme: { background: "#f4f1ea", ink: "#222", accent: "#0866FF", caption: { color: "#111", highlight: "#0866FF", background: "#fff" } },
     fonts: { hand: "sans-serif", sans: "sans-serif" },
-    elements: [], groups: {}, camera: [{ t: 0, x: 0, y: 0, w: 1920, h: 1080, move: 0 }], headings: [], fades: [], brand: "metual",
+    elements: [], groups: {}, camera: [{ t: 0, x: 0, y: 0, w: 1920, h: 1080, move: 0 }], headings: [], fades: [], brand: "Explain Like",
     cards: [{ t0: 1, t1: 3, text: "what breaks" }],
     captions: [{ t0: 1.5, t1: 2.8, scene: "s1", words: words("and fixes or drops", 1.5) }],
   } as unknown as Film;
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "metual-cap-"));
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "explainlike-cap-"));
   await captureFrames(film, dir, { only: [66], workers: 1 });
   const sharp = (await import("sharp")).default;
   // the bottom band of the frame: the card is black there, the caption pill is light
@@ -113,10 +113,10 @@ test("when even a stacked caption is too wide for the only free margin, a smalle
     theme: { background: "#f4f1ea", ink: "#222", accent: "#0866FF", caption: { color: "#fff", highlight: "#0866FF", background: "#111" } },
     fonts: { hand: "sans-serif", sans: "sans-serif" },
     elements: [{ k: "img", id: "shot", t0: 0, dur: 0.2, href, x: 0, y: 0, w: 1920, h: 1080, anim: "fade" }],
-    groups: {}, camera: [{ t: 0, x: 0, y: 0, w: 1920, h: 1080, move: 0 }], headings: [], fades: [], brand: "metual",
+    groups: {}, camera: [{ t: 0, x: 0, y: 0, w: 1920, h: 1080, move: 0 }], headings: [], fades: [], brand: "Explain Like",
     captions: [{ t0: 1, t1: 2.6, scene: "s1", words: words("and it explains the", 1) }],
   } as Film;
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "metual-cap-"));
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "explainlike-cap-"));
   const { captions } = await captureFrames(film, dir, { only: [0], workers: 1 });
   fs.rmSync(dir, { recursive: true, force: true });
   assert.equal(captions[0].overlapPx, 0, JSON.stringify(captions[0]));
@@ -140,10 +140,10 @@ test("a caption keeps clear of the box it talks about and its ring, also while t
     groups: {},
     // a slow drift over the whole caption, like the scale scenes' glides
     camera: [{ t: 0, x: 0, y: 0, w: 1920, h: 1080, move: 0 }, { t: 1, x: 8, y: 4, w: 1904, h: 1071, move: 3 }],
-    headings: [], fades: [], brand: "metual",
+    headings: [], fades: [], brand: "Explain Like",
     captions: [{ t0: 1, t1: 3, scene: "s1", at: box, words: words("because every job's files", 1) }],
   } as unknown as Film;
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "metual-cap-"));
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "explainlike-cap-"));
   const { captions } = await captureFrames(film, dir, { only: [0], workers: 1 });
   fs.rmSync(dir, { recursive: true, force: true });
   const r = captions[0].rect!;

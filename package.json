@@ -1,22 +1,22 @@
 {
-  "name": "metual-monorepo",
+  "name": "explainlike-monorepo",
   "private": true,
   "version": "0.1.0",
-  "description": "Metual: paste a repo, X post or article, get a whiteboard explainer video and an editable board that opens in tldraw.com. Powered by Meta Muse models.",
+  "description": "Explain Like: paste a repo, X post or article, get a whiteboard explainer video and an editable board that opens in tldraw.com. Powered by Meta Muse models.",
   "license": "MIT",
   "type": "module",
   "packageManager": "pnpm@9.15.9",
   "scripts": {
-    "metual": "tsx packages/cli/src/bin.ts",
+    "explainlike": "tsx packages/cli/src/bin.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "web": "pnpm --filter @metual/web dev",
+    "web": "pnpm --filter @explainlike/web dev",
     "icons:generate": "tsx scripts/gen-icon-pack.ts",
     "test": "node --import tsx --test \"packages/*/test/*.test.ts\" \"apps/web/test/*.test.ts\""
   },
   "devDependencies": {
-    "@metual/core": "workspace:^",
-    "@metual/models": "workspace:^",
-    "@metual/render": "workspace:^",
+    "@explainlike/core": "workspace:^",
+    "@explainlike/models": "workspace:^",
+    "@explainlike/render": "workspace:^",
     "@types/node": "^22.10.0",
     "tsx": "^4.19.2",
     "typescript": "^5.7.2"

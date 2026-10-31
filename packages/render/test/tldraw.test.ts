@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
-import { getTheme, getLevel } from "@metual/core";
+import { getTheme, getLevel } from "@explainlike/core";
 import { compose, loadIconPack, toTldraw, indexKey, TLDR_SCHEMA } from "../src/index.js";
 
 const fx = new URL("./fixtures/", import.meta.url);

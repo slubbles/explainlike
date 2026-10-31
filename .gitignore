@@ -8,8 +8,8 @@ out/
 .dev.vars
 *.pem
 *.key
-.metual-cache/
-metual-out/
+.explainlike-cache/
+explainlike-out/
 /jobs/
 *.log
 .DS_Store

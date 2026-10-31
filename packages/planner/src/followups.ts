@@ -1,6 +1,6 @@
 import { z } from "zod";
-import { ScaleRisk, NoteItem, lower, tidySpeech, soundsLikeKeywords, type Architecture, type Level, type Progress, type Scene, type ScenePlan } from "@metual/core";
-import { sparkJson, type CostLedger } from "@metual/models";
+import { ScaleRisk, NoteItem, lower, tidySpeech, soundsLikeKeywords, type Architecture, type Level, type Progress, type Scene, type ScenePlan } from "@explainlike/core";
+import { sparkJson, type CostLedger } from "@explainlike/models";
 import { validateNotes } from "./scenes.js";
 
 // Follow-up clips that reuse an earlier run's architecture: a deep dive on one box, and "what if 10x traffic?".

@@ -17,5 +17,5 @@ test("links are named and shortened the way the gallery shows them", () => {
   assert.equal(sourceKind("https://github.com/umami-software/umami"), "repo");
   assert.equal(sourceKind("https://x.com/karpathy/status/1977755427569111362"), "X post");
   assert.equal(sourceKind("https://blog.vllm.ai/2023/06/20/vllm.html"), "article");
-  assert.equal(shortLink("https://www.github.com/slubbles/metual/"), "github.com/slubbles/metual");
+  assert.equal(shortLink("https://www.github.com/slubbles/explainlike/"), "github.com/slubbles/explainlike");
 });

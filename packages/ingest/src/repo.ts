@@ -2,10 +2,10 @@ import fs from "node:fs";
 import path from "node:path";
 import os from "node:os";
 import { execFileSync } from "node:child_process";
-import type { SourceDoc } from "@metual/core";
+import type { SourceDoc } from "@explainlike/core";
 import { isSecretPath, redact } from "./secrets.js";
 
-export const REPO_CACHE = process.env.METUAL_REPO_CACHE ?? path.join(os.homedir(), ".cache", "metual", "repos");
+export const REPO_CACHE = process.env.EXPLAINLIKE_REPO_CACHE ?? path.join(os.homedir(), ".cache", "explainlike", "repos");
 
 const SKIP_DIR = /(^|\/)(node_modules|vendor|dist|build|out|\.next|\.turbo|\.git|coverage|__pycache__|\.venv|venv|target|\.cache|public\/static|third_party)\//;
 const BINARY = /\.(png|jpe?g|gif|webp|ico|svg|mp4|mov|mp3|wav|woff2?|ttf|otf|eot|pdf|zip|gz|tgz|wasm|so|dylib|exe|bin|lock|snap|map|min\.js|min\.css|db|sqlite)$/i;
