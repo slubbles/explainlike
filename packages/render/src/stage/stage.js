@@ -214,7 +214,8 @@
       cap.innerHTML = c.words.map((w) => `<span>${w.w.replace(/&/g, "&amp;").replace(/</g, "&lt;")}</span>`).join(" ");
       cap.style.display = "inline-block"; capwrap.style.left = capwrap.style.top = "0px";
       // one line first; stacked on two lines when that fits a narrow margin (beside a screenshot, say)
-      const shapes = [false, true].map((stack) => {
+      // and, when even that covers something, stacked in a smaller type that fits a tighter margin
+      const shapes = [false, true, "small"].map((stack) => {
         c.stack = stack; capwrap.className = capClass(c);
         return { stack, cw: cap.offsetWidth, ch: cap.offsetHeight };
       });
@@ -267,12 +268,12 @@
       if (best.hit === 0) break;
       }
       c.spot = best.spot; c.stack = best.stack; prev = { scene: c.scene, spot: best.spot, stack: best.stack };
-      report.push({ t0: c.t0, text: c.words.map((w) => w.w).join(" "), spot: best.spot.side ? `${best.spot.side}+${best.spot.gap}` : best.spot.band ?? (best.spot.grid ? `at ${best.spot.grid.join(",")}` : "pinned"), stacked: best.stack, overlapPx: Math.round(best.still / Math.max(1, shots.length)), movingPx: Math.round((best.hit - best.still * 1000) / Math.max(1, shots.length)) });
+      report.push({ t0: c.t0, text: c.words.map((w) => w.w).join(" "), spot: best.spot.side ? `${best.spot.side}+${best.spot.gap}` : best.spot.band ?? (best.spot.grid ? `at ${best.spot.grid.join(",")}` : "pinned"), stacked: !!best.stack, small: best.stack === "small", overlapPx: Math.round(best.still / Math.max(1, shots.length)), movingPx: Math.round((best.hit - best.still * 1000) / Math.max(1, shots.length)) });
     }
     cap.style.display = "none"; cap.innerHTML = "";
     window.captionReport = report;
   }
-  function capClass(c) { return (c.at ? "near placed" : "placed") + (c.stack ? " stack" : ""); }
+  function capClass(c) { return (c.at ? "near placed" : "placed") + (c.stack ? " stack" : "") + (c.stack === "small" ? " small" : ""); }
   function placeCaption(c, t) {
     const pop = 0.88 + 0.12 * easeOut(clamp((t - c.t0) / 0.18, 0, 1));
     capwrap.className = capClass(c);
