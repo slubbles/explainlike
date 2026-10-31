@@ -25,7 +25,7 @@ const HELP = `explainlike <github-url | local-repo-dir | x.com post url | articl
   --no-packs                               only the base doodle icons
   --fresh                                  ignore cached architecture/plan in the output folder
   --json                                   progress as JSON lines (for the web app)
-  --workers <n>                            parallel render pages
+  --workers <n>                            Chrome processes drawing frames (default: cores - 1, at most 6)
   --no-qa                                  skip the Muse Transcribe voiceover check
   --no-music                               no music bed (by default a quiet original bed sits 22 dB under the voice)
   --vision-review                          also show 8 rendered frames to Muse Spark for a look-over (costs a little; off by default)
