@@ -49,7 +49,7 @@ function repoSystem(arch: Architecture, L: ExplainSpec, lo: number, hi: number):
     `Each scene's narration is about ${L.wordsPerScene} words (hook and recap can be shorter). Whole video ${lo} to ${hi} seconds at ${L.tempo.wps} words per second: long enough to tell the story, no padding.`,
     "Leave add_connections, board_nodes, board_edges, highlights empty (the renderer derives them). callouts empty except in scale scenes. items empty except in notes scenes.",
     "Never state a traffic, user, latency or cost number as a fact about this app: the repo does not tell you its real load. Numbers only appear as clearly labelled assumptions.",
-    "Proofread every sentence: correct grammar and number ('a write queue', not 'a write queues'), no half-finished phrases. Headings are plain 2 to 4 word phrases a newcomer understands ('the front desk', not 'save then work').",
+    "Proofread every sentence aloud: a/an and singular/plural agree with the noun, no half-finished phrases. Headings are plain 2 to 4 word names for a place in the analogy (like 'the front desk' or 'the back office'); they are on screen, never spoken as if they were a part.",
     "title: the product name in lowercase. subtitle: under 8 lowercase words, plain.",
   ].join("\n");
 }
