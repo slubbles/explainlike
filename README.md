@@ -1,6 +1,6 @@
 # metual
 
-Paste a GitHub repo, an X post or an article. Get a **whiteboard explainer video** (mp4) and an **editable board** of it (a `.tldr` file that opens in tldraw.com).
+Paste a GitHub repo, an X post or an article. Get a **whiteboard explainer video** (mp4) and an **editable board** of it (a `.tldr` file you open at tldraw.com).
 
 - A light whiteboard, marker-pen lines that swell and thin, a friendly handwriting font (Shantell Sans), and colors that mean something: red = problem, orange/yellow = key idea, green = fix, blue = actors.
 - **Repos** become a system design explainer on one evolving canvas: the architecture is built layer by layer, a dot walks one real request through it, then red circles show what breaks at 10x/100x and green boxes show the fix. Every box is grounded in files from the repo, and a second model pass reviews each box against the code before anything is drawn.
@@ -42,7 +42,7 @@ Outputs land in `metual-out/<name>-<level>/`:
 | file | what |
 | --- | --- |
 | `<name>.mp4` | 1920x1080 video with narration and karaoke captions |
-| `<name>.tldr` | the full diagram as an editable board; open it in tldraw.com and keep editing (see below) |
+| `<name>.tldr` | the full diagram as an editable board; open it at tldraw.com and keep editing (see below) |
 | `<name>.contact.jpg` | contact sheet of frames, for a quick look |
 | `architecture.json`, `review.json` | repo only: components, evidence files, review verdict |
 | `plan.json` | scenes and narration (cached; delete it or use `--fresh` to re-plan) |
@@ -86,7 +86,7 @@ Paste a link, pick a level, and watch progress with a live cost meter. When it f
 
 - **Play** the video. Hit areas over the diagram line up with the boxes; tap one for a short explanation from Muse Spark, grounded in that box's evidence files, and a button to render a 15-20 s deep-dive clip on it.
 - **What if 10x traffic?** renders a follow-up clip that circles what breaks and draws the fix. Every number in it is labelled as an assumption.
-- **Open in tldraw**: download the `.tldr` and open it in tldraw.com to keep editing (steps below).
+- **Download .tldr**: save the board file and open it at tldraw.com to keep editing (steps below).
 
 Jobs are written to disk (`METUAL_JOBS_DIR`, default `metual-out/web`), so they survive restarts. URLs pointing at private networks are refused, and local paths are only accepted with `METUAL_ALLOW_LOCAL=1`.
 
@@ -101,7 +101,7 @@ It is not deployed publicly on purpose: every job spends the operator's API cred
 
 ## Keep editing the board
 
-Every run saves `<name>.tldr` next to the video. It is written by Metual's own exporter from tldraw's public file format; no tldraw code is bundled.
+Every run saves `<name>.tldr` next to the video. It is written by Metual's own exporter from tldraw's public file format. No tldraw SDK or code is bundled, Metual uses no tldraw logo or branding, and Metual itself stays MIT.
 
 1. Go to [tldraw.com](https://www.tldraw.com) and sign in (free; importing files needs an account).
 2. Open the account menu and choose **Import file…**, then pick the `.tldr`. Dragging the file onto the canvas works too.
