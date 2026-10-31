@@ -78,7 +78,8 @@ export function agreementSlips(text: string): { phrase: string; index: number; f
     if (helped) continue;
     for (let j = i + 2; j <= i + 4 && j < words.length; j++) {
       if (ends[j - 1] || NOT_ONE_THING.test(words[j - 1])) break;
-      if (BARE_VERBS.has(words[j]) && !words[j - 1].endsWith("'s")) {
+      // "an X post, or an article": a noun that closes a list item with a comma is not a verb
+      if (BARE_VERBS.has(words[j]) && !words[j - 1].endsWith("'s") && !/,["')]?$/.test(raw[j])) {
         // "an api call return": the first of two such words is still part of the subject
         if (!ends[j] && j + 1 < words.length && BARE_VERBS.has(words[j + 1])) j++;
         out.push({ phrase: raw.slice(i, j + 1).join(" "), index: j, fix: thirdPerson(words[j]) });
