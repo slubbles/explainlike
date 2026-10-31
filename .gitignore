@@ -13,3 +13,4 @@ metual-out/
 /jobs/
 *.log
 .DS_Store
+*.tsbuildinfo
