@@ -23,6 +23,9 @@ export function run(cmd: string, args: string[]): Promise<void> {
   });
 }
 
+/** Where the stage put one caption, and how many pixels of drawing it still covers on average (0 = clear). */
+export interface CaptionSpot { t0: number; text: string; spot: string; overlapPx: number }
+
 /** Render frames with N parallel headless pages, each seeking window.render(t). */
 export async function captureFrames(film: Film, dir: string, opts: { workers?: number; onProgress?: (done: number, total: number) => void; only?: number[] } = {}) {
   fs.mkdirSync(dir, { recursive: true });
@@ -33,11 +36,13 @@ export async function captureFrames(film: Film, dir: string, opts: { workers?: n
   const workers = Math.max(1, Math.min(opts.workers ?? Math.max(2, Math.min(6, os.cpus().length - 1)), frames.length));
   const browser = await chromium.launch({ executablePath: findChrome(), args: ["--disable-gpu", "--font-render-hinting=none", "--hide-scrollbars"] });
   let done = 0;
+  let captions: CaptionSpot[] = [];
   try {
     await Promise.all([...Array(workers).keys()].map(async (w) => {
       const page = await browser.newPage({ viewport: { width: film.width, height: film.height }, deviceScaleFactor: 1 });
       await page.goto("file://" + html);
       await page.evaluate(() => (window as any).ready);
+      if (w === 0) captions = await page.evaluate(() => (window as any).captionReport ?? []);
       for (let i = w; i < frames.length; i += workers) {
         const f = frames[i];
         await page.evaluate((t) => (window as any).render(t), f / film.fps);
@@ -50,7 +55,7 @@ export async function captureFrames(film: Film, dir: string, opts: { workers?: n
   } finally {
     await browser.close();
   }
-  return { html, total };
+  return { html, total, captions };
 }
 
 /** Place each scene's WAV at its start time in one 24 kHz mono track. */
