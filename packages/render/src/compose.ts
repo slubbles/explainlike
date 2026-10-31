@@ -506,7 +506,7 @@ export async function compose(inp: ComposeInput): Promise<Composed> {
         for (let j = 0; j < k; j++) { B.setOp(`s:${j}`, T, 0); B.setOp(nodeGroup(`fix-${j}`), T, dim); }
         const [t1, t2] = eventTimes(words, [[r.problem, r.at], [r.fix]], t0 + 0.2, tEnd - 0.4, 1.6);
         const ring = ringOf(c);
-        B.rough(gen.ellipse(ring.cx, ring.cy, ring.rx * 2, ring.ry * 2, { seed: B.seed++, stroke: C("red"), strokeWidth: 5, roughness: 1.5 }), t1, 0.8, `s:${k}`);
+        B.rough(gen.curve(ring.points, { seed: B.seed++, stroke: C("red"), strokeWidth: 5, roughness: 1.2 }), t1, 0.8, `s:${k}`);
         B.sketch.ellipses.push({ box: ring.box, color: C("red") });
         // big blocky red arrow from the ring to the fix (placeFix made room for it)
         const poly = scaleArrow(c, f);
@@ -615,9 +615,12 @@ export async function compose(inp: ComposeInput): Promise<Composed> {
         if (!n) return;
         const tt = Math.min(tEnd, Math.max(...ready.values()) + 0.4 + i * 1.2);
         const col = C(co.color), bh = BOARD.boxH;
-        B.rough(gen.ellipse(n.x + n.w / 2, n.y + bh / 2, n.w * 1.32, bh * 1.42, { seed: B.seed++, stroke: col, strokeWidth: 5, roughness: 1.5 }), tt, 0.7, g);
-        B.sketch.ellipses.push({ box: { x: n.x - n.w * 0.16, y: n.y - bh * 0.21, w: n.w * 1.32, h: bh * 1.42 }, color: col });
-        B.text({ text: co.text, x: n.x + n.w / 2, y: n.y - bh * 0.21 - 24, size: 50, color: col, anchor: "middle", t0: tt + 0.4, dur: 0.5, g, bg: true });
+        // the ring goes round the box and the quote lines under it
+        const q = n.quote ?? [], qw = Math.max(n.w, ...q.map((l) => textWidth(l, BOARD.quote) + 16));
+        const ring = ringOf({ x: n.x + n.w / 2 - qw / 2, y: n.y, w: qw, h: bh + (q.length ? 22 + (q.length + 0.3) * BOARD.qLine : 0) });
+        B.rough(gen.curve(ring.points, { seed: B.seed++, stroke: col, strokeWidth: 5, roughness: 1.2 }), tt, 0.7, g);
+        B.sketch.ellipses.push({ box: ring.box, color: col });
+        B.text({ text: co.text, x: n.x + n.w / 2, y: ring.box.y - 24, size: 50, color: col, anchor: "middle", t0: tt + 0.4, dur: 0.5, g, bg: true });
       });
       boardShown.push({ id: s.id, heading: s.heading, keys: nodes.map((n) => n.keyword), g });
     } else if (s.kind === "notes" && (s.items ?? []).length) {

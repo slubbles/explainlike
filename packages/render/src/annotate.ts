@@ -10,16 +10,32 @@ export const polyBox = (pts: [number, number][]): Box => {
   return { x: Math.min(...xs), y: Math.min(...ys), w: Math.max(...xs) - Math.min(...xs), h: Math.max(...ys) - Math.min(...ys) };
 };
 
-/** The circle drawn around a box: a bit wider than the box, not so wide it reaches its neighbours. */
+/** Gap between the ring and the corners of the box it circles, in world units. */
+export const RING_PAD = 26;
+const K = 2 ** 0.25;
+/**
+ * The loop drawn around a box: a rounded square-ish oval (|x/rx|^4 + |y/ry|^4 = 1).
+ * It clears every corner of the box by RING_PAD, so it never runs through the box's
+ * name or description, and stays closer to the box than a plain ellipse would.
+ * points trace it once and a little more, like a hand closing a circle.
+ */
 export function ringOf(c: Box) {
-  const rx = c.w * 0.65, ry = c.h * 0.78;
-  return { cx: c.x + c.w / 2, cy: c.y + c.h / 2, rx, ry, box: { x: c.x + c.w / 2 - rx, y: c.y + c.h / 2 - ry, w: rx * 2, h: ry * 2 } };
+  const rx = (c.w / 2) * K + RING_PAD, ry = (c.h / 2) * K + RING_PAD, cx = c.x + c.w / 2, cy = c.y + c.h / 2;
+  const points: [number, number][] = [];
+  const sp = (v: number) => Math.sign(v) * Math.sqrt(Math.abs(v));
+  for (let i = 0; i <= 52; i++) {
+    const a = -Math.PI * 0.6 + (i / 48) * Math.PI * 2, grow = 1 + 0.035 * (i / 52);
+    points.push([cx + rx * grow * sp(Math.cos(a)), cy + ry * grow * sp(Math.sin(a))]);
+  }
+  const g = 1 + 0.035;
+  return { cx, cy, rx, ry, points, box: { x: cx - rx * g, y: cy - ry * g, w: rx * 2 * g, h: ry * 2 * g } };
 }
 
-/** Distance from an ellipse centre to its edge along the unit direction (ux, uy). */
-export function ellipseReach(rx: number, ry: number, ux: number, uy: number) {
-  return 1 / Math.sqrt((ux / rx) ** 2 + (uy / ry) ** 2);
+/** Distance from the ring centre to its edge along the unit direction (ux, uy). */
+export function ringReach(rx: number, ry: number, ux: number, uy: number) {
+  return 1 / ((Math.abs(ux) / rx) ** 4 + (Math.abs(uy) / ry) ** 4) ** 0.25;
 }
+
 /** Distance from a box centre to its edge along the unit direction. */
 export function boxReach(b: Box, ux: number, uy: number) {
   return Math.min(Math.abs(b.w / 2 / (ux || 1e-6)), Math.abs(b.h / 2 / (uy || 1e-6)));
@@ -33,7 +49,7 @@ export function scaleArrow(c: Box, f: Box): [number, number][] | null {
   const ring = ringOf(c);
   const fx = f.x + f.w / 2, fy = f.y + f.h / 2;
   const ang = Math.atan2(fy - ring.cy, fx - ring.cx), ux = Math.cos(ang), uy = Math.sin(ang);
-  const r0 = ellipseReach(ring.rx, ring.ry, ux, uy) + ARROW.gapStart;
+  const r0 = ringReach(ring.rx, ring.ry, ux, uy) + ARROW.gapStart;
   const r1 = Math.hypot(fx - ring.cx, fy - ring.cy) - boxReach(f, ux, uy) - ARROW.gapEnd;
   const L = r1 - r0;
   if (L < ARROW.minLen * 0.75) return null;
@@ -54,7 +70,7 @@ export function placeFix(c: Box, f: Box, others: Box[], wires: Box[] = []): Box 
   if (fits(f) && clear(f)) return f;
   const dirs: [number, number][] = [[1, 0], [0, 1], [0, -1], [-1, 0]];
   for (const [ux, uy] of dirs) {
-    const d = ellipseReach(ring.rx, ring.ry, ux, uy) + ARROW.gapStart + ARROW.minLen + ARROW.gapEnd + boxReach(f, ux, uy);
+    const d = ringReach(ring.rx, ring.ry, ux, uy) + ARROW.gapStart + ARROW.minLen + ARROW.gapEnd + boxReach(f, ux, uy);
     const b = { ...f, x: ring.cx + ux * d - f.w / 2, y: ring.cy + uy * d - f.h / 2 };
     if (clear(b) && fits(b)) return b;
   }
