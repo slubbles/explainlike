@@ -293,7 +293,12 @@ export async function compose(inp: ComposeInput): Promise<Composed> {
       const f = graph!.nodes.get(`fix-${i}`), c = graph!.nodes.get(r.component);
       if (!f || !c) return;
       const others = [...graph!.nodes.values()].filter((n) => n.id !== f.id && n.id !== c.id);
-      const nb = placeFix(c, f, [...others, ringOf(c).box]);
+      // lines and their labels count too, so the fix box never lands on top of a wire
+      const wires = graph!.edges.filter((e) => e.from !== f.id && e.to !== f.id).flatMap((e) => [
+        ...(e.labelBox ? [e.labelBox] : []),
+        ...e.points.slice(1).map(([x, y], j) => { const [px, py] = e.points[j]; return { x: Math.min(x, px) - 2, y: Math.min(y, py) - 2, w: Math.abs(x - px) + 4, h: Math.abs(y - py) + 4 }; }),
+      ]);
+      const nb = placeFix(c, f, [...others, ringOf(c).box], wires);
       Object.assign(f, { x: nb.x, y: nb.y });
     });
     graph.bbox = unionBox([graph.bbox, ...graph.nodes.values()], 0);
@@ -455,10 +460,10 @@ export async function compose(inp: ComposeInput): Promise<Composed> {
           B.rough(gen.polygon(poly, { seed: B.seed++, stroke: C("red"), strokeWidth: 4, roughness: 1.1, fill: C("red"), fillStyle: "hachure", hachureGap: 9, fillWeight: 3 }), t2, 0.6, `s:${k}`);
           B.sketch.polygons.push({ points: poly, color: C("red") });
         }
-        // problem label: first spot around the ring that hits no box, the fix, the arrow or the ring
+        // problem label: first spot around the ring that hits no box, wire label, the fix, the arrow or the ring
         const lab = `${r.at}: ${r.problem}`, lw = textWidth(lab, 44) + 24;
         const others = [...graph.nodes.values()].filter((n) => n.id !== c.id && n.id !== f.id);
-        const L = placeRingLabel(ring.box, lw, 60, [...others, f, ...(poly ? [polyBox(poly)] : [])]);
+        const L = placeRingLabel(ring.box, lw, 60, [...others, f, ...(poly ? [polyBox(poly)] : []), ...graph.edges.flatMap((e) => (e.labelBox ? [e.labelBox] : []))]);
         B.text({ text: lab, x: L.x, y: L.y, size: 44, color: C("red"), anchor: L.anchor, t0: t1 + 0.5, dur: 0.6, g: `s:${k}`, bg: true });
         // the camera holds everything this scene draws, label included
         B.fit(unionBox([c, f, ring.box, L.box, ...(poly ? [polyBox(poly)] : [])], 60), T, 1.0);

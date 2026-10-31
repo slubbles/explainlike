@@ -43,3 +43,23 @@ test("ring label avoids the ring, the arrow and nearby boxes", () => {
   const L = placeRingLabel(ring.box, 420, 60, [above, below, f, polyBox(arrow)]);
   for (const o of [ring.box, above, below, f, polyBox(arrow)]) assert.ok(!overlaps(L.box, o), JSON.stringify({ L: L.box, o }));
 });
+
+test("scale fixes never land on a wire or its label", async () => {
+  const { sketch } = await composed;
+  const fixes = sketch.nodes.filter((n) => n.id.startsWith("fix-"));
+  assert.ok(fixes.length >= 1);
+  for (const e of sketch.edges) {
+    if (fixes.some((f) => f.id === e.from || f.id === e.to)) continue;
+    const parts = [...(e.labelBox ? [e.labelBox] : []), ...e.points.slice(1).map(([x, y], j) => { const [px, py] = e.points[j]; return { x: Math.min(x, px), y: Math.min(y, py), w: Math.abs(x - px), h: Math.abs(y - py) }; })];
+    for (const f of fixes) for (const p of parts) assert.ok(!overlaps(f.box, p), `${f.id} sits on the ${e.from}->${e.to} wire`);
+  }
+});
+
+test("scale labels do not cover the small labels on wires", async () => {
+  const { sketch } = await composed;
+  const wireLabels = sketch.edges.flatMap((e) => (e.labelBox ? [e.labelBox] : []));
+  for (const l of sketch.texts.filter((t) => /^\d+x: /.test(t.text))) {
+    const w = textWidth(l.text, l.size), b = { x: l.anchor === "middle" ? l.x - w / 2 : l.x, y: l.y - l.size * 0.95, w, h: l.size * 1.25 };
+    for (const wl of wireLabels) assert.ok(!overlaps(b, wl), `"${l.text}" covers a wire label`);
+  }
+});

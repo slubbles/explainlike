@@ -47,9 +47,9 @@ export function scaleArrow(c: Box, f: Box): [number, number][] | null {
  * else right of, below, above or left of the busy box, far enough for the ring and
  * arrow, on the first spot that does not hit another box.
  */
-export function placeFix(c: Box, f: Box, others: Box[]): Box {
+export function placeFix(c: Box, f: Box, others: Box[], wires: Box[] = []): Box {
   const ring = ringOf(c);
-  const clear = (b: Box) => !others.some((o) => overlaps(b, o, 50));
+  const clear = (b: Box) => !others.some((o) => overlaps(b, o, 50)) && !wires.some((o) => overlaps(b, o, 12));
   const fits = (b: Box) => { const p = scaleArrow(c, b); return !!p && !others.some((o) => overlaps(polyBox(p), o, 10)); };
   if (fits(f) && clear(f)) return f;
   const dirs: [number, number][] = [[1, 0], [0, 1], [0, -1], [-1, 0]];
@@ -72,17 +72,19 @@ export function placeFix(c: Box, f: Box, others: Box[]): Box {
  * (other boxes, the fix, the arrow, the ring itself). Returns the text anchor point.
  */
 export function placeRingLabel(ring: Box, lw: number, lh: number, obstacles: Box[]): { x: number; y: number; anchor: "middle" | "start"; box: Box } {
-  const m = 26, cx = ring.x + ring.w / 2, cy = ring.y + ring.h / 2;
-  const boxes: Box[] = [
+  const cx = ring.x + ring.w / 2, cy = ring.y + ring.h / 2;
+  const boxes: Box[] = [];
+  // nearest spots first; when all are taken, step a little further out and try again
+  for (const m of [26, 26 + lh * 0.6, 26 + lh * 1.2]) for (const dy of [0, -lh * 0.8, lh * 0.8]) boxes.push(
     { x: cx - lw / 2, y: ring.y - m - lh, w: lw, h: lh },
     { x: cx - lw / 2, y: ring.y + ring.h + m, w: lw, h: lh },
-    { x: ring.x - m - lw, y: cy - lh / 2, w: lw, h: lh },
-    { x: ring.x + ring.w + m, y: cy - lh / 2, w: lw, h: lh },
+    { x: ring.x - m - lw, y: cy - lh / 2 + dy, w: lw, h: lh },
+    { x: ring.x + ring.w + m, y: cy - lh / 2 + dy, w: lw, h: lh },
     { x: ring.x - lw * 0.6, y: ring.y - m - lh, w: lw, h: lh },
     { x: ring.x + ring.w - lw * 0.4, y: ring.y - m - lh, w: lw, h: lh },
     { x: ring.x - lw * 0.6, y: ring.y + ring.h + m, w: lw, h: lh },
     { x: ring.x + ring.w - lw * 0.4, y: ring.y + ring.h + m, w: lw, h: lh },
-  ];
+  );
   const all = [ring, ...obstacles];
   const pick = boxes.find((b) => !all.some((o) => overlaps(b, o, 12))) ?? boxes.reduce((best, b) => {
     const cost = (x: Box) => all.filter((o) => overlaps(x, o, 12)).length;
