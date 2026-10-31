@@ -53,7 +53,7 @@ function notesRules(slots: { after: string; heading: string; brief: string }[]):
   return [
     "Extra 'notes' scenes (whiteboard lists). Place each right after the scene named, use the heading given, and fill items:",
     ...slots.map((n) => `- notes "${n.heading}" after the ${n.after} scene(s): ${n.brief}`),
-    "Each item text is 2 to 7 lowercase words. The narration reads the items in order and adds the reasoning. icon from the same icon names as the components.",
+    "Each item text is 2 to 7 lowercase words that read as a phrase; keep commas and \"or\" in a list. The narration reads the items in order and adds the reasoning. icon from the same icon names as the components.",
   ];
 }
 
