@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import { getTheme, getLevel } from "@metual/core";
-import { compose, loadIconPack, stillGaps, shotStarts, offFrameTexts, cameraAt, boxOf, type Pace } from "../src/index.js";
+import { captionMismatches, compose, loadIconPack, stillGaps, shotStarts, offFrameTexts, cameraAt, boxOf, type Pace } from "../src/index.js";
 
 const fx = new URL("./fixtures/", import.meta.url);
 const plan = JSON.parse(fs.readFileSync(new URL("spotibai.plan.json", fx), "utf8"));
@@ -64,4 +64,16 @@ test("lively: a close-up never slices a box or a word in half", async () => {
     }
   }
   assert.deepEqual(sliced, []);
+});
+
+test("captions spell out the narration word for word, and a changed word is caught", async () => {
+  for (const pace of ["lively", "calm"] as Pace[]) {
+    const { film } = await make(pace);
+    assert.deepEqual(captionMismatches(film, plan.scenes), []);
+    const bent = structuredClone(film);
+    const c = bent.captions.find((x) => x.words.some((w) => w.w === "a"));
+    if (c) c.words.find((w) => w.w === "a")!.w = "the";
+    else bent.captions[3].words[0].w += "s";
+    assert.equal(captionMismatches(bent, plan.scenes).length, 1);
+  }
 });

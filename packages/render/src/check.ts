@@ -37,3 +37,20 @@ export function offFrameTexts(film: Film, margin = 8): { id: string; text: strin
   }
   return out;
 }
+
+/**
+ * Scenes whose on-screen captions do not spell out the narration word for word,
+ * or show a word before or after it is spoken. Captions that drift from the
+ * voice read as a bug, so the pipeline refuses to ship them.
+ */
+export function captionMismatches(film: Film, scenes: { id: string; narration: string }[]): { scene: string; said: string; shown: string }[] {
+  const out: { scene: string; said: string; shown: string }[] = [];
+  for (const s of scenes) {
+    const caps = film.captions.filter((c) => c.scene === s.id);
+    const said = s.narration.replace(/\s+/g, " ").trim();
+    const shown = caps.flatMap((c) => c.words.map((w) => w.w)).join(" ");
+    const timed = caps.every((c) => c.words.every((w, i) => w.s >= c.t0 - 1e-6 && w.s < c.t1 + 1e-6 && (i === 0 || w.s >= c.words[i - 1].s - 1e-6)));
+    if (shown !== said || !timed) out.push({ scene: s.id, said, shown: timed ? shown : `${shown} (words shown outside their caption)` });
+  }
+  return out;
+}

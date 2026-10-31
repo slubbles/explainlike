@@ -241,10 +241,10 @@ function eventTimes(words: WordTiming[], phrases: string[][], start: number, end
   return out.map((t) => Math.min(t, Math.max(start, end)));
 }
 
-function captionsFor(words: WordTiming[], offset: number, sceneEnd: number, maxWords = 8, maxChars = 46): Caption[] {
+function captionsFor(scene: string, words: WordTiming[], offset: number, sceneEnd: number, maxWords = 8, maxChars = 46): Caption[] {
   const caps: Caption[] = [];
   let cur: WordTiming[] = [];
-  const flush = () => { if (cur.length) caps.push({ t0: offset + cur[0].start - 0.08, t1: 0, words: cur.map((w) => ({ w: w.word, s: offset + w.start, e: offset + w.end })) }); cur = []; };
+  const flush = () => { if (cur.length) caps.push({ scene, t0: offset + cur[0].start - 0.08, t1: 0, words: cur.map((w) => ({ w: w.word, s: offset + w.start, e: offset + w.end })) }); cur = []; };
   for (const w of words) {
     cur.push(w);
     const chars = cur.map((x) => x.word).join(" ").length;
@@ -388,7 +388,7 @@ export async function compose(inp: ComposeInput): Promise<Composed> {
     timeline.push({ id: s.id, kind: s.kind, start: T, end: T + D });
     const scaleRisk = s.kind === "scale" ? inp.arch?.scale[plan.scenes.filter((x) => x.kind === "scale").indexOf(s)] : undefined;
     if (s.kind !== "hook") headings.push({ t0: T, t1: T + D, text: spokenHeading(s.heading, s.narration, scaleRisk ? [scaleRisk.problem] : []) });
-    captions.push(...(lively ? captionsFor(au.words, T + LEAD, T + D, LIVELY.capWords, LIVELY.capChars) : captionsFor(au.words, T + LEAD, T + D)));
+    captions.push(...(lively ? captionsFor(s.id, au.words, T + LEAD, T + D, LIVELY.capWords, LIVELY.capChars) : captionsFor(s.id, au.words, T + LEAD, T + D)));
 
     if (s.kind === "hook") {
       const title = plan.title.toLowerCase();
