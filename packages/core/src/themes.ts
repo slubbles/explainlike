@@ -19,7 +19,7 @@ export interface Theme {
 }
 
 const dark: Theme = {
-  id: "caleb-dark",
+  id: "chalk-dark",
   background: "#000000",
   ink: "#f2f2f2",
   dimOpacity: 0.3,
@@ -76,6 +76,5 @@ export function getTheme(id = DEFAULT_THEME): Theme {
   if (!t) throw new Error(`unknown theme "${id}". Known: ${[...registry.keys()].join(", ")}`);
   return t;
 }
-/** Plugin point: register a theme. */
-export function registerTheme(t: Theme) { registry.set(t.id, t); }
+
 export function listThemes() { return [...registry.keys()]; }

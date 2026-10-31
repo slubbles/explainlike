@@ -2,15 +2,14 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { formFromJob, sourceKind, shortLink } from "../lib/form.ts";
 
-test("reopening a saved job brings back its own link, level and voice", () => {
-  assert.deepEqual(formFromJob({ input: "https://github.com/slubbles/spotibai", level: "interviewing", voice: "silent" }),
-    { input: "https://github.com/slubbles/spotibai", level: "interviewing", voice: "silent" });
-  assert.deepEqual(formFromJob({ input: "https://x.com/a/status/1", level: "senior", voice: "deepgram" }).level, "senior");
+test("reopening a saved job brings back its own link and voice", () => {
+  assert.deepEqual(formFromJob({ input: "https://github.com/slubbles/spotibai", voice: "silent" }),
+    { input: "https://github.com/slubbles/spotibai", voice: "silent" });
 });
 
-test("an old or broken job falls back to the defaults instead of an unknown choice", () => {
-  assert.deepEqual(formFromJob({ input: "https://blog.vllm.ai/x", level: "wizard" }), { input: "https://blog.vllm.ai/x", level: "new", voice: "deepgram" });
-  assert.deepEqual(formFromJob({}), { input: "", level: "new", voice: "deepgram" });
+test("an old or broken job falls back to the defaults, and an old level is ignored", () => {
+  assert.deepEqual(formFromJob({ input: "https://blog.vllm.ai/x", level: "senior", voice: "wizard" } as never), { input: "https://blog.vllm.ai/x", voice: "deepgram" });
+  assert.deepEqual(formFromJob({}), { input: "", voice: "deepgram" });
 });
 
 test("links are named and shortened the way the gallery shows them", () => {

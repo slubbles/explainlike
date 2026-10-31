@@ -36,7 +36,7 @@ export default function Home() {
     setMap(undefined); setPicked(undefined); setExpl(null); setStarted([]); setErr("");
     if (!jobId) setForm(DEFAULT_FORM);
   }, [jobId]);
-  // the job is the truth for what is on screen: a reopened job shows the link, level and voice it was made with
+  // the job is the truth for what is on screen: a reopened job shows the link and voice it was made with
   useEffect(() => {
     if (job) setForm(formFromJob(job));
   }, [job?.id]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -86,7 +86,7 @@ export default function Home() {
         {!jobId && <InputScreen form={form} set={set} go={go} busy={false} err={err} gallery={gallery} />}
         {jobId && (
           <>
-            <JobBar form={form} set={set} go={go} busy={busy} fold={job?.state === "done"} quiet={job?.state === "done" && form.input.trim() === job.input && form.level === job.level && form.voice === job.voice} />
+            <JobBar form={form} set={set} go={go} busy={busy} fold={job?.state === "done"} quiet={job?.state === "done" && form.input.trim() === job.input && form.voice === job.voice} />
             {!job && <div className="main solo"><div className="screen" /></div>}
             {job && job.state !== "done" && (
               <div className="main">

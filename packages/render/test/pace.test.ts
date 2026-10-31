@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
-import { getTheme, getLevel } from "@explainlike/core";
+import { getTheme, specFromBrief, DEFAULT_BRIEF } from "@explainlike/core";
 import { textWidth, captionMismatches, compose, loadIconPack, stillGaps, shotStarts, offFrameTexts, cameraAt, boxOf, readableWidth, READ_KINDS, type Pace } from "../src/index.js";
 
 const fx = new URL("./fixtures/", import.meta.url);
@@ -12,7 +12,7 @@ const audio = plan.scenes.map((s: any) => {
   const ws = s.narration.split(/\s+/);
   return { sceneId: s.id, duration: ws.length * 0.38, words: ws.map((w: string, i: number) => ({ word: w, start: i * 0.38, end: i * 0.38 + 0.3 })) };
 });
-const make = (pace: Pace) => compose({ plan, audio, theme: getTheme("caleb-dark"), level: getLevel("interviewing"), pack: loadIconPack(), sourceLabel: "x", arch, pace });
+const make = (pace: Pace) => compose({ plan, audio, theme: getTheme("chalk-dark"), spec: specFromBrief(DEFAULT_BRIEF), pack: loadIconPack(), sourceLabel: "x", arch, pace });
 
 test("lively: the picture never sits still for more than 1.2 s", async () => {
   const { film, timeline } = await make("lively");

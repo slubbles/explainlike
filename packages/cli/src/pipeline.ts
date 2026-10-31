@@ -1,20 +1,16 @@
 import fs from "node:fs";
 import path from "node:path";
-import { getLevel, getTheme, type Architecture, type Level, type Progress, type SceneAudio, type ScenePlan, type SourceDoc } from "@explainlike/core";
+import { getTheme, specFromBrief, DEFAULT_BRIEF, type Brief, type ExplainSpec, type Architecture, type Progress, type SceneAudio, type ScenePlan, type SourceDoc } from "@explainlike/core";
 import { CostLedger, museTranscribe } from "@explainlike/models";
 import { ingestRepo } from "@explainlike/ingest";
-import { extractArchitecture, validateArchitecture, evidencePack, reviewArchitecture, reviseArchitecture, planRepoScenes, planFocus, planWhatIf, kindColor } from "@explainlike/planner";
+import { planBrief, extractArchitecture, validateArchitecture, evidencePack, reviewArchitecture, reviseArchitecture, planRepoScenes, planFocus, planWhatIf, kindColor } from "@explainlike/planner";
 import { pickVoice, wordOverlap, DeepgramVoice, type VoiceProvider } from "@explainlike/voice";
 import { captionMismatches, loadIconPack, mergePacks, builtinPackIds, detectComponents, packHints, type DetectedComponent, iconCatalog, resolveIcon, compose, captureFrames, mixNarration, encodeMp4, contactSheet, toExcalidraw, toTldraw, type IconPack, type SourceShot } from "@explainlike/render";
 
 export interface RunOptions {
   input: string;
-  level?: Level;
-  /** how busy the video feels (default lively) */
-  pace?: "lively" | "calm";
   /** editable board format (default tldr) */
   export?: "tldr" | "excalidraw";
-  theme?: string;
   out?: string;
   name?: string;
   voice?: string;
@@ -46,8 +42,6 @@ export function detectKind(input: string): "repo" | "x-post" | "article" {
 }
 
 export async function runExplainLike(o: RunOptions) {
-  const level = getLevel(o.level ?? "new");
-  const theme = getTheme(o.theme);
   const ledger = new CostLedger();
   // every progress event carries the running cost (the cost meter in the CLI and web app)
   let voiceRef: VoiceProvider | undefined;
@@ -74,6 +68,13 @@ export async function runExplainLike(o: RunOptions) {
   let sourceLabel: string;
   let repoDir: string | undefined;
   const notes: string[] = [];
+  // the engine decides how to explain: approach, depth, tempo and look come from Muse Spark's brief
+  let spec: ExplainSpec = specFromBrief(DEFAULT_BRIEF);
+  const decide = async (file: string, kindOf: "repo" | "x-post" | "article", name: string, text: string) => {
+    const b = await cacheJson<Brief>(file, () => planBrief({ ledger, kind: kindOf, name, text, progress: P }));
+    spec = specFromBrief(b);
+    notes.push(`brief: ${b.approach}, ${b.depth}, ${b.complexity} -> ${spec.tempo.id} tempo, ${b.look}; ${b.why}`);
+  };
 
   if (kind === "repo") {
     P({ stage: "ingest", message: "reading the repository", pct: 2 });
@@ -82,7 +83,7 @@ export async function runExplainLike(o: RunOptions) {
     const name = o.name ?? r.title;
     // a local checkout shows its folder name, never the path on this machine
     sourceLabel = o.name ? `github.com/${o.name}` : /^https?:\/\//.test(r.url) ? r.url.replace(/^https?:\/\//, "") : path.basename(r.url);
-    out = o.out ?? path.resolve("explainlike-out", slug(name) + "-" + level.id);
+    out = o.out ?? path.resolve("explainlike-out", slug(name));
     fs.mkdirSync(out, { recursive: true });
     notes.push(`digest: ${r.digest.files.length} files, ${r.digest.text.length} chars; ${r.digest.skippedSecret.length} secret-looking files never opened`);
     detected = detectComponents(extra, r.digest.files, (f) => r.digest.read(f, 60_000));
@@ -95,8 +96,10 @@ export async function runExplainLike(o: RunOptions) {
       const archFile = path.join(o.from ?? out, "architecture.json");
       if (!fs.existsSync(archFile)) throw new Error(`follow-up clips need an earlier run: ${archFile} not found (pass --from <out dir>)`);
       arch = JSON.parse(fs.readFileSync(archFile, "utf8")) as Architecture;
+      const briefFile = path.join(o.from ?? out, "brief.json");
+      if (fs.existsSync(briefFile)) spec = specFromBrief(JSON.parse(fs.readFileSync(briefFile, "utf8")));
       // a re-run of the same follow-up into the same folder reuses its plan, so re-rendering costs nothing
-      const key = o.focus ? `focus:${o.focus}:${level.id}` : `what-if:${o.whatIf}:${level.id}`;
+      const key = o.focus ? `focus:${o.focus}` : `what-if:${o.whatIf}`;
       const done = path.join(out, "follow-up.json");
       const prev = fs.existsSync(done) && !o.fresh ? (JSON.parse(fs.readFileSync(done, "utf8")) as { key: string; plan: typeof plan; arch: Architecture }) : undefined;
       if (prev?.key === key) {
@@ -107,26 +110,27 @@ export async function runExplainLike(o: RunOptions) {
         const near = new Set([c.id, ...arch.connections.flatMap((x) => (x.from === c.id ? [x.to] : x.to === c.id ? [x.from] : []))]);
         const sub = { ...arch, components: arch.components.filter((x) => near.has(x.id)), connections: [], scale: [] };
         const evidence = evidencePack(sub as Architecture, r.digest.read, 14000);
-        plan = await planFocus({ ledger, arch, id: c.id, evidence, level: level.id as Level, progress: P });
+        plan = await planFocus({ ledger, arch, id: c.id, evidence, audience: spec.audience, progress: P });
         arch = { ...arch, scale: [] };
       } else {
-        const w = await planWhatIf({ ledger, arch, factor: o.whatIf!, evidence: evidencePack({ ...arch, scale: [] }, r.digest.read, 20000), level: level.id as Level, progress: P });
+        const w = await planWhatIf({ ledger, arch, factor: o.whatIf!, evidence: evidencePack({ ...arch, scale: [] }, r.digest.read, 20000), audience: spec.audience, progress: P });
         arch = w.arch; plan = w.plan;
       }
       fs.writeFileSync(path.join(out, "plan.json"), JSON.stringify(plan, null, 1));
       fs.writeFileSync(path.join(out, "architecture.json"), JSON.stringify(arch, null, 1));
       fs.writeFileSync(done, JSON.stringify({ key, plan, arch }));
     } else {
+    await decide(path.join(out, "brief.json"), "repo", name, r.digest.text);
     arch = await cacheJson(path.join(out, "architecture.json"), async () => {
       P({ stage: "architecture", message: "Muse Spark is mapping the architecture", pct: 8 });
-      let a = await extractArchitecture({ ledger, digest: r.digest.text, name, level: level.id as Level, icons: iconCatalog(pack), hints, progress: P });
+      let a = await extractArchitecture({ ledger, digest: r.digest.text, name, spec, icons: iconCatalog(pack), hints, progress: P });
       let v = validateArchitecture(a, r.digest.files, resolve, fb);
       P({ stage: "review", message: "second pass: checking every box against the code", pct: 20 });
-      const rev = await reviewArchitecture({ ledger, arch: v.arch, evidence: evidencePack(v.arch, r.digest.read), level: level.id as Level, progress: P });
+      const rev = await reviewArchitecture({ ledger, arch: v.arch, evidence: evidencePack(v.arch, r.digest.read), spec, progress: P });
       notes.push(`review verdict: ${rev.verdict}; ${rev.issues.length} issues; validator: ${v.issues.length} fixes`);
       if (rev.verdict === "revise" && rev.issues.length) {
         P({ stage: "review", message: `fixing ${rev.issues.length} review issues`, pct: 26 });
-        a = await reviseArchitecture({ ledger, arch: v.arch, issues: [...rev.issues, ...v.issues], digest: r.digest.text, name, level: level.id as Level, icons: iconCatalog(pack), hints, progress: P });
+        a = await reviseArchitecture({ ledger, arch: v.arch, issues: [...rev.issues, ...v.issues], digest: r.digest.text, name, spec, icons: iconCatalog(pack), hints, progress: P });
         v = validateArchitecture(a, r.digest.files, resolve, fb);
       }
       fs.writeFileSync(path.join(out, "review.json"), JSON.stringify({ review: rev, validator: v.issues }, null, 1));
@@ -139,7 +143,7 @@ export async function runExplainLike(o: RunOptions) {
     });
     plan = await cacheJson(path.join(out, "plan.json"), () => {
       P({ stage: "plan", message: "writing the scene plan", pct: 32 });
-      return planRepoScenes({ ledger, arch: arch!, level: level.id as Level, progress: P });
+      return planRepoScenes({ ledger, arch: arch!, spec, progress: P });
     });
     }
     repoDir = r.repoDir;
@@ -151,17 +155,20 @@ export async function runExplainLike(o: RunOptions) {
     fs.mkdirSync(tmpOut, { recursive: true });
     const c = await ingestConcept(o.input, tmpOut);
     doc = c.doc;
-    out = o.out ?? path.resolve("explainlike-out", slug(o.name ?? doc.title) + "-" + level.id);
+    out = o.out ?? path.resolve("explainlike-out", slug(o.name ?? doc.title));
     if (out !== tmpOut) { fs.mkdirSync(path.dirname(out), { recursive: true }); fs.rmSync(out, { recursive: true, force: true }); fs.renameSync(tmpOut, out); }
     sourceLabel = doc.url.replace(/^https?:\/\/(www\.)?/, "").slice(0, 60);
+    await decide(path.join(out, "brief.json"), kind, doc.title, doc.text);
     plan = await cacheJson(path.join(out, "plan.json"), () => {
       P({ stage: "plan", message: "Muse Spark is planning the explainer", pct: 15 });
-      return planConceptScenes({ ledger, doc, level: level.id as Level, icons: iconCatalog(pack), progress: P });
+      return planConceptScenes({ ledger, doc, spec, icons: iconCatalog(pack), progress: P });
     });
     P({ stage: "plan", message: "finding the quoted lines on the page", pct: 30 });
     const quotes = plan.scenes.flatMap((s) => s.highlights.map((h) => h.quote));
     shot = await c.locate(quotes, path.join(out, "source.png"));
   }
+
+  const theme = getTheme(spec.look);
 
   // ---------- voice ----------
   let voice: VoiceProvider = pickVoice(o.voice);
@@ -178,7 +185,7 @@ export async function runExplainLike(o: RunOptions) {
   // ---------- compose + render ----------
   P({ stage: "compose", message: "laying out the canvas", pct: 44 });
   const { film, sketch, timeline } = await compose({
-    plan, audio, theme, level, pack, sourceLabel, arch, shot, pace: o.pace,
+    plan, audio, theme, spec, pack, sourceLabel, arch, shot,
     colorOf: (c) => kindColor(c.kind) as any,
   });
   // captions must spell out exactly what the voice says
@@ -236,7 +243,7 @@ export async function runExplainLike(o: RunOptions) {
 
   const voiceUsd = voice instanceof DeepgramVoice ? voice.usd : 0;
   const manifest = {
-    tool: "explainlike", input: o.input, kind, level: level.id, repoDir, followUp: o.focus ? { focus: o.focus } : o.whatIf ? { whatIf: o.whatIf } : undefined, theme: theme.id, packs: { loaded: extra.map((p) => p.id), detected: detected.map((d) => ({ pack: d.pack, id: d.component.id, name: d.component.name, evidence: d.evidence })) }, title: plan.title, durationSec: Number(film.duration.toFixed(1)),
+    tool: "explainlike", input: o.input, kind, brief: spec.brief, tempo: spec.tempo, repoDir, followUp: o.focus ? { focus: o.focus } : o.whatIf ? { whatIf: o.whatIf } : undefined, look: theme.id, packs: { loaded: extra.map((p) => p.id), detected: detected.map((d) => ({ pack: d.pack, id: d.component.id, name: d.component.name, evidence: d.evidence })) }, title: plan.title, durationSec: Number(film.duration.toFixed(1)),
     outputs: { mp4, [exportAs]: boardFile, contactSheet: sheet, plan: path.join(out, "plan.json"), architecture: arch ? path.join(out, "architecture.json") : undefined },
     scenes: timeline, repairs: plan.repairs ?? [], notes, qa,
     // captions that found no fully free spot (empty when every caption clears the drawing)

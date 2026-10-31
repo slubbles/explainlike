@@ -8,7 +8,7 @@ export { validInput };
 export type JobState = "running" | "done" | "error";
 export type JobKind = "video" | "focus" | "what-if";
 export interface Job {
-  id: string; kind: JobKind; input: string; level: string; voice: string; state: JobState;
+  id: string; kind: JobKind; input: string; voice: string; approach?: string; state: JobState;
   stage: string; message: string; pct: number; started: number; finished?: number;
   /** follow-up clips point at the video they came from */
   parent?: string; focus?: string; whatIf?: string;
@@ -21,7 +21,6 @@ export interface Job {
 const ROOT = path.resolve(process.cwd(), "../..");
 export const JOBS_DIR = process.env.EXPLAINLIKE_JOBS_DIR ?? path.join(ROOT, "explainlike-out", "web");
 const ID = /^[a-f0-9]{12}$/;
-const LEVELS = new Set(["five", "new", "interviewing", "senior"]);
 
 // Jobs live on disk (one job.json per folder) so they survive a server restart.
 const g = globalThis as unknown as { __explainlikeJobs?: Map<string, Job> };
@@ -78,7 +77,7 @@ function run(job: Job, args: string[]) {
         if (e.type === "progress") { Object.assign(job, { stage: e.stage, message: e.message, pct: e.pct ?? job.pct, usd: e.usd ?? job.usd }); save(job, true); }
         else if (e.type === "done") {
           const m = e.manifest;
-          Object.assign(job, { state: "done", pct: 100, message: "done", title: m.title, durationSec: m.durationSec, finished: Date.now(),
+          Object.assign(job, { state: "done", pct: 100, message: "done", title: m.title, approach: m.brief?.approach, durationSec: m.durationSec, finished: Date.now(),
             costUsd: (m.cost?.metaUsd ?? 0) + (m.cost?.voiceUsd ?? 0),
             interactive: fs.existsSync(path.join(JOBS_DIR, job.id, "interactive.json")),
             outputs: Object.fromEntries(Object.entries(m.outputs ?? {}).filter(([, v]) => v).map(([k, v]) => [k, path.basename(String(v))])) });
@@ -103,10 +102,9 @@ function newJob(p: Omit<Job, "id" | "state" | "stage" | "message" | "pct" | "sta
   return job;
 }
 
-export function startJob(input: string, level: string, voice: string): Job {
-  if (!LEVELS.has(level)) level = "new";
-  const job = newJob({ kind: "video", input, level, voice });
-  const args = [input, "--level", level, "--out", path.join(JOBS_DIR, job.id)];
+export function startJob(input: string, voice: string): Job {
+  const job = newJob({ kind: "video", input, voice });
+  const args = [input, "--out", path.join(JOBS_DIR, job.id)];
   if (voice === "silent") args.push("--voice", "silent");
   run(job, args);
   return job;
@@ -119,8 +117,8 @@ export function startFollowUp(parentId: string, f: { focus?: string; whatIf?: st
   if (!fs.existsSync(path.join(JOBS_DIR, p.id, "architecture.json"))) return "follow-ups work on repo videos";
   if (f.focus && !/^[a-z0-9-]{1,60}$/.test(f.focus)) return "bad component id";
   if (f.whatIf && f.whatIf !== "10x" && f.whatIf !== "100x") return "what-if takes 10x or 100x";
-  const job = newJob({ kind: f.focus ? "focus" : "what-if", input: p.input, level: p.level, voice: p.voice, parent: p.id, focus: f.focus, whatIf: f.whatIf });
-  const args = [p.input, "--level", p.level, "--out", path.join(JOBS_DIR, job.id), "--from", path.join(JOBS_DIR, p.id), "--no-qa"];
+  const job = newJob({ kind: f.focus ? "focus" : "what-if", input: p.input, voice: p.voice, parent: p.id, focus: f.focus, whatIf: f.whatIf });
+  const args = [p.input, "--out", path.join(JOBS_DIR, job.id), "--from", path.join(JOBS_DIR, p.id), "--no-qa"];
   if (f.focus) args.push("--focus", f.focus); else args.push("--what-if", f.whatIf!);
   if (p.voice === "silent") args.push("--voice", "silent");
   run(job, args);

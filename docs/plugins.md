@@ -1,12 +1,12 @@
-# Plugins: packs, themes and levels
+# Plugins: icon packs
 
-Explain Like has three plugin points. All three are plain files or one function call; none needs a fork.
+Explain Like has one plugin point, the icon pack. It is a plain folder; no fork needed.
+
+There are no levels or themes to pick any more. Muse Spark reads the source first and writes a brief (`packages/core/src/brief.ts`): the audience, the approach (analogy, story, step by step, build-up, compare, problem then solution), the depth, the tempo and the look. See [How the engine decides](#how-the-engine-decides).
 
 | plugin | what it changes | how you add one |
 | --- | --- | --- |
 | **pack** | which building blocks Explain Like recognises in a repo, and the icons it draws them with | a folder with `manifest.json` (+ PNGs), passed with `--pack <dir>` |
-| **theme** | colours of the canvas, ink, captions and the semantic colours | `registerTheme()` from `@explainlike/core` |
-| **level** | how deep the explanation goes, how many boxes, which extra whiteboard lists | a JSON file, passed with `--level-file <file>` |
 
 ## Packs
 
@@ -85,25 +85,13 @@ Run the first command from `packages/cli` so the workspace packages resolve. `lo
 
 To make your own icons in the same style, run `pnpm icons:generate`. It uses `scripts/gen-icon-pack.ts`, which draws each icon with Muse Image and cuts it out with SAM; add subjects to its `ICONS` table. Or draw them yourself: white strokes on transparency, and light themes invert them automatically.
 
-## Themes
+## How the engine decides
 
-Three themes ship: `pen-light` (the default: a soft white board, marker-pen lines that swell and thin, Shantell Sans handwriting), `caleb-dark` (black canvas, rough double strokes, Excalifont) and `whiteboard-light` (an off-white board with dark ink). On light themes icons are inverted automatically. Pick one with `--theme`.
+The brief is the first model call of every video, and it is saved as `brief.json` next to the video.
 
-A theme can also set `hand` (`excalifont` or `shantell`) and `stroke` (`rough` or `pen`).
+- **Complexity sets the tempo.** Technical topics get the slow tempo (at least 4.8 s per beat, at most 11 cuts a minute, 1.4 s camera moves, two boxes per beat). Simple topics get the brisk tempo (at least 3.5 s per beat, at most 15 cuts a minute) and lean on an analogy. Everything else is steady (4.0 s, 13 cuts a minute).
+- **Depth sets the size.** Overview means 4 to 6 boxes and no list scenes. Working means 6 to 9 boxes and at most one list scene. Deep means 8 to 12 boxes and up to two (requirements, back of envelope, trade-offs, failure modes).
+- **Length follows coverage.** The planner gets a target length worked out from the number of boxes, walkthrough steps, scale risks and list scenes at that tempo, not a fixed range.
+- **The look** is one of `pen-light` (default), `whiteboard-light` or `chalk-dark`.
 
-```ts
-import { registerTheme, getTheme } from "@explainlike/core";
-registerTheme({ ...getTheme("caleb-dark"), id: "midnight", background: "#0b1020", accent: "#7aa2ff" });
-```
-
-Keep the colour meanings: red = problem, orange/yellow = key idea, green = fix, blue = actors. Planners pick colours by meaning, and themes only decide the exact shade.
-
-## Levels
-
-Levels are JSON files validated with zod (`LevelSpec` in `packages/core/src/levels.ts`); the four built-ins live in `packages/core/levels/`. An example of your own is [`examples/levels/product-manager.json`](../examples/levels/product-manager.json):
-
-```bash
-node packages/cli/bin/explainlike.mjs https://github.com/umami-software/umami --level-file examples/levels/product-manager.json
-```
-
-`notes` adds whiteboard list scenes after the hook, the walkthrough or the scale scene. The `interviewing` level uses them for requirements, a back-of-envelope estimate and trade-offs; `senior` uses them for failure modes, consistency and cost. Any number written in a list is tagged as an estimate by the validator and footnoted on screen as "assumed numbers for illustration, not measured from the real app".
+Colours keep their meanings in every look: red = problem, orange/yellow = key idea, green = fix, blue = actors. Any number written in a list is tagged as an estimate and footnoted on screen as "assumed numbers for illustration, not measured from the real app".

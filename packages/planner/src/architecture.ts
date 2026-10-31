@@ -1,13 +1,12 @@
 import { z } from "zod";
-import { Architecture, COLOR_MEANING, getLevel, lower, type Level, type Progress } from "@explainlike/core";
+import { Architecture, COLOR_MEANING, lower, type ExplainSpec, type Progress } from "@explainlike/core";
 import { sparkJson, type CostLedger } from "@explainlike/models";
 
 export interface ArchIssue { target: string; problem: string }
 
 const KEYWORD_RULE = "Every keyword, label, problem and fix field is 1 to 3 lowercase words, the words a teacher would write on a whiteboard (e.g. 'edge cache', 'ingest api', 'clickhouse').";
 
-function archSystem(level: Level, icons: string, hints = "") {
-  const L = getLevel(level);
+function archSystem(L: ExplainSpec, icons: string, hints = "") {
   return [
     "You map the REAL architecture of a software repository for a whiteboard explainer video.",
     "Ground rules (a reviewer will reject anything that breaks them):",
@@ -20,17 +19,17 @@ function archSystem(level: Level, icons: string, hints = "") {
     `- scale: exactly ${L.scaleItems} risks at ${L.scaleAt.join(" / ")} traffic. Each must be about a component in this design, explain WHY it breaks using what the code actually does, and give a concrete fix. Cite one file.`,
     `- ${KEYWORD_RULE}`,
     `- icon: pick the closest name from this icon pack: ${icons}`,
-    `Audience for wording later: ${L.label}.`,
+    `Audience for wording later: ${L.audience}.`,
     ...(hints ? [hints] : []),
   ].join("\n");
 }
 
-export async function extractArchitecture(o: { ledger: CostLedger; digest: string; name: string; level: Level; icons: string; hints?: string; progress?: Progress }): Promise<Architecture> {
+export async function extractArchitecture(o: { ledger: CostLedger; digest: string; name: string; spec: ExplainSpec; icons: string; hints?: string; progress?: Progress }): Promise<Architecture> {
   o.progress?.({ stage: "plan", message: "mapping the architecture with Muse Spark" });
   return sparkJson({
     ledger: o.ledger, step: "architecture", schema: Architecture, name: "architecture", effort: "medium", maxTokens: 16000,
     messages: [
-      { role: "system", content: archSystem(o.level, o.icons, o.hints) },
+      { role: "system", content: archSystem(o.spec, o.icons, o.hints) },
       { role: "user", content: `Repository: ${o.name}\n\nDIGEST (secrets stripped):\n${o.digest}` },
     ],
   });
@@ -97,7 +96,7 @@ export function evidencePack(arch: Architecture, read: (p: string, max?: number)
   return out;
 }
 
-export async function reviewArchitecture(o: { ledger: CostLedger; arch: Architecture; evidence: string; level: Level; progress?: Progress }) {
+export async function reviewArchitecture(o: { ledger: CostLedger; arch: Architecture; evidence: string; spec: ExplainSpec; progress?: Progress }) {
   o.progress?.({ stage: "plan", message: "reviewing the architecture against the cited files" });
   return sparkJson({
     ledger: o.ledger, step: "architecture-review", schema: Review, name: "review", effort: "medium", maxTokens: 6000,
@@ -108,12 +107,12 @@ export async function reviewArchitecture(o: { ledger: CostLedger; arch: Architec
   });
 }
 
-export async function reviseArchitecture(o: { ledger: CostLedger; arch: Architecture; issues: { target: string; problem: string; fix?: string }[]; digest: string; name: string; level: Level; icons: string; hints?: string; progress?: Progress }) {
+export async function reviseArchitecture(o: { ledger: CostLedger; arch: Architecture; issues: { target: string; problem: string; fix?: string }[]; digest: string; name: string; spec: ExplainSpec; icons: string; hints?: string; progress?: Progress }) {
   o.progress?.({ stage: "plan", message: `fixing ${o.issues.length} review issues` });
   return sparkJson({
     ledger: o.ledger, step: "architecture-revise", schema: Architecture, name: "architecture", effort: "medium", maxTokens: 16000,
     messages: [
-      { role: "system", content: archSystem(o.level, o.icons, o.hints) },
+      { role: "system", content: archSystem(o.spec, o.icons, o.hints) },
       { role: "user", content: `Repository: ${o.name}\n\nDIGEST (secrets stripped):\n${o.digest}` },
       { role: "assistant", content: JSON.stringify(o.arch) },
       { role: "user", content: `A reviewer checked this against the code and found these issues. Return the corrected full architecture JSON. Keep everything that was right.\n${o.issues.map((i, n) => `${n + 1}. [${i.target}] ${i.problem}${i.fix ? ` -> ${i.fix}` : ""}`).join("\n")}` },

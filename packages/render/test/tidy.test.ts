@@ -3,13 +3,13 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { getTheme, getLevel, type Architecture, type ScenePlan } from "@explainlike/core";
+import { getTheme, specFromBrief, DEFAULT_BRIEF, type Architecture, type ScenePlan } from "@explainlike/core";
 import { compose, loadIconPack, tidySketch, textBox, widestGap, overlaps } from "@explainlike/render";
 
 const fx = path.join(path.dirname(fileURLToPath(import.meta.url)), "fixtures");
 const plan = JSON.parse(fs.readFileSync(path.join(fx, "spotibai.plan.json"), "utf8")) as ScenePlan;
 const arch = JSON.parse(fs.readFileSync(path.join(fx, "spotibai.architecture.json"), "utf8")) as Architecture;
-const composed = compose({ plan, audio: [], theme: getTheme("caleb-dark"), level: getLevel("interviewing"), pack: loadIconPack(), sourceLabel: "x", arch });
+const composed = compose({ plan, audio: [], theme: getTheme("chalk-dark"), spec: specFromBrief(DEFAULT_BRIEF), pack: loadIconPack(), sourceLabel: "x", arch });
 
 test("exported whiteboard: notes from different scenes do not sit on each other or on boxes", async () => {
   const sk = tidySketch((await composed).sketch);

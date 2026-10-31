@@ -10,7 +10,7 @@ import { z } from "zod";
 import { strictJsonSchema, type CostEntry } from "@explainlike/core";
 
 const BASE = process.env.META_API_BASE ?? "https://api.meta.ai/v1";
-export const SPARK = process.env.EXPLAINLIKE_SPARK_MODEL ?? "muse-spark-1.3";
+export const SPARK = process.env.EXPLAINLIKE_SPARK_MODEL ?? "muse-spark-1.3-contributor";
 export const IMAGE = "muse-image-1.0";
 export const SAM = "sam-3.1";
 export const TRANSCRIBE = "muse-voice-transcribe-1.0";

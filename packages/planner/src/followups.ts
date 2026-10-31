@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { ScaleRisk, NoteItem, lower, tidySpeech, soundsLikeKeywords, type Architecture, type Level, type Progress, type Scene, type ScenePlan } from "@explainlike/core";
+import { ScaleRisk, NoteItem, lower, tidySpeech, soundsLikeKeywords, type Architecture, type Progress, type Scene, type ScenePlan } from "@explainlike/core";
 import { sparkJson, type CostLedger } from "@explainlike/models";
 import { validateNotes } from "./scenes.js";
 
@@ -13,7 +13,7 @@ const neighbours = (arch: Architecture, id: string) =>
   new Set([id, ...arch.connections.flatMap((c) => (c.from === id ? [c.to] : c.to === id ? [c.from] : []))]);
 
 /** Text answer for the interactive player: what this box does, grounded in its evidence files. */
-export async function explainComponent(o: { ledger: CostLedger; arch: Architecture; id: string; evidence: string; level: Level; question?: string }) {
+export async function explainComponent(o: { ledger: CostLedger; arch: Architecture; id: string; evidence: string; audience: string; question?: string }) {
   const c = o.arch.components.find((x) => x.id === o.id);
   if (!c) throw new Error(`unknown component ${o.id}`);
   const links = o.arch.connections.filter((x) => x.from === c.id || x.to === c.id).map((x) => `${x.from} -> ${x.to} (${x.label})`);
@@ -25,7 +25,7 @@ export async function explainComponent(o: { ledger: CostLedger; arch: Architectu
     }),
     messages: [
       { role: "system", content: [
-        `You explain one box of a system design diagram of the product "${o.arch.product}" to a viewer who tapped it while watching. Audience level: ${o.level}.`,
+        `You explain one box of a system design diagram of the product "${o.arch.product}" to a viewer who tapped it while watching. Audience: ${o.audience}.`,
         "Use only the evidence files given. Every point cites one of those file paths. If the files do not show something, say so; never guess traffic, latency or cost numbers.",
         "2 to 4 points, each one short sentence.",
       ].join("\n") },
@@ -35,7 +35,7 @@ export async function explainComponent(o: { ledger: CostLedger; arch: Architectu
 }
 
 /** A 15 to 20 second clip: the whole system for a beat, then pinned notes on one component and its neighbours. */
-export async function planFocus(o: { ledger: CostLedger; arch: Architecture; id: string; evidence: string; level: Level; progress?: Progress }): Promise<ScenePlan & { repairs: string[] }> {
+export async function planFocus(o: { ledger: CostLedger; arch: Architecture; id: string; evidence: string; audience: string; progress?: Progress }): Promise<ScenePlan & { repairs: string[] }> {
   const c = o.arch.components.find((x) => x.id === o.id);
   if (!c) throw new Error(`unknown component ${o.id}`);
   const near = neighbours(o.arch, c.id);
@@ -45,7 +45,7 @@ export async function planFocus(o: { ledger: CostLedger; arch: Architecture; id:
     schema: z.object({ intro: z.string(), heading: z.string(), items: z.array(NoteItem), narration: z.string() }),
     messages: [
       { role: "system", content: [
-        `Write a 15 to 20 second deep dive on one box of the "${o.arch.product}" diagram. Audience: ${o.level}.`,
+        `Write a 15 to 20 second deep dive on one box of the "${o.arch.product}" diagram. Audience: ${o.audience}.`,
         "intro: one natural spoken sentence (about 10 words) naming the box and where it sits, e.g. \"This box is you, the viewer, pasting a link into the web app.\" heading: 2 to 4 lowercase words that the narration says.",
         `items: 3 or 4 notes pinned on the diagram. target is always "${c.id}" (mention neighbours in the text if needed). text 2 to 7 lowercase words that read as a phrase: keep commas and \"or\" in a list (\"paste a github, x or article link\", never \"paste github x article link\"). evidence: one exact file path from the evidence files. color: blue, green, orange, purple, yellow or red. icon: "" is fine. estimate false unless the text holds an assumed number.`,
         "narration: about 35 words of natural, complete spoken sentences, the way a teacher talks, never a list of keywords. Walk through the notes in order and work each note's key words into a full sentence (note \"paste a github, x or article link\" -> \"You paste a GitHub, X, or article link.\"). Keep articles, \"or\", \"and\" and commas. Only facts the evidence files show; no traffic, latency or cost numbers.",
@@ -64,7 +64,7 @@ export async function planFocus(o: { ledger: CostLedger; arch: Architecture; id:
 }
 
 /** "What if traffic grows 10x?": fresh scale risks on the existing diagram, every number labelled as an assumption. */
-export async function planWhatIf(o: { ledger: CostLedger; arch: Architecture; factor: "10x" | "100x"; evidence: string; level: Level; progress?: Progress }): Promise<{ arch: Architecture; plan: ScenePlan & { repairs: string[] } }> {
+export async function planWhatIf(o: { ledger: CostLedger; arch: Architecture; factor: "10x" | "100x"; evidence: string; audience: string; progress?: Progress }): Promise<{ arch: Architecture; plan: ScenePlan & { repairs: string[] } }> {
   o.progress?.({ stage: "plan", message: `what breaks at ${o.factor}?` });
   const ids = o.arch.components.map((c) => c.id);
   const r = await sparkJson({
@@ -72,7 +72,7 @@ export async function planWhatIf(o: { ledger: CostLedger; arch: Architecture; fa
     schema: z.object({ intro: z.string(), risks: z.array(ScaleRisk.extend({ heading: z.string(), narration: z.string() })) }),
     messages: [
       { role: "system", content: [
-        `The viewer asks: what if "${o.arch.product}" got ${o.factor} its traffic? Pick the 2 components that break first, from the evidence. Audience: ${o.level}.`,
+        `The viewer asks: what if "${o.arch.product}" got ${o.factor} its traffic? Pick the 2 components that break first, from the evidence. Audience: ${o.audience}.`,
         `component must be one of: ${ids.join(", ")}. at: "${o.factor}". problem and fix: 1 to 3 lowercase words. evidence: one exact file path from the evidence. heading: 2 to 4 lowercase words that the narration says (reuse the problem words).`,
         "narration: about 30 words per risk, in 2 or 3 short plain sentences a non-engineer can follow: what breaks and why, then 'The fix is ...'. Start with 'If ...' (you do not know the app's real traffic) and never state user, request, latency or cost numbers as facts. No run-on 'so assume' clauses, no jargon strings like 'single room fanout'.",
         "intro: one natural spoken sentence (about 10 words) that sets up the question. Every narration is complete, grammatical sentences, never a list of keywords.",
