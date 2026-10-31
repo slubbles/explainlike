@@ -6,6 +6,7 @@ import { layoutGraph, unionBox, shiftLayout, wrapText, NODE, type Box, type GNod
 import { textWidth, fontDataUrl } from "./measure.js";
 import type { IconPack } from "./icons.js";
 import { resolveIcon } from "./icons.js";
+import { ringOf, scaleArrow, placeFix, placeRingLabel, polyBox } from "./annotate.js";
 import path from "node:path";
 
 export const W = 1920, H = 1080, FPS = 30;
@@ -268,6 +269,15 @@ export async function compose(inp: ComposeInput): Promise<Composed> {
       gedges.push({ from: r.component, to: id });
     });
     graph = await layoutGraph(gnodes, gedges);
+    // fix boxes get room for the ring and the big arrow, clear of every other box (their link is never drawn as an edge)
+    a.scale.forEach((r, i) => {
+      const f = graph!.nodes.get(`fix-${i}`), c = graph!.nodes.get(r.component);
+      if (!f || !c) return;
+      const others = [...graph!.nodes.values()].filter((n) => n.id !== f.id && n.id !== c.id);
+      const nb = placeFix(c, f, [...others, ringOf(c).box]);
+      Object.assign(f, { x: nb.x, y: nb.y });
+    });
+    graph.bbox = unionBox([graph.bbox, ...graph.nodes.values()], 0);
   }
   const gb = graph?.bbox ?? { x: 0, y: 0, w: 1600, h: 900 };
 
@@ -415,30 +425,23 @@ export async function compose(inp: ComposeInput): Promise<Composed> {
         for (const id of present) B.setOp(nodeGroup(id), T, id === c.id ? 1 : dim);
         for (const kk of drawnEdges) B.setOp(kk, T, dim);
         for (let j = 0; j < k; j++) { B.setOp(`s:${j}`, T, 0); B.setOp(nodeGroup(`fix-${j}`), T, dim); }
-        B.fit(unionBox([c, f, { x: c.x - c.w * 0.25, y: c.y - c.h * 0.6, w: c.w * 1.5, h: c.h * 2.2 }], 80), T, 1.0);
         const [t1, t2] = eventTimes(words, [[r.problem, r.at], [r.fix]], t0 + 0.2, tEnd - 0.4, 1.6);
-        const cx = c.x + c.w / 2, cy = c.y + c.h / 2;
-        B.rough(gen.ellipse(cx, cy, c.w * 1.45, c.h * 1.5, { seed: B.seed++, stroke: C("red"), strokeWidth: 5, roughness: 1.5 }), t1, 0.8, `s:${k}`);
-        B.sketch.ellipses.push({ box: { x: cx - c.w * 0.725, y: cy - c.h * 0.75, w: c.w * 1.45, h: c.h * 1.5 }, color: C("red") });
-        // problem label: above the circle unless a box is in the way, then below, then left
-        const lab = `${r.at}: ${r.problem}`, lw = textWidth(lab, 44) + 24, ex = c.w * 0.725, ey = c.h * 0.75;
+        const ring = ringOf(c);
+        B.rough(gen.ellipse(ring.cx, ring.cy, ring.rx * 2, ring.ry * 2, { seed: B.seed++, stroke: C("red"), strokeWidth: 5, roughness: 1.5 }), t1, 0.8, `s:${k}`);
+        B.sketch.ellipses.push({ box: ring.box, color: C("red") });
+        // big blocky red arrow from the ring to the fix (placeFix made room for it)
+        const poly = scaleArrow(c, f);
+        if (poly) {
+          B.rough(gen.polygon(poly, { seed: B.seed++, stroke: C("red"), strokeWidth: 4, roughness: 1.1, fill: C("red"), fillStyle: "hachure", hachureGap: 9, fillWeight: 3 }), t2, 0.6, `s:${k}`);
+          B.sketch.polygons.push({ points: poly, color: C("red") });
+        }
+        // problem label: first spot around the ring that hits no box, the fix, the arrow or the ring
+        const lab = `${r.at}: ${r.problem}`, lw = textWidth(lab, 44) + 24;
         const others = [...graph.nodes.values()].filter((n) => n.id !== c.id && n.id !== f.id);
-        const hit = (b: Box) => others.some((n) => b.x < n.x + n.w && b.x + b.w > n.x && b.y < n.y + n.h && b.y + b.h > n.y);
-        const cands: [number, number, "middle" | "start"][] = [[cx, cy - ey - 22, "middle"], [cx, cy + ey + 58, "middle"], [cx - ex - 20 - lw, cy - ey + 30, "start"], [cx - ex - 20 - lw, cy + ey, "start"]];
-        const box = ([x, y, a]: [number, number, string]): Box => ({ x: a === "start" ? x : x - lw / 2, y: y - 46, w: lw, h: 60 });
-        const pick = cands.find((cd) => !hit(box(cd))) ?? cands[0];
-        B.text({ text: lab, x: pick[0], y: pick[1], size: 44, color: C("red"), anchor: pick[2], t0: t1 + 0.5, dur: 0.6, g: `s:${k}`, bg: true });
-        // big blocky red arrow from the problem to the fix
-        const fx = f.x + f.w / 2, fy = f.y + f.h / 2;
-        const ang = Math.atan2(fy - cy, fx - cx), ux = Math.cos(ang), uy = Math.sin(ang);
-        const edgeDist = (n: PlacedNode) => Math.min(Math.abs(n.w / 2 / (ux || 1e-6)), Math.abs(n.h / 2 / (uy || 1e-6)));
-        const ax = cx + ux * (edgeDist(c) * 1.25 + 10), ay = cy + uy * (edgeDist(c) * 1.25 + 10);
-        const bx = fx - ux * (edgeDist(f) + 16), by = fy - uy * (edgeDist(f) + 16);
-        const L = Math.max(90, Math.hypot(bx - ax, by - ay)), hl = Math.min(80, L * 0.5);
-        const local: [number, number][] = [[0, 0], [-hl, -52], [-hl, -22], [-L, -22], [-L, 22], [-hl, 22], [-hl, 52]];
-        const poly = local.map(([x, y]) => [bx + x * ux - y * uy, by + x * uy + y * ux] as [number, number]);
-        B.rough(gen.polygon(poly, { seed: B.seed++, stroke: C("red"), strokeWidth: 4, roughness: 1.1, fill: C("red"), fillStyle: "hachure", hachureGap: 9, fillWeight: 3 }), t2, 0.6, `s:${k}`);
-        B.sketch.polygons.push({ points: poly, color: C("red") });
+        const L = placeRingLabel(ring.box, lw, 60, [...others, f, ...(poly ? [polyBox(poly)] : [])]);
+        B.text({ text: lab, x: L.x, y: L.y, size: 44, color: C("red"), anchor: L.anchor, t0: t1 + 0.5, dur: 0.6, g: `s:${k}`, bg: true });
+        // the camera holds everything this scene draws, label included
+        B.fit(unionBox([c, f, ring.box, L.box, ...(poly ? [polyBox(poly)] : [])], 60), T, 1.0);
         B.node(f, t2 + 0.55, nodeGroup(f.id));
         present.add(f.id);
       }
