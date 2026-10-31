@@ -148,6 +148,10 @@ export async function runExplainLike(o: RunOptions) {
       return planRepoScenes({ ledger, arch: arch!, spec, progress: P });
     });
     const chk = (plan as { check?: { first: string[]; final: string[]; revised: boolean } }).check;
+    // plain part names chosen by the narration polish are what the board shows and the voice says
+    const pol = plan as { renames?: { id: string; keyword: string }[]; polish?: { rewritten: number; kept: string[]; issues: string[] } };
+    if (pol.renames?.length) arch = { ...arch!, components: arch!.components.map((c) => ({ ...c, keyword: pol.renames!.find((r) => r.id === c.id)?.keyword ?? c.keyword })) };
+    if (pol.polish) notes.push(`narration polish: ${pol.polish.rewritten} scene(s) rewritten${pol.polish.kept.length ? `, kept as planned: ${pol.polish.kept.join(", ")}` : ""}${pol.renames?.length ? `; renamed ${pol.renames.map((r) => `${r.id} -> "${r.keyword}"`).join(", ")}` : ""}; speech check: ${pol.polish.issues.length ? pol.polish.issues.join("; ") : "clean"}`);
     if (chk) notes.push(`plan self-check: ${chk.first.length} issue(s)${chk.revised ? `, revised once, ${chk.final.length} left` : ""}${chk.final.length ? `: ${chk.final.join("; ")}` : ""}`);
     }
     repoDir = r.repoDir;
