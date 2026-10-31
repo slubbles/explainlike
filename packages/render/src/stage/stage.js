@@ -206,7 +206,10 @@
             if (r.x + r.w > 0 && r.x < F.width && r.y + r.h > 0 && r.y < F.height) out.push(r);
           }
         }
-        return { t, boxes: out };
+        const nx = camera(t + 0.05);
+        // while the camera glides, everything is in motion; covering something then matters far less than on a still frame
+        const moving = Math.abs(nx.x - cam.x) + Math.abs(nx.y - cam.y) + Math.abs(nx.w - cam.w) > 1;
+        return { t, boxes: out, weight: moving ? 1 : 1000 };
       });
       let best = null;
       // last resort: any free spot on screen, nearest to the box first (or to the usual bottom spot)
@@ -216,23 +219,26 @@
       for (let y = TOP; y <= BOT - ch; y += 30) for (let x = SIDE; x <= F.width - SIDE - cw; x += 40) grid.push({ grid: [x, y], d: Math.hypot(x + cw / 2 - ax, y + ch / 2 - ay) });
       grid.sort((a, b) => a.d - b.d);
       // the same spots pinned to the drawing, so a caption rides along when the camera pushes mid-phrase
-      const camS = camera(times.length ? times[times.length - 1] : c.t1), sS = camS.w / F.width;
-      const pinned = grid.map((g) => ({ world: [camS.x + g.grid[0] * sS, camS.y + g.grid[1] * sS] }));
+      const pinned = [];
+      for (const tt of times.length ? [times[times.length - 1], times[0]] : [c.t1]) {
+        const camS = camera(tt), sS = camS.w / F.width;
+        for (const g of grid) pinned.push({ world: [camS.x + g.grid[0] * sS, camS.y + g.grid[1] * sS] });
+      }
       for (const spot of [...(c.at ? NEAR : []), ...BANDS, ...grid, ...pinned]) {
-        let hit = 0;
+        let hit = 0, still = 0;
         for (const sh of shots) {
           const p = spotXY(spot, c, sh.t, cw, ch), m = 10;
           for (const r of sh.boxes) {
             const ox = Math.min(p.x + cw + m, r.x + r.w) - Math.max(p.x - m, r.x), oy = Math.min(p.y + ch + m, r.y + r.h) - Math.max(p.y - m, r.y);
-            if (ox > 0 && oy > 0) hit += ox * oy;
+            if (ox > 0 && oy > 0) { hit += ox * oy * sh.weight; if (sh.weight > 1) still += ox * oy; }
           }
           if (best && hit >= best.hit) break;
         }
-        if (!best || hit < best.hit) best = { spot, hit };
+        if (!best || hit < best.hit) best = { spot, hit, still };
         if (hit === 0) break;
       }
       c.spot = best.spot;
-      report.push({ t0: c.t0, text: c.words.map((w) => w.w).join(" "), spot: best.spot.side ? `${best.spot.side}+${best.spot.gap}` : best.spot.band ?? (best.spot.grid ? `at ${best.spot.grid.join(",")}` : "pinned"), overlapPx: Math.round(best.hit / Math.max(1, shots.length)) });
+      report.push({ t0: c.t0, text: c.words.map((w) => w.w).join(" "), spot: best.spot.side ? `${best.spot.side}+${best.spot.gap}` : best.spot.band ?? (best.spot.grid ? `at ${best.spot.grid.join(",")}` : "pinned"), overlapPx: Math.round(best.still / Math.max(1, shots.length)), movingPx: Math.round((best.hit - best.still * 1000) / Math.max(1, shots.length)) });
     }
     cap.style.display = "none"; cap.innerHTML = "";
     window.captionReport = report;

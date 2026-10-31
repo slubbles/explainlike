@@ -23,8 +23,11 @@ export function run(cmd: string, args: string[]): Promise<void> {
   });
 }
 
-/** Where the stage put one caption, and how many pixels of drawing it still covers on average (0 = clear). */
-export interface CaptionSpot { t0: number; text: string; spot: string; overlapPx: number }
+/**
+ * Where the stage put one caption. overlapPx: average pixels of drawing it covers on still frames (0 = clear);
+ * movingPx: the same while the camera glides, when a brief brush matters less.
+ */
+export interface CaptionSpot { t0: number; text: string; spot: string; overlapPx: number; movingPx: number }
 
 /** Render frames with N parallel headless pages, each seeking window.render(t). */
 export async function captureFrames(film: Film, dir: string, opts: { workers?: number; onProgress?: (done: number, total: number) => void; only?: number[] } = {}) {
