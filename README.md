@@ -10,7 +10,7 @@ Paste a GitHub repo, an X post or an article. Get a **whiteboard explainer video
 
 ### Metual explaining Metual
 
-This is Metual run on its own repo (`--level new`, about $0.17 of model and voice spend):
+This is Metual run on its own repo (`--level new`, $0.12 of Muse Spark and $0.04 of voice; voiceover QA 0.98):
 
 ![Metual drawing its own architecture](docs/media/metual-self.gif)
 
