@@ -1,10 +1,11 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import Player, { type Interactive } from "../components/Player";
+import { formFromJob } from "../lib/form";
 
 type Usd = { meta: number; voice: number; total: number };
 type Job = {
-  id: string; kind: "video" | "focus" | "what-if"; state: "running" | "done" | "error"; message: string; pct: number; error?: string; title?: string;
+  id: string; kind: "video" | "focus" | "what-if"; input: string; level: string; voice: string; state: "running" | "done" | "error"; message: string; pct: number; error?: string; title?: string;
   durationSec?: number; costUsd?: number; usd?: Usd; interactive?: boolean; focus?: string; whatIf?: string;
   outputs?: { mp4?: string; tldr?: string; excalidraw?: string; contactSheet?: string };
 };
@@ -86,6 +87,12 @@ export default function Home() {
   useEffect(() => {
     setMap(undefined); setPicked(undefined); setExpl(null); setFollow([]);
   }, [jobId]);
+  // the job is the truth for what is on screen: a reopened job shows the link, level and voice it was made with
+  useEffect(() => {
+    if (!job) return;
+    const f = formFromJob(job);
+    setInput(f.input); setLevel(f.level); setVoice(f.voice);
+  }, [job?.id]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (job?.state === "done" && job.interactive && !map) fetch(fileUrl(job.id, "interactive.json")).then((r) => r.json()).then(setMap).catch(() => {});
   }, [job?.state, job?.interactive, job?.id, map]);
