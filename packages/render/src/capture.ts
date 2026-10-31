@@ -5,6 +5,7 @@ import { spawn } from "node:child_process";
 import { chromium } from "playwright-core";
 import type { Film } from "./film.js";
 import { stageHtml } from "./stage.js";
+import { makeBed, mixGraph } from "./music.js";
 
 export function findChrome(): string {
   const c = [process.env.EXPLAINLIKE_CHROME, "/usr/bin/google-chrome", "/usr/bin/google-chrome-stable", "/usr/bin/chromium", "/usr/bin/chromium-browser",
@@ -85,11 +86,24 @@ export function mixNarration(parts: { file: string; at: number }[], duration: nu
   fs.writeFileSync(out, Buffer.concat([h, pcm]));
 }
 
-export async function encodeMp4(frameDir: string, fps: number, out: string, audio?: string) {
+/**
+ * Frames, the narration (if any) and the music bed (unless `music` is false) into one mp4.
+ * The bed sits well under the voice and ducks while it speaks (see music.ts).
+ */
+export async function encodeMp4(frameDir: string, fps: number, out: string, audio?: string, opts: { music?: boolean; duration?: number } = {}) {
   const args = ["-y", "-loglevel", "error", "-framerate", String(fps), "-i", path.join(frameDir, "f%06d.jpg")];
+  const frames = fs.readdirSync(frameDir).filter((f) => /^f\d+\.jpg$/.test(f)).length;
+  const duration = opts.duration ?? frames / fps;
+  let bed: string | undefined;
+  if (opts.music !== false) {
+    bed = path.join(frameDir, "bed.wav");
+    makeBed(duration + 1, bed);
+  }
   if (audio) args.push("-i", audio);
+  if (bed) args.push("-i", bed);
+  if (audio || bed) args.push("-filter_complex", mixGraph(audio ? 1 : undefined, bed ? (audio ? 2 : 1) : undefined, duration), "-map", "0:v", "-map", "[aout]");
   args.push("-c:v", "libx264", "-preset", "medium", "-crf", "20", "-pix_fmt", "yuv420p", "-movflags", "+faststart");
-  if (audio) args.push("-c:a", "aac", "-b:a", "160k", "-shortest");
+  if (audio || bed) args.push("-c:a", "aac", "-b:a", "160k", "-t", duration.toFixed(3));
   args.push(out);
   await run("ffmpeg", args);
 }
