@@ -46,9 +46,9 @@ export default function Player({ src, map, selected, onPick }: { src: string; ma
       {map && (
         <div className="overlay">
           {boxes.map((b) => (
-            <button key={b.id} title={`Explain ${b.keyword}`} className={`hit ${selected === b.id ? "on" : ""}`}
+            <button key={b.id} type="button" aria-label={`Explain ${b.keyword}`} className={`hit ${selected === b.id ? "on" : ""}`}
               style={{ left: `${b.l}%`, top: `${b.tp}%`, width: `${b.w}%`, height: `${b.h}%` }}
-              onClick={() => { video.current?.pause(); onPick(b.id); }} />
+              onClick={() => { video.current?.pause(); onPick(b.id); }}><span className="tipchip">Explain {b.keyword}</span></button>
           ))}
         </div>
       )}
