@@ -5,7 +5,20 @@ Paste a GitHub repo, an X post or an article. Get a **whiteboard explainer video
 - Black canvas, hand-drawn rough strokes, Excalifont, colors that mean something: red = problem, orange/yellow = key idea, green = fix, blue = actors.
 - **Repos** become a system design explainer on one evolving canvas: the architecture is built layer by layer, a dot walks one real request through it, then red circles show what breaks at 10x/100x and green boxes show the fix. Every box is grounded in files from the repo, and a second model pass reviews each box against the code before anything is drawn.
 - **Posts and articles** become an annotated screenshot of the source (quotes underlined and boxed) followed by small concept boards. Every board node carries a verbatim quote from the source as evidence; quotes that are not in the source are dropped.
-- **Levels**: explain it like I'm 5, I'm new, I'm interviewing, or I'm senior.
+- **Levels**: explain it like I'm 5, I'm new, I'm interviewing, or I'm senior. Interviewing adds requirements, a back-of-envelope estimate and trade-offs; senior adds failure modes, consistency and cost. Every assumed number is tagged as an estimate on screen.
+- **Interactive**: in the web app, tap any box for a grounded explanation, get a 15-20 s deep-dive clip on it, or ask "what if 10x traffic?".
+
+### Metual explaining Metual
+
+This is Metual run on its own repo (`--level new`, about $0.17 of model and voice spend):
+
+![Metual drawing its own architecture](docs/media/metual-self.gif)
+
+![contact sheet of the self-diagram video](docs/media/metual-self.contact.jpg)
+
+The same pipeline in the `whiteboard-light` theme, on umami:
+
+![umami in the whiteboard-light theme](docs/media/umami-light.contact.jpg)
 
 Powered by Meta Muse models (Muse Spark for reading and planning, Muse Transcribe for voiceover QA, Muse Image + SAM for the doodle icon pack). Voice by Deepgram Aura.
 
@@ -38,18 +51,28 @@ Outputs land in `metual-out/<name>-<level>/`:
 ### CLI options
 
 ```
-metual <github-url | local-path | x-post-url | article-url> [options]
+metual <github-url | local-repo-dir | x.com post url | article url> [options]
   --level <five|new|interviewing|senior>   default new
-  --theme <caleb-dark|...>                 default caleb-dark
+  --level-file <file.json>                 your own level (see docs/plugins.md)
+  --theme <caleb-dark|whiteboard-light>    default caleb-dark
   --out <dir>                              output folder
-  --name <owner/repo>                      display name (useful for local paths)
+  --name <owner/repo>                      display name (useful for local folders)
   --voice <deepgram|silent>                default deepgram when DEEPGRAM_API_KEY is set
-  --icons <dir>                            extra icon pack (repeatable)
+  --pack <id|dir>                          component/icon pack (repeatable; default: all built-in packs,
+                                           used only where they detect something)
+  --no-packs                               only the base doodle icons
   --fresh                                  ignore cached architecture/plan
   --workers <n>                            parallel frame renderers
   --no-qa                                  skip the Muse Transcribe voiceover check
   --json                                   progress as JSON lines (used by the web app)
+
+follow-ups on an earlier repo run (same input, new --out):
+  --from <earlier out dir> --focus <component id>   15-20 s deep dive on one box
+  --from <earlier out dir> --what-if <10x|100x>     what breaks if traffic grows
+metual explain --from <earlier out dir> --component <id>   text explanation of one box
 ```
+
+Every run prints its spend (Meta models and voice, in USD) and writes it to `manifest.json`; with `--json` the running total comes with every progress event.
 
 ## Web app
 
@@ -57,7 +80,22 @@ metual <github-url | local-path | x-post-url | article-url> [options]
 pnpm --filter @metual/web build && pnpm --filter @metual/web start   # http://localhost:3000
 ```
 
-A single page: paste a link, pick a level, watch progress, play the video and download the mp4 and `.excalidraw`. It spawns the CLI with `--json` per job and keeps jobs in memory, so it is meant for running locally or on your own box. It refuses URLs that point at private networks; local paths are only accepted with `METUAL_ALLOW_LOCAL=1`.
+Paste a link, pick a level, and watch progress with a live cost meter. When it finishes:
+
+- **Play** the video. Hit areas over the diagram line up with the boxes; tap one for a short explanation from Muse Spark, grounded in that box's evidence files, and a button to render a 15-20 s deep-dive clip on it.
+- **What if 10x traffic?** renders a follow-up clip that circles what breaks and draws the fix. Every number in it is labelled as an assumption.
+- **Open in Excalidraw**: download the `.excalidraw` and open it at excalidraw.com (menu, Open, pick the file) to keep editing.
+
+Jobs are written to disk (`METUAL_JOBS_DIR`, default `metual-out/web`), so they survive restarts. URLs pointing at private networks are refused, and local paths are only accepted with `METUAL_ALLOW_LOCAL=1`.
+
+### Deploying it safely
+
+It is not deployed publicly on purpose: every job spends the operator's API credits. Before putting it on the internet you need:
+
+- `METUAL_DEMO_ONLY=1` to only play example videos, **or** bring-your-own-key: users paste their own Meta / Deepgram keys, which are used per request and never stored. BYO key is not built yet.
+- Rate limits: `METUAL_JOBS_PER_HOUR` (default 20) and one running job at a time are built in. Per-IP limits and auth are not.
+- SSRF: the hostname check blocks private ranges, but it does not resolve DNS, so a public name pointing at a private IP (DNS rebinding) would get through. Resolve and re-check the IP before fetching, or run ingest in a sandbox with no internal network.
+- Isolation: clone and render in a throwaway sandbox (repos are untrusted input), with disk and time limits.
 
 ## How it works
 
@@ -77,9 +115,18 @@ Animation events (a box drawing in, an arrow, a circle) are timed to the word in
 
 ## Plugins
 
-- **Icon packs**: a folder with `manifest.json` (`{ "id": "...", "icons": { "database": { "file": "database.png", "aliases": ["db", "postgres"] } } }`) and white-on-transparent PNGs. Pass `--icons <dir>`; later packs override earlier ones. The built-in `doodle` pack was generated with Muse Image and cut out with SAM (`scripts/gen-icon-pack.ts`).
-- **Themes**: `registerTheme({ id, background, ink, colors, ... })` from `@metual/core`.
-- **Levels**: `registerLevel({ id, label, minComponents, maxComponents, perScene, ... })` from `@metual/core`.
+See [docs/plugins.md](docs/plugins.md). There are three plugin points:
+
+- **Packs** are folders with a `manifest.json` that add icons and *components*: building blocks detected from file evidence. For example, `d1_databases` in `wrangler.jsonc` means a D1 database. Detected blocks are passed to the architecture pass as hints and get consistent icons. Two packs are built in: `cloudflare` and `cloud-generic` (AWS/GCP/Azure-style object store, queues, functions, CDN and more). Both use doodle icons only, with no vendor logos. A worked example lives in [examples/packs/supabase](examples/packs/supabase).
+- **Themes**: `caleb-dark` and `whiteboard-light` are built in. Add your own with `registerTheme()`.
+- **Levels** are JSON files (`--level-file`). Example: [examples/levels/product-manager.json](examples/levels/product-manager.json).
+
+## Tests
+
+```bash
+pnpm test        # schemas, levels, themes, quote matching, note/architecture validators, packs, secret redaction, URL validation
+pnpm typecheck
+```
 
 ## Honest notes
 
