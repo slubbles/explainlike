@@ -253,11 +253,13 @@ export function captionsFor(scene: string, words: WordTiming[], offset: number, 
   const caps: Caption[] = [];
   let cur: WordTiming[] = [];
   const flush = () => { if (cur.length) caps.push({ scene, t0: offset + cur[0].start - 0.08, t1: 0, words: cur.map((w) => ({ w: w.word, s: offset + w.start, e: offset + w.end })) }); cur = []; };
-  for (const w of words) {
+  words.forEach((w, i) => {
     cur.push(w);
-    const chars = cur.map((x) => x.word).join(" ").length;
-    if ((/[.!?]$/.test(w.word) && cur.length >= 2) || (/[,;:]$/.test(w.word) && cur.length >= Math.min(4, maxWords - 1)) || cur.length >= maxWords || chars > maxChars) flush();
-  }
+    const chars = cur.map((x) => x.word).join(" ").length, next = words[i + 1];
+    // a sentence's last word stays with its phrase when it fits, rather than starting the next one alone ("here. You paste a")
+    const endsNext = !!next && /[.!?]$/.test(next.word) && chars + 1 + next.word.length <= maxChars && cur.length <= maxWords;
+    if ((/[.!?]$/.test(w.word) && cur.length >= 2) || (/[,;:]$/.test(w.word) && cur.length >= Math.min(4, maxWords - 1)) || ((cur.length >= maxWords || chars > maxChars) && !endsNext)) flush();
+  });
   flush();
   // a phrase read on its own must not show a grammar slip: "how does | a pasted link become" reads as
   // "a pasted link become", so the helper verb (and the question word before it) moves to the next phrase

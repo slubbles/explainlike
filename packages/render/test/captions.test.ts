@@ -79,3 +79,12 @@ test("a caption phrase never reads as a grammar slip on its own: 'how does' stay
   assert.ok(shown.includes("how does a pasted link become"), shown.join(" | "));
   for (const p of shown) assert.deepEqual(agreementSlips(p), [], p);
 });
+
+test("a sentence's last word stays with its phrase instead of opening the next one alone", () => {
+  const said = "This box is you, the viewer, pasting a link into the web app. You paste and watch here. You paste a GitHub, X, or article link.".split(" ");
+  const words = said.map((word, i) => ({ word, start: i * 0.3, end: i * 0.3 + 0.25 }));
+  const shown = captionsFor("s1", words, 0, 20, 4, 26).map((c) => c.words.map((w) => w.w).join(" "));
+  assert.equal(shown.join(" "), said.join(" "));
+  assert.ok(shown.includes("You paste and watch here."), shown.join(" | "));
+  for (const p of shown) assert.ok(!/[.!?] \S/.test(p), `a phrase runs across a sentence end: "${p}"`);
+});
