@@ -223,6 +223,16 @@ export function checkPlacement(p: Placed, counts: Record<string, number> = {}): 
     const cam = cameraAt(film, t), m = (4 * cam.w) / film.width;
     count("cropped");
     if (!contains(cam, it.box, -m)) out.push({ rule: "cropped", t, what: `${it.label} is cut off by the frame edge`, item: it });
+    else if (it.kind === "ring" || it.kind === "arrow") {
+      // a ring or arrow stays whole while it is lit, through every later shot that comes to rest on it
+      const end = film.end?.t0 ?? film.duration;
+      for (const k of film.camera) {
+        const r = k.t + k.move + 0.01;
+        if (k.t <= t || r >= end || opacity(film, it.g, r) < 0.6) continue;
+        const c = cameraAt(film, r);
+        if (!contains(c, it.box, -m) && area(c, it.box) > 0) { out.push({ rule: "cropped", t: r, what: `${it.label} is cut off by the frame edge at ${r.toFixed(1)}s`, item: it }); break; }
+      }
+    }
     if (it.el) {
       // a word may first appear in a wide overview, but the camera must bring it to a readable size while it is lit
       count("text-small");

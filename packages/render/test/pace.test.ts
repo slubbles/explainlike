@@ -33,7 +33,10 @@ test("every tempo: shots hold at least the minimum beat and stay under the cuts 
 
 test("technical topics run slower than simple ones", async () => {
   const slow = (await make("technical")).pace, brisk = (await make("simple")).pace;
-  assert.ok(slow.medianHold > brisk.medianHold, `${slow.medianHold} vs ${brisk.medianHold}`);
+  // fewer cuts a minute and a longer shortest hold (the median can tie on a shared long hold)
+  assert.ok(slow.cutsPerMin < brisk.cutsPerMin, `${slow.cutsPerMin} vs ${brisk.cutsPerMin} cuts a minute`);
+  assert.ok(slow.shortestHold > brisk.shortestHold, `${slow.shortestHold} vs ${brisk.shortestHold}`);
+  assert.ok(slow.medianHold >= brisk.medianHold, `${slow.medianHold} vs ${brisk.medianHold}`);
   assert.ok((await make("technical")).film.duration > (await make("simple")).film.duration);
 });
 

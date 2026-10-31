@@ -3,7 +3,7 @@ import rough from "roughjs";
 import { agreementSlips } from "@explainlike/core";
 import type { Architecture, ScenePlan, Scene, SceneAudio, Theme, ExplainSpec, Color, WordTiming, NoteItem } from "@explainlike/core";
 import type { Film, FElement, CamKey, Caption, Heading } from "./film.js";
-import { applyTempo, type PaceReport } from "./pace.js";
+import { applyTempo, readableWidth, type PaceReport } from "./pace.js";
 import { placementPass, type Mark, type PlacementReport } from "./placement.js";
 import { layoutGraph, unionBox, shiftLayout, wrapText, NODE, type Box, type GNode, type GEdge, type Layout, type PlacedNode, type PlacedEdge } from "./layout.js";
 import { textWidth, fontDataUrl, useHandFont, HAND_FONTS } from "./measure.js";
@@ -180,14 +180,27 @@ class Builder {
     this.marks.push({ kind: "wire", g, t0, dur, points: e.points, from: e.from, to: e.to });
     return t0 + dur + 0.25;
   }
-  fit(b: Box, t: number, move: number, maxScale = 1.15) {
+  fit(b: Box, t: number, move: number, maxScale = 1.15, whole: Box[] = []) {
+    // a box the shot would slice through at its edge is taken in whole, unless that widens the shot by half again
+    for (let pass = 0; pass < 2 && whole.length; pass++) {
+      const r = this.frame(b, maxScale);
+      const cut = whole.filter((o) => o.x < r.x + r.w && o.x + o.w > r.x && o.y < r.y + r.h && o.y + o.h > r.y && !(o.x >= r.x && o.y >= r.y && o.x + o.w <= r.x + r.w && o.y + o.h <= r.y + r.h));
+      if (!cut.length) break;
+      const nb = unionBox([b, ...cut], 0);
+      if (this.frame(nb, maxScale).w > r.w * 1.5) break;
+      b = nb;
+    }
+    const r = this.frame(b, maxScale);
+    this.cam.push({ t, ...r, move });
+  }
+  private frame(b: Box, maxScale: number) {
     const minW = 900, minH = 480;
     const bw = Math.max(b.w, minW), bh = Math.max(b.h, minH);
     const cx = b.x + b.w / 2, cy = b.y + b.h / 2;
     const s = Math.min((W - 2 * SAFE.side) / bw, (H - SAFE.top - SAFE.bottom) / bh, maxScale);
     const cw = W / s, ch = H / s;
     const screenCy = SAFE.top + (H - SAFE.top - SAFE.bottom) / 2;
-    this.cam.push({ t, x: cx - cw / 2, y: cy - screenCy / s, w: cw, h: ch, move });
+    return { x: cx - cw / 2, y: cy - screenCy / s, w: cw, h: ch };
   }
 }
 
@@ -229,6 +242,42 @@ function spokenAt(words: WordTiming[], phrase: string, from = 0): number {
 export const FIRST_WITHIN = 1.0;
 
 /** Times for a sequence of events: keyword-synced when spoken, else spread evenly; always ordered and spaced. */
+/**
+ * Camera shots that follow a run of events, each with the box it needs ("box") and the box it would
+ * share with the event before it in the same shot ("wide"). Every way to split the run into consecutive
+ * shots is tried (a scene has a handful of events); the one whose widest shot is narrowest wins, then the
+ * one with fewer cuts. A shot starts one move before its first event and holds at least a full beat.
+ * `holdUntilSettled` moves each event's time to no earlier than its shot has settled.
+ */
+function followShots(ev: { t: number; box: Box; wide: Box }[], start: number, end: number, tempo: { move: number; minBeat: number }, W: number, H: number): { t: number; box: Box; first: number }[] {
+  const span = (b: Box) => Math.max(b.w, (b.h * W) / H);
+  const n = Math.min(ev.length, 12);
+  let shots: { t: number; box: Box; first: number }[] = [], best = Infinity;
+  for (let mask = 0; n > 0 && mask < 1 << (n - 1); mask++) {
+    const cand: { t: number; box: Box; first: number }[] = [];
+    let ok = true, late = 0;
+    for (let i = 0; i < n && ok; i++) {
+      const cut = i === 0 || (mask >> (i - 1)) & 1;
+      if (!cut) { const cur = cand[cand.length - 1], u = unionBox([cur.box, ev[i].wide], 0); cur.box = span(u) <= span(unionBox([cur.box, ev[i].box], 0)) * 1.25 ? u : unionBox([cur.box, ev[i].box], 0); continue; }
+      const t = i === 0 ? start : Math.max(ev[i].t - tempo.move - 0.15, cand[cand.length - 1].t + tempo.minBeat);
+      // a shot may settle up to 2 s (2.6 at the slow tempo) after its first event was due; the caller holds that drawing until it has
+      // (a late drawing costs, so a shot that keeps pace with the voice wins a tie)
+      ok = i === 0 || (t + tempo.move <= ev[i].t + Math.max(2.0, tempo.minBeat - 2.2) && t + tempo.minBeat <= end);
+      if (i > 0) late += Math.max(0, t + tempo.move - ev[i].t);
+      cand.push({ t, box: ev[i].box, first: i });
+    }
+    if (!ok) continue;
+    const score = Math.max(...cand.map((c) => span(c.box))) + cand.length * 40 + late * 300;
+    if (score < best) { best = score; shots = cand; }
+  }
+  for (let i = n; i < ev.length && shots.length; i++) { const cur = shots[shots.length - 1]; cur.box = unionBox([cur.box, ev[i].box], 0); }
+  return shots;
+}
+function holdUntilSettled(times: number[], shots: { t: number; first: number }[], move: number) {
+  for (const sh of shots) if (sh.first > 0) times[sh.first] = Math.max(times[sh.first], sh.t + move + 0.05);
+  for (let i = 1; i < times.length; i++) times[i] = Math.max(times[i], times[i - 1]);
+}
+
 function eventTimes(words: WordTiming[], phrases: string[][], start: number, end: number, gap = 0.9): number[] {
   const raw: (number | null)[] = [];
   let from = 0;
@@ -522,7 +571,9 @@ export async function compose(inp: ComposeInput): Promise<Composed> {
       B.setOp("hook", T + D - 0.2, 0, 0.6);
     } else if (s.kind === "layer" && graph) {
       const adds = s.add_components.filter((id) => graph!.nodes.has(id) && !present.has(id));
-      const conns = s.add_connections.map((c) => c.split(">")).map(([f, t]) => findEdge(f, t)).filter((e): e is PlacedEdge => !!e && !drawnEdges.has(edgeKey(e)));
+      // a wire whose far end is not on the board yet waits for its layer, so the camera never frames empty space for it
+      const can = (id: string) => present.has(id) || adds.includes(id);
+      const conns = s.add_connections.map((c) => c.split(">")).map(([f, t]) => findEdge(f, t)).filter((e): e is PlacedEdge => !!e && !drawnEdges.has(edgeKey(e)) && can(e.from) && can(e.to));
       const focusIds = new Set(adds);
       for (const e of conns) { focusIds.add(e.from); focusIds.add(e.to); }
       const focus = [...focusIds].map((id) => graph!.nodes.get(id)!).filter(Boolean);
@@ -531,11 +582,27 @@ export async function compose(inp: ComposeInput): Promise<Composed> {
       for (const k of drawnEdges) { const [f, t] = k.slice(2).split(">"); if (focusIds.has(f)) ctx.add(t); if (focusIds.has(t)) ctx.add(f); }
       const ctxNodes = [...ctx].filter((id) => present.has(id) || focusIds.has(id)).map((id) => graph!.nodes.get(id)!).filter(Boolean);
       const fb = unionBox(focus, 60), cb = unionBox(ctxNodes, 60);
-      B.fit(cb.w <= fb.w * 2.4 && cb.h <= fb.h * 2.4 + 400 ? cb : fb, T, si === 1 ? 1.4 : 1.0);
-      for (const id of present) B.setOp(nodeGroup(id), T, focusIds.has(id) ? 1 : dim);
-      for (const k of drawnEdges) { const [f, t] = k.slice(2).split(">"); B.setOp(k, T, focusIds.has(f) && focusIds.has(t) ? 1 : dim); }
       const comp = (id: string) => inp.arch!.components.find((c) => c.id === id)!;
       const times = eventTimes(words, adds.map((id) => [comp(id).keyword, comp(id).name.split(/[\s(]/)[0]]), t0, tEnd - 0.6, 1.1);
+      const whole = cb.w <= fb.w * 2.4 && cb.h <= fb.h * 2.4 + 400 ? cb : fb;
+      const RW = readableWidth({ width: W, height: H });
+      const fitsRW = (b: Box) => b.w <= RW * 0.8 && b.h <= RW * 0.8 * (H / W);
+      // the whole layer in one shot whenever its words stay readable; follow shots only past that
+      if ((whole.w <= RW && whole.h <= (RW * H) / W) || !adds.length) B.fit(whole, T, si === 1 ? 1.4 : 1.0);
+      else {
+        // too much board to read in one shot: follow the new parts as they are drawn, each with its wires if they fit
+        const ev = adds.map((id, i) => {
+          const near = new Set([id]);
+          for (const e of conns) { if (e.from === id) near.add(e.to); if (e.to === id) near.add(e.from); }
+          const wide = unionBox([...near].map((n) => graph!.nodes.get(n)!).filter(Boolean), 60);
+          return { t: times[i], box: fitsRW(wide) ? wide : unionBox([graph!.nodes.get(id)!], 60), wide };
+        });
+        const shots = followShots(ev, T, T + D + 0.3, tempo, W, H);
+        holdUntilSettled(times, shots, tempo.move);
+        shots.forEach((sh, i) => B.fit(sh.box, sh.t, i === 0 ? (si === 1 ? 1.4 : 1.0) : tempo.move, 1.0, focus));
+      }
+      for (const id of present) B.setOp(nodeGroup(id), T, focusIds.has(id) ? 1 : dim);
+      for (const k of drawnEdges) { const [f, t] = k.slice(2).split(">"); B.setOp(k, T, focusIds.has(f) && focusIds.has(t) ? 1 : dim); }
       const ready = new Map<string, number>();
       for (const id of present) ready.set(id, T);
       adds.forEach((id, i) => { const done = B.node(graph!.nodes.get(id)!, times[i], nodeGroup(id)); present.add(id); ready.set(id, done); });
@@ -554,17 +621,31 @@ export async function compose(inp: ComposeInput): Promise<Composed> {
       const on = new Set(steps.flatMap((x) => [x.from, x.to]));
       for (const id of present) B.setOp(nodeGroup(id), T, on.has(id) ? 1 : dim);
       for (const k of drawnEdges) { const [f, t] = k.slice(2).split(">"); B.setOp(k, T, on.has(f) && on.has(t) ? 1 : dim); }
-      B.fit(unionBox([...on].map((id) => graph!.nodes.get(id)!).filter(Boolean), 70), T, 1.0);
       // the placement check enlarges the step numbers if the walk ends up in one wide shot
       const stepSize = 34;
       const times = eventTimes(words, steps.map((x) => [x.label]), t0 + 0.3, tEnd - 0.4, 1.3);
+      // the camera follows the walk: consecutive steps share a readable shot, and a new shot starts
+      // only after a full beat (it may glide along with a travelling dot, which is the walk's motion anyway)
+      const RW = readableWidth({ width: W, height: H });
+      const fitsRW = (b: Box) => b.w <= RW * 0.8 && b.h <= RW * 0.8 * (H / W);
+      // a step whose ends are too far apart to read in one shot frames where the dot lands; it travels in from off screen
+      const stepBox = (i: number) => {
+        const ends = unionBox([steps[i].from, steps[i].to].map((id) => graph!.nodes.get(id)!).filter(Boolean), 70);
+        const to = graph!.nodes.get(steps[i].to);
+        return fitsRW(ends) || !to ? ends : unionBox([to], 70);
+      };
+      const shots = followShots(steps.map((_, i) => ({ t: times[i], box: stepBox(i), wide: unionBox([steps[i].from, steps[i].to].map((id) => graph!.nodes.get(id)!).filter(Boolean), 70) })), T, T + D + 0.3, tempo, W, H);
+      holdUntilSettled(times, shots, tempo.move);
+      if (!shots.length) shots.push({ t: T, first: 0, box: unionBox([...on].map((id) => graph!.nodes.get(id)!).filter(Boolean), 70) });
+      const lit = [...on].map((id) => graph!.nodes.get(id)!).filter(Boolean);
+      shots.forEach((sh, i) => B.fit(sh.box, sh.t, i === 0 ? 1.0 : tempo.move, 1.0, lit));
       steps.forEach((st, i) => {
         const e = findEdge(st.from, st.to);
         if (!e) return;
         const fwd = e.from === st.from;
         const pts = fwd ? e.points : [...e.points].reverse();
         const dur = Math.min(1.5, Math.max(0.7, (times[i + 1] ?? tEnd + 0.6) - times[i] - 0.25));
-        B.els.push({ k: "dot", id: B.id("d"), pts, color: C("yellow"), r: 13, trail: C("yellow"), t0: times[i], dur, g: "walk", mark: true });
+        B.els.push({ k: "dot", id: B.id("d"), pts, color: C("yellow"), r: 13, trail: C("yellow"), t0: times[i], dur, g: "walk" });
         const tgt = graph!.nodes.get(st.to)!;
         B.ring(gen.rectangle(tgt.x - 12, tgt.y - 12, tgt.w + 24, tgt.h + 24, { seed: B.seed++, stroke: C("yellow"), strokeWidth: 4, roughness: 1.4 }), times[i] + dur * 0.8, 0.4, `w:${i}`);
         B.marks.push({ kind: "ring", g: `w:${i}`, t0: times[i] + dur * 0.8, dur: 0.4, shape: { k: "rect", box: { x: tgt.x - 12, y: tgt.y - 12, w: tgt.w + 24, h: tgt.h + 24 } }, target: tgt });
