@@ -57,7 +57,7 @@ function notesRules(slots: { after: string; heading: string; brief: string }[]):
 }
 
 const HEDGE = /\b(assum|estimat|rough|ballpark|guess|hypothetical|let's say|say we|imagine|suppose)/i;
-const DIGIT = /\d/;
+const NUMBER = /(^|[^a-z0-9])\d/i;
 
 /** Ground and label list items: targets must exist, any number is an estimate, evidence is a real file. */
 export function validateNotes(items: NoteItem[], o: { ids?: Set<string>; files?: Set<string>; evidenceOf?: (id: string) => string; source?: string }): { items: NoteItem[]; repairs: string[] } {
@@ -71,7 +71,11 @@ export function validateNotes(items: NoteItem[], o: { ids?: Set<string>; files?:
       it.target = "";
     } else {
       if (it.target && !o.ids?.has(it.target)) { repairs.push(`note "${it.text}": unknown target ${it.target}`); it.target = ""; }
-      if (DIGIT.test(it.text.replace(/\b(10|100)x\b/g, "")) && !it.estimate) { it.estimate = true; repairs.push(`note "${it.text}" marked as estimate`); }
+      // a standalone number ("50k", "~4", "10x"), not a name like d1 or r2
+      const hasNumber = NUMBER.test(it.text);
+      if (hasNumber && !it.estimate) { it.estimate = true; repairs.push(`note "${it.text}" marked as estimate`); }
+      // the tag is for assumed numbers; on a plain claim it would read as doubt about the code itself
+      if (!hasNumber && it.estimate) { it.estimate = false; repairs.push(`note "${it.text}": estimate tag dropped (no number)`); }
       if (it.evidence && !o.files?.has(it.evidence)) it.evidence = it.target && o.evidenceOf ? o.evidenceOf(it.target) : "";
       if (!it.estimate && !it.evidence && it.target && o.evidenceOf) it.evidence = o.evidenceOf(it.target);
     }

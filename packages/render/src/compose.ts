@@ -38,7 +38,7 @@ function panelSize(items: NoteItem[]) {
 
 /** What the .excalidraw writer needs: the final state of every drawn object. */
 export interface Sketch {
-  nodes: { id: string; box: Box; color: string; keyword: string; sub?: string; icon?: string; iconSize?: number; kwY?: number; kwSize?: number }[];
+  nodes: { id: string; box: Box; color: string; keyword: string; sub?: string; icon?: string; iconSize?: number; kwY?: number; kwSize?: number; t0?: number; board?: boolean }[];
   edges: { points: [number, number][]; label?: string; labelBox?: Box; both?: boolean; color: string; from?: string; to?: string; labelSize?: number }[];
   ellipses: { box: Box; color: string }[];
   polygons: { points: [number, number][]; color: string }[];
@@ -106,7 +106,7 @@ class Builder {
     this.img({ href: ic.href, x: n.x + n.w / 2 - NODE.icon / 2, y: n.y + 16, w: NODE.icon, h: NODE.icon, t0: t0 + 0.3, dur: 0.45, g });
     this.text({ text: n.keyword, x: n.x + n.w / 2, y: n.y + 160, size: NODE.kwSize, color: this.theme.ink, anchor: "middle", t0: t0 + 0.5, dur: 0.45, g, sketch: false });
     if (n.sub) this.text({ text: n.sub, x: n.x + n.w / 2, y: n.y + 194, size: NODE.subSize, color: this.theme.colors.gray, anchor: "middle", t0: t0 + 0.9, dur: 0.4, g, anim: "fade", sketch: false });
-    this.sketch.nodes.push({ id: n.id, box: { x: n.x, y: n.y, w: n.w, h: n.h }, color: c, keyword: n.keyword, sub: n.sub, icon: ic.file });
+    this.sketch.nodes.push({ id: n.id, box: { x: n.x, y: n.y, w: n.w, h: n.h }, color: c, keyword: n.keyword, sub: n.sub, icon: ic.file, t0 });
     return t0 + 1.0;
   }
   img(o: { href?: string; x: number; y: number; w: number; h: number; t0: number; dur: number; g?: string; anim?: "pop" | "fade" }) {
@@ -131,7 +131,7 @@ class Builder {
     } else this.img({ href: ic.href, x: cx - BOARD.icon / 2, y: n.y + 18, w: BOARD.icon, h: BOARD.icon, t0: t0 + 0.3, dur: 0.5, g });
     this.text({ text: n.keyword, x: cx, y: n.y + bh - 40, size: BOARD.kw, color: this.theme.ink, anchor: "middle", t0: t0 + 0.55, dur: 0.5, g, sketch: false });
     (n.quote ?? []).forEach((l, i) => this.text({ text: l, x: cx, y: n.y + bh + 22 + (i + 0.8) * BOARD.qLine, size: BOARD.quote, color: this.theme.colors.gray, anchor: "middle", t0: t0 + 0.9 + i * 0.15, dur: 0.5, g, anim: "fade" }));
-    this.sketch.nodes.push({ id: n.id, box: { x: n.x, y: n.y, w: n.w, h: bh }, color: c, keyword: n.keyword, icon: ic.file, iconSize: (n.count ?? 1) > 1 ? 120 : BOARD.icon, kwY: bh - 40, kwSize: BOARD.kw });
+    this.sketch.nodes.push({ id: n.id, box: { x: n.x, y: n.y, w: n.w, h: bh }, color: c, keyword: n.keyword, icon: ic.file, iconSize: (n.count ?? 1) > 1 ? 120 : BOARD.icon, kwY: bh - 40, kwSize: BOARD.kw, t0, board: true });
     return t0 + 1.0;
   }
   /** A tag like "estimate" so assumed numbers can never pass as facts. */
@@ -532,6 +532,9 @@ export async function compose(inp: ComposeInput): Promise<Composed> {
       const g = `nt:${s.id}`;
       const times = eventTimes(words, items.map((i) => [i.text.split(" ").slice(0, 2).join(" "), i.text.split(" ").slice(-1)[0]]), t0 + 0.2, tEnd - 0.5, 1.1);
       const pb = panels.get(s.id);
+      // earlier scale callouts (red rings, labels) step aside so they never collide with these notes
+      const scalesBefore = plan.scenes.slice(0, plan.scenes.indexOf(s)).filter((x) => x.kind === "scale").length;
+      if (graph) for (let j = 0; j < scalesBefore; j++) { B.setOp(`s:${j}`, T, 0, 0.3); B.setOp(`s:${j}`, T + D - 0.2, 1, 0.4); }
       if (pb) {
         // whiteboard list: icon, text, "estimate" tag on anything assumed
         if (!graph) { fades.push({ t: T, dur: 0.35 }); for (const b of boardShown) B.setOp(b.g, T + 0.1, 0, 0.05); }

@@ -3,7 +3,7 @@ import path from "node:path";
 import { getLevel, getTheme, type Architecture, type Level, type Progress, type SceneAudio, type ScenePlan, type SourceDoc } from "@metual/core";
 import { CostLedger, museTranscribe } from "@metual/models";
 import { ingestRepo } from "@metual/ingest";
-import { extractArchitecture, validateArchitecture, evidencePack, reviewArchitecture, reviseArchitecture, planRepoScenes, kindColor } from "@metual/planner";
+import { extractArchitecture, validateArchitecture, evidencePack, reviewArchitecture, reviseArchitecture, planRepoScenes, planFocus, planWhatIf, kindColor } from "@metual/planner";
 import { pickVoice, wordOverlap, DeepgramVoice, type VoiceProvider } from "@metual/voice";
 import { loadIconPack, mergePacks, iconCatalog, resolveIcon, compose, captureFrames, mixNarration, encodeMp4, contactSheet, toExcalidraw, type IconPack, type SourceShot } from "@metual/render";
 
@@ -19,6 +19,12 @@ export interface RunOptions {
   workers?: number;
   qa?: boolean;
   progress?: Progress;
+  /** follow-up clips reuse an earlier repo run's architecture.json from this folder */
+  from?: string;
+  /** 15-20 s deep dive on one component id (needs `from`) */
+  focus?: string;
+  /** "what if traffic grew 10x?" scale scenes on the existing diagram (needs `from`) */
+  whatIf?: "10x" | "100x";
 }
 
 const FALLBACK_ICON: Record<string, string> = {
@@ -59,6 +65,7 @@ export async function runMetual(o: RunOptions) {
   let shot: SourceShot | undefined;
   let out: string;
   let sourceLabel: string;
+  let repoDir: string | undefined;
   const notes: string[] = [];
 
   if (kind === "repo") {
@@ -72,6 +79,26 @@ export async function runMetual(o: RunOptions) {
     notes.push(`digest: ${r.digest.files.length} files, ${r.digest.text.length} chars; ${r.digest.skippedSecret.length} secret-looking files never opened`);
     const resolve = (n: string) => resolveIcon(pack, n);
     const fb = (k: string) => FALLBACK_ICON[k] ?? "box";
+    if (o.focus || o.whatIf) {
+      // follow-up clip: same diagram as the earlier run, new scenes
+      const archFile = path.join(o.from ?? out, "architecture.json");
+      if (!fs.existsSync(archFile)) throw new Error(`follow-up clips need an earlier run: ${archFile} not found (pass --from <out dir>)`);
+      arch = JSON.parse(fs.readFileSync(archFile, "utf8")) as Architecture;
+      if (o.focus) {
+        const c = arch.components.find((x) => x.id === o.focus);
+        if (!c) throw new Error(`no component "${o.focus}"; try one of: ${arch.components.map((x) => x.id).join(", ")}`);
+        const near = new Set([c.id, ...arch.connections.flatMap((x) => (x.from === c.id ? [x.to] : x.to === c.id ? [x.from] : []))]);
+        const sub = { ...arch, components: arch.components.filter((x) => near.has(x.id)), connections: [], scale: [] };
+        const evidence = evidencePack(sub as Architecture, r.digest.read, 14000);
+        plan = await planFocus({ ledger, arch, id: c.id, evidence, level: level.id as Level, progress: P });
+        arch = { ...arch, scale: [] };
+      } else {
+        const w = await planWhatIf({ ledger, arch, factor: o.whatIf!, evidence: evidencePack({ ...arch, scale: [] }, r.digest.read, 20000), level: level.id as Level, progress: P });
+        arch = w.arch; plan = w.plan;
+      }
+      fs.writeFileSync(path.join(out, "plan.json"), JSON.stringify(plan, null, 1));
+      fs.writeFileSync(path.join(out, "architecture.json"), JSON.stringify(arch, null, 1));
+    } else {
     arch = await cacheJson(path.join(out, "architecture.json"), async () => {
       P({ stage: "architecture", message: "Muse Spark is mapping the architecture", pct: 8 });
       let a = await extractArchitecture({ ledger, digest: r.digest.text, name, level: level.id as Level, icons: iconCatalog(pack), progress: P });
@@ -91,6 +118,8 @@ export async function runMetual(o: RunOptions) {
       P({ stage: "plan", message: "writing the scene plan", pct: 32 });
       return planRepoScenes({ ledger, arch: arch!, level: level.id as Level, progress: P });
     });
+    }
+    repoDir = r.repoDir;
   } else {
     const { ingestConcept } = await import("@metual/ingest");
     const { planConceptScenes } = await import("@metual/planner");
@@ -135,6 +164,16 @@ export async function runMetual(o: RunOptions) {
   const excFile = path.join(out, `${base}.excalidraw`);
   fs.writeFileSync(excFile, JSON.stringify(exc));
 
+  // interactive player: where each architecture box is on screen over time (same camera keys the stage uses)
+  if (arch) {
+    const ids = new Set(arch.components.map((c) => c.id));
+    const interactive = {
+      width: film.width, height: film.height, duration: film.duration, endAt: film.end?.t0 ?? film.duration, camera: film.camera,
+      nodes: sketch.nodes.filter((n) => ids.has(n.id) && !n.board).map((n) => ({ id: n.id, keyword: n.keyword, box: n.box, t0: n.t0 ?? 0 })),
+    };
+    fs.writeFileSync(path.join(out, "interactive.json"), JSON.stringify(interactive));
+  }
+
   const frames = path.join(out, "frames");
   fs.rmSync(frames, { recursive: true, force: true });
   P({ stage: "render", message: "drawing frames", pct: 48 });
@@ -165,7 +204,7 @@ export async function runMetual(o: RunOptions) {
 
   const voiceUsd = voice instanceof DeepgramVoice ? voice.usd : 0;
   const manifest = {
-    tool: "metual", input: o.input, kind, level: level.id, theme: theme.id, title: plan.title, durationSec: Number(film.duration.toFixed(1)),
+    tool: "metual", input: o.input, kind, level: level.id, repoDir, followUp: o.focus ? { focus: o.focus } : o.whatIf ? { whatIf: o.whatIf } : undefined, theme: theme.id, title: plan.title, durationSec: Number(film.duration.toFixed(1)),
     outputs: { mp4, excalidraw: excFile, contactSheet: sheet, plan: path.join(out, "plan.json"), architecture: arch ? path.join(out, "architecture.json") : undefined },
     scenes: timeline, repairs: plan.repairs ?? [], notes, qa,
     cost: { metaUsd: Number(ledger.total.toFixed(4)), byModel: ledger.byModel(), entries: ledger.entries, voiceUsd: Number(voiceUsd.toFixed(4)), voice: voice.id },

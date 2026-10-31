@@ -1,0 +1,13 @@
+import { NextResponse } from "next/server";
+import { explain } from "../../../../../lib/jobs";
+
+export const runtime = "nodejs";
+
+export async function POST(req: Request, ctx: { params: Promise<{ id: string }> }) {
+  const { id } = await ctx.params;
+  if (process.env.METUAL_DEMO_ONLY === "1") return NextResponse.json({ error: "explanations are off in demo mode" }, { status: 429 });
+  const body = await req.json().catch(() => ({}));
+  const r = (await explain(id, String(body.component ?? ""))) as { type?: string; message?: string };
+  if (r.type !== "explain") return NextResponse.json({ error: r.message ?? "failed" }, { status: 400 });
+  return NextResponse.json(r);
+}
