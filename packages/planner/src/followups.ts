@@ -46,7 +46,7 @@ export async function planFocus(o: { ledger: CostLedger; arch: Architecture; id:
     messages: [
       { role: "system", content: [
         `Write a 15 to 20 second deep dive on one box of the "${o.arch.product}" diagram. Audience: ${o.level}.`,
-        "intro: one sentence (about 10 words) naming the box and where it sits. heading: 2 to 4 lowercase words.",
+        "intro: one sentence (about 10 words) naming the box and where it sits. heading: 2 to 4 lowercase words that the narration says.",
         `items: 3 or 4 notes pinned on the diagram. target is always "${c.id}" (mention neighbours in the text if needed). text 2 to 7 lowercase words. evidence: one exact file path from the evidence files. color: blue, green, orange, purple, yellow or red. icon: "" is fine. estimate false unless the text holds an assumed number.`,
         "narration: about 35 words, reads the notes in order, and says each note's first words out loud. Only facts the evidence files show; no traffic, latency or cost numbers.",
       ].join("\n") },
@@ -69,7 +69,7 @@ export async function planWhatIf(o: { ledger: CostLedger; arch: Architecture; fa
     messages: [
       { role: "system", content: [
         `The viewer asks: what if "${o.arch.product}" got ${o.factor} its traffic? Pick the 2 components that break first, from the evidence. Audience: ${o.level}.`,
-        `component must be one of: ${ids.join(", ")}. at: "${o.factor}". problem and fix: 1 to 3 lowercase words. evidence: one exact file path from the evidence. heading: 2 to 4 lowercase words.`,
+        `component must be one of: ${ids.join(", ")}. at: "${o.factor}". problem and fix: 1 to 3 lowercase words. evidence: one exact file path from the evidence. heading: 2 to 4 lowercase words that the narration says (reuse the problem words).`,
         "narration: about 30 words per risk: what breaks and why, then the fix. You do not know the app's real traffic: say 'if' or 'assume' and never state user, request, latency or cost numbers as facts.",
         "intro: one sentence (about 10 words) that sets up the question.",
       ].join("\n") },
