@@ -16,7 +16,10 @@ export interface Job {
   /** live cost meter while running, final spend when done (Meta models + voice, USD) */
   usd?: { meta: number; voice: number; total: number };
   costUsd?: number; error?: string; title?: string; durationSec?: number; interactive?: boolean;
+  /** what the viewer asked for (from voice mode), and how the job was started */
+  ask?: Ask; via?: "voice";
 }
+export type Ask = { goal?: string; audience?: string; depth?: "overview" | "working" | "deep"; also?: string };
 
 const ROOT = path.resolve(process.cwd(), "../..");
 export const JOBS_DIR = process.env.EXPLAINLIKE_JOBS_DIR ?? path.join(ROOT, "explainlike-out", "web");
@@ -102,10 +105,11 @@ function newJob(p: Omit<Job, "id" | "state" | "stage" | "message" | "pct" | "sta
   return job;
 }
 
-export function startJob(input: string, voice: string): Job {
-  const job = newJob({ kind: "video", input, voice });
+export function startJob(input: string, voice: string, ask?: Ask, via?: "voice"): Job {
+  const job = newJob({ kind: "video", input, voice, ask, via });
   const args = [input, "--out", path.join(JOBS_DIR, job.id)];
   if (voice === "silent") args.push("--voice", "silent");
+  for (const k of ["goal", "audience", "depth", "also"] as const) if (ask?.[k]) args.push(`--${k}`, ask[k]!);
   run(job, args);
   return job;
 }
