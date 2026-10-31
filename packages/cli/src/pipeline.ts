@@ -184,10 +184,11 @@ export async function runExplainLike(o: RunOptions) {
 
   // ---------- compose + render ----------
   P({ stage: "compose", message: "laying out the canvas", pct: 44 });
-  const { film, sketch, timeline } = await compose({
+  const { film, sketch, timeline, pace } = await compose({
     plan, audio, theme, spec, pack, sourceLabel, arch, shot,
     colorOf: (c) => kindColor(c.kind) as any,
   });
+  P({ stage: "compose", message: `pacing: ${pace.cutsPerMin} cuts a minute, shortest hold ${pace.shortestHold} s (${pace.tempo})`, pct: 46 });
   // captions must spell out exactly what the voice says
   const bad = captionMismatches(film, plan.scenes);
   if (bad.length) throw new Error(`captions do not match the narration in ${bad.map((b) => `${b.scene}: said "${b.said}" but shown "${b.shown}"`).join("; ")}`);
@@ -243,7 +244,7 @@ export async function runExplainLike(o: RunOptions) {
 
   const voiceUsd = voice instanceof DeepgramVoice ? voice.usd : 0;
   const manifest = {
-    tool: "explainlike", input: o.input, kind, brief: spec.brief, tempo: spec.tempo, repoDir, followUp: o.focus ? { focus: o.focus } : o.whatIf ? { whatIf: o.whatIf } : undefined, look: theme.id, packs: { loaded: extra.map((p) => p.id), detected: detected.map((d) => ({ pack: d.pack, id: d.component.id, name: d.component.name, evidence: d.evidence })) }, title: plan.title, durationSec: Number(film.duration.toFixed(1)),
+    tool: "explainlike", input: o.input, kind, brief: spec.brief, tempo: spec.tempo, pace, repoDir, followUp: o.focus ? { focus: o.focus } : o.whatIf ? { whatIf: o.whatIf } : undefined, look: theme.id, packs: { loaded: extra.map((p) => p.id), detected: detected.map((d) => ({ pack: d.pack, id: d.component.id, name: d.component.name, evidence: d.evidence })) }, title: plan.title, durationSec: Number(film.duration.toFixed(1)),
     outputs: { mp4, [exportAs]: boardFile, contactSheet: sheet, plan: path.join(out, "plan.json"), architecture: arch ? path.join(out, "architecture.json") : undefined },
     scenes: timeline, repairs: plan.repairs ?? [], notes, qa,
     // captions that found no fully free spot (empty when every caption clears the drawing)

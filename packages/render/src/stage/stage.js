@@ -126,16 +126,13 @@
     return cur;
   }
 
-  // HUD. Two heading slots so one heading can slide out while the next wipes in.
+  // HUD. Two heading slots: the old heading slides out, and only then the next one wipes in,
+  // so two titles are never on screen together.
   const headA = document.getElementById("heading");
   const headB = headA.cloneNode(true); headB.id = "heading2"; headA.parentNode.insertBefore(headB, headA.nextSibling);
   const slots = [headA, headB].map((el) => ({ el, txt: el.querySelector("span"), line: el.querySelector("div"), text: null }));
   const cap = document.getElementById("captions"), bar = document.getElementById("bar"), fade = document.getElementById("fade"), end = document.getElementById("end");
   let lastCap = null;
-  const card = document.createElement("div"); card.id = "card";
-  const cardText = document.createElement("div"); cardText.id = "cardText"; card.appendChild(cardText);
-  // captions stay on top of the black section card, so no spoken word is ever hidden
-  document.getElementById("capwrap").before(card);
   const capwrap = document.getElementById("capwrap");
 
   // Captions never cover the drawing. Before the first frame, each caption picks one spot:
@@ -186,7 +183,7 @@
     }
   }
   const visibleAt = (e, t) => t >= e.t0 && (e.g ? interp(F.groups[e.g], t, 1) : 1) > 0.05;
-  const coverAt = (t) => (F.cards || []).some((x) => t >= x.t0 && t < x.t1) || (F.end && t >= F.end.t0);
+  const coverAt = (t) => (F.end && t >= F.end.t0);
   function spotXY(spot, c, t, cw, ch) {
     let x, y;
     if (spot.grid) return { x: spot.grid[0], y: spot.grid[1] };
@@ -320,8 +317,9 @@
       const k = (t - h.t0);
       // fade out at the end only when nothing takes over
       const outP = next && next.t0 - h.t1 < 0.2 ? 0 : clamp(1 - (h.t1 - t) / HOUT, 0, 1);
-      drawHead(slots[0], h, same ? 1 : clamp((k - (chained ? 0.15 : 0)) / HIN, 0, 1), outP, same ? 1 : clamp((k - 0.3) / 0.5, 0, 1));
-      if (chained && !same && k < HOUT + 0.15) drawHead(slots[1], prev, 1, clamp(k / HOUT, 0, 1), 1);
+      const wait = chained && !same ? HOUT : 0;
+      drawHead(slots[0], h, same ? 1 : clamp((k - wait) / HIN, 0, 1), outP, same ? 1 : clamp((k - wait - 0.15) / 0.5, 0, 1));
+      if (wait && k < HOUT) drawHead(slots[1], prev, 1, clamp(k / HOUT, 0, 1), 1);
     }
 
     const c = F.captions.find((x) => t >= x.t0 && t < x.t1);
@@ -336,16 +334,6 @@
       cap.style.display = "inline-block";
       placeCaption(c, t);
     } else { cap.style.display = "none"; lastCap = null; }
-
-    // black section card
-    const sc = (F.cards || []).find((x) => t >= x.t0 && t < x.t1);
-    if (sc) {
-      card.style.display = "flex";
-      if (cardText.textContent !== sc.text) cardText.textContent = sc.text;
-      const p = clamp((t - sc.t0) / 0.3, 0, 1);
-      cardText.style.opacity = p.toFixed(3);
-      cardText.style.transform = `scale(${(0.9 + 0.1 * easeOut(p)).toFixed(3)})`;
-    } else card.style.display = "none";
 
     bar.style.width = `${(clamp(t / F.duration, 0, 1) * 100).toFixed(3)}%`;
     let fo = 0;
