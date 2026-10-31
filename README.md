@@ -10,15 +10,15 @@ Paste a GitHub repo, an X post or an article. Get a **whiteboard explainer video
 
 ### Metual explaining Metual
 
-This is Metual run on its own repo (`--level new`, $0.12 of Muse Spark and $0.04 of voice; voiceover QA 0.98):
+This is Metual run on its own repo (`--level new`, $0.15 of Muse Spark and $0.04 of voice), in the default `pen-light` look:
 
 ![Metual drawing its own architecture](docs/media/metual-self.gif)
 
 ![contact sheet of the self-diagram video](docs/media/metual-self.contact.jpg)
 
-The clips above use the older black `caleb-dark` look, which is still one flag away (`--theme caleb-dark`). The same pipeline in the `whiteboard-light` theme, on umami:
+The older black `caleb-dark` look and the plainer `whiteboard-light` look are one flag away (`--theme caleb-dark`). The same pipeline at `--level interviewing`, on a small music app (slubbles/spotibai), with back-of-envelope numbers and what breaks at 10x and 100x:
 
-![umami in the whiteboard-light theme](docs/media/umami-light.contact.jpg)
+![spotibai at interviewing level in the pen-light theme](docs/media/spotibai-pen.contact.jpg)
 
 Powered by Meta Muse models (Muse Spark for reading and planning, Muse Transcribe for voiceover QA, Muse Image + SAM for the doodle icon pack). Voice by Deepgram Aura.
 
