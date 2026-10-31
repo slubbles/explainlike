@@ -83,8 +83,8 @@ export async function runExplainLike(o: RunOptions) {
     const r = await ingestRepo(o.input);
     doc = r;
     const name = o.name ?? r.title;
-    // a local checkout shows its folder name, never the path on this machine
-    sourceLabel = o.name ? `github.com/${o.name}` : /^https?:\/\//.test(r.url) ? r.url.replace(/^https?:\/\//, "") : path.basename(r.url);
+    // a repo URL shows itself; a local checkout shows --name or its folder name, never the path on this machine
+    sourceLabel = /^https?:\/\//.test(r.url) ? r.url.replace(/^https?:\/\/(www\.)?/, "").replace(/\.git$/, "") : o.name ? `github.com/${o.name}` : path.basename(r.url);
     out = o.out ?? path.resolve("explainlike-out", slug(name));
     fs.mkdirSync(out, { recursive: true });
     notes.push(`digest: ${r.digest.files.length} files, ${r.digest.text.length} chars; ${r.digest.skippedSecret.length} secret-looking files never opened`);
