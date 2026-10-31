@@ -7,7 +7,8 @@ test("the brief sets tempo from complexity and list scenes from depth", () => {
   assert.equal(tech.tempo.id, "slow");
   assert.ok(tech.tempo.minBeat >= 3.5);
   assert.equal(tech.perScene, 2, "technical topics add fewer boxes per beat");
-  assert.deepEqual(tech.notes.map((n) => n.heading), ["requirements", "trade-offs"], "deep allows two extras");
+  assert.deepEqual(tech.notes.map((n) => n.heading), ["requirements"], "deep allows one short extra beat after the flow");
+  assert.equal(specFromBrief({ ...DEFAULT_BRIEF, extras: ["trade-offs"] }).notes.length, 0, "working depth stays on the core flow");
   const easy = specFromBrief({ ...DEFAULT_BRIEF, complexity: "simple", depth: "overview", approach: "analogy", analogy: "a post office", extras: ["requirements"] });
   assert.equal(easy.tempo.id, "brisk");
   assert.equal(easy.notes.length, 0, "an overview has no list scenes");
