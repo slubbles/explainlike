@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { Architecture, NoteItem, LevelSpec, listLevels, getLevel, registerLevel, getTheme, registerTheme, listThemes, isKeyword, quoteInSource, strictJsonSchema, agreementSlips, tidySpeech } from "@metual/core";
+import { Architecture, NoteItem, LevelSpec, listLevels, getLevel, registerLevel, getTheme, registerTheme, listThemes, isKeyword, quoteInSource, strictJsonSchema, agreementSlips, tidySpeech, soundsLikeKeywords } from "@metual/core";
 
 test("the four built-in levels load from their JSON config", () => {
   assert.deepEqual(listLevels().map((l) => l.id).sort(), ["five", "interviewing", "new", "senior"]);
@@ -75,4 +75,11 @@ test("subject-verb agreement: 'a pasted link become' is a slip, but 'how does a 
   // a helper verb carries the agreement, and two singular subjects make a plural one
   for (const ok of ["The question: how does a pasted link become a watchable video?", "Let a worker run it.", "A user and a bot send links.", "Why can a single room become hot?"])
     assert.equal(tidySpeech(ok), ok);
+});
+
+test("a keyword list is told apart from spoken sentences", () => {
+  assert.ok(soundsLikeKeywords("Browser user sits at frontend start pasting links for video."));
+  assert.ok(soundsLikeKeywords("Paste link watch starts with browser user pasting github x article link. Next watch resulting video in player."));
+  assert.ok(!soundsLikeKeywords("This box is you, the viewer, pasting a GitHub, X, or article link into the web app."));
+  assert.ok(!soundsLikeKeywords("Short label text."));
 });

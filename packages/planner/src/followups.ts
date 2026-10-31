@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { ScaleRisk, NoteItem, lower, tidySpeech, type Architecture, type Level, type Progress, type Scene, type ScenePlan } from "@metual/core";
+import { ScaleRisk, NoteItem, lower, tidySpeech, soundsLikeKeywords, type Architecture, type Level, type Progress, type Scene, type ScenePlan } from "@metual/core";
 import { sparkJson, type CostLedger } from "@metual/models";
 import { validateNotes } from "./scenes.js";
 
@@ -40,19 +40,23 @@ export async function planFocus(o: { ledger: CostLedger; arch: Architecture; id:
   if (!c) throw new Error(`unknown component ${o.id}`);
   const near = neighbours(o.arch, c.id);
   o.progress?.({ stage: "plan", message: `planning a deep dive on ${c.keyword}` });
-  const r = await sparkJson({
-    ledger: o.ledger, step: "focus-plan", name: "focus", effort: "low", maxTokens: 3000,
+  const ask = (retry: string) => sparkJson({
+    ledger: o.ledger, step: retry ? "focus-plan-retry" : "focus-plan", name: "focus", effort: "low", maxTokens: 3000,
     schema: z.object({ intro: z.string(), heading: z.string(), items: z.array(NoteItem), narration: z.string() }),
     messages: [
       { role: "system", content: [
         `Write a 15 to 20 second deep dive on one box of the "${o.arch.product}" diagram. Audience: ${o.level}.`,
-        "intro: one sentence (about 10 words) naming the box and where it sits. heading: 2 to 4 lowercase words that the narration says.",
+        "intro: one natural spoken sentence (about 10 words) naming the box and where it sits, e.g. \"This box is you, the viewer, pasting a link into the web app.\" heading: 2 to 4 lowercase words that the narration says.",
         `items: 3 or 4 notes pinned on the diagram. target is always "${c.id}" (mention neighbours in the text if needed). text 2 to 7 lowercase words. evidence: one exact file path from the evidence files. color: blue, green, orange, purple, yellow or red. icon: "" is fine. estimate false unless the text holds an assumed number.`,
-        "narration: about 35 words, reads the notes in order, and says each note's first words out loud. Only facts the evidence files show; no traffic, latency or cost numbers.",
+        "narration: about 35 words of natural, complete spoken sentences, the way a teacher talks, never a list of keywords. Walk through the notes in order and work each note's key words into a full sentence (note \"paste github x article link\" -> \"You paste a GitHub, X, or article link.\"). Keep articles, \"or\", \"and\" and commas. Only facts the evidence files show; no traffic, latency or cost numbers.",
       ].join("\n") },
-      { role: "user", content: JSON.stringify({ component: c, connections: o.arch.connections.filter((x) => near.has(x.from) && near.has(x.to)) }) + "\n\nEVIDENCE FILES:\n" + o.evidence },
+      { role: "user", content: JSON.stringify({ component: c, connections: o.arch.connections.filter((x) => near.has(x.from) && near.has(x.to)) }) + "\n\nEVIDENCE FILES:\n" + o.evidence + retry },
     ],
   });
+  let r = await ask("");
+  // a narration that reads as a keyword list sounds broken when voiced, so it is asked for once more
+  if (soundsLikeKeywords(r.intro) || soundsLikeKeywords(r.narration))
+    r = await ask(`\n\nYOUR LAST DRAFT READ AS A KEYWORD LIST, NOT SPEECH:\n${r.intro} ${r.narration}\nRewrite intro and narration as natural spoken sentences with articles and pronouns.`);
   const files = new Set(o.arch.components.flatMap((x) => x.evidence));
   const v = validateNotes(r.items.slice(0, 4).map((i) => ({ ...i, target: c.id })), { ids: near, files, evidenceOf: (id) => o.arch.components.find((x) => x.id === id)?.evidence[0] ?? "" });
   const notes = { ...blank("focus", "notes", r.heading || c.keyword, r.narration), items: v.items.slice(0, 4) };
@@ -71,7 +75,7 @@ export async function planWhatIf(o: { ledger: CostLedger; arch: Architecture; fa
         `The viewer asks: what if "${o.arch.product}" got ${o.factor} its traffic? Pick the 2 components that break first, from the evidence. Audience: ${o.level}.`,
         `component must be one of: ${ids.join(", ")}. at: "${o.factor}". problem and fix: 1 to 3 lowercase words. evidence: one exact file path from the evidence. heading: 2 to 4 lowercase words that the narration says (reuse the problem words).`,
         "narration: about 30 words per risk: what breaks and why, then the fix. You do not know the app's real traffic: say 'if' or 'assume' and never state user, request, latency or cost numbers as facts.",
-        "intro: one sentence (about 10 words) that sets up the question.",
+        "intro: one natural spoken sentence (about 10 words) that sets up the question. Every narration is complete, grammatical sentences, never a list of keywords.",
       ].join("\n") },
       { role: "user", content: JSON.stringify({ components: o.arch.components.map((c) => ({ id: c.id, name: c.name, kind: c.kind, what: c.what })), connections: o.arch.connections.map((c) => `${c.from}>${c.to}`) }) + "\n\nEVIDENCE FILES:\n" + o.evidence },
     ],

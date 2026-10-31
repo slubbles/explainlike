@@ -103,3 +103,15 @@ export function fixAgreement(text: string): string {
     return s ? part.replace(/^[A-Za-z]+/, (w) => (w[0] === w[0].toUpperCase() ? s.fix[0].toUpperCase() + s.fix.slice(1) : s.fix)) : part;
   }).join("");
 }
+
+const GLUE = /^(a|an|the|you|your|it|its|this|that|these|those|they|their|we|our|he|she|his|her|is|are|was|were)$/;
+/**
+ * True when text reads as a list of keywords rather than spoken English, e.g.
+ * "Browser user sits at frontend start pasting links for video." Real sentences of
+ * eight or more words almost always carry an article, a pronoun or a form of "be".
+ */
+export function soundsLikeKeywords(text: string): boolean {
+  const ws = text.toLowerCase().split(/\s+/).map((w) => w.replace(/[^a-z']/g, "")).filter(Boolean);
+  if (ws.length < 8) return false;
+  return ws.filter((w) => GLUE.test(w)).length / ws.length < 0.05;
+}
