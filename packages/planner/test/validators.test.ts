@@ -177,3 +177,15 @@ test("a polished line is kept only if the board can still sync to it", () => {
   assert.ok(!keepsSync(s.narration, "The harness runs the bot after you send a message and the door forwards it.", want), "order changed");
   assert.ok(!keepsSync(s.narration, "You send a message and it all just works out somehow in the end, more or less, with the bot doing things.", want), "a step is gone");
 });
+
+test("the speech check keeps the viewer as 'you', plain names first, and openers varied even twice", () => {
+  const plan = { title: "x", subtitle: "", scenes: [
+    { ...sc("layer", "Around the desk, you meet the team chat, called React Web. It lets you type.", ["ui"]), id: "s02-layer", heading: "the desk" },
+    { ...sc("layer", "Around the desk sit helpers. Then it waits for the guest. Then it moves on.", ["edge"]), id: "s03-layer", heading: "the desk" },
+  ] };
+  const issues = speechIssues(plan, storyArch, "a hotel front desk");
+  assert.ok(issues.some((i) => /s02-layer and s03-layer both open with 'around the'/.test(i)), issues.join("; "));
+  assert.ok(issues.some((i) => /s03-layer: two sentences in a row open with 'then it'/.test(i)), issues.join("; "));
+  assert.ok(issues.some((i) => /s03-layer: says "the guest"/.test(i)), issues.join("; "));
+  assert.ok(issues.some((i) => /"called React Web" puts a code name up front/.test(i)), issues.join("; "));
+});

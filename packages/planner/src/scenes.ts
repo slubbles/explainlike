@@ -6,7 +6,9 @@ const STYLE = [
   "Style of the video: a friendly engineer drawing on a whiteboard while talking to a smart newcomer (docs/explaining-playbook.md).",
   "Narration is spoken; write it for the ear: short sentences, concrete, no filler ('in this video', 'let's dive in', 'robust', 'seamless', 'leverage' are banned).",
   "Every narration sentence is complete and grammatical: each verb agrees with its subject, and articles (a, an, the) are not dropped.",
-  "Plain words first. Every technical term (an acronym, a product, a protocol, an internal name) is explained in plain words the first time it is said, in the same sentence: 'Caddy, the web server at the front door, ...'. A term the newcomer does not need is left out.",
+  "Plain words first. Name each part by its plain keyword. A code name (a library, framework, database or file name such as React, SQLite or Node) is said only when it helps the viewer, after the plain name, with what it is: 'the chat transcripts, saved in SQLite, a small database file on your disk'. Never 'called X'. Every other technical term (an acronym, a protocol, 'api', 'driver', 'harness') is explained in a few plain words the first time it is said, in the same sentence; a term the newcomer does not need is left out.",
+  "The viewer is always 'you', from the first line to the last. Never call them 'the guest', 'the user' or 'the customer', even inside the analogy ('you walk up to the counter', not 'the guest walks up').",
+  "No two scenes or two sentences in a row open with the same words.",
   "Each part gets its why: what it is for, or what would go wrong without it.",
   "Headings are 2 to 4 lowercase words that the narration of that scene actually says (the viewer reads the heading while hearing it). Keywords 1 to 3 lowercase words.",
   "One new thing per sentence, and each sentence long enough to watch it being drawn (no two-word sentences).",
@@ -140,6 +142,20 @@ export function speechIssues(plan: ScenePlan, arch: Architecture, analogy = ""):
     if (k.split(" ").length === 3) openers.set(k, (openers.get(k) ?? 0) + 1);
   }
   for (const [k, n] of openers) if (n >= 3) issues.push(`${n} sentences open with '${k}'; vary them`);
+  // the same opener twice in a row, across scenes or within one, already sounds like a template
+  const opener = (t: string) => norm(t).split(" ").slice(0, 2).join(" ");
+  plan.scenes.forEach((s, i) => {
+    const prev = plan.scenes[i - 1];
+    if (prev && opener(s.narration).split(" ").length === 2 && opener(s.narration) === opener(prev.narration)) issues.push(`${prev.id} and ${s.id} both open with '${opener(s.narration)}'; vary them`);
+    const sents = s.narration.split(/(?<=[.!?])\s+/);
+    for (let k = 1; k < sents.length; k++) if (opener(sents[k]).split(" ").length === 2 && opener(sents[k]) === opener(sents[k - 1])) issues.push(`${s.id}: two sentences in a row open with '${opener(sents[k])}'; vary them`);
+    // the viewer is "you" all the way through
+    const third = s.narration.match(/\bthe (guest|user|customer|visitor|viewer)s?\b/i);
+    if (third) issues.push(`${s.id}: says "${third[0]}" for the viewer; keep it "you"`);
+    // a code name in front of the plain name ("called React Web")
+    const code = s.narration.match(/\bcalled (the )?[A-Z][\w-]*( [A-Z][\w-]*)*/);
+    if (code) issues.push(`${s.id}: "${code[0]}" puts a code name up front; use the plain name, and add the code name after it only if it helps`);
+  });
   const keywords = new Set(arch.components.map((c) => norm(c.keyword)));
   const labels = new Set(arch.walkthrough.steps.map((x) => norm(x.label)));
   const an = norm(analogy);
@@ -196,6 +212,10 @@ export async function polishNarration(o: { ledger: CostLedger; plan: ScenePlan; 
     "- Each scene lists 'must_say': phrases the board syncs to. Say each one, in that order, with its words in that order. You may put 'the', 'a' or 'your' between its words and change verb endings ('send message' -> 'sends the message'), nothing else.",
     "- Never read a scene heading aloud as if it were a part of the system.",
     "- A step's verb is the sentence's only verb for that action; never pair it with a synonym ('files and saves', 'presents and shows').",
+    "- Plain names before code names: drop 'called React Web' and similar unless the code name truly helps; if it stays, put it after the plain name with a few words on what it is.",
+    "- Any technical word left ('api', 'driver', 'harness', a database or framework name) gets a few plain words saying what it is, the first time it's said.",
+    "- The viewer is 'you' all the way through; never 'the guest', 'the user' or 'the customer'.",
+    "- No two scenes, and no two sentences in a row, open with the same words.",
     "Part names: 'parts' lists every part's spoken name. If a name sounds awkward when spoken as a thing (for example 'computer use', a verb phrase, or an internal code name), give it a plain 1 to 3 word lowercase name in 'renames' (for example 'browser robot'), and use the new name in every scene instead of the old one. Rename only names that are genuinely awkward; most need none.",
     "Return every scene id with its rewritten narration.",
   ].join("\n");
