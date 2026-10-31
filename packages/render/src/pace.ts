@@ -96,6 +96,13 @@ export function shotStarts(film: Film): number[] {
  * 3. a slow push wherever the picture would otherwise sit still
  * 4. captions placed next to what they talk about
  */
+/** Slide view v so it lies inside outer (when it is smaller). */
+function within(v: Box, outer: Box): Box {
+  const x = v.w <= outer.w ? Math.min(Math.max(v.x, outer.x), outer.x + outer.w - v.w) : v.x;
+  const y = v.h <= outer.h ? Math.min(Math.max(v.y, outer.y), outer.y + outer.h - v.h) : v.y;
+  return { ...v, x, y };
+}
+
 export function applyPace(film: Film, scenes: Span[]) {
   film.camera.sort((a, b) => a.t - b.t);
   for (const k of film.camera) if (k.move > LIVELY.push && scenes.some((s) => Math.abs(k.t - s.start) < 0.05)) k.move = LIVELY.push;
@@ -125,7 +132,8 @@ export function applyPace(film: Film, scenes: Span[]) {
       else if (focus) {
         let f: Box = focus;
         for (let i = 0; i < 4 && f.w < base.w * 0.6 && f.h < base.h * 0.6; i++) {
-          const v = fitView(film, f, base.w * 0.55), cut = sliced(v);
+          // a close-up stays inside the wide shot, so cutting back out never slices what it showed
+          const v = within(fitView(film, f, base.w * 0.55), base), cut = sliced(v);
           if (!cut.length) { view = v; break; }
           f = union([f, ...cut])!;
         }
