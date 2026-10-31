@@ -109,3 +109,15 @@ test("a small label or a moving dot drawn into a wide shot still counts as a sti
   assert.deepEqual(stillGaps({ ...base, elements: [label, dot] } as any, 0, 4), [{ t0: 0, t1: 4 }]);
   assert.deepEqual(stillGaps({ ...base, elements: [label, box] } as any, 0, 4), [{ t0: 0, t1: 2 }, { t0: 2.5, t1: 4 }]);
 });
+
+test("lively: no scene opens on an unchanged board for two seconds", async () => {
+  const { film, timeline } = await make("lively");
+  const late: string[] = [];
+  for (const s of timeline) {
+    const first = film.elements.filter((e) => e.t0 >= s.start && e.t0 < s.end).sort((a, b) => a.t0 - b.t0)[0];
+    if (!first) continue;
+    const open = Math.max(s.start, ...(film.cards ?? []).filter((c) => c.t0 >= s.start - 0.01 && c.t0 < s.end).map((c) => c.t1));
+    if (first.t0 - open > 1.8) late.push(`${s.sceneId ?? s.id} waits ${(first.t0 - open).toFixed(1)} s`);
+  }
+  assert.deepEqual(late, []);
+});

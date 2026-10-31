@@ -216,6 +216,9 @@ function spokenAt(words: WordTiming[], phrase: string, from = 0): number {
   return -1;
 }
 
+/** Longest wait, in seconds, from a scene opening to its first new element. */
+export const FIRST_WITHIN = 1.0;
+
 /** Times for a sequence of events: keyword-synced when spoken, else spread evenly; always ordered and spaced. */
 function eventTimes(words: WordTiming[], phrases: string[][], start: number, end: number, gap = 0.9): number[] {
   const raw: (number | null)[] = [];
@@ -237,6 +240,8 @@ function eventTimes(words: WordTiming[], phrases: string[][], start: number, end
     }
     out.push(t);
   }
+  // the first thing is drawn soon after the scene opens, so the board never sits empty while the narrator warms up
+  if (n && out[0] > start + FIRST_WITHIN) out[0] = start + FIRST_WITHIN;
   for (let i = 0; i < n; i++) out[i] = Math.max(out[i], (out[i - 1] ?? start - gap) + gap, start);
   return out.map((t) => Math.min(t, Math.max(start, end)));
 }
