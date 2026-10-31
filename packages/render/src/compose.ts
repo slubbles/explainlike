@@ -341,13 +341,20 @@ export async function compose(inp: ComposeInput): Promise<Composed> {
       if (r && c && f) {
         for (const id of present) B.setOp(nodeGroup(id), T, id === c.id ? 1 : dim);
         for (const kk of drawnEdges) B.setOp(kk, T, dim);
-        for (let j = 0; j < k; j++) { B.setOp(`s:${j}`, T, dim); B.setOp(nodeGroup(`fix-${j}`), T, dim); }
-        B.fit(unionBox([c, f, { x: c.x, y: c.y - 120, w: c.w, h: 10 }], 80), T, 1.0);
+        for (let j = 0; j < k; j++) { B.setOp(`s:${j}`, T, 0); B.setOp(nodeGroup(`fix-${j}`), T, dim); }
+        B.fit(unionBox([c, f, { x: c.x - c.w * 0.25, y: c.y - c.h * 0.6, w: c.w * 1.5, h: c.h * 2.2 }], 80), T, 1.0);
         const [t1, t2] = eventTimes(words, [[r.problem, r.at], [r.fix]], t0 + 0.2, tEnd - 0.4, 1.6);
         const cx = c.x + c.w / 2, cy = c.y + c.h / 2;
         B.rough(gen.ellipse(cx, cy, c.w * 1.45, c.h * 1.5, { seed: B.seed++, stroke: C("red"), strokeWidth: 5, roughness: 1.5 }), t1, 0.8, `s:${k}`);
         B.sketch.ellipses.push({ box: { x: cx - c.w * 0.725, y: cy - c.h * 0.75, w: c.w * 1.45, h: c.h * 1.5 }, color: C("red") });
-        B.text({ text: `${r.at}: ${r.problem}`, x: cx, y: c.y - c.h * 0.25 - 40, size: 44, color: C("red"), anchor: "middle", t0: t1 + 0.5, dur: 0.6, g: `s:${k}`, bg: true });
+        // problem label: above the circle unless a box is in the way, then below, then left
+        const lab = `${r.at}: ${r.problem}`, lw = textWidth(lab, 44) + 24, ex = c.w * 0.725, ey = c.h * 0.75;
+        const others = [...graph.nodes.values()].filter((n) => n.id !== c.id && n.id !== f.id);
+        const hit = (b: Box) => others.some((n) => b.x < n.x + n.w && b.x + b.w > n.x && b.y < n.y + n.h && b.y + b.h > n.y);
+        const cands: [number, number, "middle" | "start"][] = [[cx, cy - ey - 22, "middle"], [cx, cy + ey + 58, "middle"], [cx - ex - 20 - lw, cy - ey + 30, "start"], [cx - ex - 20 - lw, cy + ey, "start"]];
+        const box = ([x, y, a]: [number, number, string]): Box => ({ x: a === "start" ? x : x - lw / 2, y: y - 46, w: lw, h: 60 });
+        const pick = cands.find((cd) => !hit(box(cd))) ?? cands[0];
+        B.text({ text: lab, x: pick[0], y: pick[1], size: 44, color: C("red"), anchor: pick[2], t0: t1 + 0.5, dur: 0.6, g: `s:${k}`, bg: true });
         // big blocky red arrow from the problem to the fix
         const fx = f.x + f.w / 2, fy = f.y + f.h / 2;
         const ang = Math.atan2(fy - cy, fx - cx), ux = Math.cos(ang), uy = Math.sin(ang);

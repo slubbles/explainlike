@@ -39,3 +39,12 @@ The `.excalidraw` output follows the open Excalidraw JSON scene format
 "Meta", "Muse", "Excalidraw" and other names belong to their owners. Metual is an
 independent project; it is not affiliated with or endorsed by Meta. It only calls
 Meta's public Model API, credited in plain text as "Powered by Meta Muse models".
+
+## Online services called at runtime
+
+| Service | Use |
+|---|---|
+| Meta Model API (api.meta.ai) | Muse Spark, Muse Image, SAM, Muse Transcribe |
+| Deepgram (optional) | Aura text to speech, Nova word timestamps |
+| FxTwitter public API (api.fxtwitter.com) | public X post text and metadata for X post input |
+| GitHub | cloning public repos |
