@@ -174,7 +174,8 @@ export async function ingestConcept(input: string, _outDir: string): Promise<Con
       const html = cardHtml(card, blocks);
       const browser = await chromium.launch({ executablePath: findChrome(), args: ["--disable-gpu", "--hide-scrollbars"] });
       try {
-        const page = await browser.newPage({ viewport: { width: 1280, height: 900 }, deviceScaleFactor: 1.5 });
+        // 2x pixels: the video zooms into quoted lines, and a 1.5x shot looked soft there
+        const page = await browser.newPage({ viewport: { width: 1280, height: 900 }, deviceScaleFactor: 2 });
         await page.setContent(html, { waitUntil: "networkidle", timeout: 30000 }).catch(() => {});
         await page.evaluate(() => document.fonts.ready);
         const rects = (await page.evaluate(`(${LOCATE_JS})(${JSON.stringify(quotes)})`)) as Record<string, Rect[]>;
