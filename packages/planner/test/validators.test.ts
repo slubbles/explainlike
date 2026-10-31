@@ -125,6 +125,20 @@ test("the self-check flags a flow that is not narrated hop by hop, a jargon-heav
   assert.ok(issues.some((i) => /recap must retell/.test(i)));
 });
 
+test("the self-check flags a numbered-list walkthrough and a repeated opener", () => {
+  const plan = repairRepoPlan({ title: "x", subtitle: "", scenes: [
+    sc("hook", "A chat where bots help you, like a hotel front desk. Let's follow one message."),
+    sc("layer", "The team chat is the front desk. The front door is the doorman.", ["ui", "edge"]),
+    sc("layer", "The bot harness is the manager. The agent drivers are the concierges.", ["srv", "bot"]),
+    sc("walkthrough", "Step one is send message. Step two is forward. Step three is run bot."),
+    sc("layer", "Off to the side, the login worker checks keys. Off to the side, it logs. Off to the side, it naps.", ["auth"]),
+    sc("recap", "Team chat to front door to bot harness to agent drivers and back."),
+  ] }, storyArch, { perScene: 2 });
+  const issues = checkStory(plan, storyArch, "a hotel front desk");
+  assert.ok(issues.some((i) => /numbered list/.test(i)), issues.join("; "));
+  assert.ok(issues.some((i) => /open with 'off to the'/.test(i)), issues.join("; "));
+});
+
 test("journeyOrder lists parts in the order one request meets them", () => {
   assert.deepEqual(journeyOrder(storyArch), { path: ["ui", "edge", "srv", "bot"], side: ["auth"] });
 });

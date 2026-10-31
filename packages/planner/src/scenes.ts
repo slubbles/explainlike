@@ -37,9 +37,9 @@ function repoSystem(arch: Architecture, L: ExplainSpec, lo: number, hi: number):
     "Scene order and rules:",
     "1. one 'hook' scene, 2 or 3 sentences: what the product is in plain words (no part names, no jargon), why someone would care (what it lets them do), the everyday analogy, and the promise of the story, e.g. 'Let's follow one message through it.' add_components empty.",
     `2. 'layer' scenes along the journey: add exactly these components, in this order, at most ${L.perScene} per scene: ${path.map(kw).join(", ")}. Tell it as the request moving forward ('First...', 'Next it reaches...'). For each added component say its keyword out loud (in add_components order), what it does in plain words, its role in the analogy, and why it is there.`,
-    `3. one 'walkthrough' scene right after them: the core flow told once, end to end, as one short story. Say these step labels word for word, in order, one sentence each: ${steps}. End with what the user gets back. Heading like 'one message, start to end'. About ${Math.round(L.wordsPerScene * 1.6)} words. add_components empty.`,
+    `3. one 'walkthrough' scene right after them: the core flow told once, end to end, as one short story. Say these step labels word for word, in order, each inside a natural sentence about who does what (the analogy role first, then the label as the action): ${steps}. Good: 'You type a question and the counter will send message to the manager.' Bad: 'Step one is send message.' Never number the steps out loud. End with the concrete thing the user gets back (e.g. 'a working fix in your chat'), not 'an answer'. Heading like 'one message, start to end'. About ${Math.round(L.wordsPerScene * 1.6)} words. add_components empty.`,
     side.length
-      ? `4. then 'layer' scene(s) for the side parts the request does not pass through: ${side.map(kw).join(", ")}. One plain sentence each, tied back to the journey ('Off to the side, ...'). At most ${L.perScene} per scene.`
+      ? `4. then 'layer' scene(s) for the side parts the request does not pass through: ${side.map(kw).join(", ")}. Keep them short: one scene, one short clause per part (its keyword and plain job), opening with one tie-back to the journey such as 'Around the manager sit a few helpers:'. Do not repeat the same opener for each part.`
       : "4. (no side parts)",
     arch.scale.length
       ? `5. ${arch.scale.length} short 'scale' scene(s), one per scale risk, in the given order: what breaks at that traffic level and why (problem keyword), then the fix (fix keyword), in 2 short plain sentences ('The fix is ...'). callouts: [{target: component id, text: problem keyword, color: red}, {target: component id, text: fix keyword, color: green}].`
@@ -49,6 +49,7 @@ function repoSystem(arch: Architecture, L: ExplainSpec, lo: number, hi: number):
     `Each scene's narration is about ${L.wordsPerScene} words (hook and recap can be shorter). Whole video ${lo} to ${hi} seconds at ${L.tempo.wps} words per second: long enough to tell the story, no padding.`,
     "Leave add_connections, board_nodes, board_edges, highlights empty (the renderer derives them). callouts empty except in scale scenes. items empty except in notes scenes.",
     "Never state a traffic, user, latency or cost number as a fact about this app: the repo does not tell you its real load. Numbers only appear as clearly labelled assumptions.",
+    "Proofread every sentence: correct grammar and number ('a write queue', not 'a write queues'), no half-finished phrases. Headings are plain 2 to 4 word phrases a newcomer understands ('the front desk', not 'save then work').",
     "title: the product name in lowercase. subtitle: under 8 lowercase words, plain.",
   ].join("\n");
 }
@@ -100,6 +101,7 @@ export function checkStory(plan: ScenePlan, arch: Architecture, analogy = ""): s
     const missing: string[] = [];
     for (const st of arch.walkthrough.steps) { const k = w.indexOf(norm(st.label), at); if (k < 0) missing.push(st.label); else at = k + 1; }
     if (missing.length) issues.push(`the walkthrough must say each step label word for word, in order; missing or out of order: ${missing.map((m) => `"${m}"`).join(", ")}`);
+    if (/\bstep (one|two|three|1|2|3)\b/.test(w)) issues.push("the walkthrough reads like a numbered list ('step one is ...'); tell it as a story where each part does its step");
     const before = sc.slice(0, wi);
     const late = path.filter((id) => !before.some((s) => s.add_components.includes(id)));
     if (late.length) issues.push(`parts on the journey are drawn after the walkthrough: ${late.map(kwOf).join(", ")}`);
@@ -115,6 +117,13 @@ export function checkStory(plan: ScenePlan, arch: Architecture, analogy = ""): s
     const said = path.filter((id) => r.includes(norm(kwOf(id))) || words4(kwOf(id)).some((x) => r.includes(x)));
     if (said.length < Math.min(3, path.length)) issues.push("the recap must retell the trip, saying the journey parts in order");
   }
+  // the same sentence opener three times over reads like a template, not a person talking
+  const openers = new Map<string, number>();
+  for (const sent of sc.flatMap((x) => x.narration.split(/(?<=[.!?])\s+/))) {
+    const k = norm(sent).split(" ").slice(0, 3).join(" ");
+    if (k.split(" ").length === 3) openers.set(k, (openers.get(k) ?? 0) + 1);
+  }
+  for (const [k, n] of openers) if (n >= 3) issues.push(`${n} sentences open with '${k}'; vary them`);
   return issues;
 }
 
