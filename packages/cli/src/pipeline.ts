@@ -19,6 +19,8 @@ export interface RunOptions {
   fresh?: boolean;
   workers?: number;
   qa?: boolean;
+  /** false: no music bed under the voice */
+  music?: boolean;
   progress?: Progress;
   /** follow-up clips reuse an earlier repo run's architecture.json from this folder */
   from?: string;
@@ -225,7 +227,7 @@ export async function runExplainLike(o: RunOptions) {
   }
   P({ stage: "encode", message: "encoding the mp4", pct: 92 });
   const mp4 = path.join(out, `${base}.mp4`);
-  await encodeMp4(frames, film.fps, mp4, narration);
+  await encodeMp4(frames, film.fps, mp4, narration, { music: o.music, duration: film.duration });
   const sheet = path.join(out, `${base}.contact.jpg`);
   await contactSheet(mp4, sheet, Math.max(2, Math.ceil(film.duration / 40)));
   fs.copyFileSync(cap.html, path.join(out, "stage.html"));
