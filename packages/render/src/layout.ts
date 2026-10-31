@@ -1,7 +1,7 @@
 import ELK from "elkjs/lib/elk.bundled.js";
 import { textWidth } from "./measure.js";
 
-export interface GNode { id: string; keyword: string; sub?: string; icon?: string; color: string }
+export interface GNode { id: string; keyword: string; sub?: string; icon?: string; color: string; quote?: string[]; count?: number }
 export interface GEdge { from: string; to: string; label?: string; both?: boolean }
 export interface Box { x: number; y: number; w: number; h: number }
 export interface PlacedNode extends GNode, Box {}
@@ -17,7 +17,26 @@ export function nodeWidth(n: GNode) {
 const elk = new (ELK as any)();
 
 /** Layered left-to-right layout with orthogonal edges and reserved label space. */
-export async function layoutGraph(nodes: GNode[], edges: GEdge[], opts: { direction?: "RIGHT" | "DOWN" } = {}): Promise<Layout> {
+export interface LayoutOpts { direction?: "RIGHT" | "DOWN"; size?: (n: GNode) => { w: number; h: number }; labelSize?: number; layerGap?: number; nodeGap?: number }
+
+/** Wrap text in Excalifont to a max width; ellipsis on the last line. */
+export function wrapText(text: string, size: number, maxW: number, maxLines: number): string[] {
+  const words = text.split(/\s+/).filter(Boolean);
+  const lines: string[] = [];
+  let cur = "";
+  for (let i = 0; i < words.length; i++) {
+    const next = cur ? cur + " " + words[i] : words[i];
+    if (textWidth(next, size) <= maxW || !cur) { cur = next; continue; }
+    lines.push(cur); cur = words[i];
+    if (lines.length === maxLines) { cur = ""; lines[maxLines - 1] = lines[maxLines - 1].replace(/[,.;:]?$/, "…"); break; }
+  }
+  if (cur) lines.push(cur);
+  return lines.slice(0, maxLines);
+}
+
+export async function layoutGraph(nodes: GNode[], edges: GEdge[], opts: LayoutOpts = {}): Promise<Layout> {
+  const labelSize = opts.labelSize ?? NODE.labelSize;
+  const size = opts.size ?? ((n: GNode) => ({ w: nodeWidth(n), h: NODE.h }));
   const ids = new Set(nodes.map((n) => n.id));
   // a>b and b>a become one two-way edge so the diagram stays calm
   const es: GEdge[] = [];
@@ -33,8 +52,8 @@ export async function layoutGraph(nodes: GNode[], edges: GEdge[], opts: { direct
       "elk.algorithm": "layered",
       "elk.direction": opts.direction ?? "RIGHT",
       "elk.edgeRouting": "ORTHOGONAL",
-      "elk.spacing.nodeNode": "90",
-      "elk.layered.spacing.nodeNodeBetweenLayers": "150",
+      "elk.spacing.nodeNode": String(opts.nodeGap ?? 90),
+      "elk.layered.spacing.nodeNodeBetweenLayers": String(opts.layerGap ?? 150),
       "elk.layered.spacing.edgeNodeBetweenLayers": "40",
       "elk.spacing.edgeEdge": "26",
       "elk.spacing.edgeLabel": "6",
@@ -45,10 +64,10 @@ export async function layoutGraph(nodes: GNode[], edges: GEdge[], opts: { direct
       "elk.layered.cycleBreaking.strategy": "MODEL_ORDER",
       "elk.layered.considerModelOrder.strategy": "NODES_AND_EDGES",
     },
-    children: nodes.map((n) => ({ id: n.id, width: nodeWidth(n), height: NODE.h })),
+    children: nodes.map((n) => { const z = size(n); return { id: n.id, width: z.w, height: z.h }; }),
     edges: es.map((e, i) => ({
       id: `e${i}`, sources: [e.from], targets: [e.to],
-      labels: e.label ? [{ text: e.label, width: textWidth(e.label, NODE.labelSize) + 16, height: 34, layoutOptions: { "elk.edgeLabels.placement": "CENTER" } }] : [],
+      labels: e.label ? [{ text: e.label, width: textWidth(e.label, labelSize) + 16, height: labelSize * 1.36, layoutOptions: { "elk.edgeLabels.placement": "CENTER" } }] : [],
     })),
   };
   const res = await elk.layout(graph);

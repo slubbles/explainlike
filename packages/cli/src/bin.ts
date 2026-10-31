@@ -1,6 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
-import { listLevels, listThemes, type Level } from "@metual/core";
+import { listLevels, listThemes, loadLevelFile, type Level } from "@metual/core";
 import { runMetual } from "./pipeline.js";
 
 // load .env from the working directory without printing anything
@@ -23,6 +23,8 @@ const HELP = `metual <github-url | local-repo-dir | x.com post url | article url
   --fresh                                  ignore cached architecture/plan in the output folder
   --json                                   progress as JSON lines (for the web app)
   --workers <n>                            parallel render pages
+  --level-file <file.json>                 add your own level (see docs/plugins.md) and use it
+  --no-qa                                  skip the Muse Transcribe voiceover check
 `;
 
 const argv = process.argv.slice(2);
@@ -32,7 +34,8 @@ const many = (k: string) => argv.flatMap((a, i) => (a === k ? [argv[i + 1]] : []
 const flags = new Set(["--fresh", "--json", "--no-qa"]);
 const input = argv.find((a, i) => !a.startsWith("--") && (i === 0 || !argv[i - 1].startsWith("--") || flags.has(argv[i - 1])));
 if (!input) { process.stderr.write(HELP); process.exit(1); }
-const level = (opt("--level") ?? "new") as Level;
+const levelFile = opt("--level-file");
+const level = (levelFile ? loadLevelFile(path.resolve(levelFile)).id : opt("--level") ?? "new") as Level;
 if (!listLevels().some((l) => l.id === level)) { process.stderr.write(`unknown level ${level}\n`); process.exit(1); }
 const json = argv.includes("--json");
 
@@ -43,7 +46,7 @@ runMetual({
   iconPacks: many("--icons"), fresh: argv.includes("--fresh"), workers: opt("--workers") ? Number(opt("--workers")) : undefined, qa: !argv.includes("--no-qa"),
   progress: (e) => {
     if (json) process.stdout.write(JSON.stringify({ type: "progress", ...e }) + "\n");
-    else process.stderr.write(`[${((Date.now() - started) / 1000).toFixed(0).padStart(4)}s] ${e.stage.padEnd(12)} ${e.message}\n`);
+    else process.stderr.write(`[${((Date.now() - started) / 1000).toFixed(0).padStart(4)}s] $${(e.usd?.total ?? 0).toFixed(3).padStart(6)}  ${e.stage.padEnd(12)} ${e.message}\n`);
   },
 }).then((m) => {
   if (json) process.stdout.write(JSON.stringify({ type: "done", manifest: m }) + "\n");

@@ -40,6 +40,7 @@
       im.setAttribute("href", e.href);
       im.setAttribute("x", e.x); im.setAttribute("y", e.y); im.setAttribute("width", e.w); im.setAttribute("height", e.h);
       im.setAttribute("preserveAspectRatio", "xMidYMid meet");
+      if (e.invert) im.setAttribute("style", "filter: invert(1)");
       g.appendChild(im);
     } else if (e.k === "text") {
       if (e.bg) { const r = document.createElementNS(NS, "rect"); r.setAttribute("fill", e.bg); r.setAttribute("rx", 6); g.appendChild(r); it.bg = r; }
@@ -110,21 +111,37 @@
     return cur;
   }
 
-  // HUD
-  const head = document.getElementById("heading"), headTxt = document.getElementById("headingText"), headLine = document.getElementById("headingLine");
+  // HUD. Two heading slots so one heading can slide out while the next wipes in.
+  const headA = document.getElementById("heading");
+  const headB = headA.cloneNode(true); headB.id = "heading2"; headA.parentNode.insertBefore(headB, headA.nextSibling);
+  const slots = [headA, headB].map((el) => ({ el, txt: el.querySelector("span"), line: el.querySelector("div"), text: null }));
   const cap = document.getElementById("captions"), bar = document.getElementById("bar"), fade = document.getElementById("fade"), end = document.getElementById("end");
-  let lastCap = null, lastHead = null;
+  let lastCap = null;
+  const HIN = 0.55, HOUT = 0.45;
+
+  function drawHead(slot, h, inP, outP, lineP) {
+    if (slot.text !== h.text) { slot.txt.textContent = h.text; slot.text = h.text; }
+    slot.el.style.opacity = (1 - outP).toFixed(3);
+    slot.el.style.transform = `translateY(${(-30 * easeOut(outP)).toFixed(1)}px)`;
+    slot.txt.style.clipPath = `inset(-20px ${(100 - easeOut(inP) * 100).toFixed(2)}% -20px -10px)`;
+    slot.line.style.transform = `scaleX(${easeOut(lineP).toFixed(3)})`;
+  }
 
   function renderHud(t) {
-    const h = F.headings.find((x) => t >= x.t0 && t < x.t1);
+    const i = F.headings.findIndex((x) => t >= x.t0 && t < x.t1);
+    const h = F.headings[i];
+    const prev = i > 0 ? F.headings[i - 1] : null;
+    const next = h && F.headings[i + 1];
+    slots[0].el.style.opacity = 0; slots[1].el.style.opacity = 0;
     if (h) {
-      const din = clamp((t - h.t0) / 0.5, 0, 1), dout = clamp((h.t1 - t) / 0.35, 0, 1);
-      if (lastHead !== h) { headTxt.textContent = h.text; lastHead = h; }
-      head.style.opacity = Math.min(1, dout * 1.2);
-      head.style.transform = `translateY(${(1 - dout) * -26}px)`;
-      headTxt.style.clipPath = `inset(-20px ${100 - easeOut(din) * 100}% -20px -10px)`;
-      headLine.style.transform = `scaleX(${easeOut(clamp((t - h.t0 - 0.25) / 0.5, 0, 1))})`;
-    } else head.style.opacity = 0;
+      const same = prev && prev.text === h.text && h.t0 - prev.t1 < 0.2;
+      const chained = prev && h.t0 - prev.t1 < 0.2;
+      const k = (t - h.t0);
+      // fade out at the end only when nothing takes over
+      const outP = next && next.t0 - h.t1 < 0.2 ? 0 : clamp(1 - (h.t1 - t) / HOUT, 0, 1);
+      drawHead(slots[0], h, same ? 1 : clamp((k - (chained ? 0.15 : 0)) / HIN, 0, 1), outP, same ? 1 : clamp((k - 0.3) / 0.5, 0, 1));
+      if (chained && !same && k < HOUT + 0.15) drawHead(slots[1], prev, 1, clamp(k / HOUT, 0, 1), 1);
+    }
 
     const c = F.captions.find((x) => t >= x.t0 && t < x.t1);
     if (c) {

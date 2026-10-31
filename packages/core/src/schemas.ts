@@ -16,7 +16,8 @@ export const COLOR_MEANING: Record<Color, string> = {
   gray: "third party, ops",
 };
 
-export const Level = z.enum(["five", "new", "interviewing", "senior"]);
+/** built-ins: five, new, interviewing, senior; more via registerLevel() */
+export const Level = z.string();
 export type Level = z.infer<typeof Level>;
 
 export const SourceKind = z.enum(["repo", "x-post", "article"]);
@@ -89,6 +90,7 @@ export const BoardNode = z.object({
   icon: z.string(),
   color: Color,
   evidence: z.string().describe("short exact quote (3 to 12 words) copied from the source text"),
+  count: z.number().int().describe("1 normally; 2 to 9 when the idea is 'many of these' (many GPUs, many requests): drawn as a grid of icons"),
 });
 export type BoardNode = z.infer<typeof BoardNode>;
 
@@ -105,11 +107,22 @@ export type Highlight = z.infer<typeof Highlight>;
 // ---------------------------------------------------------------------------
 // Scene plan: the core contract between the planner and the renderer.
 // ---------------------------------------------------------------------------
-export const SceneKind = z.enum(["hook", "source", "layer", "walkthrough", "scale", "board", "recap", "outro"]);
+export const SceneKind = z.enum(["hook", "source", "layer", "walkthrough", "scale", "board", "notes", "establish", "recap", "outro"]);
 export type SceneKind = z.infer<typeof SceneKind>;
 
 export const Callout = z.object({ target: z.string(), text: keyword, color: Color });
 export type Callout = z.infer<typeof Callout>;
+
+/** A row on a whiteboard list (requirements, estimates, trade-offs, failure modes, cost). */
+export const NoteItem = z.object({
+  text: z.string().describe("2 to 7 lowercase words written on the board"),
+  color: Color,
+  icon: z.string(),
+  target: z.string().describe("component id this item is about, or empty string"),
+  estimate: z.boolean().describe("true when the item contains an assumed or estimated number, never a measured fact"),
+  evidence: z.string().describe("repo: one exact file path that supports it (empty for pure estimates). post/article: exact quote."),
+});
+export type NoteItem = z.infer<typeof NoteItem>;
 
 export const Scene = z.object({
   id: z.string(),
@@ -126,6 +139,8 @@ export const Scene = z.object({
   /** source scenes: phrases to circle on the real screenshot */
   highlights: z.array(Highlight),
   callouts: z.array(Callout),
+  /** notes scenes: list rows, or annotations on the canvas when they target components */
+  items: z.array(NoteItem),
 });
 export type Scene = z.infer<typeof Scene>;
 
@@ -163,4 +178,5 @@ export interface SceneAudio { sceneId: string; file?: string; duration: number; 
 
 export interface CostEntry { step: string; model: string; seconds: number; usd: number; detail?: Record<string, unknown> }
 
-export type Progress = (e: { stage: string; message: string; pct?: number }) => void;
+/** usd: running spend so far (Meta models + voice), the per-video cost meter */
+export type Progress = (e: { stage: string; message: string; pct?: number; usd?: { meta: number; voice: number; total: number } }) => void;

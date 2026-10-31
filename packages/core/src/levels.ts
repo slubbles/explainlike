@@ -1,47 +1,56 @@
-import type { Level } from "./schemas.js";
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+import { z } from "zod";
 
-export interface LevelSpec {
-  id: Level;
-  label: string;
-  maxComponents: number;
-  minComponents: number;
-  perScene: number;
-  scaleItems: number;
-  scaleAt: ("10x" | "100x")[];
-  wordsPerScene: number;
-  seconds: [number, number];
-  voice: string;
+/**
+ * Levels are config: one JSON file per level in packages/core/levels.
+ * Add your own with registerLevel(), loadLevelFile() or `metual --level-file my-level.json`.
+ */
+export const NotesSlot = z.object({
+  after: z.enum(["hook", "walkthrough", "scale"]),
+  heading: z.string(),
+  brief: z.string(),
+});
+export type NotesSlot = z.infer<typeof NotesSlot>;
+
+export const LevelSpec = z.object({
+  id: z.string().regex(/^[a-z][a-z0-9-]*$/),
+  label: z.string(),
+  minComponents: z.number().int().min(2),
+  maxComponents: z.number().int().max(20),
+  perScene: z.number().int().min(1).max(6),
+  scaleItems: z.number().int().min(0).max(5),
+  scaleAt: z.array(z.enum(["10x", "100x"])).min(1),
+  wordsPerScene: z.number().int().min(10).max(60),
+  seconds: z.tuple([z.number(), z.number()]),
+  voice: z.string(),
+  /** extra whiteboard list scenes for repo videos (requirements, estimates, failure modes...) */
+  notes: z.array(NotesSlot).default([]),
+}).refine((l) => l.minComponents <= l.maxComponents, "minComponents must be <= maxComponents");
+export type LevelSpec = z.infer<typeof LevelSpec>;
+
+const here = path.dirname(fileURLToPath(import.meta.url));
+export const BUILTIN_LEVEL_DIR = path.resolve(here, "../levels");
+
+const registry = new Map<string, LevelSpec>();
+for (const id of ["five", "new", "interviewing", "senior"]) {
+  const spec = LevelSpec.parse(JSON.parse(fs.readFileSync(path.join(BUILTIN_LEVEL_DIR, `${id}.json`), "utf8")));
+  registry.set(spec.id, spec);
 }
 
-const L: Record<Level, LevelSpec> = {
-  five: {
-    id: "five", label: "I'm 5", minComponents: 4, maxComponents: 6, perScene: 2, scaleItems: 1, scaleAt: ["10x"],
-    wordsPerScene: 24, seconds: [40, 60],
-    voice: "Explain to a curious 5 year old. Use one everyday analogy (a restaurant, a library, a post office) and keep it through the whole video. No jargon; if a real name is needed, say what it is like first. Short, warm sentences.",
-  },
-  new: {
-    id: "new", label: "I'm new", minComponents: 6, maxComponents: 9, perScene: 3, scaleItems: 2, scaleAt: ["10x"],
-    wordsPerScene: 30, seconds: [55, 80],
-    voice: "Explain to a junior developer in their first job. Name the real technologies, say in plain words what each one does and why it is there. One small analogy is fine.",
-  },
-  interviewing: {
-    id: "interviewing", label: "I'm interviewing", minComponents: 8, maxComponents: 12, perScene: 3, scaleItems: 3, scaleAt: ["10x", "100x"],
-    wordsPerScene: 34, seconds: [65, 95],
-    voice: "Explain like a strong candidate in a system design interview: requirements, components, data flow, bottlenecks, tradeoffs. Use the vocabulary interviewers expect (read path, write path, cache hit, fan-out, sharding, back-pressure) but only when the code supports it.",
-  },
-  senior: {
-    id: "senior", label: "a senior", minComponents: 9, maxComponents: 13, perScene: 4, scaleItems: 4, scaleAt: ["10x", "100x"],
-    wordsPerScene: 34, seconds: [65, 95],
-    voice: "Explain to a staff engineer. Terse. Focus on tradeoffs, failure modes, consistency, cost and what you would change. Skip basics.",
-  },
-};
-
-const registry = new Map<string, LevelSpec>(Object.entries(L));
 export function getLevel(id: string): LevelSpec {
   const l = registry.get(id);
   if (!l) throw new Error(`unknown level "${id}". Known: ${[...registry.keys()].join(", ")}`);
   return l;
 }
-/** Plugin point: add your own explanation level. */
-export function registerLevel(spec: LevelSpec) { registry.set(spec.id, spec); }
+/** Plugin point: add your own explanation level (validated). */
+export function registerLevel(spec: unknown): LevelSpec {
+  const l = LevelSpec.parse(spec);
+  registry.set(l.id, l);
+  return l;
+}
+export function loadLevelFile(file: string): LevelSpec {
+  return registerLevel(JSON.parse(fs.readFileSync(file, "utf8")));
+}
 export function listLevels(): LevelSpec[] { return [...registry.values()]; }

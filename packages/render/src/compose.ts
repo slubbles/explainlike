@@ -1,8 +1,8 @@
 import fs from "node:fs";
 import rough from "roughjs";
-import type { Architecture, ScenePlan, Scene, SceneAudio, Theme, LevelSpec, Color, WordTiming } from "@metual/core";
+import type { Architecture, ScenePlan, Scene, SceneAudio, Theme, LevelSpec, Color, WordTiming, NoteItem } from "@metual/core";
 import type { Film, FElement, CamKey, Caption, Heading } from "./film.js";
-import { layoutGraph, unionBox, shiftLayout, NODE, type Box, type GNode, type GEdge, type Layout, type PlacedNode, type PlacedEdge } from "./layout.js";
+import { layoutGraph, unionBox, shiftLayout, wrapText, NODE, type Box, type GNode, type GEdge, type Layout, type PlacedNode, type PlacedEdge } from "./layout.js";
 import { textWidth, fontDataUrl } from "./measure.js";
 import type { IconPack } from "./icons.js";
 import { resolveIcon } from "./icons.js";
@@ -13,10 +13,33 @@ const LEAD = 0.3, TAIL = 0.7;
 const SAFE = { top: 160, bottom: 220, side: 110 };
 const gen = rough.generator();
 
+/** Concept board nodes are big: a large doodle (or an icon grid), a big keyword, the source quote underneath. */
+export const BOARD = { boxH: 260, icon: 150, kw: 54, quote: 28, qLine: 38, qMaxW: 430, label: 34 };
+function gridOf(count: number) {
+  const cols = count <= 3 ? count : count === 4 ? 2 : 3, rows = Math.ceil(count / cols);
+  const size = Math.min(92, Math.floor(178 / rows) - 10);
+  return { cols, rows, size };
+}
+export function boardSize(n: GNode) {
+  const g = (n.count ?? 1) > 1 ? gridOf(n.count!) : undefined;
+  const qw = Math.max(0, ...(n.quote ?? []).map((l) => textWidth(l, BOARD.quote)));
+  const w = Math.max(340, textWidth(n.keyword, BOARD.kw) + 90, g ? g.cols * (g.size + 14) + 70 : 0, qw + 40);
+  const h = BOARD.boxH + (n.quote?.length ? 22 + n.quote.length * BOARD.qLine : 0);
+  return { w, h };
+}
+
+/** Notes: a whiteboard list (panel) or labels pinned on the canvas. */
+const NOTE = { row: 128, icon: 96, size: 54, gap: 34, tag: 30 };
+function panelSize(items: NoteItem[]) {
+  const w = Math.max(...items.map((i) => NOTE.icon + 40 + textWidth(i.text, NOTE.size) + (i.estimate ? textWidth("estimate", NOTE.tag) + 70 : 0)));
+  const foot = items.some((i) => i.estimate) ? 90 : 0;
+  return { w: Math.max(900, w + 40), h: items.length * NOTE.row + foot + 40 };
+}
+
 /** What the .excalidraw writer needs: the final state of every drawn object. */
 export interface Sketch {
-  nodes: { id: string; box: Box; color: string; keyword: string; sub?: string; icon?: string }[];
-  edges: { points: [number, number][]; label?: string; labelBox?: Box; both?: boolean; color: string; from?: string; to?: string }[];
+  nodes: { id: string; box: Box; color: string; keyword: string; sub?: string; icon?: string; iconSize?: number; kwY?: number; kwSize?: number }[];
+  edges: { points: [number, number][]; label?: string; labelBox?: Box; both?: boolean; color: string; from?: string; to?: string; labelSize?: number }[];
   ellipses: { box: Box; color: string }[];
   polygons: { points: [number, number][]; color: string }[];
   texts: { x: number; y: number; text: string; size: number; color: string; anchor: "start" | "middle" }[];
@@ -80,13 +103,45 @@ class Builder {
     const c = n.color;
     this.rough(gen.rectangle(n.x, n.y, n.w, n.h, { seed: this.seed++, stroke: c, strokeWidth: 3.2, roughness: 1.1, bowing: 1.2 }), t0, 0.6, g);
     const ic = iconHref(this.pack, n.icon, this.icons);
-    if (ic.href) this.els.push({ k: "img", id: this.id("i"), href: ic.href, x: n.x + n.w / 2 - NODE.icon / 2, y: n.y + 16, w: NODE.icon, h: NODE.icon, t0: t0 + 0.3, dur: 0.45, g });
+    this.img({ href: ic.href, x: n.x + n.w / 2 - NODE.icon / 2, y: n.y + 16, w: NODE.icon, h: NODE.icon, t0: t0 + 0.3, dur: 0.45, g });
     this.text({ text: n.keyword, x: n.x + n.w / 2, y: n.y + 160, size: NODE.kwSize, color: this.theme.ink, anchor: "middle", t0: t0 + 0.5, dur: 0.45, g, sketch: false });
     if (n.sub) this.text({ text: n.sub, x: n.x + n.w / 2, y: n.y + 194, size: NODE.subSize, color: this.theme.colors.gray, anchor: "middle", t0: t0 + 0.9, dur: 0.4, g, anim: "fade", sketch: false });
     this.sketch.nodes.push({ id: n.id, box: { x: n.x, y: n.y, w: n.w, h: n.h }, color: c, keyword: n.keyword, sub: n.sub, icon: ic.file });
     return t0 + 1.0;
   }
-  edge(e: PlacedEdge, t0: number, g: string, color = this.theme.edge) {
+  img(o: { href?: string; x: number; y: number; w: number; h: number; t0: number; dur: number; g?: string; anim?: "pop" | "fade" }) {
+    if (!o.href) return;
+    this.els.push({ k: "img", id: this.id("i"), href: o.href, x: o.x, y: o.y, w: o.w, h: o.h, t0: o.t0, dur: o.dur, g: o.g, anim: o.anim, invert: this.theme.invertIcons || undefined });
+  }
+  /** Big concept-board node: doodle or icon grid, large keyword, quote below the box. */
+  boardNode(n: PlacedNode, t0: number, g: string) {
+    const c = n.color, bh = BOARD.boxH;
+    this.rough(gen.rectangle(n.x, n.y, n.w, bh, { seed: this.seed++, stroke: c, strokeWidth: 4, roughness: 1.2, bowing: 1.3 }), t0, 0.6, g);
+    const ic = iconHref(this.pack, n.icon, this.icons);
+    const cx = n.x + n.w / 2;
+    if ((n.count ?? 1) > 1) {
+      const gr = gridOf(n.count!), cell = gr.size + 14;
+      const gx = cx - (gr.cols * cell) / 2 + 7, gy = n.y + 20 + (190 - gr.rows * cell) / 2;
+      for (let i = 0; i < n.count!; i++) {
+        const r = Math.floor(i / gr.cols), col = i % gr.cols;
+        const rowN = Math.min(gr.cols, n.count! - r * gr.cols);
+        const off = ((gr.cols - rowN) * cell) / 2;
+        this.img({ href: ic.href, x: gx + off + col * cell, y: gy + r * cell, w: gr.size, h: gr.size, t0: t0 + 0.25 + i * 0.07, dur: 0.35, g });
+      }
+    } else this.img({ href: ic.href, x: cx - BOARD.icon / 2, y: n.y + 18, w: BOARD.icon, h: BOARD.icon, t0: t0 + 0.3, dur: 0.5, g });
+    this.text({ text: n.keyword, x: cx, y: n.y + bh - 40, size: BOARD.kw, color: this.theme.ink, anchor: "middle", t0: t0 + 0.55, dur: 0.5, g, sketch: false });
+    (n.quote ?? []).forEach((l, i) => this.text({ text: l, x: cx, y: n.y + bh + 22 + (i + 0.8) * BOARD.qLine, size: BOARD.quote, color: this.theme.colors.gray, anchor: "middle", t0: t0 + 0.9 + i * 0.15, dur: 0.5, g, anim: "fade" }));
+    this.sketch.nodes.push({ id: n.id, box: { x: n.x, y: n.y, w: n.w, h: bh }, color: c, keyword: n.keyword, icon: ic.file, iconSize: (n.count ?? 1) > 1 ? 120 : BOARD.icon, kwY: bh - 40, kwSize: BOARD.kw });
+    return t0 + 1.0;
+  }
+  /** A tag like "estimate" so assumed numbers can never pass as facts. */
+  tag(text: string, x: number, y: number, size: number, color: string, t0: number, g: string) {
+    const w = textWidth(text, size) + 28, h = size * 1.5;
+    this.rough(gen.rectangle(x, y - h * 0.72, w, h, { seed: this.seed++, stroke: color, strokeWidth: 2.4, roughness: 1.0 }), t0, 0.3, g);
+    this.text({ text, x: x + 14, y: y, size, color, t0: t0 + 0.1, dur: 0.3, g, anim: "fade" });
+    return w;
+  }
+  edge(e: PlacedEdge, t0: number, g: string, color = this.theme.edge, labelSize = NODE.labelSize) {
     if (e.points.length < 2) return t0;
     let len = 0;
     for (let i = 1; i < e.points.length; i++) len += Math.hypot(e.points[i][0] - e.points[i - 1][0], e.points[i][1] - e.points[i - 1][1]);
@@ -103,9 +158,9 @@ class Builder {
     if (e.both) head(P[1], P[0], t0 + dur);
     if (e.label && e.labelBox) {
       const lb = e.labelBox;
-      this.text({ text: e.label, x: lb.x + lb.w / 2, y: lb.y + lb.h * 0.72, size: NODE.labelSize, color: this.theme.edgeLabel, anchor: "middle", t0: t0 + dur * 0.6, dur: 0.4, g, bg: true, sketch: false });
+      this.text({ text: e.label, x: lb.x + lb.w / 2, y: lb.y + lb.h * 0.72, size: labelSize, color: this.theme.edgeLabel, anchor: "middle", t0: t0 + dur * 0.6, dur: 0.4, g, bg: true, sketch: false });
     }
-    this.sketch.edges.push({ points: e.points, label: e.label, labelBox: e.labelBox, both: e.both, color, from: e.from, to: e.to });
+    this.sketch.edges.push({ points: e.points, label: e.label, labelBox: e.labelBox, both: e.both, color, from: e.from, to: e.to, labelSize });
     return t0 + dur + 0.25;
   }
   fit(b: Box, t: number, move: number, maxScale = 1.15) {
@@ -219,30 +274,47 @@ export async function compose(inp: ComposeInput): Promise<Composed> {
   // hook region sits above the graph so the camera pans down into it
   const hookCx = gb.x + gb.w / 2, hookCy = gb.y - 1300;
 
-  // concept regions (source shot + boards) laid out in a grid right of the hook
+  // concept regions (source shot, boards, list panels) laid out as one whiteboard right of the hook
   let regionX = gb.x, regionY = gb.y;
   const boards: { scene: Scene; layout: Layout }[] = [];
-  for (const s of plan.scenes.filter((s) => s.kind === "board")) {
-    const l = await layoutGraph(
-      s.board_nodes.map((n) => ({ id: n.id, keyword: n.keyword, icon: n.icon, color: C(n.color) })),
-      s.board_edges.map((e) => ({ from: e.from, to: e.to, label: e.label || undefined })),
-    );
-    boards.push({ scene: s, layout: l });
+  const panels = new Map<string, Box>();
+  type Region = { id: string; w: number; h: number; place: (x: number, y: number) => void };
+  const regions: Region[] = [];
+  for (const s of plan.scenes) {
+    if (s.kind === "board") {
+      const l = await layoutGraph(
+        s.board_nodes.map((n) => ({ id: n.id, keyword: n.keyword, icon: n.icon, color: C(n.color), count: n.count ?? 1, quote: n.evidence ? wrapText(`“${n.evidence}”`, BOARD.quote, BOARD.qMaxW, 3) : [] })),
+        s.board_edges.map((e) => ({ from: e.from, to: e.to, label: e.label || undefined })),
+        { size: boardSize, labelSize: BOARD.label, layerGap: 130, nodeGap: 90 },
+      );
+      const top = s.callouts.length ? 130 : 0;
+      regions.push({ id: s.id, w: l.bbox.w, h: l.bbox.h + top, place: (x, y) => boards.push({ scene: s, layout: shiftLayout(l, x, y + top) }) });
+    } else if (s.kind === "notes" && (s.items ?? []).length && !(graph && s.items.every((i) => i.target && graph!.nodes.has(i.target)))) {
+      const z = panelSize(s.items);
+      if (graph) { panels.set(s.id, { x: gb.x + gb.w + 500, y: gb.y + [...panels.values()].reduce((a, b) => a + b.h + 300, 0), ...z }); continue; }
+      regions.push({ id: s.id, ...z, place: (x, y) => panels.set(s.id, { x, y, ...z }) });
+    }
   }
   let shotBox: Box | undefined;
   if (inp.shot) {
     const sw = 1500, sh = (inp.shot.height / inp.shot.width) * sw;
     shotBox = { x: regionX, y: regionY, w: sw, h: sh };
-    regionX += sw + 1400;
+    regionX += sw + 900;
   }
-  const cell = Math.max(1800, ...boards.map((b) => b.layout.bbox.w + 700));
-  const cellH = Math.max(1100, ...boards.map((b) => b.layout.bbox.h + 600));
-  const boardPos = new Map<string, Layout>();
-  boards.forEach((b, i) => {
-    const col = i % 2, row = Math.floor(i / 2);
-    const ox = regionX + col * cell + (cell - b.layout.bbox.w) / 2, oy = regionY + row * cellH + (cellH - b.layout.bbox.h) / 2;
-    boardPos.set(b.scene.id, shiftLayout(b.layout, ox, oy));
+  // tight grid: 2 columns (3 when there are many), each row as tall as its tallest region
+  const cols = regions.length <= 2 ? Math.max(1, regions.length) : regions.length <= 4 ? 2 : 3;
+  const colW = Array.from({ length: cols }, (_, c) => Math.max(0, ...regions.filter((_, i) => i % cols === c).map((r) => r.w)));
+  const rowsN = Math.ceil(regions.length / cols);
+  const rowH = Array.from({ length: rowsN }, (_, r) => Math.max(0, ...regions.slice(r * cols, r * cols + cols).map((x) => x.h)));
+  const GAPX = 520, GAPY = 420;
+  regions.forEach((r, i) => {
+    const c = i % cols, row = Math.floor(i / cols);
+    const x = regionX + colW.slice(0, c).reduce((a, b) => a + b + GAPX, 0) + (colW[c] - r.w) / 2;
+    const y = regionY + rowH.slice(0, row).reduce((a, b) => a + b + GAPY, 0) + (rowH[row] - r.h) / 2;
+    r.place(x, y);
   });
+  const boardPos = new Map(boards.map((b) => [b.scene.id, b.layout]));
+  const regionBox = (id: string): Box | undefined => { const l = boardPos.get(id); return l ? unionBox([...l.nodes.values()], 0) : panels.get(id); };
 
   // ---------- timeline ----------
   let T = 0;
@@ -252,6 +324,7 @@ export async function compose(inp: ComposeInput): Promise<Composed> {
   const findEdge = (f: string, t: string) => graph?.edges.find((e) => e.from === f && e.to === t) ?? graph?.edges.find((e) => e.from === t && e.to === f);
   const drawnEdges = new Set<string>();
   const dim = theme.dimOpacity;
+  const boardShown: { id: string; heading: string; keys: string[]; g: string }[] = [];
 
   for (const [si, s] of plan.scenes.entries()) {
     const au = audio.get(s.id) ?? { sceneId: s.id, duration: Math.max(2.5, s.narration.split(/\s+/).length / 2.6), words: [] };
@@ -260,7 +333,7 @@ export async function compose(inp: ComposeInput): Promise<Composed> {
     const words = au.words.map((w) => ({ ...w, start: T + LEAD + w.start, end: T + LEAD + w.end }));
     const t0 = T + LEAD + 0.15, tEnd = T + D - 0.9;
     timeline.push({ id: s.id, kind: s.kind, start: T, end: T + D });
-    if (s.kind !== "hook") headings.push({ t0: T + 0.05, t1: T + D, text: s.heading.toLowerCase() });
+    if (s.kind !== "hook") headings.push({ t0: T, t1: T + D, text: s.heading.toLowerCase() });
     captions.push(...captionsFor(au.words, T + LEAD, T + D));
 
     if (s.kind === "hook") {
@@ -279,7 +352,7 @@ export async function compose(inp: ComposeInput): Promise<Composed> {
         const cx = x0 + i * gap, cy = hookCy + 260;
         B.rough(gen.circle(cx, cy, 170, { seed: B.seed++, stroke: p.color, strokeWidth: 3, roughness: 1.2 }), ts2[i], 0.5, "hook");
         const ic = iconHref(inp.pack, p.icon, B.icons);
-        if (ic.href) B.els.push({ k: "img", id: B.id("i"), href: ic.href, x: cx - 50, y: cy - 50, w: 100, h: 100, t0: ts2[i] + 0.2, dur: 0.4, g: "hook" });
+        B.img({ href: ic.href, x: cx - 50, y: cy - 50, w: 100, h: 100, t0: ts2[i] + 0.2, dur: 0.4, g: "hook" });
       });
       B.fit({ x: hookCx - Math.max(tw, prev.length * gap) / 2, y: hookCy - 40 - ts, w: Math.max(tw, prev.length * gap), h: ts + 480 }, T, 0, 1.0);
       B.setOp("hook", T + D - 0.2, 0, 0.6);
@@ -381,8 +454,9 @@ export async function compose(inp: ComposeInput): Promise<Composed> {
       for (const id of all) B.setOp(nodeGroup(id), tEnd - 0.6, 1, 0.4);
     } else if (s.kind === "source" && inp.shot && shotBox) {
       const sb = shotBox;
+      const gs = `src:${s.id}`;
       const sc = sb.w / inp.shot.width;
-      B.els.push({ k: "img", id: B.id("i"), href: `data:image/png;base64,${fs.readFileSync(inp.shot.file).toString("base64")}`, x: sb.x, y: sb.y, w: sb.w, h: sb.h, t0: T, dur: 0.6, g: "src", anim: "fade" });
+      B.els.push({ k: "img", id: B.id("i"), href: `data:image/png;base64,${fs.readFileSync(inp.shot.file).toString("base64")}`, x: sb.x, y: sb.y, w: sb.w, h: sb.h, t0: T, dur: 0.6, g: gs, anim: "fade" });
       B.sketch.images.push({ box: sb, file: inp.shot.file });
       B.fit({ x: sb.x, y: sb.y, w: sb.w, h: Math.min(sb.h, sb.w * 0.52) }, T, 0, 1.0);
       fades.push({ t: T, dur: 0.35 });
@@ -398,44 +472,147 @@ export async function compose(inp: ComposeInput): Promise<Composed> {
         for (const py of noteYs) if (Math.abs(py - ny) < 70) ny = py + 70;
         noteYs.push(ny);
         const nx = sb.x + sb.w + 70;
-        const fx0 = Math.min(u.x - 60, nx + nw - 1400);
+        const fx0 = Math.min(u.x - 60, sb.x - 20); // keep whole lines of the post in view
         B.fit({ x: fx0, y: Math.min(u.y, ny - 50) - 120, w: nx + nw + 40 - fx0, h: Math.max(u.y + u.h, ny) - Math.min(u.y, ny - 50) + 260 }, times[i] - 0.7, 0.8, 1.6);
         const col = C(h.color);
         for (const r of rs) {
-          B.rough(gen.line(r.x, r.y + r.h + 4, r.x + r.w, r.y + r.h + 2, { seed: B.seed++, stroke: col, strokeWidth: 5, roughness: 1.2 }), times[i], 0.45, "src");
+          B.rough(gen.line(r.x, r.y + r.h + 4, r.x + r.w, r.y + r.h + 2, { seed: B.seed++, stroke: col, strokeWidth: 5, roughness: 1.2 }), times[i], 0.45, gs);
         }
-        B.rough(gen.rectangle(u.x - 6, u.y - 6, u.w + 12, u.h + 12, { seed: B.seed++, stroke: col, strokeWidth: 4, roughness: 1.6 }), times[i] + 0.2, 0.6, "src");
+        B.rough(gen.rectangle(u.x - 6, u.y - 6, u.w + 12, u.h + 12, { seed: B.seed++, stroke: col, strokeWidth: 4, roughness: 1.6 }), times[i] + 0.2, 0.6, gs);
         B.sketch.ellipses.push({ box: u, color: col });
-        B.rough(gen.line(sb.x + sb.w + 6, u.y + u.h / 2, nx - 14, ny - 15, { seed: B.seed++, stroke: col, strokeWidth: 3, roughness: 1.3 }), times[i] + 0.5, 0.3, "src");
-        B.text({ text: h.note, x: nx, y: ny, size: 44, color: col, anchor: "start", t0: times[i] + 0.7, dur: 0.5, g: "src", bg: true });
+        B.rough(gen.line(sb.x + sb.w + 6, u.y + u.h / 2, nx - 14, ny - 15, { seed: B.seed++, stroke: col, strokeWidth: 3, roughness: 1.3 }), times[i] + 0.5, 0.3, gs);
+        B.text({ text: h.note, x: nx, y: ny, size: 44, color: col, anchor: "start", t0: times[i] + 0.7, dur: 0.5, g: gs, bg: true });
       });
-      B.setOp("src", T + D - 0.2, 0, 0.4);
-    } else if (s.kind === "board") {
+      B.setOp(gs, T + D - 0.2, 0, 0.4);
+    } else if (s.kind === "board" && boardPos.has(s.id)) {
       const l = boardPos.get(s.id)!;
+      const g = `b:${s.id}`;
       fades.push({ t: T, dur: 0.35 });
-      B.fit(unionBox([...l.nodes.values()], 70), T, 0, 1.5);
-      const nodes = s.board_nodes.filter((n) => l.nodes.has(n.id));
-      const times = eventTimes(words, nodes.map((n) => [n.keyword]), t0, tEnd - 0.6, 1.0);
+      // earlier boards hide under the cut so their edges never peek into this frame; the recap brings them back
+      for (const b of boardShown) B.setOp(b.g, T + 0.1, 0, 0.05);
+      const nb = unionBox([...l.nodes.values()], 0);
+      // draw doodles in the order the narration names them, and never leave the board empty for long
+      // a keyword is "spoken" when the whole phrase is said, or failing that its longest word ("python tools" -> "python")
+      const alts = (k: string) => [k, ...k.split(" ").filter((w) => w.length > 3).sort((a, b) => b.length - a.length)];
+      const spoken = (k: string) => { for (const a of alts(k)) { const i = spokenAt(words, a, 0); if (i >= 0) return words[i].start; } return Infinity; };
+      const nodes = s.board_nodes.filter((n) => l.nodes.has(n.id)).map((n, i) => ({ n, i, at: spoken(n.keyword) }))
+        .sort((a, b) => a.at - b.at || a.i - b.i).map((x) => x.n);
+      const times = eventTimes(words, nodes.map((n) => alts(n.keyword)), t0, tEnd - 0.6, 1.0);
+      if (times.length && times[0] > t0 + 1.2) times[0] = t0 + 0.6;
+      const first = nodes[0];
+      const fb0 = first ? l.nodes.get(first.id)! : nb;
+      B.fit(unionBox([fb0, ...(s.callouts.length ? [{ x: fb0.x, y: fb0.y - 150, w: fb0.w, h: 10 }] : [])], 60), T, 0, 1.7);
+      // camera grows with the board: start close on the first doodle, pull back as each new one lands
+      const pad = (b: Box) => ({ x: b.x, y: b.y - (s.callouts.length ? 150 : 0), w: b.w, h: b.h + (s.callouts.length ? 150 : 0) });
+      nodes.forEach((n, i) => {
+        if (i === 0) return;
+        const sofar = unionBox(nodes.slice(0, i + 1).map((m) => l.nodes.get(m.id)!), 60);
+        B.fit(pad(sofar), Math.max(T + 0.3, times[i] - 0.5), 0.7, 1.7);
+      });
       const ready = new Map<string, number>();
-      nodes.forEach((n, i) => ready.set(n.id, B.node(l.nodes.get(n.id)!, times[i], `b:${s.id}`)));
+      nodes.forEach((n, i) => ready.set(n.id, B.boardNode(l.nodes.get(n.id)!, times[i], g)));
       let te = 0;
       for (const e of l.edges) {
         const at = Math.max(ready.get(e.from) ?? T, ready.get(e.to) ?? T, te);
-        te = B.edge(e, at, `b:${s.id}`) - 0.1;
+        te = B.edge(e, at, g, theme.edge, BOARD.label) - 0.1;
       }
-      // callouts circle a node with a short note
+      // a callout circles the node that matters most, with a short note above it
       s.callouts.forEach((co, i) => {
         const n = l.nodes.get(co.target);
         if (!n) return;
-        const tt = Math.min(tEnd, Math.max(...[...ready.values()]) + 0.3 + i * 1.2);
-        const col = C(co.color);
-        B.rough(gen.ellipse(n.x + n.w / 2, n.y + n.h / 2, n.w * 1.4, n.h * 1.45, { seed: B.seed++, stroke: col, strokeWidth: 4.5, roughness: 1.5 }), tt, 0.7, `b:${s.id}`);
-        B.text({ text: co.text, x: n.x + n.w / 2, y: n.y - n.h * 0.22 - 30, size: 40, color: col, anchor: "middle", t0: tt + 0.4, dur: 0.5, g: `b:${s.id}`, bg: true });
+        const tt = Math.min(tEnd, Math.max(...ready.values()) + 0.4 + i * 1.2);
+        const col = C(co.color), bh = BOARD.boxH;
+        B.rough(gen.ellipse(n.x + n.w / 2, n.y + bh / 2, n.w * 1.32, bh * 1.42, { seed: B.seed++, stroke: col, strokeWidth: 5, roughness: 1.5 }), tt, 0.7, g);
+        B.sketch.ellipses.push({ box: { x: n.x - n.w * 0.16, y: n.y - bh * 0.21, w: n.w * 1.32, h: bh * 1.42 }, color: col });
+        B.text({ text: co.text, x: n.x + n.w / 2, y: n.y - bh * 0.21 - 24, size: 50, color: col, anchor: "middle", t0: tt + 0.4, dur: 0.5, g, bg: true });
       });
+      boardShown.push({ id: s.id, heading: s.heading, keys: nodes.map((n) => n.keyword), g });
+    } else if (s.kind === "notes" && (s.items ?? []).length) {
+      const items = s.items;
+      const g = `nt:${s.id}`;
+      const times = eventTimes(words, items.map((i) => [i.text.split(" ").slice(0, 2).join(" "), i.text.split(" ").slice(-1)[0]]), t0 + 0.2, tEnd - 0.5, 1.1);
+      const pb = panels.get(s.id);
+      if (pb) {
+        // whiteboard list: icon, text, "estimate" tag on anything assumed
+        if (!graph) { fades.push({ t: T, dur: 0.35 }); for (const b of boardShown) B.setOp(b.g, T + 0.1, 0, 0.05); }
+        if (graph) { for (const id of present) B.setOp(nodeGroup(id), T, dim); for (const k of drawnEdges) B.setOp(k, T, dim); }
+        B.fit(pb, T, graph ? 1.1 : 0, 1.25);
+        items.forEach((it, i) => {
+          const y = pb.y + 20 + i * NOTE.row, col = C(it.color);
+          B.img({ href: iconHref(inp.pack, it.icon, B.icons).href, x: pb.x, y: y + 6, w: NOTE.icon, h: NOTE.icon, t0: times[i], dur: 0.4, g });
+          B.rough(gen.line(pb.x + NOTE.icon + 14, y + NOTE.row - 18, pb.x + NOTE.icon + 30, y + NOTE.row - 18, { seed: B.seed++, stroke: col, strokeWidth: 6 }), times[i], 0.2, g);
+          const tx = pb.x + NOTE.icon + 40;
+          B.text({ text: it.text, x: tx, y: y + 78, size: NOTE.size, color: col === C("white") ? theme.ink : col, t0: times[i] + 0.1, g });
+          if (it.estimate) B.tag("estimate", tx + textWidth(it.text, NOTE.size) + 30, y + 74, NOTE.tag, C("orange"), times[i] + 0.6, g);
+        });
+        if (items.some((i) => i.estimate)) B.text({ text: "* assumed numbers for illustration, not measured from the real app", x: pb.x, y: pb.y + 40 + items.length * NOTE.row + 30, size: 32, color: theme.colors.gray, t0: times[0] + 0.8, dur: 0.6, g, anim: "fade" });
+        if (graph) {
+          B.setOp(g, T + D - 0.2, 0, 0.4);
+          for (const id of present) B.setOp(nodeGroup(id), T + D - 0.2, 1, 0.4);
+          for (const k of drawnEdges) B.setOp(k, T + D - 0.2, 1, 0.4);
+        } else boardShown.push({ id: s.id, heading: s.heading, keys: items.map((i) => i.text.split(" ")[0]), g });
+      } else if (graph) {
+        // pinned labels on the canvas: ring the component, write the note beside it
+        const targets = new Set(items.map((i) => i.target));
+        for (const id of present) B.setOp(nodeGroup(id), T, targets.has(id) ? 1 : dim);
+        for (const k of drawnEdges) B.setOp(k, T, dim);
+        const placed: Box[] = [];
+        const nodesAll = [...graph.nodes.values()].filter((n) => present.has(n.id));
+        const hit = (b: Box) => [...nodesAll, ...placed].some((n) => b.x < n.x + n.w && b.x + b.w > n.x && b.y < n.y + n.h && b.y + b.h > n.y);
+        const boxes: Box[] = [];
+        items.forEach((it, i) => {
+          const n = graph!.nodes.get(it.target);
+          if (!n) return;
+          const col = C(it.color), size = 44;
+          const tw = textWidth(it.text, size) + (it.estimate ? textWidth("estimate", 26) + 46 : 0) + 20;
+          const cx = n.x + n.w / 2;
+          const sameTarget = items.slice(0, i).filter((x) => x.target === it.target).length;
+          const cands: Box[] = [
+            { x: cx - tw / 2, y: n.y - 30 - 64 * (sameTarget + 1), w: tw, h: 60 },
+            { x: cx - tw / 2, y: n.y + n.h + 24 + 64 * sameTarget, w: tw, h: 60 },
+            { x: n.x - tw - 40, y: n.y + n.h / 2 - 30 + 64 * sameTarget, w: tw, h: 60 },
+            { x: n.x + n.w + 40, y: n.y + n.h / 2 - 30 + 64 * sameTarget, w: tw, h: 60 },
+            { x: cx - tw / 2, y: n.y - 30 - 64 * (sameTarget + 2), w: tw, h: 60 },
+          ];
+          const lb = cands.find((b) => !hit(b)) ?? cands[0];
+          placed.push(lb);
+          if (!sameTarget) B.rough(gen.rectangle(n.x - 14, n.y - 14, n.w + 28, n.h + 28, { seed: B.seed++, stroke: col, strokeWidth: 4.5, roughness: 1.5 }), times[i], 0.5, g);
+          B.text({ text: it.text, x: lb.x + 10, y: lb.y + 44, size, color: col === C("white") ? theme.ink : col, t0: times[i] + 0.3, g, bg: true });
+          if (it.estimate) B.tag("estimate", lb.x + 10 + textWidth(it.text, size) + 20, lb.y + 40, 26, C("orange"), times[i] + 0.7, g);
+          boxes.push(n, lb);
+        });
+        if (boxes.length) B.fit(unionBox(boxes, 70), T, 1.0, 1.15);
+        B.setOp(g, T + D - 0.2, 0, 0.4);
+      }
+    } else if (s.kind === "establish" && graph) {
+      // draw the whole known system quickly (deep dives and what-ifs start here)
+      const ids = [...graph.nodes.keys()].filter((id) => !fixIds.includes(id));
+      B.fit(unionBox(ids.map((id) => graph!.nodes.get(id)!), 60), T, 0, 1.0);
+      const step = Math.min(0.25, (D - 1.5) / Math.max(1, ids.length));
+      ids.forEach((id, i) => { if (!present.has(id)) { B.node(graph!.nodes.get(id)!, T + 0.3 + i * step, nodeGroup(id)); present.add(id); } });
+      for (const e of graph.edges) if (!drawnEdges.has(edgeKey(e)) && present.has(e.from) && present.has(e.to)) { B.edge(e, T + 0.6 + ids.length * step, edgeKey(e)); drawnEdges.add(edgeKey(e)); }
     } else if (s.kind === "recap" || s.kind === "outro") {
-      // concept recap: pull back over every board
-      const all = [...boardPos.values()].flatMap((l) => [...l.nodes.values()]);
-      if (all.length) { fades.push({ t: T, dur: 0.35 }); B.fit(unionBox(all, 120), T, 0, 1.0); for (const s2 of boards) B.setOp(`b:${s2.scene.id}`, T, 1); }
+      // concept recap: one whiteboard with every board titled, then each lit in turn as it is recalled
+      const all = boardShown.map((b) => regionBox(b.id)!).filter(Boolean);
+      if (all.length) {
+        fades.push({ t: T, dur: 0.35 });
+        boardShown.forEach((b, i) => {
+          const rb = regionBox(b.id)!;
+          B.text({ text: b.heading, x: rb.x + rb.w / 2, y: rb.y - 110, size: 84, color: theme.ink, anchor: "middle", t0: T + 0.3 + i * 0.15, dur: 0.6, g: "recap-titles" });
+          B.rough(gen.line(rb.x + rb.w / 2 - textWidth(b.heading, 84) / 2, rb.y - 86, rb.x + rb.w / 2 + textWidth(b.heading, 84) / 2, rb.y - 82, { seed: B.seed++, stroke: theme.accent, strokeWidth: 6, roughness: 1.2 }), T + 0.6 + i * 0.15, 0.4, "recap-titles");
+        });
+        B.fit(unionBox(all.map((b) => ({ x: b.x, y: b.y - 200, w: b.w, h: b.h + 200 })), 80), T, 0, 1.0);
+        for (const b of boardShown) B.setOp(b.g, T, 1, 0.01);
+        const times = eventTimes(words, boardShown.map((b) => [b.heading, ...b.keys]), t0 + 0.8, tEnd - 1.4, 1.2);
+        // overview first, then the camera visits each board as it is recalled, then pulls back to the whole wall
+        boardShown.forEach((b, i) => {
+          for (const o of boardShown) B.setOp(o.g, times[i], o === b ? 1 : dim, 0.35);
+          const rb = regionBox(b.id)!;
+          if (boardShown.length > 1) B.fit({ x: rb.x, y: rb.y - 200, w: rb.w, h: rb.h + 200 }, times[i] - 0.2, 0.8, 1.2);
+        });
+        for (const b of boardShown) B.setOp(b.g, tEnd - 0.8, 1, 0.4);
+        if (boardShown.length > 1) B.fit(unionBox(all.map((b) => ({ x: b.x, y: b.y - 200, w: b.w, h: b.h + 200 })), 80), tEnd - 1.2, 1.0, 1.0);
+      }
     }
     T += D;
   }

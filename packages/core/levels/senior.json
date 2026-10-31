@@ -1,0 +1,13 @@
+{
+  "id": "senior",
+  "label": "a senior",
+  "minComponents": 9, "maxComponents": 13, "perScene": 4,
+  "scaleItems": 2, "scaleAt": ["10x", "100x"],
+  "wordsPerScene": 32, "seconds": [90, 130],
+  "voice": "Explain to a staff engineer. Terse. Skip basics. Focus on failure modes, consistency and cost, and what you would change.",
+  "notes": [
+    { "after": "walkthrough", "heading": "failure modes", "brief": "3 or 4 ways this system fails in production, each about one component (target = its id): what breaks, and the blast radius. red. Grounded in what the code does (timeouts, retries, single instance, no idempotency...). evidence: one file path." },
+    { "after": "walkthrough", "heading": "consistency", "brief": "2 to 4 places where data can be stale, lost, duplicated or reordered, each about one component (target = its id), e.g. 'kv snapshot: eventually consistent'. orange, green where the code guarantees it. evidence: one file path." },
+    { "after": "scale", "heading": "where the money goes", "brief": "3 or 4 cost drivers as traffic grows, each about one component (target = its id): what is billed per request, per GB or per instance. If you give a number it is an estimate: estimate=true. red for the biggest. evidence: one file path or empty for estimates." }
+  ]
+}

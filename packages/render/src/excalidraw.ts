@@ -5,7 +5,7 @@ import { textWidth } from "./measure.js";
 import { NODE } from "./layout.js";
 
 /** Write an editable .excalidraw scene from the final state of the video's canvas. */
-export function toExcalidraw(sk: Sketch, opts: { background: string; source?: string }) {
+export function toExcalidraw(sk: Sketch, opts: { background: string; source?: string; ink?: string; muted?: string; edgeLabel?: string }) {
   let seed = 1000;
   const els: any[] = [];
   const files: Record<string, any> = {};
@@ -37,9 +37,10 @@ export function toExcalidraw(sk: Sketch, opts: { background: string; source?: st
     const r = base("rectangle", n.box.x, n.box.y, n.box.w, n.box.h, n.color, { strokeWidth: 2, roundness: null, groupIds: [gid], boundElements: [], customData: { metualId: n.id } });
     rects.set(n.id, r);
     els.push(r);
-    if (n.icon) els.push(base("image", n.box.x + n.box.w / 2 - NODE.icon / 2, n.box.y + 16, NODE.icon, NODE.icon, "transparent", { fileId: fileFor(n.icon), status: "saved", scale: [1, 1], crop: null, groupIds: [gid] }));
-    els.push(text(n.keyword, n.box.x + n.box.w / 2, n.box.y + 160, NODE.kwSize, "#f2f2f2", "middle", [gid]));
-    if (n.sub) els.push(text(n.sub, n.box.x + n.box.w / 2, n.box.y + 194, NODE.subSize, "#a0a4a8", "middle", [gid]));
+    const isz = n.iconSize ?? NODE.icon;
+    if (n.icon) els.push(base("image", n.box.x + n.box.w / 2 - isz / 2, n.box.y + (n.iconSize ? 18 : 16), isz, isz, "transparent", { fileId: fileFor(n.icon), status: "saved", scale: [1, 1], crop: null, groupIds: [gid] }));
+    els.push(text(n.keyword, n.box.x + n.box.w / 2, n.box.y + (n.kwY ?? 160), n.kwSize ?? NODE.kwSize, opts.ink ?? "#f2f2f2", "middle", [gid]));
+    if (n.sub) els.push(text(n.sub, n.box.x + n.box.w / 2, n.box.y + 194, NODE.subSize, opts.muted ?? "#a0a4a8", "middle", [gid]));
   }
   for (const e of sk.edges) {
     const [x0, y0] = e.points[0];
@@ -52,7 +53,7 @@ export function toExcalidraw(sk: Sketch, opts: { background: string; source?: st
     a.width = Math.max(...xs) - Math.min(...xs); a.height = Math.max(...ys) - Math.min(...ys);
     for (const id of [e.from, e.to]) if (id && rects.has(id)) rects.get(id).boundElements.push({ id: a.id, type: "arrow" });
     els.push(a);
-    if (e.label && e.labelBox) els.push(text(e.label, e.labelBox.x + e.labelBox.w / 2, e.labelBox.y + e.labelBox.h * 0.72, NODE.labelSize, "#bdbdbd", "middle"));
+    if (e.label && e.labelBox) els.push(text(e.label, e.labelBox.x + e.labelBox.w / 2, e.labelBox.y + e.labelBox.h * 0.72, e.labelSize ?? NODE.labelSize, opts.edgeLabel ?? "#bdbdbd", "middle"));
   }
   for (const el of sk.ellipses) els.push(base("ellipse", el.box.x, el.box.y, el.box.w, el.box.h, el.color, { strokeWidth: 4, roughness: 2 }));
   for (const p of sk.polygons) {

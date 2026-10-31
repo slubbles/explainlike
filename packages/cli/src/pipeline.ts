@@ -38,7 +38,13 @@ export async function runMetual(o: RunOptions) {
   const level = getLevel(o.level ?? "new");
   const theme = getTheme(o.theme);
   const ledger = new CostLedger();
-  const P: Progress = o.progress ?? (() => {});
+  // every progress event carries the running cost (the cost meter in the CLI and web app)
+  let voiceRef: VoiceProvider | undefined;
+  const spend = () => {
+    const meta = ledger.total, voice = voiceRef instanceof DeepgramVoice ? voiceRef.usd : 0;
+    return { meta: Number(meta.toFixed(4)), voice: Number(voice.toFixed(4)), total: Number((meta + voice).toFixed(4)) };
+  };
+  const P: Progress = (e) => o.progress?.({ ...e, usd: spend() });
   const t0 = Date.now();
   const pack: IconPack = o.iconPacks?.length ? mergePacks([loadIconPack(), ...o.iconPacks.map((d) => loadIconPack(d))]) : loadIconPack();
   const kind = detectKind(o.input);
@@ -107,6 +113,7 @@ export async function runMetual(o: RunOptions) {
 
   // ---------- voice ----------
   let voice: VoiceProvider = pickVoice(o.voice);
+  voiceRef = voice;
   P({ stage: "voice", message: voice.id === "silent" ? "no voice: timing captions at speaking pace" : "recording the voiceover (Deepgram Aura)", pct: 36 });
   const audioDir = path.join(out, "audio");
   const audio: SceneAudio[] = [];
@@ -124,7 +131,7 @@ export async function runMetual(o: RunOptions) {
   });
   fs.writeFileSync(path.join(out, "film.json"), JSON.stringify({ ...film, fonts: undefined, elements: film.elements.length }, null, 1));
   const base = slug(o.name ?? plan.title) || "metual";
-  const exc = toExcalidraw(sketch, { background: theme.background });
+  const exc = toExcalidraw(sketch, { background: theme.background, ink: theme.ink, muted: theme.colors.gray, edgeLabel: theme.edgeLabel });
   const excFile = path.join(out, `${base}.excalidraw`);
   fs.writeFileSync(excFile, JSON.stringify(exc));
 

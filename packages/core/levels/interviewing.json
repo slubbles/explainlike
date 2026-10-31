@@ -1,0 +1,13 @@
+{
+  "id": "interviewing",
+  "label": "I'm interviewing",
+  "minComponents": 8, "maxComponents": 12, "perScene": 3,
+  "scaleItems": 3, "scaleAt": ["10x", "100x"],
+  "wordsPerScene": 32, "seconds": [90, 130],
+  "voice": "Explain like a strong candidate in a system design interview: requirements first, then components, data flow, a back of the envelope estimate, bottlenecks and trade-offs. Use the vocabulary interviewers expect (read path, write path, cache hit, fan-out, sharding, back-pressure) but only when the code supports it.",
+  "notes": [
+    { "after": "hook", "heading": "requirements", "brief": "4 to 6 requirements this system meets, read from what the code does. Functional ones (what a user can do) in blue, non-functional ones (latency, availability, durability, privacy) in orange. target empty. No numbers. evidence: one file path that shows it." },
+    { "after": "walkthrough", "heading": "back of envelope", "brief": "a capacity estimate for a HYPOTHETICAL load, the way a candidate would do it on a whiteboard. 3 to 5 items such as 'assume 50k daily users', '~2 reads per second avg', '10x at peak'. Every number is an assumption: estimate=true, evidence empty, color orange (red for the number that hurts). The narration must start with 'Let's assume' and must say these are estimates, not measurements of the real app." },
+    { "after": "scale", "heading": "trade-offs", "brief": "3 or 4 trade-offs this design makes, each about one component (target = its id): what it buys and what it costs, e.g. 'sqlite: simple, single writer'. green for the win side, red for the cost side. evidence: one file path." }
+  ]
+}

@@ -1,0 +1,9 @@
+{
+  "id": "five",
+  "label": "I'm 5",
+  "minComponents": 4, "maxComponents": 6, "perScene": 2,
+  "scaleItems": 1, "scaleAt": ["10x"],
+  "wordsPerScene": 24, "seconds": [40, 60],
+  "voice": "Explain to a curious 5 year old. Use one everyday analogy (a restaurant, a library, a post office) and keep it through the whole video. No jargon; if a real name is needed, say what it is like first. Short, warm sentences.",
+  "notes": []
+}

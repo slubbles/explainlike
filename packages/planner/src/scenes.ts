@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { ScenePlan, getLevel, lower, wordCount, quoteInSource, type Architecture, type Level, type Progress, type Scene, type SourceDoc } from "@metual/core";
+import { ScenePlan, getLevel, lower, wordCount, quoteInSource, type Architecture, type Level, type Progress, type NoteItem, type Scene, type SourceDoc } from "@metual/core";
 import { sparkJson, type CostLedger } from "@metual/models";
 
 const STYLE = [
@@ -35,14 +35,49 @@ export async function planRepoScenes(o: { ledger: CostLedger; arch: Architecture
         "3. one 'walkthrough' scene: narrate the walkthrough request hop by hop, saying each hop's keyword, in order. add_components empty.",
         `4. ${o.arch.scale.length} 'scale' scenes, one per scale risk, in the given order: say what breaks at that traffic level and why (problem keyword), then the fix (fix keyword). callouts: [{target: component id, text: problem keyword, color: red}, {target: component id, text: fix keyword, color: green}].`,
         "5. one 'recap' scene: the whole picture in two or three sentences.",
+        ...notesRules(L.notes),
         `Each scene's narration is about ${L.wordsPerScene} words (hook and recap can be shorter). Whole video ${L.seconds[0]} to ${L.seconds[1]} seconds at 2.6 words per second.`,
-        "Leave add_connections, board_nodes, board_edges, highlights empty (the renderer derives them). callouts empty except in scale scenes.",
+        "Leave add_connections, board_nodes, board_edges, highlights empty (the renderer derives them). callouts empty except in scale scenes. items empty except in notes scenes.",
+        "Never state a traffic, user, latency or cost number as a fact about this app: the repo does not tell you its real load. Numbers only appear as clearly labelled assumptions.",
         "title: the product name in lowercase. subtitle: under 8 lowercase words.",
       ].join("\n") },
       { role: "user", content: JSON.stringify(compact) },
     ],
   });
   return repairRepoPlan(plan, o.arch, o.level);
+}
+
+function notesRules(slots: { after: string; heading: string; brief: string }[]): string[] {
+  if (!slots.length) return [];
+  return [
+    "Extra 'notes' scenes (whiteboard lists). Place each right after the scene named, use the heading given, and fill items:",
+    ...slots.map((n) => `- notes "${n.heading}" after the ${n.after} scene(s): ${n.brief}`),
+    "Each item text is 2 to 7 lowercase words. The narration reads the items in order and adds the reasoning. icon from the same icon names as the components.",
+  ];
+}
+
+const HEDGE = /\b(assum|estimat|rough|ballpark|guess|hypothetical|let's say|say we|imagine|suppose)/i;
+const DIGIT = /\d/;
+
+/** Ground and label list items: targets must exist, any number is an estimate, evidence is a real file. */
+export function validateNotes(items: NoteItem[], o: { ids?: Set<string>; files?: Set<string>; evidenceOf?: (id: string) => string; source?: string }): { items: NoteItem[]; repairs: string[] } {
+  const repairs: string[] = [];
+  const out: NoteItem[] = [];
+  for (const it0 of items.slice(0, 6)) {
+    const it = { ...it0, text: lower(it0.text).split(/\s+/).slice(0, 7).join(" ") };
+    if (o.source !== undefined) {
+      // post/article: the item must be backed by a verbatim quote
+      if (!quoteInSource(it.evidence, o.source)) { repairs.push(`note "${it.text}" dropped: quote not in source`); continue; }
+      it.target = "";
+    } else {
+      if (it.target && !o.ids?.has(it.target)) { repairs.push(`note "${it.text}": unknown target ${it.target}`); it.target = ""; }
+      if (DIGIT.test(it.text.replace(/\b(10|100)x\b/g, "")) && !it.estimate) { it.estimate = true; repairs.push(`note "${it.text}" marked as estimate`); }
+      if (it.evidence && !o.files?.has(it.evidence)) it.evidence = it.target && o.evidenceOf ? o.evidenceOf(it.target) : "";
+      if (!it.estimate && !it.evidence && it.target && o.evidenceOf) it.evidence = o.evidenceOf(it.target);
+    }
+    out.push(it);
+  }
+  return { items: out, repairs };
 }
 
 /** Deterministic checker + repair, so the renderer can trust the plan. */
@@ -52,7 +87,9 @@ export function repairRepoPlan(plan: ScenePlan, arch: Architecture, level: Level
   const ids = new Set(arch.components.map((c) => c.id));
   const seen = new Set<string>();
   const scenes: Scene[] = [];
-  const blank = (s: Partial<Scene>): Scene => ({ id: "", kind: "layer", heading: "", narration: "", add_components: [], add_connections: [], board_nodes: [], board_edges: [], highlights: [], callouts: [], ...s });
+  const blank = (s: Partial<Scene>): Scene => ({ id: "", kind: "layer", heading: "", narration: "", add_components: [], add_connections: [], board_nodes: [], board_edges: [], highlights: [], callouts: [], items: [], ...s });
+  const files = new Set(arch.components.flatMap((c) => c.evidence));
+  const evidenceOf = (id: string) => arch.components.find((c) => c.id === id)?.evidence[0] ?? "";
   for (const s0 of plan.scenes) {
     const s = { ...s0, heading: lower(s0.heading).split(/\s+/).slice(0, 4).join(" ") };
     if (s.kind === "layer") {
@@ -70,8 +107,15 @@ export function repairRepoPlan(plan: ScenePlan, arch: Architecture, level: Level
         repairs.push(`layer scene "${s.heading}" split`);
         continue;
       }
-      scenes.push(blank({ ...s, add_components: add, add_connections: [], callouts: [] }));
-    } else scenes.push(blank({ ...s, add_components: [], add_connections: [] }));
+      scenes.push(blank({ ...s, add_components: add, add_connections: [], callouts: [], items: [] }));
+    } else if (s.kind === "notes") {
+      const v = validateNotes(s.items ?? [], { ids, files, evidenceOf });
+      repairs.push(...v.repairs);
+      if (!v.items.length) { repairs.push(`empty notes scene "${s.heading}" dropped`); continue; }
+      let narration = s.narration;
+      if (v.items.some((i) => i.estimate) && !HEDGE.test(narration)) { narration = "Rough estimates, not measurements of the real app. " + narration; repairs.push(`hedged numbers in "${s.heading}"`); }
+      scenes.push(blank({ ...s, narration, items: v.items, add_components: [], add_connections: [], callouts: [] }));
+    } else scenes.push(blank({ ...s, add_components: [], add_connections: [], items: [] }));
   }
   // any component never added: give it a layer scene before the walkthrough
   const missing = arch.components.filter((c) => !seen.has(c.id));
@@ -125,10 +169,11 @@ export async function planConceptScenes(o: { ledger: CostLedger; doc: SourceDoc;
     "Scenes:",
     "1. 'hook': the one question this source answers, in plain words.",
     "2. 'source' scene(s): the reader sees the real post/article screenshot. highlights: 2 to 4 phrases (2 to 10 words) copied VERBATIM from the source text, each with a 1 to 3 word note and a color (red = problem/claim to question, orange = key idea, green = result/fix, blue = actor/entity). Narration explains why those phrases matter.",
-    `3. 3 to 5 'board' scenes: each is a fresh mini diagram of one idea with 2 to ${Math.max(3, L.perScene + 1)} board_nodes and edges between them, drawn left to right in reading order. Every board node's evidence is an exact quote (3 to 12 words) from the source that justifies it. Use colors semantically. icon from: ${o.icons}`,
+    `3. 3 to 5 'board' scenes: each is a fresh mini diagram of one idea with 2 to ${Math.max(3, L.perScene + 1)} board_nodes and edges between them, drawn left to right in reading order. Every board node's evidence is an exact quote (3 to 12 words) from the source that justifies it (it is printed under the node, so pick the most telling words). count is 1, or 3 to 9 when the node means 'many of these' (8 GPUs, many workers, lots of docs): it becomes an icon grid. callouts: at most 1 per board, circling the node that matters most (target = board node id, text 1 to 3 words). Use colors semantically. icon from: ${o.icons}`,
+    "Optionally one 'notes' scene (after the source scene) when the source lists concrete things (features, steps, numbers, stack): 3 to 6 items, text 2 to 7 words, evidence an exact quote, target empty, estimate false (a number the author states is their claim, not our estimate). icon from the same list.",
     "4. 'recap': the whole idea in two sentences, what to remember.",
     `Each narration about ${L.wordsPerScene} words; total ${L.seconds[0]}-${L.seconds[1]} seconds at 2.6 words/sec. Do not claim anything the source does not say; say 'the author claims' when it is a claim.`,
-    "Leave add_components, add_connections empty. callouts empty.",
+    "Leave add_components, add_connections empty. callouts only on boards. items only in notes scenes.",
     "title: under 6 lowercase words. subtitle: who wrote it, lowercase.",
   ].join("\n");
   const user = `SOURCE (${o.doc.kind}) by ${o.doc.author ?? "unknown"}: ${o.doc.title}\nURL: ${o.doc.url}\n\nTEXT:\n${o.doc.text.slice(0, 30000)}`;
@@ -154,8 +199,11 @@ export function validateConcept(plan: ScenePlan, source: string): { plan: SceneP
     const board_nodes = s.board_nodes.filter((n) => (quoteInSource(n.evidence, source) ? true : (dropped.push(`node ${n.keyword}: "${n.evidence}"`), false))).map((n) => ({ ...n, keyword: kw(n.keyword) }));
     const ok = new Set(board_nodes.map((n) => n.id));
     const board_edges = s.board_edges.filter((e) => ok.has(e.from) && ok.has(e.to));
-    return { ...s, id: `s${String(i + 1).padStart(2, "0")}-${s.kind}`, heading: lower(s.heading).split(/\s+/).slice(0, 4).join(" "), highlights, board_nodes, board_edges, add_components: [], add_connections: [] };
-  }).filter((s) => !(s.kind === "board" && s.board_nodes.length < 2) && !(s.kind === "source" && !s.highlights.length && !s.narration));
+    const callouts = s.kind === "board" ? (s.callouts ?? []).filter((c) => ok.has(c.target)).slice(0, 1).map((c) => ({ ...c, text: kw(c.text) })) : [];
+    const items = s.kind === "notes" ? validateNotes(s.items ?? [], { source }).items : [];
+    for (const n of board_nodes) n.count = Math.max(1, Math.min(9, Math.round(n.count ?? 1)));
+    return { ...s, id: `s${String(i + 1).padStart(2, "0")}-${s.kind}`, heading: lower(s.heading).split(/\s+/).slice(0, 4).join(" "), highlights, board_nodes, board_edges, callouts, items, add_components: [], add_connections: [] };
+  }).filter((s) => !(s.kind === "board" && s.board_nodes.length < 2) && !(s.kind === "source" && !s.highlights.length && !s.narration) && !(s.kind === "notes" && s.items.length < 2));
   return { plan: { ...plan, title: lower(plan.title), subtitle: lower(plan.subtitle), scenes }, dropped };
 }
 
