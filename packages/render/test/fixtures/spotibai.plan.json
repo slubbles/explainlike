@@ -1,0 +1,367 @@
+{
+ "title": "spotibai",
+ "subtitle": "bisaya meme music video feed",
+ "scenes": [
+  {
+   "id": "s01-hook",
+   "kind": "hook",
+   "heading": "what is spotibai",
+   "narration": "Spotibai is a Bisaya meme music TikTok feed plus Spotify home. The question: how does one Cloudflare Worker serve video, likes, and chat?",
+   "add_components": [],
+   "add_connections": [],
+   "board_nodes": [],
+   "board_edges": [],
+   "highlights": [],
+   "callouts": [],
+   "items": []
+  },
+  {
+   "id": "s02-notes",
+   "kind": "notes",
+   "heading": "product requirements",
+   "narration": "It must scroll fyp video feed, upload clips with transcripts, live chat during playback, heart clips with counts. It keeps private admin and inbox, with fast global video start.",
+   "add_components": [],
+   "add_connections": [],
+   "board_nodes": [],
+   "board_edges": [],
+   "highlights": [],
+   "callouts": [],
+   "items": [
+    {
+     "text": "scroll fyp video feed",
+     "color": "blue",
+     "icon": "phone",
+     "target": "",
+     "estimate": false,
+     "evidence": ""
+    },
+    {
+     "text": "upload clips with transcripts",
+     "color": "blue",
+     "icon": "upload",
+     "target": "",
+     "estimate": false,
+     "evidence": ""
+    },
+    {
+     "text": "live chat during playback",
+     "color": "blue",
+     "icon": "chat",
+     "target": "",
+     "estimate": false,
+     "evidence": "app/api/chat/route.ts"
+    },
+    {
+     "text": "heart clips with counts",
+     "color": "blue",
+     "icon": "heart",
+     "target": "",
+     "estimate": false,
+     "evidence": ""
+    },
+    {
+     "text": "private admin and inbox",
+     "color": "orange",
+     "icon": "shield",
+     "target": "",
+     "estimate": false,
+     "evidence": "middleware.ts"
+    },
+    {
+     "text": "fast global video start",
+     "color": "orange",
+     "icon": "globe",
+     "target": "",
+     "estimate": false,
+     "evidence": ""
+    }
+   ]
+  },
+  {
+   "id": "s03-layer",
+   "kind": "layer",
+   "heading": "client and edge",
+   "narration": "The fyp app is the Next.js browser feed and home player. The edge guard checks admin, inbox and CSRF. The worker host renders the app on spotibai.com.",
+   "add_components": [
+    "browser-client",
+    "edge-middleware",
+    "worker-host"
+   ],
+   "add_connections": [
+    "browser-client>edge-middleware",
+    "edge-middleware>worker-host"
+   ],
+   "board_nodes": [],
+   "board_edges": [],
+   "highlights": [],
+   "callouts": [],
+   "items": []
+  },
+  {
+   "id": "s04-layer",
+   "kind": "layer",
+   "heading": "api and video",
+   "narration": "The ingest api is eighty one route handlers for clips and uploads. The edge cache serves clips.spotibai.com video for a year. The clip blobs store mp4s and covers.",
+   "add_components": [
+    "next-api",
+    "clips-cdn",
+    "r2-storage"
+   ],
+   "add_connections": [
+    "browser-client>next-api",
+    "next-api>r2-storage",
+    "browser-client>clips-cdn",
+    "clips-cdn>r2-storage"
+   ],
+   "board_nodes": [],
+   "board_edges": [],
+   "highlights": [],
+   "callouts": [],
+   "items": []
+  },
+  {
+   "id": "s05-layer",
+   "kind": "layer",
+   "heading": "data and realtime",
+   "narration": "The d1 database holds hosted clips and chat rows. The live chat fans out websockets after persist. The like counter tallies hearts and blocks floods.",
+   "add_components": [
+    "d1-db",
+    "chat-live-do",
+    "clip-likes-do"
+   ],
+   "add_connections": [
+    "next-api>d1-db",
+    "next-api>chat-live-do",
+    "next-api>clip-likes-do"
+   ],
+   "board_nodes": [],
+   "board_edges": [],
+   "highlights": [],
+   "callouts": [],
+   "items": []
+  },
+  {
+   "id": "s06-layer",
+   "kind": "layer",
+   "heading": "auth and helpers",
+   "narration": "The google login signs users and gates admin. The inbound mail forwards email previews to inbox. The voice text transcribes uploads with Scribe.",
+   "add_components": [
+    "google-auth",
+    "inbound-email",
+    "elevenlabs-transcribe"
+   ],
+   "add_connections": [
+    "browser-client>google-auth",
+    "next-api>elevenlabs-transcribe",
+    "inbound-email>worker-host"
+   ],
+   "board_nodes": [],
+   "board_edges": [],
+   "highlights": [],
+   "callouts": [],
+   "items": []
+  },
+  {
+   "id": "s07-walkthrough",
+   "kind": "walkthrough",
+   "heading": "open fyp feed",
+   "narration": "Open the fyp app, hit the edge guard, render from worker host, fetch catalog from ingest api, read rows from d1 database, stream from edge cache, origin fetch clip blobs.",
+   "add_components": [],
+   "add_connections": [],
+   "board_nodes": [],
+   "board_edges": [],
+   "highlights": [],
+   "callouts": [],
+   "items": []
+  },
+  {
+   "id": "s08-notes",
+   "kind": "notes",
+   "heading": "back of envelope",
+   "narration": "Let's assume fifty thousand daily users and twenty clips per visit. That is about four reads per second avg, ten times at peak evening. These are estimates, not measurements of the real app.",
+   "add_components": [],
+   "add_connections": [],
+   "board_nodes": [],
+   "board_edges": [],
+   "highlights": [],
+   "callouts": [],
+   "items": [
+    {
+     "text": "assume 50k daily users",
+     "color": "orange",
+     "icon": "user",
+     "target": "",
+     "estimate": true,
+     "evidence": ""
+    },
+    {
+     "text": "assume 20 clips per visit",
+     "color": "orange",
+     "icon": "play",
+     "target": "",
+     "estimate": true,
+     "evidence": ""
+    },
+    {
+     "text": "~4 reads per second avg",
+     "color": "orange",
+     "icon": "disk",
+     "target": "",
+     "estimate": true,
+     "evidence": ""
+    },
+    {
+     "text": "10x at peak evening",
+     "color": "red",
+     "icon": "fire",
+     "target": "",
+     "estimate": true,
+     "evidence": ""
+    },
+    {
+     "text": "cache holds hot clips",
+     "color": "orange",
+     "icon": "cache",
+     "target": "",
+     "estimate": false,
+     "evidence": ""
+    }
+   ]
+  },
+  {
+   "id": "s09-scale",
+   "kind": "scale",
+   "heading": "d1 catalog overload",
+   "narration": "At ten times traffic, d1 read overload hits because every feed scans all rows. The fix is snapshot cache with KV snapshots and pagination.",
+   "add_components": [],
+   "add_connections": [],
+   "board_nodes": [],
+   "board_edges": [],
+   "highlights": [],
+   "callouts": [
+    {
+     "target": "d1-db",
+     "text": "d1 read overload",
+     "color": "red"
+    },
+    {
+     "target": "d1-db",
+     "text": "snapshot cache",
+     "color": "green"
+    }
+   ],
+   "items": []
+  },
+  {
+   "id": "s10-scale",
+   "kind": "scale",
+   "heading": "chat fanout limit",
+   "narration": "At one hundred times, single room fanout breaks one object for all sockets. The fix is shard rooms with sticky routing and gossip.",
+   "add_components": [],
+   "add_connections": [],
+   "board_nodes": [],
+   "board_edges": [],
+   "highlights": [],
+   "callouts": [
+    {
+     "target": "chat-live-do",
+     "text": "single room fanout",
+     "color": "red"
+    },
+    {
+     "target": "chat-live-do",
+     "text": "shard rooms",
+     "color": "green"
+    }
+   ],
+   "items": []
+  },
+  {
+   "id": "s11-scale",
+   "kind": "scale",
+   "heading": "cache purge pain",
+   "narration": "At one hundred times deletes, purge rate limits stall year-long cache. The fix is versioned keys with hashed keys, no purge needed.",
+   "add_components": [],
+   "add_connections": [],
+   "board_nodes": [],
+   "board_edges": [],
+   "highlights": [],
+   "callouts": [
+    {
+     "target": "clips-cdn",
+     "text": "purge rate limits",
+     "color": "red"
+    },
+    {
+     "target": "clips-cdn",
+     "text": "versioned keys",
+     "color": "green"
+    }
+   ],
+   "items": []
+  },
+  {
+   "id": "s12-notes",
+   "kind": "notes",
+   "heading": "design trade-offs",
+   "narration": "D1 sql simple queries buys easy catalog, but full scan reads heavy costs reads. Single do simple broadcast is easy, but memory caps fanout limits rooms.",
+   "add_components": [],
+   "add_connections": [],
+   "board_nodes": [],
+   "board_edges": [],
+   "highlights": [],
+   "callouts": [],
+   "items": [
+    {
+     "text": "d1 sql simple queries",
+     "color": "green",
+     "icon": "db",
+     "target": "d1-db",
+     "estimate": false,
+     "evidence": "migrations/0009_hosted_clips.sql"
+    },
+    {
+     "text": "full scan reads heavy",
+     "color": "red",
+     "icon": "db",
+     "target": "d1-db",
+     "estimate": false,
+     "evidence": "migrations/0009_hosted_clips.sql"
+    },
+    {
+     "text": "single do simple broadcast",
+     "color": "green",
+     "icon": "chat",
+     "target": "chat-live-do",
+     "estimate": false,
+     "evidence": "lib/chat-live-do.ts"
+    },
+    {
+     "text": "memory caps fanout",
+     "color": "red",
+     "icon": "chat",
+     "target": "chat-live-do",
+     "estimate": false,
+     "evidence": "lib/chat-live-do.ts"
+    }
+   ]
+  },
+  {
+   "id": "s13-recap",
+   "kind": "recap",
+   "heading": "spotibai in sum",
+   "narration": "Browser to edge to Worker to D1, R2, and Durable Objects. CDN streams, Scribe transcribes, sharding fixes scale.",
+   "add_components": [],
+   "add_connections": [],
+   "board_nodes": [],
+   "board_edges": [],
+   "highlights": [],
+   "callouts": [],
+   "items": []
+  }
+ ],
+ "repairs": [
+  "note \"d1 sql simple queries\" marked as estimate",
+  "hedged numbers in \"design trade-offs\""
+ ]
+}
