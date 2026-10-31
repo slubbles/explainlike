@@ -59,3 +59,10 @@ test("keywords are 1-3 lowercase words; quotes match with small edits only", () 
   assert.ok(!quoteInSource("stores the cache on disk forever", src));
   assert.ok(!quoteInSource("", src));
 });
+
+test("narration is tidied mechanically before it is voiced", async () => {
+  const { tidySpeech } = await import("@metual/core");
+  assert.equal(tidySpeech("  the  the cache holds rows ,then  drops them. at 10x traffic, writes queue up"), "The cache holds rows, then drops them. At 10x traffic, writes queue up.");
+  assert.equal(tidySpeech("Use a queue, e.g. a durable one. it said that that was fine!"), "Use a queue, e.g. a durable one. It said that that was fine!");
+  assert.equal(tidySpeech("How does a pasted link become a video?"), "How does a pasted link become a video?");
+});

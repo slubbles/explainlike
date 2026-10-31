@@ -1,10 +1,11 @@
 import { z } from "zod";
-import { ScenePlan, getLevel, lower, wordCount, quoteInSource, type Architecture, type Level, type Progress, type NoteItem, type Scene, type SourceDoc } from "@metual/core";
+import { ScenePlan, getLevel, lower, tidySpeech, wordCount, quoteInSource, type Architecture, type Level, type Progress, type NoteItem, type Scene, type SourceDoc } from "@metual/core";
 import { sparkJson, type CostLedger } from "@metual/models";
 
 const STYLE = [
   "Style of the video: a calm engineer at a black whiteboard, like the YouTube channel Caleb Writes Code.",
   "Narration is spoken; write it for the ear: short sentences, concrete, no filler ('in this video', 'let's dive in', 'robust', 'seamless', 'leverage' are banned).",
+  "Every narration sentence is complete and grammatical: each verb agrees with its subject, and articles (a, an, the) are not dropped.",
   "Headings are 2 to 4 lowercase words that the narration of that scene actually says (the viewer reads the heading while hearing it). Keywords 1 to 3 lowercase words.",
   "A visual change every 2 to 5 seconds: one new thing per sentence.",
 ].join("\n");
@@ -151,12 +152,12 @@ export function repairRepoPlan(plan: ScenePlan, arch: Architecture, level: Level
   const scaleScenes = scenes.filter((s) => s.kind === "scale");
   arch.scale.forEach((r, i) => {
     let s = scaleScenes[i];
-    if (!s) { s = blank({ id: `scale-${i}`, kind: "scale", heading: `at ${r.at}`, narration: `At ${r.at} traffic, ${r.why} The fix: ${r.fix_detail}` }); const rec = scenes.findIndex((x) => x.kind === "recap"); scenes.splice(rec < 0 ? scenes.length : rec, 0, s); repairs.push("scale scene added"); }
+    if (!s) { s = blank({ id: `scale-${i}`, kind: "scale", heading: `at ${r.at}`, narration: `At ${r.at} traffic, ${tidySpeech(r.why)} The fix: ${r.fix_detail}` }); const rec = scenes.findIndex((x) => x.kind === "recap"); scenes.splice(rec < 0 ? scenes.length : rec, 0, s); repairs.push("scale scene added"); }
     s.callouts = [{ target: r.component, text: r.problem, color: "red" }, { target: r.component, text: r.fix, color: "green" }];
   });
   for (const extra of scaleScenes.slice(arch.scale.length)) { scenes.splice(scenes.indexOf(extra), 1); repairs.push("extra scale scene dropped"); }
   if (!scenes.some((s) => s.kind === "recap")) { scenes.push(blank({ id: "recap", kind: "recap", heading: "the big picture", narration: arch.one_liner })); repairs.push("recap added"); }
-  scenes.forEach((s, i) => (s.id = `s${String(i + 1).padStart(2, "0")}-${s.kind}`));
+  scenes.forEach((s, i) => { s.id = `s${String(i + 1).padStart(2, "0")}-${s.kind}`; s.narration = tidySpeech(s.narration); });
   return { title: lower(plan.title || arch.product), subtitle: lower(plan.subtitle || ""), scenes, repairs };
 }
 
@@ -206,7 +207,7 @@ export function validateConcept(plan: ScenePlan, source: string): { plan: SceneP
     const callouts = s.kind === "board" ? (s.callouts ?? []).filter((c) => ok.has(c.target)).slice(0, 1).map((c) => ({ ...c, text: kw(c.text) })) : [];
     const items = s.kind === "notes" ? validateNotes(s.items ?? [], { source }).items : [];
     for (const n of board_nodes) n.count = Math.max(1, Math.min(9, Math.round(n.count ?? 1)));
-    return { ...s, id: `s${String(i + 1).padStart(2, "0")}-${s.kind}`, heading: lower(s.heading).split(/\s+/).slice(0, 4).join(" "), highlights, board_nodes, board_edges, callouts, items, add_components: [], add_connections: [] };
+    return { ...s, id: `s${String(i + 1).padStart(2, "0")}-${s.kind}`, narration: tidySpeech(s.narration), heading: lower(s.heading).split(/\s+/).slice(0, 4).join(" "), highlights, board_nodes, board_edges, callouts, items, add_components: [], add_connections: [] };
   }).filter((s) => !(s.kind === "board" && s.board_nodes.length < 2) && !(s.kind === "source" && !s.highlights.length && !s.narration) && !(s.kind === "notes" && s.items.length < 2));
   return { plan: { ...plan, title: lower(plan.title), subtitle: lower(plan.subtitle), scenes }, dropped };
 }
