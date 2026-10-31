@@ -81,7 +81,7 @@ export default function ResultView({ job, map, picked, expl, explBusy, clips, pi
                     <div className="ev">Evidence: {expl.component.evidence.map((f) => <code key={f}>{f}</code>)}<span>· cost {money(expl.usd)}</span></div>
                   </>
                 )}
-                <button type="button" className="btn solid wide" disabled={explBusy} onClick={() => followUp({ focus: picked })}>Render a 20 s deep dive on this box</button>
+                <button type="button" className="btn wide" disabled={explBusy} onClick={() => followUp({ focus: picked })}>Render a 20 s deep dive on this box</button>
               </>
             )}
           </div>
