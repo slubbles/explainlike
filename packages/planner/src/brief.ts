@@ -1,14 +1,21 @@
-import { APPROACHES, Brief, LOOKS, NOTE_LIBRARY, type Progress } from "@explainlike/core";
+import { APPROACHES, Brief, LOOKS, NOTE_LIBRARY, type Ask, type Progress } from "@explainlike/core";
 import { sparkJson, type CostLedger } from "@explainlike/models";
 
 /**
  * Step one of every video: read the source and decide how to explain it.
  * The engine, not the viewer, picks the approach, depth, tempo and look.
  */
-export async function planBrief(o: { ledger: CostLedger; kind: "repo" | "x-post" | "article"; name: string; text: string; progress?: Progress }): Promise<Brief> {
+export async function planBrief(o: { ledger: CostLedger; kind: "repo" | "x-post" | "article"; name: string; text: string; ask?: Ask; progress?: Progress }): Promise<Brief> {
   o.progress?.({ stage: "plan", message: "deciding how to explain it" });
   const list = (r: Record<string, string | { brief: string }>) => Object.entries(r).map(([k, v]) => `- ${k}: ${typeof v === "string" ? v : v.brief.split(".")[0]}`).join("\n");
-  return sparkJson({
+  const ask = o.ask && [
+    "The viewer told us what they want; it outranks the defaults above:",
+    o.ask.goal && `- they want to understand: ${o.ask.goal}`,
+    o.ask.audience && `- it is for: ${o.ask.audience} (write the audience as that viewer)`,
+    o.ask.depth && `- depth: ${o.ask.depth}`,
+    o.ask.also && `- also cover: ${o.ask.also}`,
+  ].filter(Boolean).join("\n");
+  const b = await sparkJson({
     ledger: o.ledger, step: "brief", schema: Brief, name: "brief", effort: "low", maxTokens: 3000,
     messages: [
       { role: "system", content: [
@@ -23,8 +30,11 @@ export async function planBrief(o: { ledger: CostLedger; kind: "repo" | "x-post"
         `Approaches:\n${list(APPROACHES)}`,
         `Looks:\n${list(LOOKS)}`,
         `Extra list scenes (only when they teach something the diagram cannot):\n${list(NOTE_LIBRARY)}`,
-      ].join("\n") },
+        ask ?? "",
+      ].filter(Boolean).join("\n") },
       { role: "user", content: `${o.kind === "repo" ? "Repository" : o.kind === "x-post" ? "X post" : "Article"}: ${o.name}\n\n${o.text.slice(0, 14000)}` },
     ],
   });
+  // what the viewer asked for is not a suggestion
+  return { ...b, depth: o.ask?.depth ?? b.depth };
 }

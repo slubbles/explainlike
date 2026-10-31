@@ -50,6 +50,17 @@ export const Brief = z.object({
 });
 export type Brief = z.infer<typeof Brief>;
 
+/** What the viewer said they want (from the voice chat or the CLI): it steers the brief and the script. */
+export interface Ask {
+  /** what they want to understand, in their words */
+  goal?: string;
+  /** who the video is for, e.g. "my non-technical cofounder" */
+  audience?: string;
+  depth?: Brief["depth"];
+  /** anything else they asked to have covered */
+  also?: string;
+}
+
 export const NotesSlot = z.object({ after: z.enum(["hook", "walkthrough", "scale"]), heading: z.string(), brief: z.string() });
 export type NotesSlot = z.infer<typeof NotesSlot>;
 
@@ -92,7 +103,7 @@ const DEPTH = {
   deep: { minComponents: 6, maxComponents: 10, perScene: 3, scaleItems: 1, scaleAt: ["10x"], wordsPerScene: 32, extras: 1 },
 } as const;
 
-export function specFromBrief(b: Brief): ExplainSpec {
+export function specFromBrief(b: Brief, ask?: Ask): ExplainSpec {
   const d = DEPTH[b.depth];
   const tempoId: TempoId = b.complexity === "technical" ? "slow" : b.complexity === "simple" ? "brisk" : "steady";
   // technical topics add fewer boxes per beat so each one gets time on screen
@@ -102,6 +113,8 @@ export function specFromBrief(b: Brief): ExplainSpec {
     `Explain to ${b.audience}.`,
     `Approach: ${b.approach}: ${APPROACHES[b.approach]}.`,
     b.analogy ? `The everyday analogy: ${b.analogy}. Use it in the hook and give each part on the journey its role in it, then say the real name.` : "",
+    ask?.goal ? `The viewer asked to understand: ${ask.goal}. The video must answer that.` : "",
+    ask?.also ? `They also asked to cover: ${ask.also}. Fit it into the story where it belongs.` : "",
     tempoId === "slow" ? "This is technical: one idea per sentence, name each thing before using it, no stacked jargon." : tempoId === "brisk" ? "This is simple: keep it light and quick, lean on the analogy." : "",
   ].filter(Boolean).join(" ");
   return {

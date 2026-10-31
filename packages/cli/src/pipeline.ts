@@ -1,6 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
-import { getTheme, specFromBrief, DEFAULT_BRIEF, type Brief, type ExplainSpec, type Architecture, type Progress, type SceneAudio, type ScenePlan, type SourceDoc } from "@explainlike/core";
+import { getTheme, specFromBrief, DEFAULT_BRIEF, type Ask, type Brief, type ExplainSpec, type Architecture, type Progress, type SceneAudio, type ScenePlan, type SourceDoc } from "@explainlike/core";
 import { CostLedger, museTranscribe } from "@explainlike/models";
 import { ingestRepo } from "@explainlike/ingest";
 import { planBrief, extractArchitecture, validateArchitecture, evidencePack, reviewArchitecture, reviseArchitecture, planRepoScenes, planFocus, planWhatIf, kindColor } from "@explainlike/planner";
@@ -19,6 +19,8 @@ export interface RunOptions {
   qa?: boolean;
   /** also send a handful of rendered frames to Muse Spark for a look-over (costs money; off by default) */
   visionReview?: boolean;
+  /** what the viewer said they want: goal, audience, depth, anything else to cover */
+  ask?: Ask;
   /** false: no music bed under the voice */
   music?: boolean;
   progress?: Progress;
@@ -73,8 +75,8 @@ export async function runExplainLike(o: RunOptions) {
   // the engine decides how to explain: approach, depth, tempo and look come from Muse Spark's brief
   let spec: ExplainSpec = specFromBrief(DEFAULT_BRIEF);
   const decide = async (file: string, kindOf: "repo" | "x-post" | "article", name: string, text: string) => {
-    const b = await cacheJson<Brief>(file, () => planBrief({ ledger, kind: kindOf, name, text, progress: P }));
-    spec = specFromBrief(b);
+    const b = await cacheJson<Brief>(file, () => planBrief({ ledger, kind: kindOf, name, text, ask: o.ask, progress: P }));
+    spec = specFromBrief(b, o.ask);
     notes.push(`brief: ${b.approach}, ${b.depth}, ${b.complexity} -> ${spec.tempo.id} tempo, ${b.look}; ${b.why}`);
   };
 
