@@ -201,6 +201,8 @@ export async function runMetual(o: RunOptions) {
   fs.rmSync(frames, { recursive: true, force: true });
   P({ stage: "render", message: "drawing frames", pct: 48 });
   const cap = await captureFrames(film, frames, { workers: o.workers, onProgress: (d, t) => P({ stage: "render", message: `drawing frames ${d}/${t}`, pct: 48 + Math.round((d / t) * 42) }) });
+  const covering = cap.captions.filter((c) => c.overlapPx > 0);
+  if (covering.length) notes.push(`${covering.length} caption(s) could not find fully free space: ${covering.map((c) => `${c.t0.toFixed(1)}s "${c.text}"`).join(", ")}`);
   let narration: string | undefined;
   if (audio.some((a) => a.file)) {
     narration = path.join(out, "narration.wav");
@@ -230,6 +232,8 @@ export async function runMetual(o: RunOptions) {
     tool: "metual", input: o.input, kind, level: level.id, repoDir, followUp: o.focus ? { focus: o.focus } : o.whatIf ? { whatIf: o.whatIf } : undefined, theme: theme.id, packs: { loaded: extra.map((p) => p.id), detected: detected.map((d) => ({ pack: d.pack, id: d.component.id, name: d.component.name, evidence: d.evidence })) }, title: plan.title, durationSec: Number(film.duration.toFixed(1)),
     outputs: { mp4, [exportAs]: boardFile, contactSheet: sheet, plan: path.join(out, "plan.json"), architecture: arch ? path.join(out, "architecture.json") : undefined },
     scenes: timeline, repairs: plan.repairs ?? [], notes, qa,
+    // captions that found no fully free spot (empty when every caption clears the drawing)
+    captionsCovering: cap.captions.filter((c) => c.overlapPx > 0),
     cost: { metaUsd: Number(ledger.total.toFixed(4)), byModel: ledger.byModel(), entries: ledger.entries, voiceUsd: Number(voiceUsd.toFixed(4)), voice: voice.id },
     seconds: Math.round((Date.now() - t0) / 1000),
   };

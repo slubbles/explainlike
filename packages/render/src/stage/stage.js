@@ -136,19 +136,111 @@
   document.getElementById("barwrap").before(card);
   const capwrap = document.getElementById("capwrap");
 
-  // Lively captions sit next to what they talk about: under the box when it fits, else above, else the usual bottom spot.
+  // Captions never cover the drawing. Before the first frame, each caption picks one spot:
+  // next to the box it talks about (below, above, right, left, a little further out),
+  // else a free band at the bottom or top. A spot is free when, at every moment the caption
+  // is up, it clears every visible stroke, word and image. window.captionReport lists the picks.
+  const TOP = 170, BOT = F.height - 40, SIDE = 40;
+  function worldShapes() {
+    for (const it of items) {
+      const e = it.e, bx = [];
+      if (it.bb) { const b = it.bb; bx.push({ x: b.x - 10, y: b.y - 4, w: b.width + 20, h: b.height + 8 }); }
+      else if (e.k === "img") bx.push({ x: e.x, y: e.y, w: e.w, h: e.h });
+      else if (it.p && it.len > 0) {
+        // stroke boxes along the line; jumps between sub-paths start a new box
+        const step = 10, pad = (e.sw || 2) / 2 + 3, n = Math.max(2, Math.ceil(it.len / step));
+        let run = [], last = null;
+        const flush = () => { if (!run.length) return; let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity; for (const [x, y] of run) { x0 = Math.min(x0, x); y0 = Math.min(y0, y); x1 = Math.max(x1, x); y1 = Math.max(y1, y); } bx.push({ x: x0 - pad, y: y0 - pad, w: x1 - x0 + 2 * pad, h: y1 - y0 + 2 * pad }); run = []; };
+        for (let i = 0; i <= n; i++) {
+          const q = it.p.getPointAtLength((it.len * i) / n), pt = [q.x, q.y];
+          if (last && Math.hypot(pt[0] - last[0], pt[1] - last[1]) > step * 2.5) flush();
+          run.push(pt); last = pt;
+          if (run.length >= 6) { flush(); run.push(pt); }
+        }
+        flush();
+      } else if (e.k === "dot" && e.trail) {
+        for (let i = 1; i < e.pts.length; i++) { const [a, b] = [e.pts[i - 1], e.pts[i]]; bx.push({ x: Math.min(a[0], b[0]) - 6, y: Math.min(a[1], b[1]) - 6, w: Math.abs(a[0] - b[0]) + 12, h: Math.abs(a[1] - b[1]) + 12 }); }
+      }
+      it.boxes = bx;
+    }
+  }
+  const visibleAt = (e, t) => t >= e.t0 && (e.g ? interp(F.groups[e.g], t, 1) : 1) > 0.05;
+  const coverAt = (t) => (F.cards || []).some((x) => t >= x.t0 && t < x.t1) || (F.end && t >= F.end.t0);
+  function spotXY(spot, c, t, cw, ch) {
+    let x, y;
+    if (spot.grid) return { x: spot.grid[0], y: spot.grid[1] };
+    if (spot.world) { const cam = camera(t), s = F.width / cam.w; return { x: clamp((spot.world[0] - cam.x) * s, SIDE, F.width - SIDE - cw), y: clamp((spot.world[1] - cam.y) * s, TOP, BOT - ch) }; }
+    if (spot.side) {
+      const cam = camera(t), s = F.width / cam.w;
+      const bx = (c.at.x - cam.x) * s, by = (c.at.y - cam.y) * s, bw = c.at.w * s, bh = c.at.h * s, g = spot.gap;
+      if (spot.side === "below") { x = bx + bw / 2 - cw / 2; y = by + bh + g; }
+      else if (spot.side === "above") { x = bx + bw / 2 - cw / 2; y = by - g - ch; }
+      else if (spot.side === "right") { x = bx + bw + g; y = by + bh / 2 - ch / 2; }
+      else { x = bx - g - cw; y = by + bh / 2 - ch / 2; }
+    } else {
+      x = spot.band[0] === "l" ? 60 : spot.band[0] === "r" ? F.width - 60 - cw : F.width / 2 - cw / 2;
+      y = spot.band[1] === "t" ? TOP + 10 : BOT - 24 - ch;
+    }
+    return { x: clamp(x, SIDE, F.width - SIDE - cw), y: clamp(y, TOP, BOT - ch) };
+  }
+  const BANDS = [["cb"], ["ct"], ["lb"], ["rb"], ["lt"], ["rt"]].map(([band]) => ({ band }));
+  const NEAR = [22, 60, 120].flatMap((gap) => ["below", "above", "right", "left"].map((side) => ({ side, gap })));
+  function planCaptions() {
+    worldShapes();
+    const report = [];
+    for (const c of F.captions) {
+      capwrap.className = c.at ? "near placed" : "placed"; capwrap.style.left = capwrap.style.top = "0px";
+      cap.innerHTML = c.words.map((w) => `<span>${w.w.replace(/&/g, "&amp;").replace(/</g, "&lt;")}</span>`).join(" ");
+      cap.style.display = "inline-block";
+      const cw = cap.offsetWidth, ch = cap.offsetHeight;
+      const times = [];
+      for (let t = c.t0 + 0.05; t < c.t1; t += 0.2) if (!coverAt(t)) times.push(t);
+      if (c.t1 - 0.02 > c.t0 && !coverAt(c.t1 - 0.02)) times.push(c.t1 - 0.02);
+      const shots = times.map((t) => {
+        const cam = camera(t), s = F.width / cam.w, out = [];
+        for (const it of items) {
+          if (!visibleAt(it.e, t)) continue;
+          for (const b of it.boxes) {
+            const r = { x: (b.x - cam.x) * s, y: (b.y - cam.y) * s, w: b.w * s, h: b.h * s };
+            if (r.x + r.w > 0 && r.x < F.width && r.y + r.h > 0 && r.y < F.height) out.push(r);
+          }
+        }
+        return { t, boxes: out };
+      });
+      let best = null;
+      // last resort: any free spot on screen, nearest to the box first (or to the usual bottom spot)
+      const cam0 = camera(c.t0), s0 = F.width / cam0.w;
+      const ax = c.at ? (c.at.x + c.at.w / 2 - cam0.x) * s0 : F.width / 2, ay = c.at ? (c.at.y + c.at.h / 2 - cam0.y) * s0 : BOT;
+      const grid = [];
+      for (let y = TOP; y <= BOT - ch; y += 30) for (let x = SIDE; x <= F.width - SIDE - cw; x += 40) grid.push({ grid: [x, y], d: Math.hypot(x + cw / 2 - ax, y + ch / 2 - ay) });
+      grid.sort((a, b) => a.d - b.d);
+      // the same spots pinned to the drawing, so a caption rides along when the camera pushes mid-phrase
+      const camS = camera(times.length ? times[times.length - 1] : c.t1), sS = camS.w / F.width;
+      const pinned = grid.map((g) => ({ world: [camS.x + g.grid[0] * sS, camS.y + g.grid[1] * sS] }));
+      for (const spot of [...(c.at ? NEAR : []), ...BANDS, ...grid, ...pinned]) {
+        let hit = 0;
+        for (const sh of shots) {
+          const p = spotXY(spot, c, sh.t, cw, ch), m = 10;
+          for (const r of sh.boxes) {
+            const ox = Math.min(p.x + cw + m, r.x + r.w) - Math.max(p.x - m, r.x), oy = Math.min(p.y + ch + m, r.y + r.h) - Math.max(p.y - m, r.y);
+            if (ox > 0 && oy > 0) hit += ox * oy;
+          }
+          if (best && hit >= best.hit) break;
+        }
+        if (!best || hit < best.hit) best = { spot, hit };
+        if (hit === 0) break;
+      }
+      c.spot = best.spot;
+      report.push({ t0: c.t0, text: c.words.map((w) => w.w).join(" "), spot: best.spot.side ? `${best.spot.side}+${best.spot.gap}` : best.spot.band ?? (best.spot.grid ? `at ${best.spot.grid.join(",")}` : "pinned"), overlapPx: Math.round(best.hit / Math.max(1, shots.length)) });
+    }
+    cap.style.display = "none"; cap.innerHTML = "";
+    window.captionReport = report;
+  }
   function placeCaption(c, t) {
     const pop = 0.88 + 0.12 * easeOut(clamp((t - c.t0) / 0.18, 0, 1));
-    if (!c.at) { capwrap.className = ""; capwrap.style.left = capwrap.style.top = ""; cap.style.transform = ""; return; }
-    capwrap.className = "near";
-    const cam = camera(t), s = F.width / cam.w;
-    const bx = (c.at.x - cam.x) * s, by = (c.at.y - cam.y) * s, bw = c.at.w * s, bh = c.at.h * s;
-    const cw = cap.offsetWidth, ch = cap.offsetHeight, gap = 22, top = 170, bottom = F.height - 40;
-    let y = by + bh + gap;
-    if (y + ch > bottom) y = by - gap - ch;
-    if (y < top) y = bottom - ch - 24;
-    const x = clamp(bx + bw / 2 - cw / 2, 40, F.width - 40 - cw);
-    capwrap.style.left = `${x.toFixed(1)}px`; capwrap.style.top = `${y.toFixed(1)}px`;
+    capwrap.className = c.at ? "near placed" : "placed";
+    const p = spotXY(c.spot || BANDS[0], c, t, cap.offsetWidth, cap.offsetHeight);
+    capwrap.style.left = `${p.x.toFixed(1)}px`; capwrap.style.top = `${p.y.toFixed(1)}px`;
     cap.style.transform = `scale(${pop.toFixed(3)})`;
   }
   const HIN = 0.55, HOUT = 0.45;
@@ -263,5 +355,5 @@
     renderHud(t);
   };
 
-  window.ready = (async () => { await document.fonts.ready; await Promise.all([...document.images].map((i) => i.decode().catch(() => {}))); measure(); window.render(0); return true; })();
+  window.ready = (async () => { await document.fonts.ready; await Promise.all([...document.images].map((i) => i.decode().catch(() => {}))); measure(); planCaptions(); window.render(0); return true; })();
 })();
