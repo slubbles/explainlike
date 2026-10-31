@@ -1,6 +1,6 @@
 import fs from "node:fs";
 import rough from "roughjs";
-import { agreementSlips } from "@explainlike/core";
+import { agreementSlips, phraseAt } from "@explainlike/core";
 import type { Architecture, ScenePlan, Scene, SceneAudio, Theme, ExplainSpec, Color, WordTiming, NoteItem } from "@explainlike/core";
 import type { Film, FElement, CamKey, Caption, Heading } from "./film.js";
 import { applyTempo, readableWidth, type PaceReport } from "./pace.js";
@@ -228,12 +228,9 @@ function spokenAt(words: WordTiming[], phrase: string, from = 0): number {
   const toks = phrase.split(/[\s\-_/]+/).map(normW).filter(Boolean);
   if (!toks.length) return -1;
   const m = (a: string, b: string) => a === b || (b.length >= 4 && a.length >= 4 && (a.startsWith(b.slice(0, 4)) || b.startsWith(a.slice(0, 4))));
-  for (let i = from; i < words.length; i++) {
-    if (!m(normW(words[i].word), toks[0])) continue;
-    let ok = true;
-    for (let j = 1; j < toks.length && ok; j++) ok = i + j < words.length && m(normW(words[i + j].word), toks[j]);
-    if (ok) return i;
-  }
+  // the phrase as said, allowing "sends the message" for "send message"
+  const at = phraseAt(words.map((w) => w.word), phrase, from);
+  if (at >= 0) return at;
   if (toks.length > 1) for (let i = from; i < words.length; i++) if (toks.some((t) => t.length > 3 && m(normW(words[i].word), t))) return i;
   return -1;
 }
