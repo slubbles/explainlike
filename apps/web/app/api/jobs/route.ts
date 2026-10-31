@@ -6,7 +6,7 @@ export const runtime = "nodejs";
 const client = (req: Request) => req.headers.get("x-forwarded-for")?.split(",")[0].trim() || "local";
 
 export async function GET() {
-  return NextResponse.json(listJobs().slice(0, 20).map(({ id, kind, input, level, state, title, parent, focus, whatIf, costUsd, started }) => ({ id, kind, input, level, state, title, parent, focus, whatIf, costUsd, started })));
+  return NextResponse.json(listJobs().slice(0, 40).map(({ id, kind, input, level, voice, state, title, parent, focus, whatIf, costUsd, started, durationSec, outputs }) => ({ id, kind, input, level, voice, state, title, parent, focus, whatIf, costUsd, started, durationSec, mp4: outputs?.mp4 })));
 }
 
 export async function POST(req: Request) {
