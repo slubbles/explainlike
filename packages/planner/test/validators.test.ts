@@ -165,7 +165,7 @@ test("the speech check flags missing articles and a heading read out as a part",
   const issues = speechIssues(plan, storyArch, "a hotel front desk");
   assert.ok(issues.some((i) => /s04-walkthrough: missing article in "send message", "run bot"/.test(i)), issues.join("; "));
   assert.ok(issues.some((i) => /heading "save then work" is spoken/.test(i)), issues.join("; "));
-  const fine = { title: "x", subtitle: "", scenes: [{ ...sc("layer", "Your message lands in the team chat, and the front door lets it in.", ["ui", "edge"]), heading: "team chat" }] };
+  const fine = { title: "x", subtitle: "", scenes: [{ ...sc("layer", "Your message lands in the team chat at the back office, and the front door lets it in.", ["ui", "edge"]), heading: "the back office" }] };
   assert.deepEqual(speechIssues(fine, storyArch, "a hotel front desk"), []);
 });
 

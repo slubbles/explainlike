@@ -37,7 +37,7 @@ function repoSystem(arch: Architecture, L: ExplainSpec, lo: number, hi: number):
     "Scene order and rules:",
     "1. one 'hook' scene, 2 or 3 sentences: what the product is in plain words (no part names, no jargon), why someone would care (what it lets them do), the everyday analogy, and the promise of the story, e.g. 'Let's follow one message through it.' add_components empty.",
     `2. 'layer' scenes along the journey: add exactly these components, in this order, at most ${L.perScene} per scene: ${path.map(kw).join(", ")}. Tell it as the request moving forward ('First...', 'Next it reaches...'). For each added component say its keyword out loud (in add_components order), what it does in plain words, its role in the analogy, and why it is there.`,
-    `3. one 'walkthrough' scene right after them: the core flow told once, end to end, as one short story. Say these step labels word for word, in order, each inside a natural sentence about who does what (the analogy role first, then the label as the action): ${steps}. Good: 'You type a question and the counter will send message to the manager.' Bad: 'Step one is send message.' Never number the steps out loud. End with the concrete thing the user gets back (e.g. 'a working fix in your chat'), not 'an answer'. Heading like 'one message, start to end'. About ${Math.round(L.wordsPerScene * 1.6)} words. add_components empty.`,
+    `3. one 'walkthrough' scene right after them: the core flow told once, end to end, as one short story. Say these step labels in order, each as the action of a natural sentence about who does what (the analogy role first), adding articles and verb endings as speech needs ('send message' becomes 'sends the message'): ${steps}. Good: 'You type a question, and the counter sends the message to the manager.' Bad: 'Step one is send message.' Never number the steps out loud. End with the concrete thing the user gets back (e.g. 'a working fix in your chat'), not 'an answer'. Heading like 'one message, start to end'. About ${Math.round(L.wordsPerScene * 1.6)} words. add_components empty.`,
     side.length
       ? `4. then 'layer' scene(s) for the side parts the request does not pass through: ${side.map(kw).join(", ")}. Keep them short: as few scenes as fit (at most ${L.perScene} parts per scene), one short clause per part (its keyword and plain job), opening with one tie-back to the journey such as 'Around the manager sit a few helpers:'. Do not repeat the same opener for each part.`
       : "4. (no side parts)",
@@ -146,7 +146,8 @@ export function speechIssues(plan: ScenePlan, arch: Architecture, analogy = ""):
   for (const s of plan.scenes) {
     if (s.kind !== "layer" && s.kind !== "walkthrough" && s.kind !== "scale") continue;
     const h = norm(s.heading).replace(/\s*cont$/, "").trim();
-    if (h.split(" ").length < 2 || keywords.has(h) || labels.has(h) || (an && an.includes(h))) continue;
+    // "the front desk" said aloud is a normal noun phrase; "save then work" said as a place is not
+    if (h.split(" ").length < 2 || /^(the|a|an|one|your|our|this|that)\b/.test(h) || keywords.has(h) || labels.has(h) || (an && an.includes(h))) continue;
     if (` ${norm(s.narration)} `.includes(` ${h} `)) issues.push(`${s.id}: the heading "${h}" is spoken as if it were a part; name the actual part or say it in plain words`);
   }
   return issues;
@@ -194,6 +195,7 @@ export async function polishNarration(o: { ledger: CostLedger; plan: ScenePlan; 
     "- Keep each scene within 10% of its word count.",
     "- Each scene lists 'must_say': phrases the board syncs to. Say each one, in that order, with its words in that order. You may put 'the', 'a' or 'your' between its words and change verb endings ('send message' -> 'sends the message'), nothing else.",
     "- Never read a scene heading aloud as if it were a part of the system.",
+    "- A step's verb is the sentence's only verb for that action; never pair it with a synonym ('files and saves', 'presents and shows').",
     "Part names: 'parts' lists every part's spoken name. If a name sounds awkward when spoken as a thing (for example 'computer use', a verb phrase, or an internal code name), give it a plain 1 to 3 word lowercase name in 'renames' (for example 'browser robot'), and use the new name in every scene instead of the old one. Rename only names that are genuinely awkward; most need none.",
     "Return every scene id with its rewritten narration.",
   ].join("\n");
