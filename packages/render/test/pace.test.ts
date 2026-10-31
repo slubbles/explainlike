@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import { getTheme, getLevel } from "@metual/core";
-import { textWidth, captionMismatches, compose, loadIconPack, stillGaps, shotStarts, offFrameTexts, cameraAt, boxOf, type Pace } from "../src/index.js";
+import { textWidth, captionMismatches, compose, loadIconPack, stillGaps, shotStarts, offFrameTexts, cameraAt, boxOf, readableWidth, READ_KINDS, type Pace } from "../src/index.js";
 
 const fx = new URL("./fixtures/", import.meta.url);
 const plan = JSON.parse(fs.readFileSync(new URL("example-app.plan.json", fx), "utf8"));
@@ -120,4 +120,18 @@ test("lively: no scene opens on an unchanged board for two seconds", async () =>
     if (first.t0 - open > 1.8) late.push(`${s.sceneId ?? s.id} waits ${(first.t0 - open).toFixed(1)} s`);
   }
   assert.deepEqual(late, []);
+});
+
+test("lively: a shot too wide to read a box's name never rests more than a beat", async () => {
+  const { film, timeline } = await make("lively");
+  const RW = readableWidth(film), long: string[] = [];
+  for (const s of timeline) {
+    if (!READ_KINDS.has(s.kind)) continue;
+    let run = 0;
+    for (let t = s.start; t < s.end; t += 0.1) {
+      run = cameraAt(film, t).w > RW * 1.2 ? run + 0.1 : 0;
+      if (run > 2.0) { long.push(`${s.kind} at ${t.toFixed(1)}`); break; }
+    }
+  }
+  assert.deepEqual(long, []);
 });

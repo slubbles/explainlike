@@ -1,5 +1,5 @@
 import type { Film, FElement, CamKey } from "./film.js";
-import type { Box } from "./layout.js";
+import { NODE, type Box } from "./layout.js";
 import { textWidth } from "./measure.js";
 import { cameraAt } from "./check.js";
 
@@ -11,6 +11,13 @@ import { cameraAt } from "./check.js";
  */
 export type Pace = "calm" | "lively";
 export const LIVELY = { shot: 2.7, hold: 1.2, punch: 0, push: 0.6, card: 1.0, capWords: 4, capChars: 26 };
+
+/** Smallest on-screen height, in pixels of a 1080p frame, for a box's name in a resting shot. */
+export const MIN_LABEL_PX = 26;
+/** Longest a too-wide overview may rest before the camera moves in to a readable framing. */
+export const OVERVIEW_S = 0.7;
+/** Widest view (world units) in which a box's name is still MIN_LABEL_PX tall on screen. */
+export const readableWidth = (film: { width: number; height: number }) => (NODE.kwSize * film.width * film.height) / (1080 * MIN_LABEL_PX);
 
 export interface Span { start: number; end: number; kind: string }
 
@@ -44,6 +51,12 @@ function fitView(film: Film, b: Box, minW: number): Omit<CamKey, "t" | "move"> {
   const cx = b.x + b.w / 2, cy = b.y + b.h / 2, screenCy = SAFE.top + (H - SAFE.top - SAFE.bottom) / 2;
   return { x: cx - W / s / 2, y: cy - screenCy / s, w: W / s, h: H / s };
 }
+
+/**
+ * Scenes that draw new boxes, where a wide shot must not hide their names. A walkthrough
+ * or recap shows the whole board on purpose: the moving dot or the summary is the point.
+ */
+export const READ_KINDS = new Set(["layer", "scale", "notes", "board", "establish"]);
 
 const PUNCH_KINDS = new Set(["layer", "walkthrough", "scale", "recap", "notes", "board", "establish"]);
 
@@ -170,6 +183,62 @@ export function applyPace(film: Film, scenes: Span[]) {
     // end each scene on its own framing so the next scene starts from a known view
     if (punched) { const b = homeAt(s.end - 0.6); film.camera.push({ t: s.end - 0.6, ...b, move: 0.4 }); film.camera.sort((a, b) => a.t - b.t); }
   }
+
+  // 2b. wide shots stay readable: an overview too wide to read rests for a beat, then the
+  // camera glides in to a readable framing that follows what is being drawn, or sweeps
+  // across the board when nothing new appears
+  const RW = readableWidth(film);
+  const keys = [...film.camera];
+  for (let i = 0; i < keys.length; i++) {
+    const k = keys[i];
+    if (k.w <= RW * 1.05) continue;
+    const sc = scenes.find((s) => k.t >= s.start - 0.05 && k.t < s.end);
+    if (!sc || !READ_KINDS.has(sc.kind)) continue;
+    // the last view holds until the next key, which may come after the scene ends
+    const hold = keys[i + 1]?.t ?? sc.end, end = Math.min(hold, sc.end);
+    const wide: Box = { x: k.x, y: k.y, w: k.w, h: k.h };
+    let t = k.t + k.move + OVERVIEW_S, sweep = 0;
+    const done = new Set<FElement>();
+    const shown = (until: number) => boxes.filter(({ e, b }) => e.k !== "path" && e.k !== "dot" && e.t0 < until && overlaps(b, wide));
+    while (t < end - 0.5) {
+      let tn = t + LIVELY.shot < end - 0.9 ? t + LIVELY.shot : hold;
+      // follow the pen: things drawn in this beat, in drawing order, while they fit a readable view
+      // a word must be on screen when it finishes appearing, so the view takes in everything
+      // that finishes in this beat; the beat ends early when the next thing would not fit
+      const fresh = boxes.filter(({ e, b }) => e.k !== "dot" && e.k !== "path" && !done.has(e) && e.t0 + e.dur >= t && e.t0 < tn && inside(b, wide)).sort((a, b) => a.e.t0 + a.e.dur - b.e.t0 - b.e.dur);
+      let f: Box | undefined;
+      for (const x of fresh) {
+        const u = union(f ? [f, x.b] : [x.b])!, fin = x.e.t0 + x.e.dur;
+        // the next glide (0.7 s) starts in time to arrive as the word finishes
+        const next = Math.max(t + 0.9, fin - 0.7);
+        if (f && next < Math.min(tn, end - 0.5) && (u.w > RW * 0.85 || u.h > (RW * 0.85 * film.height) / film.width)) { tn = next; break; }
+        f = u;
+        done.add(x.e);
+      }
+      const swept = !f;
+      if (!f) {
+        // nothing new: sweep across what is on screen, half the board at a time
+        const all = union(shown(tn).map((x) => x.b));
+        if (!all) break;
+        const tall = all.h / all.w > film.height / film.width, half = sweep++ % 2;
+        f = tall ? { ...all, y: all.y + (half * all.h) / 2, h: all.h / 2 } : { ...all, x: all.x + (half * all.w) / 2, w: all.w / 2 };
+      }
+      let v: Box = fitView(film, f, RW * 0.7);
+      if (swept && v.w > RW) { const cx = v.x + v.w / 2, cy = v.y + v.h / 2, h = (RW * film.height) / film.width; v = { x: cx - RW / 2, y: cy - h / 2, w: RW, h }; }
+      // a resting view should not slice a box or word in half: widen a little to take it in
+      for (let j = 0; j < 3; j++) {
+        const cut = shown(tn).filter(({ b }) => overlaps(b, v) && !inside(b, v)).map((x) => x.b);
+        if (!cut.length) break;
+        const w = union([v, ...cut])!, g = fitView(film, w, 0);
+        if (g.w > RW * 1.15) break;
+        v = g;
+      }
+      v = within(v, wide);
+      film.camera.push({ t, ...v, move: 0.7 });
+      t = tn;
+    }
+  }
+  film.camera.sort((a, b) => a.t - b.t);
 
   // 3. no dead holds: a slow push through any still stretch
   for (const s of scenes) {
