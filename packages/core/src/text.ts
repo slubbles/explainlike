@@ -53,6 +53,7 @@ const BARE_VERBS = new Set(("become turn send store read write fetch draw run ma
 const SINGULAR_DET = /^(a|an|each|every|this)$/;
 const HELPERS = /^(do|does|did|can|could|will|would|shall|should|may|might|must|to|let|lets|help|helps|helped|make|makes|made|watch|watches|see|sees|saw|hear|hears|why|not)$/;
 const NOT_ONE_THING = /^(and|or|few|couple|lot|lots|number|bunch|pair|of|plus|both|many)$/;
+const TO_OR_HELPER = /^(to|will|would|can|could|should|must|might|may|does|did|do|let|lets|helps|help|make|makes)$/;
 const NOUN_NEXT = /^(that|which|who|is|was|will|can|could|would|should|might|must|has|had)$/;
 const thirdPerson = (v: string) =>
   ({ have: "has", do: "does", go: "goes", be: "is" } as Record<string, string>)[v] ??
@@ -83,6 +84,8 @@ export function agreementSlips(text: string): { phrase: string; index: number; f
       // "a write queue that lines up", "the fix is a write queue.": a word that ends the sentence or
       // is followed by a relative pronoun or helper is the noun, not the verb
       const nounish = ends[j] || (j + 1 < words.length && NOUN_NEXT.test(words[j + 1]));
+      // "asks a concierge to run the agent": after "to" or a helper the bare form is right
+      if (TO_OR_HELPER.test(words[j - 1])) break;
       if (BARE_VERBS.has(words[j]) && !nounish && !words[j - 1].endsWith("'s") && !/,["')]?$/.test(raw[j])) {
         // "an api call return": the first of two such words is still part of the subject
         if (!ends[j] && j + 1 < words.length && BARE_VERBS.has(words[j + 1])) j++;
