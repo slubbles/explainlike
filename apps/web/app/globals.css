@@ -94,13 +94,13 @@ footer { text-align: center; color: var(--muted); font-size: 13px; padding: 56px
 .pct { display: flex; justify-content: space-between; align-items: baseline; margin-top: 4px; }
 .pct b { font-size: 28px; font-weight: 650; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
 .steps { list-style: none; margin: 16px 0 0; padding: 0; }
-.steps li { display: flex; gap: 12px; align-items: flex-start; padding: 7px 0; font-size: 14px; line-height: 1.4; color: var(--muted); }
+.steps li { display: flex; gap: 12px; align-items: flex-start; padding: 7px 0; font-size: 13px; line-height: 1.4; color: var(--muted); }
 .steps .d { flex: none; width: 18px; height: 18px; border-radius: 50%; margin-top: 1px; display: grid; place-items: center; color: var(--ink); }
 .steps .ok .d { background: var(--soft); } .steps .ok .d svg { width: 11px; height: 11px; }
 .steps .now { color: var(--ink); font-weight: 600; } .steps .now .d { border: 2px solid var(--ink); box-shadow: 0 0 0 4px var(--soft); }
 .steps .fail { color: var(--red); font-weight: 600; } .steps .fail .d { border: 2px solid var(--red); }
 .steps .todo { color: var(--faint); } .steps .todo .d { border: 1.5px solid var(--line); }
-.side .cost { margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--line); font-size: 13.5px; color: var(--muted); display: flex; justify-content: space-between; }
+.side .cost { margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--line); font-size: 13px; color: var(--muted); display: flex; justify-content: space-between; }
 .side .cost b { color: var(--ink); font-weight: 600; font-variant-numeric: tabular-nums; }
 
 /* result */
@@ -131,15 +131,14 @@ footer { text-align: center; color: var(--muted); font-size: 13px; padding: 56px
 .pts { margin: 12px 0 0; padding: 0; list-style: none; }
 .pts li { font-size: 13px; line-height: 1.5; padding: 2px 0 2px 12px; border-left: 2px solid var(--line); margin-bottom: 12px; }
 .pts li code { display: inline-block; margin-top: 5px; font-size: 11.5px; }
-.ev { margin-top: 4px; font-size: 12.5px; color: var(--muted); display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
-.ev code { font-size: 11.5px; }
+.busy { margin: 12px 0 0; font-size: 13px; color: var(--muted); }
 .btn.wide { width: 100%; margin-top: 14px; padding: 11px 16px; white-space: normal; }
 .row2 { display: flex; gap: 8px; } .row2 .btn { flex: 1; }
 .clip { display: flex; gap: 12px; align-items: center; } .clip + .clip { margin-top: 14px; }
 .clip .screen { width: 128px; flex: none; border-radius: 8px; box-shadow: 0 0 0 1px rgba(0,0,0,.06); }
 .clip .mini { position: absolute; inset: 0; display: grid; place-items: center; } .clip .mini .bar { width: 70%; height: 4px; background: #1d1f24; }
 .clip b { font-size: 13.5px; font-weight: 600; display: block; }
-.clip span { font-size: 12.5px; color: var(--muted); } .clip span a { color: var(--ink); font-weight: 500; text-decoration: underline; text-underline-offset: 2px; }
+.clip span { font-size: 12px; color: var(--muted); } .clip span a { color: var(--ink); font-weight: 500; text-decoration: underline; text-underline-offset: 2px; }
 
 /* responsive */
 @media (max-width: 1180px) {
