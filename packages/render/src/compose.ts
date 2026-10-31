@@ -255,16 +255,26 @@ function followShots(ev: { t: number; box: Box; wide: Box }[], start: number, en
   let shots: { t: number; box: Box; first: number }[] = [], best = Infinity;
   for (let mask = 0; n > 0 && mask < 1 << (n - 1); mask++) {
     const cand: { t: number; box: Box; first: number }[] = [];
-    let ok = true, late = 0;
-    for (let i = 0; i < n && ok; i++) {
+    for (let i = 0; i < n; i++) {
       const cut = i === 0 || (mask >> (i - 1)) & 1;
       if (!cut) { const cur = cand[cand.length - 1], u = unionBox([cur.box, ev[i].wide], 0); cur.box = span(u) <= span(unionBox([cur.box, ev[i].box], 0)) * 1.25 ? u : unionBox([cur.box, ev[i].box], 0); continue; }
-      const t = i === 0 ? start : Math.max(ev[i].t - tempo.move - 0.15, cand[cand.length - 1].t + tempo.minBeat);
+      cand.push({ t: start, box: ev[i].box, first: i });
+    }
+    // each cut lands one move before its first event, a full beat after the cut before it,
+    // and never before the last event of the shot before it has been drawn for a moment
+    const lo = (k: number) => Math.max(cand[k - 1].t + tempo.minBeat, ev[cand[k].first - 1].t + 1.2);
+    for (let k = 1; k < cand.length; k++) cand[k].t = Math.max(ev[cand[k].first].t - tempo.move - 0.15, lo(k));
+    // the last shot must still hold a full beat: pull the cuts earlier where there is room (the camera then
+    // arrives a little before the voice reaches it, which reads better than a cramped last shot)
+    let cap = end - tempo.minBeat;
+    for (let k = cand.length - 1; k >= 1; k--) { if (cand[k].t > cap) cand[k].t = cap; cap = cand[k].t - tempo.minBeat; }
+    let ok = true, late = 0;
+    for (let k = 1; k < cand.length && ok; k++) {
+      const e = ev[cand[k].first], t = cand[k].t;
       // a shot may settle up to 2 s (2.6 at the slow tempo) after its first event was due; the caller holds that drawing until it has
       // (a late drawing costs, so a shot that keeps pace with the voice wins a tie)
-      ok = i === 0 || (t + tempo.move <= ev[i].t + Math.max(2.0, tempo.minBeat - 2.2) && t + tempo.minBeat <= end);
-      if (i > 0) late += Math.max(0, t + tempo.move - ev[i].t);
-      cand.push({ t, box: ev[i].box, first: i });
+      ok = t >= lo(k) - 1e-6 && t + tempo.move <= e.t + Math.max(2.0, tempo.minBeat - 2.2) && t + tempo.minBeat <= end + 1e-6;
+      late += Math.max(0, t + tempo.move - e.t);
     }
     if (!ok) continue;
     const score = Math.max(...cand.map((c) => span(c.box))) + cand.length * 40 + late * 300;
