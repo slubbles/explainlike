@@ -30,6 +30,12 @@ const HELP = `explainlike <github-url | local-repo-dir | x.com post url | articl
   --no-music                               no music bed (by default a quiet original bed sits 22 dB under the voice)
   --vision-review                          also show 8 rendered frames to Muse Spark for a look-over (costs a little; off by default)
 
+what the viewer wants (the web app's voice chat fills these in):
+  --goal <text>                            what they want to understand
+  --audience <text>                        who it is for
+  --depth <overview|working|deep>          how deep to go
+  --also <text>                            anything else to cover
+
 follow-ups on an earlier repo run (same input, new --out):
   --from <earlier out dir>                 reuse that run's diagram
   --focus <component id>                   15-20 s deep dive on one box
@@ -53,10 +59,14 @@ const started = Date.now();
 const whatIf = opt("--what-if");
 if (argv.includes("--export")) process.stderr.write("--export is no longer needed: every run writes both a .tldr and an .excalidraw board\n");
 if (whatIf && whatIf !== "10x" && whatIf !== "100x") { process.stderr.write("--what-if takes 10x or 100x\n"); process.exit(1); }
+const depth = opt("--depth");
+if (depth && !["overview", "working", "deep"].includes(depth)) { process.stderr.write("--depth takes overview, working or deep\n"); process.exit(1); }
+const ask = { goal: opt("--goal"), audience: opt("--audience"), depth: depth as "overview" | "working" | "deep" | undefined, also: opt("--also") };
 runExplainLike({
   from: opt("--from") && path.resolve(opt("--from")!), focus: opt("--focus"), whatIf: whatIf as "10x" | "100x" | undefined,
   input: fs.existsSync(input) ? path.resolve(input) : input,
   out: opt("--out") && path.resolve(opt("--out")!), name: opt("--name"), voice: opt("--voice"),
+  ask: Object.values(ask).some(Boolean) ? ask : undefined,
   packs: argv.includes("--no-packs") ? [] : [...many("--pack"), ...many("--icons")].length ? [...many("--pack"), ...many("--icons")].map((d) => (fs.existsSync(d) ? path.resolve(d) : d)) : undefined, fresh: argv.includes("--fresh"), workers: opt("--workers") ? Number(opt("--workers")) : undefined, qa: !argv.includes("--no-qa"), music: !argv.includes("--no-music"), visionReview: argv.includes("--vision-review"),
   progress: (e) => {
     if (json) process.stdout.write(JSON.stringify({ type: "progress", ...e }) + "\n");

@@ -107,3 +107,10 @@ test("missing articles before common nouns are caught", async () => {
   assert.deepEqual(missingArticles("The guest will send message to manager, then we run agent."), ["send message", "run agent", "to manager"]);
   assert.deepEqual(missingArticles("The guest sends a message to the manager, who saves messages and runs the agent."), []);
 });
+
+test("what the viewer asked for reaches the script", () => {
+  const v = specFromBrief(DEFAULT_BRIEF, { goal: "how a message flows through it", also: "where chats are saved" }).voice;
+  assert.match(v, /asked to understand: how a message flows through it/);
+  assert.match(v, /also asked to cover: where chats are saved/);
+  assert.doesNotMatch(specFromBrief(DEFAULT_BRIEF).voice, /asked/);
+});
