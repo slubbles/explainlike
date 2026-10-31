@@ -12,5 +12,5 @@ export function validInput(s: string): boolean {
     return !/^(localhost|127\.|10\.|192\.168\.|169\.254\.|172\.(1[6-9]|2\d|3[01])\.|100\.(6[4-9]|[7-9]\d|1[01]\d|12[0-7])\.|0\.|\[|.*\.localhost$|.*\.local$|.*\.internal$)/i.test(h) && h.includes(".");
   }
   // local paths only when explicitly allowed (self-hosted use)
-  return process.env.METUAL_ALLOW_LOCAL === "1" && path.isAbsolute(s) && fs.existsSync(s);
+  return process.env.EXPLAINLIKE_ALLOW_LOCAL === "1" && path.isAbsolute(s) && fs.existsSync(s);
 }

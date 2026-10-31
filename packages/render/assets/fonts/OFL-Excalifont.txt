@@ -3,7 +3,7 @@ Copyright (c) 2024 by Excalidraw. All rights reserved.
 Excalifont is a trademark of Excalidraw.
 Designers: Your Own Font Foundry (Virgil); Ján Filípek / DizajnDesign (Excalifont, modifications)
 Origin: https://github.com/excalidraw/excalidraw (packages/excalidraw/fonts/Excalifont), Latin subset.
-Metual redistributes it unmodified apart from WOFF2 -> TTF container conversion.
+Explain Like redistributes it unmodified apart from WOFF2 -> TTF container conversion.
 
 This Font Software is licensed under the SIL Open Font License, Version 1.1.
 This license is copied below, and is also available with a FAQ at:

@@ -1,11 +1,11 @@
 import fs from "node:fs";
 import path from "node:path";
-import { getLevel, getTheme, type Architecture, type Level, type Progress, type SceneAudio, type ScenePlan, type SourceDoc } from "@metual/core";
-import { CostLedger, museTranscribe } from "@metual/models";
-import { ingestRepo } from "@metual/ingest";
-import { extractArchitecture, validateArchitecture, evidencePack, reviewArchitecture, reviseArchitecture, planRepoScenes, planFocus, planWhatIf, kindColor } from "@metual/planner";
-import { pickVoice, wordOverlap, DeepgramVoice, type VoiceProvider } from "@metual/voice";
-import { captionMismatches, loadIconPack, mergePacks, builtinPackIds, detectComponents, packHints, type DetectedComponent, iconCatalog, resolveIcon, compose, captureFrames, mixNarration, encodeMp4, contactSheet, toExcalidraw, toTldraw, type IconPack, type SourceShot } from "@metual/render";
+import { getLevel, getTheme, type Architecture, type Level, type Progress, type SceneAudio, type ScenePlan, type SourceDoc } from "@explainlike/core";
+import { CostLedger, museTranscribe } from "@explainlike/models";
+import { ingestRepo } from "@explainlike/ingest";
+import { extractArchitecture, validateArchitecture, evidencePack, reviewArchitecture, reviseArchitecture, planRepoScenes, planFocus, planWhatIf, kindColor } from "@explainlike/planner";
+import { pickVoice, wordOverlap, DeepgramVoice, type VoiceProvider } from "@explainlike/voice";
+import { captionMismatches, loadIconPack, mergePacks, builtinPackIds, detectComponents, packHints, type DetectedComponent, iconCatalog, resolveIcon, compose, captureFrames, mixNarration, encodeMp4, contactSheet, toExcalidraw, toTldraw, type IconPack, type SourceShot } from "@explainlike/render";
 
 export interface RunOptions {
   input: string;
@@ -45,7 +45,7 @@ export function detectKind(input: string): "repo" | "x-post" | "article" {
   return "article";
 }
 
-export async function runMetual(o: RunOptions) {
+export async function runExplainLike(o: RunOptions) {
   const level = getLevel(o.level ?? "new");
   const theme = getTheme(o.theme);
   const ledger = new CostLedger();
@@ -82,7 +82,7 @@ export async function runMetual(o: RunOptions) {
     const name = o.name ?? r.title;
     // a local checkout shows its folder name, never the path on this machine
     sourceLabel = o.name ? `github.com/${o.name}` : /^https?:\/\//.test(r.url) ? r.url.replace(/^https?:\/\//, "") : path.basename(r.url);
-    out = o.out ?? path.resolve("metual-out", slug(name) + "-" + level.id);
+    out = o.out ?? path.resolve("explainlike-out", slug(name) + "-" + level.id);
     fs.mkdirSync(out, { recursive: true });
     notes.push(`digest: ${r.digest.files.length} files, ${r.digest.text.length} chars; ${r.digest.skippedSecret.length} secret-looking files never opened`);
     detected = detectComponents(extra, r.digest.files, (f) => r.digest.read(f, 60_000));
@@ -144,14 +144,14 @@ export async function runMetual(o: RunOptions) {
     }
     repoDir = r.repoDir;
   } else {
-    const { ingestConcept } = await import("@metual/ingest");
-    const { planConceptScenes } = await import("@metual/planner");
+    const { ingestConcept } = await import("@explainlike/ingest");
+    const { planConceptScenes } = await import("@explainlike/planner");
     P({ stage: "ingest", message: kind === "x-post" ? "reading the post" : "reading the article", pct: 2 });
-    const tmpOut = o.out ?? path.resolve("metual-out", "tmp-" + Date.now());
+    const tmpOut = o.out ?? path.resolve("explainlike-out", "tmp-" + Date.now());
     fs.mkdirSync(tmpOut, { recursive: true });
     const c = await ingestConcept(o.input, tmpOut);
     doc = c.doc;
-    out = o.out ?? path.resolve("metual-out", slug(o.name ?? doc.title) + "-" + level.id);
+    out = o.out ?? path.resolve("explainlike-out", slug(o.name ?? doc.title) + "-" + level.id);
     if (out !== tmpOut) { fs.mkdirSync(path.dirname(out), { recursive: true }); fs.rmSync(out, { recursive: true, force: true }); fs.renameSync(tmpOut, out); }
     sourceLabel = doc.url.replace(/^https?:\/\/(www\.)?/, "").slice(0, 60);
     plan = await cacheJson(path.join(out, "plan.json"), () => {
@@ -185,7 +185,7 @@ export async function runMetual(o: RunOptions) {
   const bad = captionMismatches(film, plan.scenes);
   if (bad.length) throw new Error(`captions do not match the narration in ${bad.map((b) => `${b.scene}: said "${b.said}" but shown "${b.shown}"`).join("; ")}`);
   fs.writeFileSync(path.join(out, "film.json"), JSON.stringify({ ...film, fonts: undefined, elements: film.elements.length }, null, 1));
-  const base = slug(o.name ?? plan.title) || "metual";
+  const base = slug(o.name ?? plan.title) || "explainlike";
   // the editable board: a .tldr file by default, or .excalidraw when asked
   const exportAs = o.export ?? "tldr";
   const board = exportAs === "excalidraw"
@@ -236,7 +236,7 @@ export async function runMetual(o: RunOptions) {
 
   const voiceUsd = voice instanceof DeepgramVoice ? voice.usd : 0;
   const manifest = {
-    tool: "metual", input: o.input, kind, level: level.id, repoDir, followUp: o.focus ? { focus: o.focus } : o.whatIf ? { whatIf: o.whatIf } : undefined, theme: theme.id, packs: { loaded: extra.map((p) => p.id), detected: detected.map((d) => ({ pack: d.pack, id: d.component.id, name: d.component.name, evidence: d.evidence })) }, title: plan.title, durationSec: Number(film.duration.toFixed(1)),
+    tool: "explainlike", input: o.input, kind, level: level.id, repoDir, followUp: o.focus ? { focus: o.focus } : o.whatIf ? { whatIf: o.whatIf } : undefined, theme: theme.id, packs: { loaded: extra.map((p) => p.id), detected: detected.map((d) => ({ pack: d.pack, id: d.component.id, name: d.component.name, evidence: d.evidence })) }, title: plan.title, durationSec: Number(film.duration.toFixed(1)),
     outputs: { mp4, [exportAs]: boardFile, contactSheet: sheet, plan: path.join(out, "plan.json"), architecture: arch ? path.join(out, "architecture.json") : undefined },
     scenes: timeline, repairs: plan.repairs ?? [], notes, qa,
     // captions that found no fully free spot (empty when every caption clears the drawing)

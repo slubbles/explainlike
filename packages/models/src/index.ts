@@ -1,16 +1,16 @@
 /**
  * Thin client for the Meta Model API (https://api.meta.ai/v1).
- * Models used by Metual:
+ * Models used by Explain Like:
  *  - muse-spark-1.3        planning, architecture extraction, review passes (structured JSON)
  *  - muse-image-1.0        doodle icons for the whiteboard
  *  - sam-3.1               finds the drawn object so icons are cropped cleanly
  *  - muse-voice-transcribe-1.0  checks the voiceover says what the script says
  */
 import { z } from "zod";
-import { strictJsonSchema, type CostEntry } from "@metual/core";
+import { strictJsonSchema, type CostEntry } from "@explainlike/core";
 
 const BASE = process.env.META_API_BASE ?? "https://api.meta.ai/v1";
-export const SPARK = process.env.METUAL_SPARK_MODEL ?? "muse-spark-1.3";
+export const SPARK = process.env.EXPLAINLIKE_SPARK_MODEL ?? "muse-spark-1.3";
 export const IMAGE = "muse-image-1.0";
 export const SAM = "sam-3.1";
 export const TRANSCRIBE = "muse-voice-transcribe-1.0";

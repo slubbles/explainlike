@@ -1,4 +1,4 @@
-# metual
+# Explain Like
 
 Paste a GitHub repo, an X post or an article. Get a **whiteboard explainer video** (mp4) and an **editable board** of it (a `.tldr` file you open at tldraw.com).
 
@@ -8,13 +8,13 @@ Paste a GitHub repo, an X post or an article. Get a **whiteboard explainer video
 - **Levels**: explain it like I'm 5, I'm new, I'm interviewing, or I'm senior. Interviewing adds requirements, a back-of-envelope estimate and trade-offs; senior adds failure modes, consistency and cost. Every assumed number is tagged as an estimate on screen.
 - **Interactive**: in the web app, tap any box for a grounded explanation, get a 15-20 s deep-dive clip on it, or ask "what if 10x traffic?".
 
-### Metual explaining Metual
+### Explain Like explaining Explain Like
 
-This is Metual run on its own repo (`--level new`, $0.15 of Muse Spark and $0.04 of voice), in the default `pen-light` look:
+This is Explain Like run on its own repo (`--level new`, $0.15 of Muse Spark and $0.04 of voice), in the default `pen-light` look:
 
-![Metual drawing its own architecture](docs/media/metual-self.gif)
+![Explain Like drawing its own architecture](docs/media/explainlike-self.gif)
 
-![contact sheet of the self-diagram video](docs/media/metual-self.contact.jpg)
+![contact sheet of the self-diagram video](docs/media/explainlike-self.contact.jpg)
 
 The older black `caleb-dark` look and the plainer `whiteboard-light` look are one flag away (`--theme caleb-dark`). The same pipeline at `--level interviewing`, on a small music app (karpathy/minbpe), with back-of-envelope numbers and what breaks at 10x and 100x:
 
@@ -27,17 +27,17 @@ Powered by Meta Muse models (Muse Spark for reading and planning, Muse Transcrib
 ```bash
 pnpm install
 cp .env.example .env        # add MODEL_API_KEY, optionally DEEPGRAM_API_KEY
-npx playwright-core install chromium   # or set METUAL_CHROME to an installed Chrome
+npx playwright-core install chromium   # or set EXPLAINLIKE_CHROME to an installed Chrome
 
 # a repo (GitHub URL or local path)
-node packages/cli/bin/metual.mjs https://github.com/umami-software/umami --level new
+node packages/cli/bin/explainlike.mjs https://github.com/umami-software/umami --level new
 # an article or X post
-node packages/cli/bin/metual.mjs https://blog.vllm.ai/2023/06/20/vllm.html --level five
+node packages/cli/bin/explainlike.mjs https://blog.vllm.ai/2023/06/20/vllm.html --level five
 ```
 
 Needs Node 20+, ffmpeg on PATH, and Chrome/Chromium.
 
-Outputs land in `metual-out/<name>-<level>/`:
+Outputs land in `explainlike-out/<name>-<level>/`:
 
 | file | what |
 | --- | --- |
@@ -51,7 +51,7 @@ Outputs land in `metual-out/<name>-<level>/`:
 ### CLI options
 
 ```
-metual <github-url | local-repo-dir | x.com post url | article url> [options]
+explainlike <github-url | local-repo-dir | x.com post url | article url> [options]
   --level <five|new|interviewing|senior>   default new
   --level-file <file.json>                 your own level (see docs/plugins.md)
   --theme <pen-light|caleb-dark|whiteboard-light>   default pen-light
@@ -71,7 +71,7 @@ metual <github-url | local-repo-dir | x.com post url | article url> [options]
 follow-ups on an earlier repo run (same input, new --out):
   --from <earlier out dir> --focus <component id>   15-20 s deep dive on one box
   --from <earlier out dir> --what-if <10x|100x>     what breaks if traffic grows
-metual explain --from <earlier out dir> --component <id>   text explanation of one box
+explainlike explain --from <earlier out dir> --component <id>   text explanation of one box
 ```
 
 Every run prints its spend (Meta models and voice, in USD) and writes it to `manifest.json`; with `--json` the running total comes with every progress event.
@@ -79,7 +79,7 @@ Every run prints its spend (Meta models and voice, in USD) and writes it to `man
 ## Web app
 
 ```bash
-pnpm --filter @metual/web build && pnpm --filter @metual/web start   # http://localhost:3000
+pnpm --filter @explainlike/web build && pnpm --filter @explainlike/web start   # http://localhost:3000
 ```
 
 Paste a link, pick a level, and watch progress with a live cost meter. When it finishes:
@@ -88,20 +88,20 @@ Paste a link, pick a level, and watch progress with a live cost meter. When it f
 - **What if 10x traffic?** renders a follow-up clip that circles what breaks and draws the fix. Every number in it is labelled as an assumption.
 - **Download .tldr**: save the board file and open it at tldraw.com to keep editing (steps below).
 
-Jobs are written to disk (`METUAL_JOBS_DIR`, default `metual-out/web`), so they survive restarts. URLs pointing at private networks are refused, and local paths are only accepted with `METUAL_ALLOW_LOCAL=1`.
+Jobs are written to disk (`EXPLAINLIKE_JOBS_DIR`, default `explainlike-out/web`), so they survive restarts. URLs pointing at private networks are refused, and local paths are only accepted with `EXPLAINLIKE_ALLOW_LOCAL=1`.
 
 ### Deploying it safely
 
 It is not deployed publicly on purpose: every job spends the operator's API credits. Before putting it on the internet you need:
 
-- `METUAL_DEMO_ONLY=1` to only play example videos, **or** bring-your-own-key: users paste their own Meta / Deepgram keys, which are used per request and never stored. BYO key is not built yet.
-- Rate limits: `METUAL_JOBS_PER_HOUR` (default 20) and one running job at a time are built in. Per-IP limits and auth are not.
+- `EXPLAINLIKE_DEMO_ONLY=1` to only play example videos, **or** bring-your-own-key: users paste their own Meta / Deepgram keys, which are used per request and never stored. BYO key is not built yet.
+- Rate limits: `EXPLAINLIKE_JOBS_PER_HOUR` (default 20) and one running job at a time are built in. Per-IP limits and auth are not.
 - SSRF: the hostname check blocks private ranges, but it does not resolve DNS, so a public name pointing at a private IP (DNS rebinding) would get through. Resolve and re-check the IP before fetching, or run ingest in a sandbox with no internal network.
 - Isolation: clone and render in a throwaway sandbox (repos are untrusted input), with disk and time limits.
 
 ## Keep editing the board
 
-Every run saves `<name>.tldr` next to the video. It is written by Metual's own exporter from tldraw's public file format. No tldraw SDK or code is bundled, Metual uses no tldraw logo or branding, and Metual itself stays MIT.
+Every run saves `<name>.tldr` next to the video. It is written by Explain Like's own exporter from tldraw's public file format. No tldraw SDK or code is bundled, Explain Like uses no tldraw logo or branding, and Explain Like itself stays MIT.
 
 1. Go to [tldraw.com](https://www.tldraw.com) and sign in (free; importing files needs an account).
 2. Open the account menu and choose **Import file…**, then pick the `.tldr`. Dragging the file onto the canvas works too.
@@ -119,7 +119,7 @@ packages/
   planner  architecture extraction -> validation against real files -> review pass -> revise; scene planning per level
   voice    Deepgram Aura TTS + Nova word timestamps (cached), or silent timing
   render   elk layout -> rough.js strokes (marker-pen outlines via perfect-freehand) -> one SVG world with camera keyframes -> Playwright frames -> ffmpeg; .tldr and .excalidraw export
-  cli      `metual` command and the pipeline
+  cli      `explainlike` command and the pipeline
 apps/web   Next.js front end
 ```
 
@@ -142,7 +142,7 @@ pnpm typecheck
 
 ## Honest notes
 
-- Article screenshots are a reader view that Metual renders itself (title, byline and the paragraphs that hold the quotes), not a capture of the original site. X posts are rendered as Metual's own card from public post data. Neither uses X's or any site's branding.
+- Article screenshots are a reader view that Explain Like renders itself (title, byline and the paragraphs that hold the quotes), not a capture of the original site. X posts are rendered as Explain Like's own card from public post data. Neither uses X's or any site's branding.
 - Repo understanding comes from a digest of the repo (tree, manifests, entry points, configs), not the whole codebase; the review pass and the "no box without file evidence" rule keep it honest, but very large monorepos get simplified.
 - Voiceover QA transcribes the final narration with Muse Transcribe and reports word overlap with the script in `manifest.json`.
 

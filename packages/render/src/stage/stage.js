@@ -1,4 +1,4 @@
-// Metual stage: draws any frame of a Film deterministically. window.render(t) seeks.
+// Explain Like stage: draws any frame of a Film deterministically. window.render(t) seeks.
 (function () {
   const F = window.FILM;
   const NS = "http://www.w3.org/2000/svg";
@@ -68,7 +68,7 @@
       tx.setAttribute("font-size", e.size);
       tx.setAttribute("fill", e.color);
       tx.setAttribute("text-anchor", e.anchor || "start");
-      tx.setAttribute("font-family", e.font === "sans" ? "MetualSans" : "Excalifont");
+      tx.setAttribute("font-family", e.font === "sans" ? "ExplainSans" : "Excalifont");
       if (e.weight) tx.setAttribute("font-weight", e.weight);
       g.appendChild(tx);
       it.tx = tx;

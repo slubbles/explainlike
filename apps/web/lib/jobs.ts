@@ -19,13 +19,13 @@ export interface Job {
 }
 
 const ROOT = path.resolve(process.cwd(), "../..");
-export const JOBS_DIR = process.env.METUAL_JOBS_DIR ?? path.join(ROOT, "metual-out", "web");
+export const JOBS_DIR = process.env.EXPLAINLIKE_JOBS_DIR ?? path.join(ROOT, "explainlike-out", "web");
 const ID = /^[a-f0-9]{12}$/;
 const LEVELS = new Set(["five", "new", "interviewing", "senior"]);
 
 // Jobs live on disk (one job.json per folder) so they survive a server restart.
-const g = globalThis as unknown as { __metualJobs?: Map<string, Job> };
-const jobs: Map<string, Job> = (g.__metualJobs ??= loadJobs());
+const g = globalThis as unknown as { __explainlikeJobs?: Map<string, Job> };
+const jobs: Map<string, Job> = (g.__explainlikeJobs ??= loadJobs());
 
 function loadJobs(): Map<string, Job> {
   const m = new Map<string, Job>();
@@ -54,16 +54,16 @@ function save(job: Job, soon = false) {
 // ---- guard rails for any shared deployment: one render at a time, a per-client hourly cap, an optional demo-only switch
 const recent = new Map<string, number[]>();
 export function admit(client: string): string | undefined {
-  if (process.env.METUAL_DEMO_ONLY === "1") return "This demo only plays example videos. Run Metual locally with your own keys to make new ones.";
+  if (process.env.EXPLAINLIKE_DEMO_ONLY === "1") return "This demo only plays example videos. Run Explain Like locally with your own keys to make new ones.";
   if ([...jobs.values()].some((j) => j.state === "running")) return "Another video is drawing right now. Try again in a minute.";
-  const cap = Number(process.env.METUAL_JOBS_PER_HOUR ?? 20);
+  const cap = Number(process.env.EXPLAINLIKE_JOBS_PER_HOUR ?? 20);
   const now = Date.now(), hits = (recent.get(client) ?? []).filter((t) => now - t < 3600_000);
   if (hits.length >= cap) return "Hourly limit reached for this client.";
   recent.set(client, [...hits, now]);
   return undefined;
 }
 
-const CLI = () => path.join(ROOT, "packages/cli/bin/metual.mjs");
+const CLI = () => path.join(ROOT, "packages/cli/bin/explainlike.mjs");
 
 function run(job: Job, args: string[]) {
   const child = spawn(process.execPath, [CLI(), ...args, "--json"], { cwd: ROOT, env: process.env, stdio: ["ignore", "pipe", "pipe"] });

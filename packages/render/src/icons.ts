@@ -3,7 +3,7 @@ import path from "node:path";
 import os from "node:os";
 import sharp from "sharp";
 import { fileURLToPath } from "node:url";
-import { museImage, samDetect, type CostLedger } from "@metual/models";
+import { museImage, samDetect, type CostLedger } from "@explainlike/models";
 
 /**
  * Icon packs are a plugin point. A pack is a folder with manifest.json:
@@ -175,4 +175,4 @@ export async function keyToAlpha(png: Buffer, crop?: { left: number; top: number
 }
 
 /** Cache for icons generated on demand (names not in the pack). */
-export const ICON_CACHE = process.env.METUAL_ICON_CACHE ?? path.join(os.homedir(), ".cache", "metual", "icons");
+export const ICON_CACHE = process.env.EXPLAINLIKE_ICON_CACHE ?? path.join(os.homedir(), ".cache", "explainlike", "icons");

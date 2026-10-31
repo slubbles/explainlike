@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { Architecture, NoteItem, LevelSpec, listLevels, getLevel, registerLevel, getTheme, registerTheme, listThemes, isKeyword, quoteInSource, strictJsonSchema, agreementSlips, tidySpeech, soundsLikeKeywords } from "@metual/core";
+import { Architecture, NoteItem, LevelSpec, listLevels, getLevel, registerLevel, getTheme, registerTheme, listThemes, isKeyword, quoteInSource, strictJsonSchema, agreementSlips, tidySpeech, soundsLikeKeywords } from "@explainlike/core";
 
 test("the four built-in levels load from their JSON config", () => {
   assert.deepEqual(listLevels().map((l) => l.id).sort(), ["five", "interviewing", "new", "senior"]);
@@ -61,7 +61,7 @@ test("keywords are 1-3 lowercase words; quotes match with small edits only", () 
 });
 
 test("narration is tidied mechanically before it is voiced", async () => {
-  const { tidySpeech } = await import("@metual/core");
+  const { tidySpeech } = await import("@explainlike/core");
   assert.equal(tidySpeech("  the  the cache holds rows ,then  drops them. at 10x traffic, writes queue up"), "The cache holds rows, then drops them. At 10x traffic, writes queue up.");
   assert.equal(tidySpeech("Use a queue, e.g. a durable one. it said that that was fine!"), "Use a queue, e.g. a durable one. It said that that was fine!");
   assert.equal(tidySpeech("How does a pasted link become a video?"), "How does a pasted link become a video?");

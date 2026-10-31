@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import type { Architecture, NoteItem } from "@metual/core";
-import { validateNotes, validateArchitecture } from "@metual/planner";
+import type { Architecture, NoteItem } from "@explainlike/core";
+import { validateNotes, validateArchitecture } from "@explainlike/planner";
 
 const item = (text: string, extra: Partial<NoteItem> = {}): NoteItem => ({ text, color: "white", icon: "", target: "", estimate: false, evidence: "", ...extra });
 const ids = new Set(["d1-db", "edge"]);

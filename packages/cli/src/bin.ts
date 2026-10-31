@@ -1,8 +1,8 @@
 import fs from "node:fs";
 import path from "node:path";
-import { listLevels, listThemes, loadLevelFile, type Level } from "@metual/core";
-import { runMetual } from "./pipeline.js";
-import { builtinPackIds } from "@metual/render";
+import { listLevels, listThemes, loadLevelFile, type Level } from "@explainlike/core";
+import { runExplainLike } from "./pipeline.js";
+import { builtinPackIds } from "@explainlike/render";
 
 // load .env from the working directory without printing anything
 for (const f of [".env", ".env.local"]) {
@@ -13,11 +13,11 @@ for (const f of [".env", ".env.local"]) {
   }
 }
 
-const HELP = `metual <github-url | local-repo-dir | x.com post url | article url> [options]
+const HELP = `explainlike <github-url | local-repo-dir | x.com post url | article url> [options]
 
   --level <five|new|interviewing|senior>   explain like I'm 5 / I'm new / I'm interviewing / a senior (default new)
   --theme <${listThemes().join("|")}>      (default pen-light)
-  --out <dir>                              output folder (default ./metual-out/<name>-<level>)
+  --out <dir>                              output folder (default ./explainlike-out/<name>-<level>)
   --name <owner/repo>                      display name (useful for local folders)
   --voice <deepgram|silent>                default: deepgram when DEEPGRAM_API_KEY is set
   --pack <id|dir>                          icon/component pack: built-in ${builtinPackIds().join(", ")} or a folder (repeatable;
@@ -36,7 +36,7 @@ follow-ups on an earlier repo run (same input, new --out):
   --focus <component id>                   15-20 s deep dive on one box
   --what-if <10x|100x>                     what breaks if traffic grows (every number labelled as an assumption)
 
-metual explain --from <earlier out dir> --component <id> [--json]
+explainlike explain --from <earlier out dir> --component <id> [--json]
                                            text explanation of one box, grounded in its evidence files
 `;
 
@@ -60,7 +60,7 @@ if (pace !== "lively" && pace !== "calm") { process.stderr.write("--pace takes l
 const exportAs = opt("--export") ?? "tldr";
 if (exportAs !== "tldr" && exportAs !== "excalidraw") { process.stderr.write("--export takes tldr or excalidraw\n"); process.exit(1); }
 if (whatIf && whatIf !== "10x" && whatIf !== "100x") { process.stderr.write("--what-if takes 10x or 100x\n"); process.exit(1); }
-runMetual({
+runExplainLike({
   from: opt("--from") && path.resolve(opt("--from")!), focus: opt("--focus"), whatIf: whatIf as "10x" | "100x" | undefined,
   input: fs.existsSync(input) ? path.resolve(input) : input,
   level, theme: opt("--theme"), out: opt("--out") && path.resolve(opt("--out")!), name: opt("--name"), voice: opt("--voice"),
@@ -74,14 +74,14 @@ runMetual({
   else process.stdout.write(`\nvideo      ${m.outputs.mp4}\nboard      ${m.outputs.tldr ?? m.outputs.excalidraw}\nsheet      ${m.outputs.contactSheet}\nmeta spend $${m.cost.metaUsd.toFixed(3)}  voice $${m.cost.voiceUsd.toFixed(3)}  (${m.seconds}s)\n`);
 }).catch((e) => {
   if (json) process.stdout.write(JSON.stringify({ type: "error", message: String(e?.message ?? e) }) + "\n");
-  else process.stderr.write(`metual failed: ${e?.stack ?? e}\n`);
+  else process.stderr.write(`explainlike failed: ${e?.stack ?? e}\n`);
   process.exit(1);
 });
 
 async function explain() {
-  const { CostLedger } = await import("@metual/models");
-  const { explainComponent, evidencePack } = await import("@metual/planner");
-  const { digestRepo } = await import("@metual/ingest");
+  const { CostLedger } = await import("@explainlike/models");
+  const { explainComponent, evidencePack } = await import("@explainlike/planner");
+  const { digestRepo } = await import("@explainlike/ingest");
   const from = opt("--from"), id = opt("--component");
   const out = (o: unknown) => { process.stdout.write(JSON.stringify(o) + "\n"); process.exit(0); };
   try {

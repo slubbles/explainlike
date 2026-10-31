@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import rough from "roughjs";
-import { agreementSlips } from "@metual/core";
-import type { Architecture, ScenePlan, Scene, SceneAudio, Theme, LevelSpec, Color, WordTiming, NoteItem } from "@metual/core";
+import { agreementSlips } from "@explainlike/core";
+import type { Architecture, ScenePlan, Scene, SceneAudio, Theme, LevelSpec, Color, WordTiming, NoteItem } from "@explainlike/core";
 import type { Film, FElement, CamKey, Caption, Heading } from "./film.js";
 import { applyPace, LIVELY, type Pace } from "./pace.js";
 import { layoutGraph, unionBox, shiftLayout, wrapText, NODE, type Box, type GNode, type GEdge, type Layout, type PlacedNode, type PlacedEdge } from "./layout.js";
@@ -299,7 +299,7 @@ export function captionsFor(scene: string, words: WordTiming[], offset: number, 
     const len = j - i + 1, chars = text(i, j).length;
     if (len > 1 && (len > maxWords + 3 || chars > maxChars + 8)) return Infinity;
     let c = 2 * Math.max(0, len - maxWords) + 0.5 * Math.max(0, chars - maxChars);
-    // a sentence ending inside the phrase ("pipeline. Metual.") only when the phrase is a single word long otherwise
+    // a sentence ending inside the phrase ("pipeline. Explain Like.") only when the phrase is a single word long otherwise
     for (let k = i; k < j; k++) if (/[.!?]$/.test(words[k].word)) c += k === i ? 5 : 50;
     const whole = (i === 0 || /[.!?]$/.test(words[i - 1].word)) && (j === n - 1 || /[.!?]$/.test(words[j].word));
     if (len === 1 && !whole) c += 6;
@@ -776,7 +776,7 @@ export async function compose(inp: ComposeInput): Promise<Composed> {
     T += D;
   }
 
-  const brand = "<b>metual</b>";
+  const brand = "Explain Like";
   const film: Film = {
     width: W, height: H, fps: FPS, duration: T + 4.2,
     theme: { background: theme.background, ink: theme.ink, accent: theme.accent, caption: theme.caption },

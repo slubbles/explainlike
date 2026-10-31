@@ -8,13 +8,13 @@ importers:
 
   .:
     devDependencies:
-      '@metual/core':
+      '@explainlike/core':
         specifier: workspace:^
         version: link:packages/core
-      '@metual/models':
+      '@explainlike/models':
         specifier: workspace:^
         version: link:packages/models
-      '@metual/render':
+      '@explainlike/render':
         specifier: workspace:^
         version: link:packages/render
       '@types/node':
@@ -51,22 +51,22 @@ importers:
 
   packages/cli:
     dependencies:
-      '@metual/core':
+      '@explainlike/core':
         specifier: workspace:*
         version: link:../core
-      '@metual/ingest':
+      '@explainlike/ingest':
         specifier: workspace:*
         version: link:../ingest
-      '@metual/models':
+      '@explainlike/models':
         specifier: workspace:*
         version: link:../models
-      '@metual/planner':
+      '@explainlike/planner':
         specifier: workspace:*
         version: link:../planner
-      '@metual/render':
+      '@explainlike/render':
         specifier: workspace:*
         version: link:../render
-      '@metual/voice':
+      '@explainlike/voice':
         specifier: workspace:*
         version: link:../voice
       tsx:
@@ -81,7 +81,7 @@ importers:
 
   packages/ingest:
     dependencies:
-      '@metual/core':
+      '@explainlike/core':
         specifier: workspace:*
         version: link:../core
       '@mozilla/readability':
@@ -96,7 +96,7 @@ importers:
 
   packages/models:
     dependencies:
-      '@metual/core':
+      '@explainlike/core':
         specifier: workspace:*
         version: link:../core
       zod:
@@ -105,10 +105,10 @@ importers:
 
   packages/planner:
     dependencies:
-      '@metual/core':
+      '@explainlike/core':
         specifier: workspace:*
         version: link:../core
-      '@metual/models':
+      '@explainlike/models':
         specifier: workspace:*
         version: link:../models
       zod:
@@ -117,10 +117,10 @@ importers:
 
   packages/render:
     dependencies:
-      '@metual/core':
+      '@explainlike/core':
         specifier: workspace:*
         version: link:../core
-      '@metual/models':
+      '@explainlike/models':
         specifier: workspace:*
         version: link:../models
       elkjs:
@@ -151,10 +151,10 @@ importers:
 
   packages/voice:
     dependencies:
-      '@metual/core':
+      '@explainlike/core':
         specifier: workspace:*
         version: link:../core
-      '@metual/models':
+      '@explainlike/models':
         specifier: workspace:*
         version: link:../models
 

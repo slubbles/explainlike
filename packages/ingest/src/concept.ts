@@ -2,7 +2,7 @@ import fs from "node:fs";
 import { chromium } from "playwright-core";
 import { Readability } from "@mozilla/readability";
 import { parseHTML } from "linkedom";
-import type { SourceDoc } from "@metual/core";
+import type { SourceDoc } from "@explainlike/core";
 import { redact } from "./secrets.js";
 
 export interface Rect { x: number; y: number; w: number; h: number }
@@ -13,7 +13,7 @@ export interface ConceptSource {
   locate(quotes: string[], pngPath: string): Promise<SourceShotOut>;
 }
 
-const UA = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130 Safari/537.36 metual";
+const UA = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130 Safari/537.36 explainlike";
 const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]!);
 const norm = (s: string) => s.toLowerCase().replace(/[\u2018\u2019]/g, "'").replace(/[\u201c\u201d]/g, '"').replace(/[^a-z0-9]+/g, "");
 
@@ -22,9 +22,9 @@ export function xStatusId(url: string): string | undefined {
 }
 
 function findChrome(): string {
-  const c = [process.env.METUAL_CHROME, "/usr/bin/google-chrome", "/usr/bin/google-chrome-stable", "/usr/bin/chromium", "/usr/bin/chromium-browser"].filter(Boolean) as string[];
+  const c = [process.env.EXPLAINLIKE_CHROME, "/usr/bin/google-chrome", "/usr/bin/google-chrome-stable", "/usr/bin/chromium", "/usr/bin/chromium-browser"].filter(Boolean) as string[];
   const f = c.find((p) => fs.existsSync(p));
-  if (!f) throw new Error("no Chrome/Chromium found; set METUAL_CHROME");
+  if (!f) throw new Error("no Chrome/Chromium found; set EXPLAINLIKE_CHROME");
   return f;
 }
 

@@ -1,22 +1,22 @@
 {
-  "name": "metual",
+  "name": "explainlike",
   "version": "0.1.0",
   "type": "module",
   "license": "MIT",
   "description": "Turn a GitHub repo, X post or article into a whiteboard explainer video + editable board (.tldr, opens in tldraw.com), powered by Meta Muse models.",
   "bin": {
-    "metual": "./bin/metual.mjs"
+    "explainlike": "./bin/explainlike.mjs"
   },
   "exports": {
     ".": "./src/index.ts"
   },
   "dependencies": {
-    "@metual/core": "workspace:*",
-    "@metual/models": "workspace:*",
-    "@metual/ingest": "workspace:*",
-    "@metual/planner": "workspace:*",
-    "@metual/voice": "workspace:*",
-    "@metual/render": "workspace:*",
+    "@explainlike/core": "workspace:*",
+    "@explainlike/models": "workspace:*",
+    "@explainlike/ingest": "workspace:*",
+    "@explainlike/planner": "workspace:*",
+    "@explainlike/voice": "workspace:*",
+    "@explainlike/render": "workspace:*",
     "tsx": "^4.19.2"
   }
 }

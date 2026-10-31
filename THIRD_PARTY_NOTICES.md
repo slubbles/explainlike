@@ -1,6 +1,6 @@
 # Third-party notices
 
-Metual is MIT licensed (see `LICENSE`). It bundles or depends on the following.
+Explain Like is MIT licensed (see `LICENSE`). It bundles or depends on the following.
 
 ## Bundled assets
 
@@ -46,7 +46,7 @@ no tldraw source is copied into this repo. The file opens in tldraw.com.
 
 ## Trademarks
 
-"Meta", "Muse", "Excalidraw", "tldraw" and other names belong to their owners. Metual is an
+"Meta", "Muse", "Excalidraw", "tldraw" and other names belong to their owners. Explain Like is an
 independent project; it is not affiliated with or endorsed by Meta. It only calls
 Meta's public Model API, credited in plain text as "Powered by Meta Muse models".
 

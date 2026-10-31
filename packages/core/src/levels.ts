@@ -5,7 +5,7 @@ import { z } from "zod";
 
 /**
  * Levels are config: one JSON file per level in packages/core/levels.
- * Add your own with registerLevel(), loadLevelFile() or `metual --level-file my-level.json`.
+ * Add your own with registerLevel(), loadLevelFile() or `explainlike --level-file my-level.json`.
  */
 export const NotesSlot = z.object({
   after: z.enum(["hook", "walkthrough", "scale"]),

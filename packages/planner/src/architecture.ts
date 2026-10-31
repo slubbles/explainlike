@@ -1,6 +1,6 @@
 import { z } from "zod";
-import { Architecture, COLOR_MEANING, getLevel, lower, type Level, type Progress } from "@metual/core";
-import { sparkJson, type CostLedger } from "@metual/models";
+import { Architecture, COLOR_MEANING, getLevel, lower, type Level, type Progress } from "@explainlike/core";
+import { sparkJson, type CostLedger } from "@explainlike/models";
 
 export interface ArchIssue { target: string; problem: string }
 
