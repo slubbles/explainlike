@@ -5,7 +5,7 @@ import { sparkJson, type CostLedger } from "@metual/models";
 const STYLE = [
   "Style of the video: a calm engineer at a black whiteboard, like the YouTube channel Caleb Writes Code.",
   "Narration is spoken; write it for the ear: short sentences, concrete, no filler ('in this video', 'let's dive in', 'robust', 'seamless', 'leverage' are banned).",
-  "Headings are 2 to 4 lowercase words. Keywords 1 to 3 lowercase words.",
+  "Headings are 2 to 4 lowercase words that the narration of that scene actually says (the viewer reads the heading while hearing it). Keywords 1 to 3 lowercase words.",
   "A visual change every 2 to 5 seconds: one new thing per sentence.",
 ].join("\n");
 

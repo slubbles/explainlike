@@ -175,6 +175,25 @@ class Builder {
   }
 }
 
+const STOP = new Set(["the", "and", "of", "a", "an", "to", "in", "on", "for", "at", "is", "it", "its", "by", "with", "vs", "in", "x"]);
+const sameWord = (a: string, b: string) => a === b || (b.length >= 4 && a.length >= 4 && (a.startsWith(b.slice(0, 4)) || b.startsWith(a.slice(0, 4))));
+/** Content words of `phrase` that the narration does not say. */
+export function unspokenWords(phrase: string, narration: string): string[] {
+  const said = narration.split(/[\s\-_/]+/).map(normW).filter(Boolean);
+  return phrase.split(/[\s\-_/]+/).map(normW).filter((w) => w && !STOP.has(w) && !/^\d+x?$/.test(w)).filter((w) => !said.some((s) => sameWord(s, w)));
+}
+/**
+ * The heading the viewer reads while hearing the scene: the planned heading when the
+ * narration says every word of it, else the first alternative it does say
+ * (a scale scene's problem), else the planned heading.
+ */
+export function spokenHeading(heading: string, narration: string, alts: string[] = []): string {
+  const h = heading.toLowerCase();
+  if (!unspokenWords(h, narration).length) return h;
+  const alt = alts.map((a) => a.toLowerCase()).find((a) => a.trim() && !unspokenWords(a, narration).length);
+  return alt ?? h;
+}
+
 /** Find when a phrase is spoken: index into words at or after `from`. */
 function spokenAt(words: WordTiming[], phrase: string, from = 0): number {
   const toks = phrase.split(/[\s\-_/]+/).map(normW).filter(Boolean);
@@ -343,7 +362,8 @@ export async function compose(inp: ComposeInput): Promise<Composed> {
     const words = au.words.map((w) => ({ ...w, start: T + LEAD + w.start, end: T + LEAD + w.end }));
     const t0 = T + LEAD + 0.15, tEnd = T + D - 0.9;
     timeline.push({ id: s.id, kind: s.kind, start: T, end: T + D });
-    if (s.kind !== "hook") headings.push({ t0: T, t1: T + D, text: s.heading.toLowerCase() });
+    const scaleRisk = s.kind === "scale" ? inp.arch?.scale[plan.scenes.filter((x) => x.kind === "scale").indexOf(s)] : undefined;
+    if (s.kind !== "hook") headings.push({ t0: T, t1: T + D, text: spokenHeading(s.heading, s.narration, scaleRisk ? [scaleRisk.problem] : []) });
     captions.push(...captionsFor(au.words, T + LEAD, T + D));
 
     if (s.kind === "hook") {
