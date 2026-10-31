@@ -110,7 +110,7 @@ function mp4Args(fps: number, duration: number, out: string, bedDir: string, aud
   if (audio) args.push("-i", audio);
   if (bed) args.push("-i", bed);
   if (audio || bed) args.push("-filter_complex", mixGraph(audio ? 1 : undefined, bed ? (audio ? 2 : 1) : undefined, duration), "-map", "0:v", "-map", "[aout]");
-  args.push("-c:v", "libx264", "-preset", "medium", "-crf", "20", "-pix_fmt", "yuv420p", "-movflags", "+faststart");
+  args.push("-c:v", "libx264", "-preset", "veryfast", "-crf", "20", "-pix_fmt", "yuv420p", "-movflags", "+faststart");
   if (audio || bed) args.push("-c:a", "aac", "-b:a", "160k", "-t", duration.toFixed(3));
   args.push(out);
   return args;
