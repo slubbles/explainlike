@@ -5,7 +5,7 @@ import { CostLedger, museTranscribe } from "@metual/models";
 import { ingestRepo } from "@metual/ingest";
 import { extractArchitecture, validateArchitecture, evidencePack, reviewArchitecture, reviseArchitecture, planRepoScenes, planFocus, planWhatIf, kindColor } from "@metual/planner";
 import { pickVoice, wordOverlap, DeepgramVoice, type VoiceProvider } from "@metual/voice";
-import { loadIconPack, mergePacks, builtinPackIds, detectComponents, packHints, type DetectedComponent, iconCatalog, resolveIcon, compose, captureFrames, mixNarration, encodeMp4, contactSheet, toExcalidraw, toTldraw, type IconPack, type SourceShot } from "@metual/render";
+import { captionMismatches, loadIconPack, mergePacks, builtinPackIds, detectComponents, packHints, type DetectedComponent, iconCatalog, resolveIcon, compose, captureFrames, mixNarration, encodeMp4, contactSheet, toExcalidraw, toTldraw, type IconPack, type SourceShot } from "@metual/render";
 
 export interface RunOptions {
   input: string;
@@ -174,6 +174,9 @@ export async function runMetual(o: RunOptions) {
     plan, audio, theme, level, pack, sourceLabel, arch, shot, pace: o.pace,
     colorOf: (c) => kindColor(c.kind) as any,
   });
+  // captions must spell out exactly what the voice says
+  const bad = captionMismatches(film, plan.scenes);
+  if (bad.length) throw new Error(`captions do not match the narration in ${bad.map((b) => `${b.scene}: said "${b.said}" but shown "${b.shown}"`).join("; ")}`);
   fs.writeFileSync(path.join(out, "film.json"), JSON.stringify({ ...film, fonts: undefined, elements: film.elements.length }, null, 1));
   const base = slug(o.name ?? plan.title) || "metual";
   // the editable board: a .tldr file by default, or .excalidraw when asked
