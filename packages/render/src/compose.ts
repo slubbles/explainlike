@@ -4,6 +4,7 @@ import { agreementSlips } from "@explainlike/core";
 import type { Architecture, ScenePlan, Scene, SceneAudio, Theme, ExplainSpec, Color, WordTiming, NoteItem } from "@explainlike/core";
 import type { Film, FElement, CamKey, Caption, Heading } from "./film.js";
 import { applyTempo, type PaceReport } from "./pace.js";
+import { placementPass, type Mark, type PlacementReport } from "./placement.js";
 import { layoutGraph, unionBox, shiftLayout, wrapText, NODE, type Box, type GNode, type GEdge, type Layout, type PlacedNode, type PlacedEdge } from "./layout.js";
 import { textWidth, fontDataUrl, useHandFont, HAND_FONTS } from "./measure.js";
 import { penOutline } from "./draw.js";
@@ -80,6 +81,8 @@ class Builder {
   cur = new Map<string, number>();
   cam: CamKey[] = [];
   sketch: Sketch = { nodes: [], edges: [], ellipses: [], polygons: [], texts: [], images: [] };
+  /** every ring, arrow and wire with what it points at, for the placement check */
+  marks: Mark[] = [];
   seed = 7;
   n = 0;
   icons = new Map<string, string>();
@@ -174,6 +177,7 @@ class Builder {
       this.text({ text: e.label, x: lb.x + lb.w / 2, y: lb.y + lb.h * 0.72, size: labelSize, color: this.theme.edgeLabel, anchor: "middle", t0: t0 + dur * 0.6, dur: 0.4, g, bg: true, sketch: false });
     }
     this.sketch.edges.push({ points: e.points, label: e.label, labelBox: e.labelBox, both: e.both, color, from: e.from, to: e.to, labelSize });
+    this.marks.push({ kind: "wire", g, t0, dur, points: e.points, from: e.from, to: e.to });
     return t0 + dur + 0.25;
   }
   fit(b: Box, t: number, move: number, maxScale = 1.15) {
@@ -364,7 +368,19 @@ function fixIcon(pack: IconPack, fix: string) {
   return resolveIcon(pack, "check") ?? resolveIcon(pack, "bolt");
 }
 
-export interface Composed { film: Film; sketch: Sketch; timeline: { id: string; kind: string; start: number; end: number }[]; pace: PaceReport }
+/** Point and unit direction a fraction of the way along a polyline. */
+function along(pts: [number, number][], f: number): [number, number, number, number] {
+  const len = pts.slice(1).reduce((s, p, i) => s + Math.hypot(p[0] - pts[i][0], p[1] - pts[i][1]), 0);
+  let left = len * f;
+  for (let i = 1; i < pts.length; i++) {
+    const [x0, y0] = pts[i - 1], [x1, y1] = pts[i], d = Math.hypot(x1 - x0, y1 - y0);
+    if (d > 0 && (left <= d || i === pts.length - 1)) { const k = Math.min(1, left / d); return [x0 + (x1 - x0) * k, y0 + (y1 - y0) * k, (x1 - x0) / d, (y1 - y0) / d]; }
+    left -= d;
+  }
+  return [pts[0][0], pts[0][1], 1, 0];
+}
+
+export interface Composed { film: Film; sketch: Sketch; marks: Mark[]; timeline: { id: string; kind: string; start: number; end: number }[]; pace: PaceReport; placement: PlacementReport }
 
 export async function compose(inp: ComposeInput): Promise<Composed> {
   const { plan, theme } = inp;
@@ -498,6 +514,7 @@ export async function compose(inp: ComposeInput): Promise<Composed> {
       prev.forEach((p, i) => {
         const cx = x0 + i * gap, cy = hookCy + 260;
         B.ring(gen.circle(cx, cy, 170, { seed: B.seed++, stroke: p.color, strokeWidth: 3, roughness: 1.2 }), ts2[i], 0.5, "hook");
+        B.marks.push({ kind: "ring", g: "hook", t0: ts2[i], dur: 0.5, shape: { k: "circle", cx, cy, r: 85 }, target: { x: cx - 50, y: cy - 50, w: 100, h: 100 } });
         const ic = iconHref(inp.pack, p.icon, B.icons);
         B.img({ href: ic.href, x: cx - 50, y: cy - 50, w: 100, h: 100, t0: ts2[i] + 0.2, dur: 0.4, g: "hook" });
       });
@@ -538,6 +555,8 @@ export async function compose(inp: ComposeInput): Promise<Composed> {
       for (const id of present) B.setOp(nodeGroup(id), T, on.has(id) ? 1 : dim);
       for (const k of drawnEdges) { const [f, t] = k.slice(2).split(">"); B.setOp(k, T, on.has(f) && on.has(t) ? 1 : dim); }
       B.fit(unionBox([...on].map((id) => graph!.nodes.get(id)!).filter(Boolean), 70), T, 1.0);
+      // the placement check enlarges the step numbers if the walk ends up in one wide shot
+      const stepSize = 34;
       const times = eventTimes(words, steps.map((x) => [x.label]), t0 + 0.3, tEnd - 0.4, 1.3);
       steps.forEach((st, i) => {
         const e = findEdge(st.from, st.to);
@@ -548,9 +567,12 @@ export async function compose(inp: ComposeInput): Promise<Composed> {
         B.els.push({ k: "dot", id: B.id("d"), pts, color: C("yellow"), r: 13, trail: C("yellow"), t0: times[i], dur, g: "walk", mark: true });
         const tgt = graph!.nodes.get(st.to)!;
         B.ring(gen.rectangle(tgt.x - 12, tgt.y - 12, tgt.w + 24, tgt.h + 24, { seed: B.seed++, stroke: C("yellow"), strokeWidth: 4, roughness: 1.4 }), times[i] + dur * 0.8, 0.4, `w:${i}`);
+        B.marks.push({ kind: "ring", g: `w:${i}`, t0: times[i] + dur * 0.8, dur: 0.4, shape: { k: "rect", box: { x: tgt.x - 12, y: tgt.y - 12, w: tgt.w + 24, h: tgt.h + 24 } }, target: tgt });
         B.setOp(`w:${i}`, times[i] + dur + 1.0, 0, 0.5);
         const lab = `${i + 1}`;
-        B.text({ text: lab, x: pts[0][0] + (fwd ? 18 : -18), y: pts[0][1] - 16, size: 34, color: C("yellow"), anchor: "middle", t0: times[i], dur: 0.3, g: "walk", sketch: false });
+        // the number rides beside the wire a third of the way along, clear of both boxes and their rings
+        const [ax, ay, ux, uy] = along(pts, 0.3), side = uy > 0.2 ? 1 : -1;
+        B.text({ text: lab, x: ax - uy * (stepSize * 0.9) * side, y: ay + ux * (stepSize * 0.9) * side + stepSize * 0.35, size: stepSize, color: C("yellow"), anchor: "middle", t0: times[i], dur: 0.3, g: "walk", sketch: false });
       });
       B.setOp("walk", T + D - 0.3, 0, 0.5);
     } else if (s.kind === "scale" && graph && inp.arch) {
@@ -566,16 +588,20 @@ export async function compose(inp: ComposeInput): Promise<Composed> {
         const ring = ringOf(c);
         B.ring(gen.curve(ring.points, { seed: B.seed++, stroke: C("red"), strokeWidth: 5, roughness: 1.2 }), t1, 0.8, `s:${k}`);
         B.sketch.ellipses.push({ box: ring.box, color: C("red") });
+        B.marks.push({ kind: "ring", g: `s:${k}`, t0: t1, dur: 0.8, shape: { k: "super", cx: ring.cx, cy: ring.cy, rx: ring.rx, ry: ring.ry }, target: c });
         // big blocky red arrow from the ring to the fix (placeFix made room for it)
         const poly = scaleArrow(c, f);
         if (poly) {
           B.ring(gen.polygon(poly, { seed: B.seed++, stroke: C("red"), strokeWidth: 4, roughness: 1.1, fill: C("red"), fillStyle: "hachure", hachureGap: 9, fillWeight: 3 }), t2, 0.6, `s:${k}`);
           B.sketch.polygons.push({ points: poly, color: C("red") });
+          B.marks.push({ kind: "arrow", g: `s:${k}`, t0: t2, dur: 0.6, points: poly, fromShape: { k: "super", cx: ring.cx, cy: ring.cy, rx: ring.rx, ry: ring.ry }, toBox: f });
         }
         // problem label: first spot around the ring that hits no box, wire label, the fix, the arrow or the ring
         const lab = `${r.at}: ${r.problem}`, lw = textWidth(lab, 44) + 24;
         const others = [...graph.nodes.values()].filter((n) => n.id !== c.id && n.id !== f.id);
-        const L = placeRingLabel(ring.box, lw, 60, [...others, f, ...(poly ? [polyBox(poly)] : []), ...graph.edges.flatMap((e) => (e.labelBox ? [e.labelBox] : []))]);
+        // wires count as obstacles segment by segment, so the label never sits on a line
+        const segs = graph.edges.flatMap((e) => e.points.slice(1).map(([x, y], j) => { const [px, py] = e.points[j]; return { x: Math.min(x, px), y: Math.min(y, py), w: Math.abs(x - px), h: Math.abs(y - py) }; }));
+        const L = placeRingLabel(ring.box, lw, 60, [...others, f, ...(poly ? [polyBox(poly)] : []), ...graph.edges.flatMap((e) => (e.labelBox ? [e.labelBox] : [])), ...segs]);
         B.text({ text: lab, x: L.x, y: L.y, size: 44, color: C("red"), anchor: L.anchor, t0: t1 + 0.5, dur: 0.6, g: `s:${k}`, bg: true });
         // the size of the jump counts up over the box's icon ("1x" to "10x"), then gets out of the way.
         // It covers only the icon, so the box's name and description stay readable.
@@ -631,7 +657,9 @@ export async function compose(inp: ComposeInput): Promise<Composed> {
         }
         B.ring(gen.rectangle(u.x - 6, u.y - 6, u.w + 12, u.h + 12, { seed: B.seed++, stroke: col, strokeWidth: 4, roughness: 1.6 }), times[i] + 0.2, 0.6, gs);
         B.sketch.ellipses.push({ box: u, color: col });
-        B.ring(gen.line(sb.x + sb.w + 6, u.y + u.h / 2, nx - 14, ny - 15, { seed: B.seed++, stroke: col, strokeWidth: 3, roughness: 1.3 }), times[i] + 0.5, 0.3, gs);
+        B.marks.push({ kind: "ring", g: gs, t0: times[i] + 0.2, dur: 0.6, shape: { k: "rect", box: { x: u.x - 6, y: u.y - 6, w: u.w + 12, h: u.h + 12 } }, target: u });
+        B.ring(gen.line(sb.x + sb.w + 6, u.y + u.h / 2, nx - 8, ny - 15, { seed: B.seed++, stroke: col, strokeWidth: 3, roughness: 1.3 }), times[i] + 0.5, 0.3, gs);
+        B.marks.push({ kind: "arrow", g: gs, t0: times[i] + 0.5, dur: 0.3, points: [[sb.x + sb.w + 6, u.y + u.h / 2], [nx - 8, ny - 15]], fromBox: sb, toBox: { x: nx, y: ny - 44 * 0.95, w: textWidth(h.note, 44), h: 44 * 1.25 }, line: true });
         B.text({ text: h.note, x: nx, y: ny, size: 44, color: col, anchor: "start", t0: times[i] + 0.7, dur: 0.5, g: gs, bg: true });
       });
       B.setOp(gs, T + D - 0.2, 0, 0.4);
@@ -678,6 +706,7 @@ export async function compose(inp: ComposeInput): Promise<Composed> {
         const ring = ringOf({ x: n.x + n.w / 2 - qw / 2, y: n.y, w: qw, h: bh + (q.length ? 22 + (q.length + 0.3) * BOARD.qLine : 0) });
         B.ring(gen.curve(ring.points, { seed: B.seed++, stroke: col, strokeWidth: 5, roughness: 1.2 }), tt, 0.7, g);
         B.sketch.ellipses.push({ box: ring.box, color: col });
+        B.marks.push({ kind: "ring", g, t0: tt, dur: 0.7, shape: { k: "super", cx: ring.cx, cy: ring.cy, rx: ring.rx, ry: ring.ry }, target: { x: n.x + n.w / 2 - qw / 2, y: n.y, w: qw, h: bh + (q.length ? 22 + (q.length + 0.3) * BOARD.qLine : 0) } });
         B.text({ text: co.text, x: n.x + n.w / 2, y: ring.box.y - 24, size: 50, color: col, anchor: "middle", t0: tt + 0.4, dur: 0.5, g, bg: true });
       });
       boardShown.push({ id: s.id, heading: s.heading, keys: nodes.map((n) => n.keyword), g });
@@ -789,5 +818,7 @@ export async function compose(inp: ComposeInput): Promise<Composed> {
     brand,
   };
   const pace = applyTempo(film, timeline, tempo);
-  return { film, sketch: B.sketch, timeline, pace };
+  // every ring, arrow and label checked against the final camera, with a few fix passes
+  const placement = placementPass({ film, sketch: B.sketch, marks: B.marks });
+  return { film, sketch: B.sketch, marks: B.marks, timeline, pace, placement };
 }

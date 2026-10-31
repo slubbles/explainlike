@@ -23,7 +23,13 @@ test("scale annotations: label, ring and arrow clear every box", async () => {
   for (const p of sketch.polygons) {
     const pb = polyBox(p.points);
     for (const b of boxes) assert.ok(!overlaps(pb, b), `arrow overlaps ${b.id}`);
-    for (const e of sketch.ellipses) assert.ok(!overlaps(pb, e.box), "arrow overlaps the ring");
+    // the arrow starts at its own ring (touching it), and stays clear of every other ring
+    const tail = [(p.points[3][0] + p.points[4][0]) / 2, (p.points[3][1] + p.points[4][1]) / 2];
+    for (const e of sketch.ellipses) {
+      const own = tail[0] >= e.box.x - 30 && tail[0] <= e.box.x + e.box.w + 30 && tail[1] >= e.box.y - 30 && tail[1] <= e.box.y + e.box.h + 30;
+      if (own) assert.ok(!overlaps(polyBox([p.points[0]]), e.box), "arrow head inside its own ring");
+      else assert.ok(!overlaps(pb, e.box), "arrow overlaps another ring");
+    }
   }
   const labels = sketch.texts.filter((t) => /^\d+x: /.test(t.text));
   assert.equal(labels.length, arch.scale.length);

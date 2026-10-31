@@ -13,3 +13,4 @@ export * from "./annotate.js";
 export * from "./tidy.js";
 export * from "./pace.js";
 export * from "./music.js";
+export * from "./placement.js";

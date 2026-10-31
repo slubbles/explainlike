@@ -42,7 +42,7 @@ export function boxReach(b: Box, ux: number, uy: number) {
 }
 
 /** Room the arrow needs: ring edge + gap, shaft and head, gap + fix box edge. */
-export const ARROW = { gapStart: 26, gapEnd: 18, minLen: 120, half: 52, shaft: 22 };
+export const ARROW = { gapStart: 8, gapEnd: 6, minLen: 120, half: 52, shaft: 22 };
 
 /** Arrow polygon from the ring around `c` to box `f`; null when there is no room for a clean arrow. */
 export function scaleArrow(c: Box, f: Box): [number, number][] | null {
@@ -66,7 +66,9 @@ export function scaleArrow(c: Box, f: Box): [number, number][] | null {
 export function placeFix(c: Box, f: Box, others: Box[], wires: Box[] = []): Box {
   const ring = ringOf(c);
   const clear = (b: Box) => !others.some((o) => overlaps(b, o, 50)) && !wires.some((o) => overlaps(b, o, 12));
-  const fits = (b: Box) => { const p = scaleArrow(c, b); return !!p && !others.some((o) => overlaps(polyBox(p), o, 10)); };
+  // the arrow starts at the ring, so the ring's own box is no obstacle to it
+  const isRing = (o: Box) => Math.abs(o.x - ring.box.x) < 0.5 && Math.abs(o.y - ring.box.y) < 0.5 && Math.abs(o.w - ring.box.w) < 0.5;
+  const fits = (b: Box) => { const p = scaleArrow(c, b); return !!p && !others.some((o) => !isRing(o) && overlaps(polyBox(p), o, 10)); };
   if (fits(f) && clear(f)) return f;
   const dirs: [number, number][] = [[1, 0], [0, 1], [0, -1], [-1, 0]];
   for (const [ux, uy] of dirs) {
@@ -74,7 +76,13 @@ export function placeFix(c: Box, f: Box, others: Box[], wires: Box[] = []): Box 
     const b = { ...f, x: ring.cx + ux * d - f.w / 2, y: ring.cy + uy * d - f.h / 2 };
     if (clear(b) && fits(b)) return b;
   }
-  // nowhere clean: push it further right until clear
+  // nowhere close: step further out in each direction, still with a clean arrow
+  for (let extra = 100; extra < 3000; extra += 100) for (const [ux, uy] of dirs) {
+    const d = ringReach(ring.rx, ring.ry, ux, uy) + ARROW.gapStart + ARROW.minLen + ARROW.gapEnd + boxReach(f, ux, uy) + extra;
+    const b = { ...f, x: ring.cx + ux * d - f.w / 2, y: ring.cy + uy * d - f.h / 2 };
+    if (clear(b) && fits(b)) return b;
+  }
+  // nowhere clean at all: push it further right until clear (the placement check will report the arrow)
   for (let extra = 100; extra < 3000; extra += 100) {
     const d = ring.rx + ARROW.gapStart + ARROW.minLen + ARROW.gapEnd + f.w / 2 + extra;
     const b = { ...f, x: ring.cx + d - f.w / 2, y: ring.cy - f.h / 2 };
@@ -91,7 +99,7 @@ export function placeRingLabel(ring: Box, lw: number, lh: number, obstacles: Box
   const cx = ring.x + ring.w / 2, cy = ring.y + ring.h / 2;
   const boxes: Box[] = [];
   // nearest spots first; when all are taken, step a little further out and try again
-  for (const m of [26, 26 + lh * 0.6, 26 + lh * 1.2]) for (const dy of [0, -lh * 0.8, lh * 0.8]) boxes.push(
+  for (const m of [26, 26 + lh * 0.6, 26 + lh * 1.2, 26 + lh * 2, 26 + lh * 3, 26 + lh * 4.5, 26 + lh * 6.5, 26 + lh * 9]) for (const dy of [0, -lh * 0.8, lh * 0.8, -lh * 1.6, lh * 1.6]) boxes.push(
     { x: cx - lw / 2, y: ring.y - m - lh, w: lw, h: lh },
     { x: cx - lw / 2, y: ring.y + ring.h + m, w: lw, h: lh },
     { x: ring.x - m - lw, y: cy - lh / 2 + dy, w: lw, h: lh },
