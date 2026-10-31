@@ -74,7 +74,7 @@ export async function planWhatIf(o: { ledger: CostLedger; arch: Architecture; fa
       { role: "system", content: [
         `The viewer asks: what if "${o.arch.product}" got ${o.factor} its traffic? Pick the 2 components that break first, from the evidence. Audience: ${o.level}.`,
         `component must be one of: ${ids.join(", ")}. at: "${o.factor}". problem and fix: 1 to 3 lowercase words. evidence: one exact file path from the evidence. heading: 2 to 4 lowercase words that the narration says (reuse the problem words).`,
-        "narration: about 30 words per risk: what breaks and why, then the fix. You do not know the app's real traffic: say 'if' or 'assume' and never state user, request, latency or cost numbers as facts.",
+        "narration: about 30 words per risk, in 2 or 3 short plain sentences a non-engineer can follow: what breaks and why, then 'The fix is ...'. Start with 'If ...' (you do not know the app's real traffic) and never state user, request, latency or cost numbers as facts. No run-on 'so assume' clauses, no jargon strings like 'single room fanout'.",
         "intro: one natural spoken sentence (about 10 words) that sets up the question. Every narration is complete, grammatical sentences, never a list of keywords.",
       ].join("\n") },
       { role: "user", content: JSON.stringify({ components: o.arch.components.map((c) => ({ id: c.id, name: c.name, kind: c.kind, what: c.what })), connections: o.arch.connections.map((c) => `${c.from}>${c.to}`) }) + "\n\nEVIDENCE FILES:\n" + o.evidence },
