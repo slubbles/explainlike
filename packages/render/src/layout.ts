@@ -8,7 +8,7 @@ export interface PlacedNode extends GNode, Box {}
 export interface PlacedEdge extends GEdge { points: [number, number][]; labelBox?: Box }
 export interface Layout { nodes: Map<string, PlacedNode>; edges: PlacedEdge[]; bbox: Box }
 
-export const NODE = { h: 214, minW: 220, pad: 60, icon: 104, kwSize: 36, subSize: 22, labelSize: 25 };
+export const NODE = { h: 214, minW: 220, pad: 60, icon: 104, kwSize: 36, subSize: 26, labelSize: 25 };
 
 export function nodeWidth(n: GNode) {
   return Math.max(NODE.minW, textWidth(n.keyword, NODE.kwSize) + NODE.pad, n.sub ? textWidth(n.sub, NODE.subSize) + 44 : 0);
