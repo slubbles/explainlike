@@ -51,8 +51,9 @@ function repoSystem(arch: Architecture, L: ExplainSpec, lo: number, hi: number):
       ? `5. ${arch.scale.length} short 'scale' scene(s), one per scale risk, in the given order: what breaks at that traffic level and why (problem keyword), then the fix (fix keyword), in 2 short plain sentences ('The fix is ...'). callouts: [{target: component id, text: problem keyword, color: red}, {target: component id, text: fix keyword, color: green}].`
       : "5. no 'scale' scenes.",
     ...notesRules(L.notes),
-    "6. one 'recap' scene: retell the flow in one breath, from the user to what they get back, saying the journey keywords in order, then one line that answers the hook's question or pays off its claim (a callback). Heading like 'the whole trip'.",
+    "6. one 'recap' scene: retell the flow in one breath, from the user to what they get back, saying the journey keywords in order (when the flow comes back through a part, say that part again, so each pair you name back to back has an arrow between them), then one line that answers the hook's question or pays off its claim (a callback). Heading like 'the whole trip'.",
     `Keep the hook and the layer scenes brief enough that the walkthrough starts before the halfway mark of the whole narration, counted in words. Each scene's narration is about ${L.wordsPerScene} words (hook and recap can be shorter). There is no set length. At ${L.tempo.wps} words per second this repo's parts come to roughly ${lo} to ${hi} seconds; shorter is right if the story is told, never pad.`,
+    "Only say two parts talk to each other ('the poll input feeds the ui core') when the connections list joins them; otherwise tell the hop through the part between them.",
     "Leave add_connections, board_nodes, board_edges, highlights empty (the renderer derives them). callouts empty except in scale scenes. items empty except in notes scenes.",
     "Never state a traffic, user, latency or cost number as a fact about this app: the repo does not tell you its real load. Numbers only appear as clearly labelled assumptions.",
     "Proofread every sentence aloud: a/an and singular/plural agree with the noun, no half-finished phrases. Headings are plain 2 to 4 word names for a place in the analogy (like 'the front desk' or 'the back office'); they are on screen, never spoken as if they were a part.",
@@ -132,7 +133,51 @@ export function checkStory(plan: ScenePlan, arch: Architecture, analogy = ""): s
     const said = path.filter((id) => r.includes(norm(kwOf(id))) || words4(kwOf(id)).some((x) => r.includes(x)));
     if (said.length < Math.min(3, path.length)) issues.push("the recap must retell the trip, saying the journey parts in order");
   }
-  return [...issues, ...speechIssues(plan, arch, analogy)];
+  return [...issues, ...undrawnLinks(plan, arch), ...speechIssues(plan, arch, analogy)];
+}
+
+/**
+ * A sentence that names two parts one after the other ("the poll input feeds the rebuild widgets")
+ * tells the viewer they talk to each other; the board has to draw that arrow. Plain lists ("a and b")
+ * are not links.
+ */
+// a label where the arrow's source fetches from its target, and the verbs that tell the opposite way
+const PULL = /^(read|reads|fetch|fetches|pull|pulls|poll|polls|load|loads|query|queries|get|gets|watch|watches|subscribe|subscribes)\b/i;
+const PUSH = / (hands|hand|sends|send|gives|give|passes|pass|pushes|push|feeds|feed|emits|emit|delivers|deliver|streams|stream) /;
+export function undrawnLinks(plan: ScenePlan, arch: Architecture): string[] {
+  const linked = (a: string, b: string) => arch.connections.some((e) => (e.from === a && e.to === b) || (e.from === b && e.to === a));
+  const out: string[] = [];
+  for (const s of plan.scenes) {
+    if (s.kind !== "layer" && s.kind !== "walkthrough" && s.kind !== "recap") continue;
+    for (const sent of s.narration.split(/(?<=[.!?;])\s+/)) {
+      const t = ` ${norm(sent)} `;
+      const hits = arch.components.flatMap((c) => {
+        const k = ` ${norm(c.keyword)} `;
+        const at: { id: string; kw: string; i: number; end: number }[] = [];
+        if (k.trim()) for (let i = t.indexOf(k); i >= 0; i = t.indexOf(k, i + 1)) at.push({ id: c.id, kw: c.keyword, i, end: i + k.length - 1 });
+        return at;
+      }).sort((a, b) => a.i - b.i).filter((h, i, all) => !all.some((o, j) => j !== i && o.i <= h.i && o.end >= h.end && o.end - o.i > h.end - h.i));
+      for (let i = 1; i < hits.length; i++) {
+        const [a, b] = [hits[i - 1], hits[i]];
+        if (a.id === b.id) continue;
+        const between = t.slice(a.end, b.i).trim().replace(/\b(the|a|an|your)\b/g, "").trim();
+        if (linked(a.id, b.id)) {
+          // the board's arrow says b pulls from a; narration that has a push to b tells it backwards
+          const pull = arch.connections.find((e) => e.from === b.id && e.to === a.id && PULL.test(e.label));
+          const forward = arch.connections.some((e) => e.from === a.id && e.to === b.id);
+          if (pull && !forward && PUSH.test(` ${between} `)) {
+            const msg = `${s.id}: says the ${a.kw} ${between.split(" ")[0]} to the ${b.kw}, but the ${b.kw} ${pull.label} from the ${a.kw}; tell it in the board's direction`;
+            if (!out.includes(msg)) out.push(msg);
+          }
+          continue;
+        }
+        if (/^(and|or|plus|nor)?$/.test(between)) continue;
+        const msg = `${s.id}: says the ${a.kw} and the ${b.kw} talk directly, but the board draws no arrow between them; tell the hop through the part that really sits between them`;
+        if (!out.includes(msg)) out.push(msg);
+      }
+    }
+  }
+  return out;
 }
 
 // phrases that announce instead of explain (docs/explaining-playbook.md, "No filler")
@@ -188,7 +233,10 @@ export function speechIssues(plan: ScenePlan, arch: Architecture, analogy = ""):
       const k = c.keyword.toLowerCase();
       if (!k) continue;
       const re = new RegExp(`\\b${k.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}, (a|an|that's|that is|which is|the) `, "g");
-      if (!re.test(text)) continue;
+      // "the host app, the ui core fills…" lists the next part in a chain; it does not explain the first
+      const names = arch.components.map((o) => o.keyword.toLowerCase()).filter(Boolean);
+      const says = [...text.matchAll(re)].some((m) => m[1] !== "the" || !names.some((n) => text.startsWith(n, m.index! + m[0].length)));
+      if (!says) continue;
       if (defined.has(k)) issues.push(`${s.id}: "${c.keyword}" is explained again; say what it is only the first time, then just its name`);
       defined.add(k);
     }
