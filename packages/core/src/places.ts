@@ -36,8 +36,15 @@ function mainRing(c: Country): [number, number][] {
   return c.rings.reduce((a, b) => (area(b) > area(a) ? b : a));
 }
 
-/** A country by any of its names, or else the most populous city of that name. */
+/** A country by any of its names, or else the most populous city of that name. "merv, turkmenistan" is
+ * tried as written, then as the city before the comma, then as the country after it. */
 export function findPlace(name: string): Place | undefined {
+  const parts = name.split(",").map((x) => x.trim()).filter(Boolean);
+  if (parts.length > 1) return findOne(name) ?? parts.map(findOne).find(Boolean);
+  return findOne(name);
+}
+
+function findOne(name: string): Place | undefined {
   const k = key(name);
   if (!k) return undefined;
   const d = load();
