@@ -50,6 +50,9 @@ explainlike explain --from <earlier out dir> --component <id> [--json]
 `;
 
 const argv = process.argv.slice(2);
+// the person at this terminal chose the link, so the CLI may read intranet pages; the private-address guard
+// is for links strangers type into the web app. Set EXPLAINLIKE_ALLOW_PRIVATE_URLS=0 to keep it on here too.
+process.env.EXPLAINLIKE_ALLOW_PRIVATE_URLS ??= "1";
 if (!argv.length || argv.includes("--help") || argv.includes("-h")) { process.stdout.write(HELP); process.exit(0); }
 const opt = (k: string) => { const i = argv.indexOf(k); return i >= 0 ? argv[i + 1] : undefined; };
 const many = (k: string) => argv.flatMap((a, i) => (a === k ? [argv[i + 1]] : []));

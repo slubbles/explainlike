@@ -154,7 +154,7 @@ Every setting is listed with its default in [`.env.example`](../.env.example). T
 | `EXPLAINLIKE_RESUME` | 1 | After a restart, start the job it cut off once more, if it is under 6 hours old. |
 | `EXPLAINLIKE_JOBS_DIR` | `explainlike-out/web` (`/data/jobs` in Docker) | Where jobs and the spend ledger live. Must be on a persistent disk. |
 | `EXPLAINLIKE_ALLOW_LOCAL` | 0 | Accept folder paths on the server. Leave off in public. |
-| `EXPLAINLIKE_ALLOW_PRIVATE_URLS` | 0 | Read links that resolve to private addresses. Leave off in public. |
+| `EXPLAINLIKE_ALLOW_PRIVATE_URLS` | 0 (web), 1 (CLI) | Read links that resolve to private addresses. Leave off in public. A host whose DNS hands out proxy addresses (198.18.0.0/15, as some sandboxes and "fake-IP" proxies do) fails every link with the guard on; give such a host real DNS rather than turning the guard off. |
 
 ## What is already guarded
 

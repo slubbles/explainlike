@@ -94,10 +94,12 @@ export const budgetNow = (): Budget => budget(spent(JOBS_DIR, [...jobs.values()]
 export const noteSpend = (s: { meta?: number; voice?: number }, what: string) => recordSpend(JOBS_DIR, s, what);
 
 const CLI = () => path.join(ROOT, "packages/cli/bin/explainlike.mjs");
+// the CLI reads private-network links by default (its user chose them); links typed into the web app never may
+const CLI_ENV = { ...process.env, EXPLAINLIKE_ALLOW_PRIVATE_URLS: process.env.EXPLAINLIKE_ALLOW_PRIVATE_URLS ?? "0" };
 
 function run(job: Job, args: string[]) {
   if (!job.args) { job.args = args; save(job); }
-  const child = spawn(process.execPath, [CLI(), ...args, "--json"], { cwd: ROOT, env: process.env, stdio: ["ignore", "pipe", "pipe"] });
+  const child = spawn(process.execPath, [CLI(), ...args, "--json"], { cwd: ROOT, env: CLI_ENV, stdio: ["ignore", "pipe", "pipe"] });
   let buf = "";
   child.stdout.on("data", (d: Buffer) => {
     buf += d.toString();
@@ -167,7 +169,7 @@ export function explain(jobId: string, component: string): Promise<unknown> {
   const cache = path.join(dir, `explain-${component}.json`);
   if (fs.existsSync(cache)) return Promise.resolve(JSON.parse(fs.readFileSync(cache, "utf8")));
   return new Promise((resolve) => {
-    const child = spawn(process.execPath, [CLI(), "explain", "--from", dir, "--component", component, "--json"], { cwd: ROOT, env: process.env, stdio: ["ignore", "pipe", "ignore"] });
+    const child = spawn(process.execPath, [CLI(), "explain", "--from", dir, "--component", component, "--json"], { cwd: ROOT, env: CLI_ENV, stdio: ["ignore", "pipe", "ignore"] });
     let out = "";
     child.stdout.on("data", (d: Buffer) => { out += d.toString(); });
     child.on("close", () => {
