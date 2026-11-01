@@ -1,5 +1,6 @@
 import { localOnly } from "../../../../lib/local";
-import { admit, startJob, validInput } from "../../../../lib/jobs";
+import { admit, budgetNow, noteSpend, startJob, validInput } from "../../../../lib/jobs";
+import { limitRequest, readBody } from "../../../../lib/guard";
 import { checkRepo } from "../../../../lib/reach";
 import { START_TOOL, readStart, takeSentences, voiceSystem, type Turn } from "../../../../lib/voice";
 
@@ -19,7 +20,14 @@ type Msg = { role: string; content: string | null; tool_calls?: unknown[]; tool_
 export async function POST(req: Request) {
   const no = localOnly(req);
   if (no) return no;
-  const body = await req.json().catch(() => ({}));
+  const limited = limitRequest(req, "voice-turn");
+  if (limited) return limited;
+  const b = budgetNow();
+  if (!b.ok) return Response.json({ error: b.error }, { status: 429 });
+  // 30 turns of up to 2,000 characters each, plus room for the JSON around them
+  const read = await readBody(req, 96 * 1024);
+  if ("error" in read) return read.error;
+  const body = read.body as { turns?: unknown; typed?: unknown; voice?: unknown };
   const turns: Turn[] = (Array.isArray(body.turns) ? body.turns : [])
     .filter((t: Turn) => (t?.role === "user" || t?.role === "assistant") && typeof t.content === "string" && t.content.trim())
     .slice(-30).map((t: Turn) => ({ role: t.role, content: t.content.slice(0, 2000) }));
@@ -65,6 +73,7 @@ export async function POST(req: Request) {
       } catch (e) {
         if (!req.signal.aborted) send("error", { message: e instanceof Error ? e.message.replace(/Bearer\s+\S+/g, "Bearer …").slice(0, 200) : "the assistant stopped" });
       }
+      noteSpend({ meta: usd }, "voice turn");
       if (!req.signal.aborted) send("done", { usd });
       try { ctl.close(); } catch { /* already closed */ }
     },
