@@ -291,7 +291,7 @@ export function applyTempo(film: Film, scenes: Span[], tempo: TempoLimits = DEFA
       const [a, b] = seg, cur = cameraAt(film, a + tempo.move + 0.05);
       const marks = markSpans(film), lo = a + tempo.minBeat, hi = b - tempo.minBeat;
       const ideal = Math.min(hi, Math.max(lo, (a + b) / 2 - tempo.move));
-      const cands = [...Array(Math.ceil((hi - lo) / 0.1) + 1).keys()].map((i) => lo + i * 0.1).sort((x, y) => Math.abs(x - ideal) - Math.abs(y - ideal));
+      const cands = [...Array(Math.floor((hi - lo) / 0.1 + 1e-6) + 1).keys()].map((i) => lo + i * 0.1).sort((x, y) => Math.abs(x - ideal) - Math.abs(y - ideal));
       const m = cands.find((t) => !marks.some(([p, q]) => t < q + 0.05 && t + tempo.move > p - 0.05));
       if (m === undefined) break;
       const drawn = (t0: number, t1: number) => boxes.filter(({ e }) => e.k !== "dot" && e.t0 >= t0 && e.t0 < t1).map((x) => x.b);
@@ -335,6 +335,9 @@ export function applyTempo(film: Film, scenes: Span[], tempo: TempoLimits = DEFA
     if (!pick) break;
     const ka = film.camera.find((k) => Math.abs(k.t - pick.a) < 1e-6) ?? film.camera[0];
     const kb = film.camera.find((k) => Math.abs(k.t - pick.b) < 1e-6)!;
+    // a slow push is texture, not a shot: one that leaves too short a beat goes, rather than widening a real shot to take it in
+    const push = pushes.has(kb) ? kb : pushes.has(ka) ? ka : undefined;
+    if (push) { film.camera.splice(film.camera.indexOf(push), 1); continue; }
     const j = joinViews(ka, kb, film);
     // join the two framings when the result is still readable and not much wider; else hold the
     // first one a full beat and move on after it, and drop the move when the next one takes over
@@ -403,6 +406,13 @@ export function applyTempo(film: Film, scenes: Span[], tempo: TempoLimits = DEFA
     sortCam();
     return 0;
   };
+  // moving a cut earlier must not leave the shot before it under the minimum beat (beats() would only move it back)
+  const keepsBeat = (k: CamKey, t: number) => {
+    const cuts = shotStarts(film);
+    if (!cuts.some((c) => Math.abs(c - k.t) < 1e-6)) return true;
+    const before = cuts.filter((c) => c < k.t - 1e-6).at(-1) ?? 0;
+    return t - before >= tempo.minBeat - 0.01 || k.t - before < tempo.minBeat - 0.01;
+  };
   const still = () => {
     for (const k of film.camera) if (!planned.has(k)) planned.set(k, k.t);
     for (let pass = 0; pass < 8; pass++) {
@@ -432,10 +442,13 @@ export function applyTempo(film: Film, scenes: Span[], tempo: TempoLimits = DEFA
           if (m[0] - k.t - 0.05 >= 0.8) k.move = m[0] - k.t - 0.05;
           else if (nx - m[1] - 0.1 >= 1.0) { k.t = m[1] + 0.05; k.move = nx - k.t - 0.05; }
           else { film.camera.splice(i, 1); i--; }
-        } else if (early >= prev.t + Math.min(prev.move, tempo.move) && (planned.get(k) ?? k.t) - early <= 1.5 && quiet(early, k.t, k)) {
+        } else if (early >= prev.t + Math.min(prev.move, tempo.move) && (planned.get(k) ?? k.t) - early <= 1.5 && quiet(early, k.t, k) && keepsBeat(k, early)) {
           // finish the move before the drawing starts
           k.t = early;
           prev.move = Math.min(prev.move, early - prev.t - 0.02);
+        } else if (m[0] - 0.05 - k.t >= Math.max(0.75, tempo.move * 0.75) && quiet(k.t, m[0], k)) {
+          // a brisker move that lands before the drawing starts, when the beat leaves no room to start earlier
+          k.move = m[0] - 0.05 - k.t;
         } else if (settle <= 2.0 && canDelay(settle)) {
           // draw the annotations after the camera settles
           for (const e of late) e.t0 += settle;
