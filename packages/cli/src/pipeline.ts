@@ -193,7 +193,8 @@ export async function runExplainLike(o: RunOptions) {
   const audioDir = path.join(out, "audio");
   const audio: SceneAudio[] = [];
   const queue = [...plan.scenes];
-  await timed("voice", () => Promise.all([0, 1, 2, 3].map(async () => {
+  // scenes are independent, so they are recorded 8 at a time (the provider retries a rate limit)
+  await timed("voice", () => Promise.all([...Array(8).keys()].map(async () => {
     for (let s = queue.shift(); s; s = queue.shift()) audio.push(await voice.synthesize(s.id, s.narration, audioDir));
   })));
   audio.sort((a, b) => plan.scenes.findIndex((s) => s.id === a.sceneId) - plan.scenes.findIndex((s) => s.id === b.sceneId));
