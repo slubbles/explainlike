@@ -13,7 +13,7 @@ test("the brief sets tempo from complexity and list scenes from depth", () => {
   assert.equal(easy.tempo.id, "brisk");
   assert.equal(easy.notes.length, 0, "an overview has no list scenes");
   assert.match(easy.voice, /post office/);
-  for (const t of Object.values(TEMPOS)) assert.ok(t.minBeat >= 3.5 && 60 / t.minBeat >= MIN_CUTS_PER_MIN);
+  for (const t of Object.values(TEMPOS)) assert.ok(t.minBeat >= 4 && 60 / t.minBeat >= MIN_CUTS_PER_MIN);
   assert.equal(Brief.safeParse({ ...DEFAULT_BRIEF, approach: "interpretive dance" }).success, false);
 });
 

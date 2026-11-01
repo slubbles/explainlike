@@ -208,11 +208,13 @@ test("the walkthrough follows the walk up close instead of showing the whole boa
     return { sceneId: s.id, duration: secs[s.id] - 1.2, words: ws.map((w: string, i: number) => ({ word: w, start: i * st, end: i * st + st * 0.8 })) };
   });
   const spec = specFromBrief(brief);
-  const { film, timeline } = await compose({ plan: mplan, audio: maudio, theme: getTheme(spec.look), spec, pack: loadIconPack(), sourceLabel: "x", arch: march });
+  const { film, pace, timeline } = await compose({ plan: mplan, audio: maudio, theme: getTheme(spec.look), spec, pack: loadIconPack(), sourceLabel: "x", arch: march });
   const walk = timeline.find((s) => s.kind === "walkthrough")!;
   const RW = readableWidth(film);
   let close = 0;
   for (let t = walk.start + 0.05; t < walk.end; t += 0.1) if (cameraAt(film, t).w <= RW) close += 0.1;
   assert.ok(close / (walk.end - walk.start) >= 0.6, `readable for ${close.toFixed(1)} of ${(walk.end - walk.start).toFixed(1)} s`);
   assert.ok(shotStarts(film).filter((t) => t > walk.start - 0.01 && t < walk.end).length >= 3, "the walk gets a shot per stretch of steps");
+  assert.ok(pace.shortestHold >= 4 - 0.05, `no shot under 4 s: shortest hold ${pace.shortestHold}`);
+  assert.ok(pace.cutsPerMin >= 6.5 && pace.cutsPerMin <= 9, `${pace.cutsPerMin} cuts a minute`);
 });

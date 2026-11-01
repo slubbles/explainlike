@@ -76,10 +76,10 @@ export type NotesSlot = z.infer<typeof NotesSlot>;
  * Tempo, set by complexity. Numbers are grounded in measured explainer pacing: narrated
  * documentary channels hold a median shot of 4.1 to 5.0 s (13 to 15 picture changes a minute),
  * YouTube tutorials 4 to 8 s (7.5 to 15 a minute), and Mayer's segmenting principle says
- * complex material needs more time per step. A beat never drops below 3.5 s.
+ * complex material needs more time per step. A beat never drops below 4 s, so every shot can be read.
  */
 export const TEMPOS = {
-  brisk: { minBeat: 3.5, maxCutsPerMin: 15, move: 0.9, tail: 0.6, wps: 2.7 },
+  brisk: { minBeat: 4.0, maxCutsPerMin: 15, move: 0.9, tail: 0.6, wps: 2.7 },
   steady: { minBeat: 4.0, maxCutsPerMin: 13, move: 1.1, tail: 0.8, wps: 2.6 },
   slow: { minBeat: 4.8, maxCutsPerMin: 11, move: 1.4, tail: 1.1, wps: 2.45 },
 } as const;
