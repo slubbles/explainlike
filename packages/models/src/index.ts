@@ -51,28 +51,38 @@ async function post(path: string, body: unknown, timeoutMs = 300_000): Promise<a
 
 export type ChatMessage = { role: "system" | "user" | "assistant"; content: string | unknown[] };
 
-/** Muse Spark with strict structured output validated by zod. */
+const LOWER = { high: "medium", medium: "low", low: "minimal", minimal: "minimal" } as const;
+
+/**
+ * Muse Spark with strict structured output validated by zod. When the reasoning eats the whole token budget,
+ * the answer comes back empty or cut off; that try is retried once with one step less effort and 1.5x the room.
+ */
 export async function sparkJson<T extends z.ZodType>(opts: {
   ledger: CostLedger; step: string; schema: T; name: string; messages: ChatMessage[];
   effort?: "minimal" | "low" | "medium" | "high"; maxTokens?: number;
 }): Promise<z.infer<T>> {
-  const t = Date.now();
-  const body = {
-    model: SPARK,
-    messages: opts.messages,
-    reasoning_effort: opts.effort ?? "low",
-    max_tokens: opts.maxTokens ?? 12000,
-    response_format: { type: "json_schema", json_schema: { name: opts.name, strict: true, schema: strictJsonSchema(opts.schema) } },
-  };
-  const out = await post("/chat/completions", body);
-  const u = out.usage ?? {};
-  const usd = (u.prompt_tokens ?? 0) * PRICE.sparkIn + (u.completion_tokens ?? 0) * PRICE.sparkOut;
-  opts.ledger.add({ step: opts.step, model: SPARK, seconds: (Date.now() - t) / 1000, usd, detail: { prompt: u.prompt_tokens, completion: u.completion_tokens, reasoning: u.completion_tokens_details?.reasoning_tokens, effort: body.reasoning_effort } });
-  const content = out.choices?.[0]?.message?.content;
-  if (!content) throw new Error(`Muse Spark returned no content for ${opts.step}`);
-  // a cut-off answer is half a JSON object; say so instead of a parse error
-  if (out.choices?.[0]?.finish_reason === "length") throw new Error(`Muse Spark ran out of room (${body.max_tokens} tokens) on ${opts.step}`);
-  return opts.schema.parse(JSON.parse(content));
+  let effort = opts.effort ?? "low", maxTokens = opts.maxTokens ?? 12000;
+  for (let attempt = 0; ; attempt++) {
+    const t = Date.now();
+    const body = {
+      model: SPARK,
+      messages: opts.messages,
+      reasoning_effort: effort,
+      max_tokens: maxTokens,
+      response_format: { type: "json_schema", json_schema: { name: opts.name, strict: true, schema: strictJsonSchema(opts.schema) } },
+    };
+    const out = await post("/chat/completions", body);
+    const u = out.usage ?? {};
+    const usd = (u.prompt_tokens ?? 0) * PRICE.sparkIn + (u.completion_tokens ?? 0) * PRICE.sparkOut;
+    opts.ledger.add({ step: opts.step, model: SPARK, seconds: (Date.now() - t) / 1000, usd, detail: { prompt: u.prompt_tokens, completion: u.completion_tokens, reasoning: u.completion_tokens_details?.reasoning_tokens, effort, ...(attempt ? { retry: attempt } : {}) } });
+    const content = out.choices?.[0]?.message?.content;
+    const cutOff = out.choices?.[0]?.finish_reason === "length";
+    if (content && !cutOff) return opts.schema.parse(JSON.parse(content));
+    const why = cutOff ? `ran out of room (${maxTokens} tokens)` : "returned no content";
+    if (attempt >= 1) throw new Error(`Muse Spark ${why} on ${opts.step}, twice`);
+    effort = LOWER[effort];
+    maxTokens = Math.min(32000, Math.round(maxTokens * 1.5));
+  }
 }
 
 /** Muse Image: returns image bytes. */
