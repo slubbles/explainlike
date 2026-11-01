@@ -177,6 +177,31 @@ const NOT_PLURAL = /(ss|us|is|ys)$|^(this|has|was|does|its|always|across|perhaps
 const OPENS = /^(and|or|but|from|with|by|of|to|into|through|past|so|then|while|when|as)$/;
 const PREP = /^(from|behind|into|onto|to|through|via|past|beyond|inside|under|over)$/;
 
+// "comes with you", "stays with you": the ending belongs to a verb of going along
+const GOES_WITH = /^(go|goes|went|come|comes|came|travel|travels|stay|stays|stick|sticks|ride|rides|walk|walks|move|moves|grow|grows|talk|talks|speak|speaks|agree|agrees|share|shares|work|works|sit|sits|carry|carries)$/;
+const YOU = /^(you|you'll|you'd|you're|you've)$/;
+/**
+ * A sentence that ends on "with you" or "for you" the line does not need: the clause already has "you"
+ * doing the action ("and you'll follow one click with you"), the ending hangs off no verb of going along
+ * ("... one click with you"), or it is tacked onto a describing word ("with OK lit for you") or a second
+ * "for" ("widgets for the open window for you").
+ */
+function trailingYou(sent: string): string | undefined {
+  const m = sent.match(/\b(with|for)\s+(you|yourself)[.!?]*$/i);
+  if (!m) return undefined;
+  const ending = `${m[1]!.toLowerCase()} ${m[2]!.toLowerCase()}`;
+  const before = sent.slice(0, m.index).trim();
+  // the clause the ending belongs to: after the last comma, semicolon or joining word
+  const clause = before.split(/[,;:]|\b(?:and|but|so|while|because)\b/i).pop()!.trim();
+  const ws = spokenWords(clause).map((w) => w.toLowerCase().replace(/[^a-z']/g, ""));
+  const prev = ws[ws.length - 1] ?? "";
+  const drop = `drop the ending "${ending}"`;
+  if (ws.some((w) => YOU.test(w))) return `"${clause} ${ending}" says "you" twice; ${drop} or say what goes with you`;
+  if (ending === "with you" && !GOES_WITH.test(prev)) return `"${ending}" dangles at the end of "${clause}"; ${drop} or say what goes with you`;
+  if (ending === "for you" && (ADJ.test(prev) || ADJ_END.test(prev) || /^(lit|familiar|ready|done|easy|tiny)$/.test(prev) || /\bfor\b/i.test(clause))) return `"${ending}" is tacked onto "${clause}"; ${drop} or say what it does for you`;
+  return undefined;
+}
+
 /**
  * Lines a listener trips on that the article check misses:
  * - a noun stack with the "and" left out ("Bandits harsh deserts make travel costly")
@@ -184,6 +209,8 @@ const PREP = /^(from|behind|into|onto|to|through|via|past|beyond|inside|under|ov
  *   "Behind tickets the renderer"); `metaphor` lists the picture's words the map itself never uses
  * - one action said twice over ("you press keys on the OK button")
  * - a sentence that ends on a vague word instead of what happens ("... for action.")
+ * - a dangling "with you" or "for you", or "you" said twice in one clause
+ * - the same word twice in a row ("the the")
  */
 export function grammarSlips(text: string, o: { metaphor?: string[] } = {}): string[] {
   const out: string[] = [];
@@ -205,6 +232,10 @@ export function grammarSlips(text: string, o: { metaphor?: string[] } = {}): str
     }
     const twice = sent.match(/\b(press|presses|pressed|pressing|tap|taps|tapped|click|clicks|clicked|hit|hits)\s+(keys|key|buttons)\s+on\s+(the|a|an|your)\s+(?:[\w-]+\s+){0,2}?(button|key|icon|link)\b/i);
     if (twice) out.push(`"${twice[0]}" says the action twice; say "${twice[1]} ${twice[0].split(/\s+on\s+/i)[1]}"`);
+    const end = trailingYou(sent);
+    if (end) out.push(end);
+    const dup = sent.match(/\b([a-z']+)\s+\1\b/i);
+    if (dup && !/^(that|had|is|very|bye|so|no)$/i.test(dup[1]!)) out.push(`"${dup[0]}" says the same word twice in a row; say it once`);
     const vague = sent.match(/\bfor (action|effect|work|change|things|stuff)[.!?]?$/i);
     if (vague) out.push(`"${vague[0].replace(/[.!?]$/, "")}" ends the sentence on a vague word; say what happens instead`);
   }
