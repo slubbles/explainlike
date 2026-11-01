@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import type { Architecture, NoteItem, Scene } from "@explainlike/core";
-import { validateNotes, validateArchitecture, repairRepoPlan, checkStory, journeyOrder, speechIssues, keepsSync, syncPhrases } from "@explainlike/planner";
+import { validateNotes, validateArchitecture, repairRepoPlan, checkStory, journeyOrder, speechIssues, keepsSync, syncPhrases, fillerIn, hookLine } from "@explainlike/planner";
 
 const item = (text: string, extra: Partial<NoteItem> = {}): NoteItem => ({ text, color: "white", icon: "", target: "", estimate: false, evidence: "", ...extra });
 const ids = new Set(["d1-db", "edge"]);
@@ -95,7 +95,7 @@ const sc = (kind: Scene["kind"], narration: string, add: string[] = []): Scene =
 
 test("repo plans are put in story order: journey parts, the walk, side parts, then the recap", () => {
   const plan = repairRepoPlan({ title: "x", subtitle: "", scenes: [
-    sc("hook", "A chat app where your contacts are bots."),
+    sc("hook", "What if every contact in your chat were a bot? This chat app works like a hotel front desk."),
     sc("layer", "The login worker checks who you are.", ["auth"]),
     sc("layer", "The bot harness and the agent drivers.", ["srv", "bot"]),
     sc("layer", "The team chat and the front door.", ["ui", "edge"]),
@@ -188,4 +188,22 @@ test("the speech check keeps the viewer as 'you', plain names first, and openers
   assert.ok(issues.some((i) => /s03-layer: two sentences in a row open with 'then it'/.test(i)), issues.join("; "));
   assert.ok(issues.some((i) => /s03-layer: says "the guest"/.test(i)), issues.join("; "));
   assert.ok(issues.some((i) => /"called React Web" puts a code name up front/.test(i)), issues.join("; "));
+});
+
+test("the self-check wants a short hook line up front and no filler", () => {
+  const plan = repairRepoPlan({ title: "x", subtitle: "", scenes: [
+    sc("hook", "This is a chat app where every one of your contacts is actually a little bot that can do jobs for you."),
+    sc("layer", "First you'll meet the team chat, and then you've got the front door.", ["ui", "edge"]),
+    sc("layer", "The bot harness is the manager, and the agent drivers are the concierges.", ["srv", "bot"]),
+    sc("walkthrough", "You send a message, the door will forward it, and the harness will run the bot."),
+    sc("recap", "Team chat, front door, bot harness, agent drivers, and it's special."),
+  ] }, storyArch, { perScene: 2 });
+  const issues = checkStory(plan, storyArch, "a hotel front desk");
+  assert.ok(issues.some((i) => /first sentence has 2\d words/.test(i)), issues.join("; "));
+  assert.ok(issues.some((i) => /hook opens with "This is a"/.test(i)), issues.join("; "));
+  assert.ok(issues.some((i) => /hook is a single sentence/.test(i)), issues.join("; "));
+  assert.ok(issues.some((i) => /filler "you'll meet", "then you've got"/.test(i)), issues.join("; "));
+  assert.ok(issues.some((i) => /recap: filler "it's special"/.test(i)), issues.join("; "));
+  assert.deepEqual(fillerIn("You’ll see the desk. Basically, it waits."), ["you'll see", "basically"]);
+  assert.equal(hookLine("How does a computer learn? It keeps receipts."), "How does a computer learn?");
 });
