@@ -69,7 +69,7 @@ export function createExplainLikeServer(runner = new JobRunner()) {
       source: z.string().min(1).describe("A GitHub repo URL, an x.com post URL, an article URL, or an absolute path to a local repo folder."),
       outDir: z.string().optional().describe("Folder to write the files to. Default: ~/explainlike-videos/<name> (or $EXPLAINLIKE_OUT_DIR)."),
       voice: z.enum(["deepgram", "silent"]).optional().describe("deepgram narrates (default when DEEPGRAM_API_KEY is set); silent keeps captions only."),
-      fresh: z.boolean().optional().describe("Re-plan from scratch instead of reusing a plan cached in outDir."),
+      fresh: z.boolean().optional().describe("Re-plan from scratch instead of reusing a plan cached in outDir or for this repo commit."),
       followUpOf: z.string().optional().describe("For a follow-up clip on a finished repo video: that video's output folder. Use with focus or whatIf."),
       focus: z.string().optional().describe("Follow-up: a component id from that video's architecture.json, for a short deep dive on one box."),
       whatIf: z.enum(["10x", "100x"]).optional().describe("Follow-up: what breaks if traffic grows by this much."),

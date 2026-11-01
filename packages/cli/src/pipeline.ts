@@ -1,5 +1,8 @@
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
+import crypto from "node:crypto";
+import { fileURLToPath } from "node:url";
 import { getTheme, specFromBrief, DEFAULT_BRIEF, type Ask, type Brief, type ExplainSpec, type Architecture, type Progress, type SceneAudio, type ScenePlan, type SourceDoc } from "@explainlike/core";
 import { CostLedger, museTranscribe } from "@explainlike/models";
 import { ingestRepo } from "@explainlike/ingest";
@@ -39,6 +42,31 @@ const FALLBACK_ICON: Record<string, string> = {
   search: "search", auth: "lock", "third-party": "cloud", ai: "brain", realtime: "bolt", cron: "clock", cdn: "globe", analytics: "chart", email: "mail", ci: "gear",
 };
 
+/**
+ * Plans are shared across output folders per repo commit: the same repo at the same commit, asked the
+ * same way, by the same planner code, gets the same brief, architecture and scene plan for $0.
+ * EXPLAINLIKE_PLAN_CACHE=0 or --fresh skips reading it.
+ */
+export const PLAN_CACHE = process.env.EXPLAINLIKE_PLAN_CACHE_DIR ?? path.join(os.homedir(), ".cache", "explainlike", "plans");
+let engineId: string | undefined;
+/** a fingerprint of the planner and core sources, so a prompt change never reuses an old plan */
+function plannerFingerprint(): string {
+  if (engineId) return engineId;
+  const h = crypto.createHash("sha256");
+  for (const pkg of ["planner", "core"]) {
+    const dir = fileURLToPath(new URL(`../../${pkg}/src/`, import.meta.url));
+    if (!fs.existsSync(dir)) { h.update(`${pkg}:missing`); continue; }
+    for (const f of fs.readdirSync(dir).filter((x) => x.endsWith(".ts")).sort()) h.update(f).update(fs.readFileSync(path.join(dir, f)));
+  }
+  return (engineId = h.digest("hex").slice(0, 16));
+}
+export function planCacheDir(o: { url: string; commit: string; ask?: Ask }): string | undefined {
+  // only a pushed commit is a stable key; a local folder may have uncommitted edits
+  if (process.env.EXPLAINLIKE_PLAN_CACHE === "0" || !/^https?:\/\//.test(o.url) || !/^[0-9a-f]{40}$/.test(o.commit)) return undefined;
+  const key = crypto.createHash("sha256").update(JSON.stringify([o.url.replace(/\.git$/, "").toLowerCase(), o.commit, o.ask ?? null, plannerFingerprint()])).digest("hex").slice(0, 24);
+  return path.join(PLAN_CACHE, key);
+}
+
 const slug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 60);
 
 export function detectKind(input: string): "repo" | "x-post" | "article" {
@@ -67,12 +95,24 @@ export async function runExplainLike(o: RunOptions) {
   const pack: IconPack = mergePacks([loadIconPack(), ...extra]);
   let detected: DetectedComponent[] = [];
   const kind = detectKind(o.input);
+  let shared: string | undefined;
   const cacheJson = <T>(file: string, make: () => Promise<T>): Promise<T> => {
-    // a crashed run restarted with the same --out picks up every paid step it already finished
-    if (!o.fresh && fs.existsSync(file)) {
-      try { return Promise.resolve(JSON.parse(fs.readFileSync(file, "utf8"))); } catch { /* half-written by a crash: make it again */ }
+    // a crashed run restarted with the same --out picks up every paid step it already finished,
+    // and a new folder for a repo commit that was planned before picks up the shared plan
+    const sharedFile = shared && path.join(shared, path.basename(file));
+    for (const f of o.fresh ? [] : [file, sharedFile]) {
+      if (!f || !fs.existsSync(f)) continue;
+      try {
+        const v = JSON.parse(fs.readFileSync(f, "utf8"));
+        if (f !== file) { writeAtomic(file, JSON.stringify(v, null, 1)); notes.push(`reused ${path.basename(file)} planned earlier for this commit`); }
+        return Promise.resolve(v);
+      } catch { /* half-written by a crash: make it again */ }
     }
-    return make().then((v) => { writeAtomic(file, JSON.stringify(v, null, 1)); return v; });
+    return make().then((v) => {
+      writeAtomic(file, JSON.stringify(v, null, 1));
+      if (sharedFile) { fs.mkdirSync(shared!, { recursive: true }); writeAtomic(sharedFile, JSON.stringify(v)); }
+      return v;
+    });
   };
 
   let plan: ScenePlan & { repairs?: string[] };
@@ -95,6 +135,7 @@ export async function runExplainLike(o: RunOptions) {
     P({ stage: "ingest", message: "reading the repository", pct: 2 });
     const r = await timed("ingest", () => ingestRepo(o.input));
     doc = r;
+    if (!o.focus && !o.whatIf) shared = planCacheDir({ url: r.url, commit: r.commit ?? "", ask: o.ask });
     const name = o.name ?? r.title;
     // a repo URL shows itself; a local checkout shows --name or its folder name, never the path on this machine
     sourceLabel = /^https?:\/\//.test(r.url) ? r.url.replace(/^https?:\/\/(www\.)?/, "").replace(/\.git$/, "") : o.name ? `github.com/${o.name}` : path.basename(r.url);

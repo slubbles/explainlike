@@ -39,7 +39,7 @@ Results land in `explainlike-out/<name>/`:
 - `<name>.contact.jpg`: a sheet of frames for a quick look
 - `manifest.json`: what was made, the check results and the spend
 
-The plan and voiceover are cached in that folder, so running the same source again costs almost nothing. Use `--fresh` to plan again.
+The plan and voiceover are cached in that folder, so running the same source again costs almost nothing. A GitHub repo's plan is also kept per commit in `~/.cache/explainlike/plans`, so a new folder for the same commit, asked the same way, skips the Muse planning calls too; a change to the planner code or a new commit plans again. Use `--fresh` to plan again, or set `EXPLAINLIKE_PLAN_CACHE=0` to turn the shared cache off.
 
 ## Web app, with voice mode
 
