@@ -57,7 +57,10 @@ function fitView(film: Film, b: Box, minW: number): Omit<CamKey, "t" | "move"> {
  * Scenes that draw new boxes, where a wide shot must not hide their names. A walkthrough
  * or recap shows the whole board on purpose: the moving dot or the summary is the point.
  */
-export const READ_KINDS = new Set(["layer", "scale", "notes", "board", "establish"]);
+/** News-style cut-ins: one chart or timeline framed whole. */
+export const CUT_IN_KINDS = new Set(["chart", "timeline"]);
+
+export const READ_KINDS = new Set(["layer", "scale", "notes", "chart", "timeline", "board", "establish"]);
 
 /**
  * Every moment the picture changes: an element starting to appear, the camera
@@ -278,7 +281,8 @@ export function applyTempo(film: Film, scenes: Span[], tempo: TempoLimits = DEFA
   // second half, so the video lands between MIN_CUTS_PER_MIN and the tempo's maximum
   const target = 60 / ((MIN_CUTS_PER_MIN + tempo.maxCutsPerMin) / 2);
   for (const s of scenes) {
-    if (s.kind === "hook" || s.kind === "walkthrough") continue;
+    // a chart or timeline is one full-frame graphic: pushing in on its last row would crop the first
+    if (s.kind === "hook" || s.kind === "walkthrough" || CUT_IN_KINDS.has(s.kind)) continue;
     for (let n = 0; n < 3; n++) {
       sortCam();
       const pts = [s.start, ...shotStarts(film).filter((t) => t > s.start + 0.01 && t < s.end - 0.01), s.end];
@@ -368,7 +372,9 @@ export function applyTempo(film: Film, scenes: Span[], tempo: TempoLimits = DEFA
       const until = next?.t ?? Infinity, m = (8 * cur.w) / film.width;
       const keepsNew = (v: Box) => boxes.every(({ e, b }) => e.k !== "text" || e.t0 + e.dur < g.t0 || e.t0 + e.dur >= until
         || inside({ x: b.x - m, y: b.y - m, w: b.w + 2 * m, h: b.h + 2 * m }, v));
-      const to = [tight && tight.w < cur.w * 0.985 && tight.w > cur.w * 0.85 ? tight : undefined, inward, out].find((v): v is Box => !!v && keepsNew(v));
+      // a cut-in already fills the frame, so its slow move eases back instead of cropping an edge row
+      const cutIn = scenes.some((s) => CUT_IN_KINDS.has(s.kind) && g.t0 >= s.start - 0.05 && g.t0 < s.end);
+      const to = (cutIn ? [out] : [tight && tight.w < cur.w * 0.985 && tight.w > cur.w * 0.85 ? tight : undefined, inward, out]).find((v): v is Box => !!v && keepsNew(v));
       if (!to) continue;
       const key = { t: g.t0, ...to, move: g.t1 - g.t0 - 0.05 };
       pushes.add(key);
