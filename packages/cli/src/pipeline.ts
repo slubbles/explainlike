@@ -68,8 +68,11 @@ export async function runExplainLike(o: RunOptions) {
   let detected: DetectedComponent[] = [];
   const kind = detectKind(o.input);
   const cacheJson = <T>(file: string, make: () => Promise<T>): Promise<T> => {
-    if (!o.fresh && fs.existsSync(file)) return Promise.resolve(JSON.parse(fs.readFileSync(file, "utf8")));
-    return make().then((v) => { fs.writeFileSync(file, JSON.stringify(v, null, 1)); return v; });
+    // a crashed run restarted with the same --out picks up every paid step it already finished
+    if (!o.fresh && fs.existsSync(file)) {
+      try { return Promise.resolve(JSON.parse(fs.readFileSync(file, "utf8"))); } catch { /* half-written by a crash: make it again */ }
+    }
+    return make().then((v) => { writeAtomic(file, JSON.stringify(v, null, 1)); return v; });
   };
 
   let plan: ScenePlan & { repairs?: string[] };
@@ -241,67 +244,78 @@ export async function runExplainLike(o: RunOptions) {
 
   const frames = path.join(out, "frames");
   fs.rmSync(frames, { recursive: true, force: true });
-  let narration: string | undefined;
-  if (audio.some((a) => a.file)) {
-    narration = path.join(out, "narration.wav");
-    mixNarration(audio.filter((a) => a.file).map((a) => ({ file: a.file!, at: timeline.find((t) => t.id === a.sceneId)!.start + 0.3 })), film.duration, narration);
-  }
-  // ---------- QA: Muse Transcribe listens to the voiceover while the frames are drawn ----------
-  // it only needs narration.wav, which is final before the first frame, so it adds no wall-clock time
-  const qaRun: Promise<Record<string, unknown> | undefined> = narration && o.qa !== false ? timed("voice qa", async () => {
-    P({ stage: "qa", message: "Muse Transcribe is checking the voiceover", pct: 48 });
-    try {
-      const script = plan.scenes.map((s) => s.narration).join(" ");
-      const tr = await museTranscribe({ ledger, step: "voice-qa", wav: fs.readFileSync(narration!), durationSec: film.duration, keywords: (arch?.components ?? []).map((c) => c.keyword) });
-      return { overlap: Number(wordOverlap(script, tr.transcript).toFixed(3)), transcript: tr.transcript };
-    } catch (e) { return { error: String(e).slice(0, 300) }; }
-  }) : Promise.resolve(undefined);
-  // ffmpeg encodes each frame as soon as it is drawn, instead of waiting for all of them
-  const mp4 = path.join(out, `${base}.mp4`);
-  const encoder = mp4Encoder(film.fps, mp4, { duration: film.duration, workDir: frames, audio: narration, music: o.music, cues: o.sfx === false ? [] : sfxCues(film) });
-  P({ stage: "render", message: "drawing frames", pct: 48 });
-  let cap: Awaited<ReturnType<typeof captureFrames>>;
+  // frames run to gigabytes: never leave them behind when a later step fails
+  const scratch = [frames, path.join(out, "frame-check")];
   try {
-    cap = await timed("render frames", () => captureFrames(film, frames, { workers: o.workers, onFrame: encoder.frame, onProgress: (d, t) => P({ stage: "render", message: `drawing frames ${d}/${t}`, pct: 48 + Math.round((d / t) * 42) }) }));
-  } catch (e) {
-    encoder.abort();
-    throw e;
+    let narration: string | undefined;
+    if (audio.some((a) => a.file)) {
+      narration = path.join(out, "narration.wav");
+      mixNarration(audio.filter((a) => a.file).map((a) => ({ file: a.file!, at: timeline.find((t) => t.id === a.sceneId)!.start + 0.3 })), film.duration, narration);
+    }
+    // ---------- QA: Muse Transcribe listens to the voiceover while the frames are drawn ----------
+    // it only needs narration.wav, which is final before the first frame, so it adds no wall-clock time
+    const qaRun: Promise<Record<string, unknown> | undefined> = narration && o.qa !== false ? timed("voice qa", async () => {
+      P({ stage: "qa", message: "Muse Transcribe is checking the voiceover", pct: 48 });
+      try {
+        const script = plan.scenes.map((s) => s.narration).join(" ");
+        const tr = await museTranscribe({ ledger, step: "voice-qa", wav: fs.readFileSync(narration!), durationSec: film.duration, keywords: (arch?.components ?? []).map((c) => c.keyword) });
+        return { overlap: Number(wordOverlap(script, tr.transcript).toFixed(3)), transcript: tr.transcript };
+      } catch (e) { return { error: String(e).slice(0, 300) }; }
+    }) : Promise.resolve(undefined);
+    // ffmpeg encodes each frame as soon as it is drawn, instead of waiting for all of them
+    const mp4 = path.join(out, `${base}.mp4`);
+    const encoder = mp4Encoder(film.fps, mp4, { duration: film.duration, workDir: frames, audio: narration, music: o.music, cues: o.sfx === false ? [] : sfxCues(film) });
+    P({ stage: "render", message: "drawing frames", pct: 48 });
+    let cap: Awaited<ReturnType<typeof captureFrames>>;
+    try {
+      cap = await timed("render frames", () => captureFrames(film, frames, { workers: o.workers, onFrame: encoder.frame, onProgress: (d, t) => P({ stage: "render", message: `drawing frames ${d}/${t}`, pct: 48 + Math.round((d / t) * 42) }) }));
+    } catch (e) {
+      encoder.abort();
+      throw e;
+    }
+    const covering = cap.captions.filter((c) => c.overlapPx > 0);
+    if (covering.length) notes.push(`${covering.length} caption(s) could not find fully free space: ${covering.map((c) => `${c.t0.toFixed(1)}s "${c.text}"`).join(", ")}`);
+    // ffmpeg finishes the last frames while the frame check runs
+    const encoded = encoder.done();
+    encoded.catch(() => {});
+    // look at the picture itself: where every word, ring and caption actually landed, frame by frame
+    P({ stage: "render", message: "checking the rendered frames", pct: 91 });
+    const fc = await timed("frame check", () => frameCheck(film, { workDir: path.join(out, "frame-check"), frameDir: frames, visionFrames: o.visionReview ? 8 : 0, ledger }));
+    fs.rmSync(path.join(out, "frame-check"), { recursive: true, force: true });
+    fs.writeFileSync(path.join(out, "frame-check.json"), JSON.stringify(fc, null, 1));
+    notes.push(`frame check: ${fc.atRest} of ${fc.samples} sampled frames at rest, ${fc.issues.length} issue(s)${fc.issues.length ? `: ${fc.issues.slice(0, 4).map((i) => `${i.t}s ${i.rule} ${i.detail}`).join("; ")}` : ""}`);
+    if (fc.vision) notes.push(`vision review: ${fc.vision.reduce((n, f) => n + f.problems.length, 0)} problem(s) across ${fc.vision.length} frames`);
+    P({ stage: "encode", message: "encoding the mp4", pct: 92 });
+    await timed("encode tail", () => encoded);
+    const sheet = path.join(out, `${base}.contact.jpg`);
+    await timed("contact sheet", () => contactSheet(mp4, sheet, Math.max(2, Math.ceil(film.duration / 40))));
+    fs.copyFileSync(cap.html, path.join(out, "stage.html"));
+    const qa = await qaRun;
+
+    const voiceUsd = voice instanceof DeepgramVoice ? voice.usd : 0;
+    const manifest = {
+      tool: "explainlike", input: o.input, kind, brief: spec.brief, tempo: spec.tempo, pace, repoDir, followUp: o.focus ? { focus: o.focus } : o.whatIf ? { whatIf: o.whatIf } : undefined, look: theme.id, packs: { loaded: extra.map((p) => p.id), detected: detected.map((d) => ({ pack: d.pack, id: d.component.id, name: d.component.name, evidence: d.evidence })) }, title: plan.title, durationSec: Number(film.duration.toFixed(1)),
+      outputs: { mp4, tldr: tldrFile, excalidraw: excalidrawFile, contactSheet: sheet, plan: path.join(out, "plan.json"), architecture: arch ? path.join(out, "architecture.json") : undefined },
+      scenes: timeline, repairs: plan.repairs ?? [], notes, qa,
+      boardCheck: boardCheck.map((c) => ({ format: c.format, ok: c.ok, ...c.counts })),
+      frameCheck: { ok: fc.ok, samples: fc.samples, issues: fc.issues.length, file: path.join(out, "frame-check.json") },
+      // captions that found no fully free spot (empty when every caption clears the drawing)
+      captionsCovering: cap.captions.filter((c) => c.overlapPx > 0),
+      cost: { metaUsd: Number(ledger.total.toFixed(4)), byModel: ledger.byModel(), entries: ledger.entries, voiceUsd: Number(voiceUsd.toFixed(4)), voice: voice.id },
+      seconds: Math.round((Date.now() - t0) / 1000),
+      stages,
+    };
+    writeAtomic(path.join(out, "manifest.json"), JSON.stringify(manifest, null, 1));
+    P({ stage: "done", message: "done", pct: 100 });
+    return manifest;
+  } finally {
+    for (const d of scratch) fs.rmSync(d, { recursive: true, force: true });
   }
-  const covering = cap.captions.filter((c) => c.overlapPx > 0);
-  if (covering.length) notes.push(`${covering.length} caption(s) could not find fully free space: ${covering.map((c) => `${c.t0.toFixed(1)}s "${c.text}"`).join(", ")}`);
-  // ffmpeg finishes the last frames while the frame check runs
-  const encoded = encoder.done();
-  encoded.catch(() => {});
-  // look at the picture itself: where every word, ring and caption actually landed, frame by frame
-  P({ stage: "render", message: "checking the rendered frames", pct: 91 });
-  const fc = await timed("frame check", () => frameCheck(film, { workDir: path.join(out, "frame-check"), frameDir: frames, visionFrames: o.visionReview ? 8 : 0, ledger }));
-  fs.rmSync(path.join(out, "frame-check"), { recursive: true, force: true });
-  fs.writeFileSync(path.join(out, "frame-check.json"), JSON.stringify(fc, null, 1));
-  notes.push(`frame check: ${fc.atRest} of ${fc.samples} sampled frames at rest, ${fc.issues.length} issue(s)${fc.issues.length ? `: ${fc.issues.slice(0, 4).map((i) => `${i.t}s ${i.rule} ${i.detail}`).join("; ")}` : ""}`);
-  if (fc.vision) notes.push(`vision review: ${fc.vision.reduce((n, f) => n + f.problems.length, 0)} problem(s) across ${fc.vision.length} frames`);
-  P({ stage: "encode", message: "encoding the mp4", pct: 92 });
-  await timed("encode tail", () => encoded);
-  const sheet = path.join(out, `${base}.contact.jpg`);
-  await timed("contact sheet", () => contactSheet(mp4, sheet, Math.max(2, Math.ceil(film.duration / 40))));
-  fs.copyFileSync(cap.html, path.join(out, "stage.html"));
-  fs.rmSync(frames, { recursive: true, force: true });
+}
 
-  const qa = await qaRun;
-
-  const voiceUsd = voice instanceof DeepgramVoice ? voice.usd : 0;
-  const manifest = {
-    tool: "explainlike", input: o.input, kind, brief: spec.brief, tempo: spec.tempo, pace, repoDir, followUp: o.focus ? { focus: o.focus } : o.whatIf ? { whatIf: o.whatIf } : undefined, look: theme.id, packs: { loaded: extra.map((p) => p.id), detected: detected.map((d) => ({ pack: d.pack, id: d.component.id, name: d.component.name, evidence: d.evidence })) }, title: plan.title, durationSec: Number(film.duration.toFixed(1)),
-    outputs: { mp4, tldr: tldrFile, excalidraw: excalidrawFile, contactSheet: sheet, plan: path.join(out, "plan.json"), architecture: arch ? path.join(out, "architecture.json") : undefined },
-    scenes: timeline, repairs: plan.repairs ?? [], notes, qa,
-    boardCheck: boardCheck.map((c) => ({ format: c.format, ok: c.ok, ...c.counts })),
-    frameCheck: { ok: fc.ok, samples: fc.samples, issues: fc.issues.length, file: path.join(out, "frame-check.json") },
-    // captions that found no fully free spot (empty when every caption clears the drawing)
-    captionsCovering: cap.captions.filter((c) => c.overlapPx > 0),
-    cost: { metaUsd: Number(ledger.total.toFixed(4)), byModel: ledger.byModel(), entries: ledger.entries, voiceUsd: Number(voiceUsd.toFixed(4)), voice: voice.id },
-    seconds: Math.round((Date.now() - t0) / 1000),
-    stages,
-  };
-  fs.writeFileSync(path.join(out, "manifest.json"), JSON.stringify(manifest, null, 1));
-  P({ stage: "done", message: "done", pct: 100 });
-  return manifest;
+/** Write via a temp file and a rename, so a crash never leaves a half-written cache or manifest. */
+function writeAtomic(file: string, data: string) {
+  const tmp = `${file}.${process.pid}.tmp`;
+  fs.writeFileSync(tmp, data);
+  fs.renameSync(tmp, file);
 }
