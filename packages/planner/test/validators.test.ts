@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import type { Architecture, NoteItem, Scene } from "@explainlike/core";
-import { validateNotes, validateArchitecture, repairRepoPlan, checkStory, journeyOrder, speechIssues, keepsSync, syncPhrases, fillerIn, hookLine, validateCutIn, cutInRules, applyReviewPatch, actionName, undrawnLinks, structural } from "@explainlike/planner";
+import { validateNotes, validateArchitecture, repairRepoPlan, checkStory, journeyOrder, speechIssues, keepsSync, syncPhrases, fillerIn, hookLine, validateCutIn, cutInRules, applyReviewPatch, actionName, undrawnLinks, retellCutIn, validateConcept, structural } from "@explainlike/planner";
 
 const item = (text: string, extra: Partial<NoteItem> = {}): NoteItem => ({ text, color: "white", icon: "", target: "", estimate: false, evidence: "", ...extra });
 const ids = new Set(["d1-db", "edge"]);
@@ -365,6 +365,32 @@ test("a review's changes fix only what it names and keep the rest of the map", (
 test("the walkthrough heading the prompt asks for ('follow one click') is not read as a part", () => {
   const plan = { title: "x", subtitle: "", scenes: [{ ...sc("walkthrough", "Now follow one click from your mouse all the way to the screen."), id: "s05-walkthrough", heading: "follow one click" }] };
   assert.ok(!speechIssues(plan, storyArch, "a hotel front desk").some((i) => /heading "follow one click"/.test(i)));
+});
+
+test("retellCutIn: the voice and heading match the rows left on the map", () => {
+  const before = [item("china silk starts here", { target: "china" }), item("persia bridges the middle", { target: "persia" }), item("rome pays gold here", { target: "rome" })];
+  const r = retellCutIn({ kind: "map", heading: "three relay stations", narration: "Three relay stations anchor your map. China silk starts here as the maker. Persia bridges the middle as the vital connector. Rome pays gold here as the end market." }, before, [before[0], before[2]]);
+  assert.equal(r.heading, "two relay stations");
+  assert.equal(r.narration, "Two relay stations anchor your map. China silk starts here as the maker. Rome pays gold here as the end market.");
+  assert.deepEqual(r.left, []);
+  const mixed = retellCutIn({ kind: "map", heading: "the route", narration: "Silk went from China through Persia to Rome." }, before, [before[0], before[2]]);
+  assert.deepEqual(mixed.left, ["persia"], "a sentence that also names a kept place is left for a rewrite");
+  const same = retellCutIn({ kind: "map", heading: "three stops", narration: "Three stops." }, before, before);
+  assert.equal(same.narration, "Three stops.");
+});
+
+test("validateConcept: a map scene that loses a row says the new count", () => {
+  const source = "Chinese silk reached Rome. China made silk for export. Rome paid in gold for silk.";
+  const scene = { ...sc("map", "Three markets mattered. China made the silk. Atlantis bought it. Rome paid gold."), heading: "three markets", items: [
+    item("china made silk", { target: "china", evidence: "China made silk for export" }),
+    item("atlantis bought it", { target: "atlantis", evidence: "Atlantis bought silk" }),
+    item("rome paid gold", { target: "rome", evidence: "Rome paid in gold for silk" }),
+  ] };
+  const { plan, unsaid } = validateConcept({ title: "x", subtitle: "", scenes: [scene] }, source);
+  assert.equal(plan.scenes[0].items.length, 2);
+  assert.equal(plan.scenes[0].narration, "Two markets mattered. China made the silk. Rome paid gold.");
+  assert.equal(plan.scenes[0].heading, "two markets");
+  assert.deepEqual(unsaid, []);
 });
 
 test("undrawnLinks: a push told against an arrow that pulls is flagged", () => {
