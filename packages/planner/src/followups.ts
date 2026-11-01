@@ -12,6 +12,23 @@ const blank = (id: string, kind: Scene["kind"], heading: string, narration: stri
 const neighbours = (arch: Architecture, id: string) =>
   new Set([id, ...arch.connections.flatMap((c) => (c.from === id ? [c.to] : c.to === id ? [c.from] : []))]);
 
+/**
+ * A summary sentence that names a rendering mode the evidence never shows is a
+ * model guess, not a fact (microui was once called "retained" when the code is
+ * immediate-mode). Drop only those sentences; keep everything else word for word.
+ */
+export function groundedSummary(summary: string, evidence: string): string {
+  const ev = evidence.toLowerCase();
+  const sentences = summary.match(/[^.!?]+[.!?]+/g) ?? [summary];
+  const kept = sentences.filter((s) => {
+    const t = s.toLowerCase();
+    if (/\bretained?\b/.test(t) && !ev.includes("retain")) return false;
+    if (/\bimmediate([ -]mode)?\b/.test(t) && !ev.includes("immediate")) return false;
+    return true;
+  });
+  return kept.join(" ").trim();
+}
+
 /** A point that only says the files don't show something tells the viewer nothing and cites a file that doesn't back it. */
 export function emptyPoint(text: string) {
   return /\b(?:do(?:es)?\s+not|don'?t|doesn'?t|never)\s+(?:show|reveal|include|contain|say)\b|\bnot\s+(?:shown|visible|included|in the (?:provided |given )?files)\b/i.test(text);
@@ -36,7 +53,7 @@ export async function explainComponent(o: { ledger: CostLedger; arch: Architectu
       ].join("\n") },
       { role: "user", content: JSON.stringify({ component: { id: c.id, name: c.name, kind: c.kind, what: c.what }, connections: links, question: o.question ?? "what does this do and how does it connect?" }) + "\n\nEVIDENCE FILES:\n" + o.evidence },
     ],
-  }).then((r) => ({ ...r, points: r.points.filter((p) => !emptyPoint(p.text) && (c.evidence.includes(p.file) || o.evidence.includes(`### ${p.file}\n`))) }));
+  }).then((r) => ({ ...r, summary: groundedSummary(r.summary, o.evidence), points: r.points.filter((p) => !emptyPoint(p.text) && (c.evidence.includes(p.file) || o.evidence.includes(`### ${p.file}\n`))) }));
 }
 
 /** A 15 to 20 second clip: the whole system for a beat, then pinned notes on one component and its neighbours. */
@@ -77,9 +94,9 @@ export async function planWhatIf(o: { ledger: CostLedger; arch: Architecture; fa
     schema: z.object({ intro: z.string(), risks: z.array(ScaleRisk.extend({ heading: z.string(), narration: z.string() })) }),
     messages: [
       { role: "system", content: [
-        `The viewer asks: what if "${o.arch.product}" got ${o.factor} its traffic? Pick the 2 components that break first, from the evidence. Audience: ${o.audience}.`,
+        `The viewer asks: what if "${o.arch.product}" got ${o.factor} its traffic (or, for a library, ${o.factor} the adoption)? Pick the 2 components that break first, from the evidence. Audience: ${o.audience}.`,
         `component must be one of: ${ids.join(", ")}. at: "${o.factor}". problem and fix: 1 to 3 lowercase words. evidence: one exact file path from the evidence. heading: 2 to 4 lowercase words that the narration says (reuse the problem words).`,
-        "narration: about 30 words per risk, in 2 or 3 short plain sentences a non-engineer can follow: what breaks and why, then 'The fix is ...'. Start with 'If ...' (you do not know the app's real traffic) and never state user, request, latency or cost numbers as facts. No run-on 'so assume' clauses, no jargon strings like 'single room fanout'.",
+        "narration: about 30 words per risk, in 2 or 3 short plain sentences a non-engineer can follow: what breaks and why, then 'The fix is ...'. Start with 'If ...' (you do not know the project's real traffic or adoption) and never state user, request, latency or cost numbers as facts. No run-on 'so assume' clauses, no jargon strings like 'single room fanout'.",
         "intro: one natural spoken sentence (about 10 words) that sets up the question. Every narration is complete, grammatical sentences, never a list of keywords.",
       ].join("\n") },
       { role: "user", content: JSON.stringify({ components: o.arch.components.map((c) => ({ id: c.id, name: c.name, kind: c.kind, what: c.what })), connections: o.arch.connections.map((c) => `${c.from}>${c.to}`) }) + "\n\nEVIDENCE FILES:\n" + o.evidence },
@@ -92,7 +109,7 @@ export async function planWhatIf(o: { ledger: CostLedger; arch: Architecture; fa
   const HEDGE = /\b(if|assum|estimat|suppose|imagine)/i;
   const scenes: Scene[] = [blank("establish", "establish", `what if ${o.factor}?`, r.intro)];
   risks.forEach((x, i) => scenes.push({
-    ...blank(`scale-${i}`, "scale", x.heading, HEDGE.test(x.narration) ? x.narration : `If traffic grew ${o.factor}: ${x.narration}`),
+    ...blank(`scale-${i}`, "scale", x.heading, HEDGE.test(x.narration) ? x.narration : `If use grew ${o.factor}: ${x.narration}`),
     callouts: [{ target: x.component, text: x.problem, color: "red" }, { target: x.component, text: x.fix, color: "green" }],
   }));
   const arch = { ...o.arch, scale: risks.map(({ heading: _h, narration: _n, ...rest }) => rest) };
