@@ -53,12 +53,38 @@ function cardHtml(c: Card, blocks: (string | null)[]): string {
   return `<!doctype html><html><head><meta charset="utf-8"><style>${CSS}</style></head><body><div class="card">${head}${body}${c.photo ? `<img class="ph" src="${esc(c.photo)}">` : ""}${c.stats ? `<div class="st">${esc(c.stats)}</div>` : ""}</div></body></html>`;
 }
 
+/** fetch with a time limit, turning a hang or a dropped connection into a sentence a person can act on. */
+async function get(url: string, what: string, init: RequestInit = {}): Promise<Response> {
+  try {
+    return await fetch(url, { ...init, signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) });
+  } catch (e) {
+    const name = (e as Error)?.name;
+    throw new Error(name === "TimeoutError" || name === "AbortError" ? `${what} did not load within ${FETCH_TIMEOUT_MS / 1000} s. Try again, or try another link.` : `Could not reach ${what}. Check the link and the internet connection.`);
+  }
+}
+const FETCH_TIMEOUT_MS = 20_000;
+/** the most HTML read from one page; real articles are far smaller */
+export const MAX_PAGE_BYTES = 5 << 20;
+
+/** A failed page or post fetch, said plainly. */
+export function fetchError(kind: "x-post" | "article", status: number): string {
+  if (kind === "x-post") {
+    if (status === 404) return "That X post was not found. It may be deleted, from a private account, or the link may be cut off.";
+    if (status === 429) return "X is rate-limiting reads right now. Wait a minute and try again.";
+    return `Could not read that X post (HTTP ${status}). Try again in a minute.`;
+  }
+  if (status === 404 || status === 410) return "That page was not found (HTTP 404). Check the link.";
+  if (status === 401 || status === 402 || status === 403) return `That site does not let automated readers in (HTTP ${status}), often because of a paywall or a bot check. Try a link to the same story on another site.`;
+  if (status === 429) return "That site is rate-limiting reads right now. Wait a minute and try again.";
+  return `Could not fetch that page (HTTP ${status}). Try again, or try another link.`;
+}
+
 async function fetchX(url: string, id: string): Promise<Card & { url: string }> {
-  const r = await fetch(`https://api.fxtwitter.com/status/${id}`, { headers: { "user-agent": UA } });
-  if (!r.ok) throw new Error(`could not read the X post (${r.status})`);
-  const j: any = await r.json();
+  const r = await get(`https://api.fxtwitter.com/status/${id}`, "X", { headers: { "user-agent": UA } });
+  if (!r.ok) throw new Error(fetchError("x-post", r.status));
+  const j: any = await r.json().catch(() => ({}));
   const t = j.tweet;
-  if (!t) throw new Error("X post not found (deleted or private?)");
+  if (!t) throw new Error(fetchError("x-post", 404));
   let blocks: string[] = String(t.text ?? "").split(/\n{2,}/).map((s) => s.trim()).filter(Boolean);
   let title: string | undefined;
   const art = t.article;
@@ -78,13 +104,16 @@ async function fetchX(url: string, id: string): Promise<Card & { url: string }> 
 }
 
 async function fetchArticle(url: string): Promise<Card & { url: string }> {
-  const r = await fetch(url, { headers: { "user-agent": UA, accept: "text/html" }, redirect: "follow" });
-  if (!r.ok) throw new Error(`could not fetch the article (${r.status})`);
-  const html = await r.text();
+  const r = await get(url, new URL(url).hostname, { headers: { "user-agent": UA, accept: "text/html" }, redirect: "follow" });
+  if (!r.ok) throw new Error(fetchError("article", r.status));
+  const type = r.headers.get("content-type") ?? "";
+  if (type && !/html|xml|text\/plain/i.test(type)) throw new Error(`That link is not a web page (${type.split(";")[0]}). Link to an article instead.`);
+  if (Number(r.headers.get("content-length") ?? 0) > MAX_PAGE_BYTES) throw new Error("That page is too large to read (over 5 MB). Link to a single article.");
+  const html = (await r.text()).slice(0, MAX_PAGE_BYTES);
   const { document } = parseHTML(html);
   const meta = (n: string) => document.querySelector(`meta[property="${n}"],meta[name="${n}"]`)?.getAttribute("content") ?? undefined;
   const art = new Readability(document as any).parse();
-  if (!art?.content) throw new Error("could not find the article text on that page");
+  if (!art?.content) throw new Error("Could not find article text on that page. It may need JavaScript or a login; try a direct link to the article.");
   const { document: d2 } = parseHTML(`<html><body>${art.content}</body></html>`);
   const blocks = Array.from(d2.querySelectorAll("p,li,h2,h3,h4,pre,blockquote") as any as ArrayLike<any>)
     .filter((el: any) => !el.parentElement?.closest?.("li,blockquote"))
@@ -161,7 +190,7 @@ export async function ingestConcept(input: string, _outDir: string): Promise<Con
   const id = xStatusId(input);
   const card = id ? await fetchX(input, id) : await fetchArticle(input);
   const text = redact(card.blocks.join("\n\n")).slice(0, 60000);
-  if (text.trim().length < 20) throw new Error("the source has almost no text to explain");
+  if (text.trim().length < 20) throw new Error("That source has almost no text to explain. Try a longer post or article.");
   const doc: SourceDoc = {
     kind: card.kind, url: card.url, title: card.title ?? (card.kind === "x-post" ? `post by @${card.handle}` : "article"),
     author: card.kind === "x-post" ? `${card.author} (@${card.handle})` : card.author, text,
