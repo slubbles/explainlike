@@ -17,7 +17,8 @@ test("a job cut off by a server restart is marked, then picked up once with the 
   const j = resumeInterrupted();
   assert.equal(j?.id, id);
   assert.equal(j?.state, "running");
-  for (let i = 0; i < 100 && getJob(id)!.state === "running"; i++) await new Promise((r) => setTimeout(r, 100));
+  // node + tsx can take several seconds to boot on Windows when the whole suite is running at once
+  for (let i = 0; i < 300 && getJob(id)!.state === "running"; i++) await new Promise((r) => setTimeout(r, 100));
   assert.equal(getJob(id)!.state, "done");
   assert.equal(getJob(id)!.resumed, 1);
   assert.equal(resumeInterrupted(), undefined, "only once");
