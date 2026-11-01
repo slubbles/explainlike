@@ -63,7 +63,7 @@ export function spokenWords(script: string): string[] {
  * keep the script spelling; only the text sent to the voice changes. "silk reached Rome" came out as
  * "reached Gromo" in two takes of four.
  */
-export const RESPELL: Record<string, string> = { rome: "Rohm" };
+export const RESPELL: Record<string, string> = { rome: "Rohm", parcel: "parsel", courier: "coorier", couriers: "cooriers" };
 
 /**
  * The names in a script a listener would notice said wrong: capitalised words (not acronyms) after a
