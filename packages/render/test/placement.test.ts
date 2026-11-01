@@ -84,6 +84,21 @@ test("an arrow past the frame edge is panned into view, not fixed by widening un
   assert.equal(p.film.camera[0].w, 3800);
 });
 
+test("a board arrow whose source box is out of shot is caught, and the fix brings a piece of that box in", () => {
+  // the arrow is whole on screen, but the box it leaves sits left of the frame, so it seems to come from nowhere
+  const nodes: Sketch["nodes"] = [
+    { id: "a", box: { x: -440, y: 400, w: 400, h: 200 }, color: "#fff", keyword: "a", t0: 0 },
+    { id: "b", box: { x: 800, y: 400, w: 400, h: 200 }, color: "#fff", keyword: "b", t0: 0 },
+  ];
+  const wire = (g: string): Mark => ({ kind: "wire", t0: 1, dur: 0.5, g, from: "a", to: "b", points: [[-40, 500], [800, 500]] });
+  const p = { film: film([], { x: -60, y: 0, w: 1920, h: 1080 }), sketch: sketch(nodes), marks: [wire("b:s01-board")] };
+  assert.deepEqual(checkPlacement(p).map((i) => i.rule), ["cropped"]);
+  assert.ok(placementPass(p).ok);
+  assert.ok(cameraAt(p.film, 2).x <= -150, "a piece of the source box is in shot");
+  // a system wire may still lead off screen to a part out of shot
+  assert.deepEqual(rules([wire("e:a>b")], [], nodes, { x: -60, y: 0, w: 1920, h: 1080 }), []);
+});
+
 test("an arrow cut off in a later shot is fixed in every shot it is on screen, in one fix", () => {
   const { f, nodes } = named({ x: 0, y: 0, w: 1920, h: 1080 });
   // the arrow is drawn at 2s past the right edge, and the shot at 4s slides left and cuts it again
