@@ -17,7 +17,7 @@ Explain Like turns a GitHub repo, an X post, an article or a plain topic into a 
 
 ## Commands
 - `pnpm install`, `pnpm typecheck`, `pnpm test` (it must end with `# fail 0`), and `pnpm web` (dev server on port 3000).
-- On Windows, set `EXPLAINLIKE_CHROME` to Chrome's path. Keys go in `apps/web/.env.local`, which is gitignored; `.env.example` lists every setting.
+- On Windows, Chrome is found in its usual install folders, so a fresh shell works; set `EXPLAINLIKE_CHROME` only for a non-standard path. Keys go in `apps/web/.env.local`, which is gitignored; `.env.example` lists every setting.
 - CI (`.github/workflows/ci.yml`) runs the typecheck, tests and web build on every push to main.
 
 ## Rules
@@ -35,10 +35,10 @@ Explain Like turns a GitHub repo, an X post, an article or a plain topic into a 
 - Samples are in the Google Drive folder "Explain Like samples" (microui v8, Silk Road v3, DNS, how the internet grew, minbpe, OpenMausBot).
 
 ## Open items
-1. Pronunciation: the listening check hears "personal relay" for "parcel relay" and "Curriers" for "Couriers" in the Silk Road retake. Extend the retake hints.
-2. microui runs at 7.48 cuts a minute, just under 8, because scenes s02 and s03 have no clean split point.
-3. The "What if 10x traffic?" follow-up assumes a service; hide or adapt it for libraries like microui.
-4. Box answers can repeat model mistakes (it called microui "retained" when it's immediate-mode). Ground them more tightly in the files.
-5. Follow-up clips (deep dive, what-if) haven't been tested end to end since the latest changes.
+1. Pronunciation: the listening check hears "personal relay" for "parcel relay" and "Curriers" for "Couriers" in the Silk Road retake. Retake hints now cover parcel and couriers (unit-tested); one real-audio check still needed.
+2. microui pacing accepted at 7.48 cuts/min for that sample. Closed.
+3. What-if wording now covers libraries (traffic or adoption). Closed.
+4. Box summaries drop rendering-mode claims the evidence never shows (groundedSummary, tested). Closed.
+5. What-if verified live on article input; follow-ups are repo-video-only by tool contract. Deep-dive focus still queued behind the dead engine channel (staged: minbpe regex-tokenizer).
 6. Deploy prep is ready (Dockerfile, health check, rate limits, spend guard). It still needs a host, the domain, and the user's go.
 7. Later: hackathon write-up and X post drafts (don't post), an architecture diagram for the README, and voice cloning.
