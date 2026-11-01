@@ -12,15 +12,26 @@ export function makeBed(duration: number, out: string) {
   // a small fixed random sequence, so the same length always gives the same bed
   let seed = 7;
   const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647) * 2 - 1;
+  // each harmonic is a rotating phasor (one multiply-add per sample instead of a sine): the same tone, about 10x faster
   const add = (f: number, at: number, len: number, attack: number, release: number, harm: number[], g: number, pan: number, decay = 0) => {
     const i0 = Math.round(at * SR), m = Math.min(n - i0, Math.round(len * SR));
+    const K = harm.length, re = new Float64Array(K).fill(1), im = new Float64Array(K), cr = new Float64Array(K), ci = new Float64Array(K);
+    for (let k = 0; k < K; k++) { const w = (2 * Math.PI * f * (k + 1)) / SR; cr[k] = Math.cos(w); ci[k] = Math.sin(w); }
+    const gl = g * (1 - pan), gr = g * (1 + pan), fall = decay ? Math.exp(-decay / SR) : 1;
+    let ex = 1;
     for (let i = 0; i < m; i++) {
       const t = i / SR;
       let s = 0;
-      for (let k = 0; k < harm.length; k++) s += harm[k] * Math.sin(2 * Math.PI * f * (k + 1) * t);
-      const env = Math.min(1, t / attack) * Math.min(1, Math.max(0, (len - t) / release)) * (decay ? Math.exp(-t * decay) : 1);
-      L[i0 + i] += s * env * g * (1 - pan);
-      R[i0 + i] += s * env * g * (1 + pan);
+      for (let k = 0; k < K; k++) {
+        s += harm[k] * im[k];
+        const r = re[k] * cr[k] - im[k] * ci[k];
+        im[k] = re[k] * ci[k] + im[k] * cr[k];
+        re[k] = r;
+      }
+      const env = Math.min(1, t / attack) * Math.min(1, Math.max(0, (len - t) / release)) * ex;
+      ex *= fall;
+      L[i0 + i] += s * env * gl;
+      R[i0 + i] += s * env * gr;
     }
   };
   const prog = [[48, 55, 59, 62, 64], [45, 52, 55, 59, 64], [41, 48, 52, 57, 59], [43, 50, 55, 57, 62]];
@@ -40,10 +51,10 @@ export function makeBed(duration: number, out: string) {
   }
   let peak = 1e-9;
   for (let i = 0; i < n; i++) peak = Math.max(peak, Math.abs(L[i]), Math.abs(R[i]));
-  const pcm = Buffer.alloc(n * 4);
+  const pcm = Buffer.alloc(n * 4), q = new Int16Array(pcm.buffer, pcm.byteOffset, n * 2); // little-endian, like the WAV
   for (let i = 0; i < n; i++) {
-    pcm.writeInt16LE(Math.round((L[i] / peak) * 0.5 * 32767), i * 4);
-    pcm.writeInt16LE(Math.round((R[i] / peak) * 0.5 * 32767), i * 4 + 2);
+    q[i * 2] = Math.round((L[i] / peak) * 0.5 * 32767);
+    q[i * 2 + 1] = Math.round((R[i] / peak) * 0.5 * 32767);
   }
   const h = Buffer.alloc(44);
   h.write("RIFF", 0); h.writeUInt32LE(36 + pcm.length, 4); h.write("WAVE", 8); h.write("fmt ", 12);
