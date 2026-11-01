@@ -11,6 +11,8 @@ export class ServiceError extends Error {
     readonly status?: number,
     /** the raw reason for logs (status line and the start of the response body) */
     readonly detail?: string,
+    /** the service did not answer in time (as opposed to refusing or failing) */
+    readonly timedOut = false,
   ) {
     super(message);
     this.name = "ServiceError";
@@ -26,6 +28,8 @@ export interface RetryOptions {
   timeoutMs?: number;
   /** total tries, default 4 */
   attempts?: number;
+  /** false: a timeout fails at once (the caller has its own quicker fallback), default true */
+  retryTimeouts?: boolean;
   /** first backoff, doubled each retry, default 1000 ms */
   baseMs?: number;
   /** longest single wait, default 30 s */
@@ -85,8 +89,9 @@ export async function fetchRetry(url: string, init: () => RequestInit, o: RetryO
       const timedOut = err?.name === "TimeoutError" || err?.name === "AbortError";
       last = new ServiceError(
         timedOut ? `${o.service} did not answer within ${Math.round(timeout / 1000)} s. Try again in a few minutes.` : `Could not reach ${o.service} (${scrub(String(err?.message ?? err))}). Check the internet connection and try again.`,
-        o.service, undefined, scrub(String(err?.message ?? err)),
+        o.service, undefined, scrub(String(err?.message ?? err)), timedOut,
       );
+      if (timedOut && o.retryTimeouts === false) throw last;
     } finally {
       clearTimeout(timer);
     }

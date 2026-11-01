@@ -42,9 +42,9 @@ function key() {
 
 const MUSE = { service: "Meta Muse", keyVar: "MODEL_API_KEY", baseMs: 1500 };
 
-async function post(path: string, body: unknown, timeoutMs = 300_000): Promise<any> {
+async function post(path: string, body: unknown, timeoutMs = 300_000, retryTimeouts = true): Promise<any> {
   const json = JSON.stringify(body), k = key();
-  const r = await fetchRetry(BASE + path, () => ({ method: "POST", headers: { Authorization: `Bearer ${k}`, "Content-Type": "application/json" }, body: json }), { ...MUSE, timeoutMs, attempts: 4 });
+  const r = await fetchRetry(BASE + path, () => ({ method: "POST", headers: { Authorization: `Bearer ${k}`, "Content-Type": "application/json" }, body: json }), { ...MUSE, timeoutMs, attempts: 4, retryTimeouts });
   const text = await r.text();
   try { return JSON.parse(text); } catch { throw new ServiceError("Meta Muse sent back an answer that was not JSON. Try again.", "Meta Muse", r.status, text.slice(0, 200)); }
 }
@@ -56,10 +56,13 @@ const LOWER = { high: "medium", medium: "low", low: "minimal", minimal: "minimal
 /**
  * Muse Spark with strict structured output validated by zod. When the reasoning eats the whole token budget,
  * the answer comes back empty or cut off; that try is retried once with one step less effort and 1.5x the room.
+ * With `timeoutMs`, a try that has not answered by then is dropped and retried once the same way, so a slow
+ * call costs at most two time limits instead of hanging through four five-minute retries.
+ * `wire` is the schema sent to the API when it carries limits (max items, max length) the parse should not enforce.
  */
 export async function sparkJson<T extends z.ZodType>(opts: {
   ledger: CostLedger; step: string; schema: T; name: string; messages: ChatMessage[];
-  effort?: "minimal" | "low" | "medium" | "high"; maxTokens?: number;
+  effort?: "minimal" | "low" | "medium" | "high"; maxTokens?: number; timeoutMs?: number; wire?: z.ZodType;
 }): Promise<z.infer<T>> {
   let effort = opts.effort ?? "low", maxTokens = opts.maxTokens ?? 12000;
   for (let attempt = 0; ; attempt++) {
@@ -69,9 +72,18 @@ export async function sparkJson<T extends z.ZodType>(opts: {
       messages: opts.messages,
       reasoning_effort: effort,
       max_tokens: maxTokens,
-      response_format: { type: "json_schema", json_schema: { name: opts.name, strict: true, schema: strictJsonSchema(opts.schema) } },
+      response_format: { type: "json_schema", json_schema: { name: opts.name, strict: true, schema: strictJsonSchema(opts.wire ?? opts.schema) } },
     };
-    const out = await post("/chat/completions", body);
+    let out;
+    try {
+      out = opts.timeoutMs ? await post("/chat/completions", body, opts.timeoutMs, false) : await post("/chat/completions", body);
+    } catch (e) {
+      if (!(e instanceof ServiceError && e.timedOut) || attempt >= 1) throw e;
+      // what a dropped try cost is not reported back, so it is logged at zero with the time it took
+      opts.ledger.add({ step: opts.step, model: SPARK, seconds: (Date.now() - t) / 1000, usd: 0, detail: { effort, timedOut: true } });
+      effort = LOWER[effort];
+      continue;
+    }
     const u = out.usage ?? {};
     const usd = (u.prompt_tokens ?? 0) * PRICE.sparkIn + (u.completion_tokens ?? 0) * PRICE.sparkOut;
     opts.ledger.add({ step: opts.step, model: SPARK, seconds: (Date.now() - t) / 1000, usd, detail: { prompt: u.prompt_tokens, completion: u.completion_tokens, reasoning: u.completion_tokens_details?.reasoning_tokens, effort, ...(attempt ? { retry: attempt } : {}) } });
