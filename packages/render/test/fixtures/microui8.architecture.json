@@ -1,0 +1,131 @@
+{
+ "product": "rxi/microui",
+ "one_liner": "Tiny ANSI C immediate-mode UI that turns per-frame input into rect and text commands.",
+ "components": [
+  {
+   "id": "demo-app",
+   "name": "Demo App",
+   "kind": "client",
+   "layer": "frontend",
+   "keyword": "demo app",
+   "icon": "laptop",
+   "what": "SDL demo loop that feeds mouse and keys into microui each frame and executes draw commands",
+   "evidence": [
+    "demo/main.c",
+    "README.md"
+   ]
+  },
+  {
+   "id": "ui-core",
+   "name": "Microui Core",
+   "kind": "api",
+   "layer": "backend",
+   "keyword": "ui core",
+   "icon": "gear",
+   "what": "Tiny fixed-memory immediate-mode context with windows layout controls and input handling in ANSI C",
+   "evidence": [
+    "src/microui.c",
+    "src/microui.h"
+   ]
+  },
+  {
+   "id": "command-list",
+   "name": "Command List",
+   "kind": "queue",
+   "layer": "backend",
+   "keyword": "command list",
+   "icon": "queue",
+   "what": "Fixed buffer of mu_Command rect text icon and clip draws produced per frame for user renderer",
+   "evidence": [
+    "src/microui.h",
+    "src/microui.c"
+   ]
+  },
+  {
+   "id": "sdl-renderer",
+   "name": "Demo Renderer",
+   "kind": "third-party",
+   "layer": "third-party",
+   "keyword": "sdl window",
+   "icon": "video",
+   "what": "Optional SDL user renderer that draws rectangles and atlas text, proves any backend works",
+   "evidence": [
+    "demo/main.c"
+   ]
+  },
+  {
+   "id": "font-atlas",
+   "name": "Font Atlas",
+   "kind": "object-storage",
+   "layer": "storage",
+   "keyword": "font atlas",
+   "icon": "book",
+   "what": "Embedded bitmap font atlas used by demo to rasterize microui text commands",
+   "evidence": [
+    "demo/atlas.inl"
+   ]
+  }
+ ],
+ "connections": [
+  {
+   "from": "demo-app",
+   "to": "ui-core",
+   "label": "send input",
+   "evidence": "demo/main.c"
+  },
+  {
+   "from": "ui-core",
+   "to": "command-list",
+   "label": "queue draws",
+   "evidence": "src/microui.c"
+  },
+  {
+   "from": "demo-app",
+   "to": "command-list",
+   "label": "read commands",
+   "evidence": "demo/main.c"
+  },
+  {
+   "from": "demo-app",
+   "to": "font-atlas",
+   "label": "load glyphs",
+   "evidence": "demo/main.c"
+  },
+  {
+   "from": "demo-app",
+   "to": "sdl-renderer",
+   "label": "draw rects",
+   "evidence": "demo/main.c"
+  }
+ ],
+ "walkthrough": {
+  "name": "Per-frame button press",
+  "steps": [
+   {
+    "from": "demo-app",
+    "to": "ui-core",
+    "label": "send input",
+    "evidence": "demo/main.c"
+   },
+   {
+    "from": "ui-core",
+    "to": "command-list",
+    "label": "queue draws",
+    "evidence": "src/microui.c"
+   },
+   {
+    "from": "demo-app",
+    "to": "command-list",
+    "label": "read commands",
+    "evidence": "demo/main.c"
+   },
+   {
+    "from": "demo-app",
+    "to": "sdl-renderer",
+    "label": "draw rects",
+    "evidence": "demo/main.c"
+   }
+  ]
+ },
+ "scale": []
+}

@@ -1,0 +1,12 @@
+{
+ "topic": "A tiny portable immediate-mode UI library in ANSI C that turns per-frame input into rectangle and text draw commands",
+ "complexity": "simple",
+ "audience": "a C developer new to immediate-mode UI",
+ "depth": "overview",
+ "approach": "story",
+ "analogy": "a short-order diner kitchen that throws away the ticket and re-takes your whole order on every visit",
+ "why": "A single frame's journey from input to draw commands shows the immediate-mode idea best, and overview depth is enough for this tiny tool to be understood and used.",
+ "look": "whiteboard-light",
+ "style": "whiteboard",
+ "extras": []
+}

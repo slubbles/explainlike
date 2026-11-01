@@ -188,6 +188,8 @@ class Builder {
     this.marks.push({ kind: "wire", g, t0, dur, points: e.points, from: e.from, to: e.to });
     return t0 + dur + 0.25;
   }
+  /** Width of the frame that would show this box. */
+  span(b: Box, maxScale = 1.0) { return this.frame(b, maxScale).w; }
   fit(b: Box, t: number, move: number, maxScale = 1.15, whole: Box[] = []) {
     // a box the shot would slice through at its edge is taken in whole, unless that widens the shot by half again
     for (let pass = 0; pass < 2 && whole.length; pass++) {
@@ -820,7 +822,7 @@ export async function compose(inp: ComposeInput): Promise<Composed> {
       }
     } else if (s.kind === "recap" && graph) {
       const all = [...present];
-      B.fit(unionBox(all.map((id) => graph!.nodes.get(id)!).filter(Boolean), 60), T, 1.3, 1.0);
+      const ov = unionBox(all.map((id) => graph!.nodes.get(id)!).filter(Boolean), 60);
       for (const kk of drawnEdges) B.setOp(kk, T, 1);
       // the red scale ring has made its point; the recap shows the fixed system without it
       for (let j = 0; j < fixIds.length; j++) B.setOp(`s:${j}`, T, 0, 0.5);
@@ -842,6 +844,17 @@ export async function compose(inp: ComposeInput): Promise<Composed> {
       });
       if (dots) B.setOp("recap-dot", tEnd - 0.6, 0, 0.4);
       for (const id of all) B.setOp(nodeGroup(id), tEnd - 0.6, 1, 0.4);
+      // a long recap would sit on one wide frame for its whole length: it opens on the first half of the
+      // trip, and moves to the second half as that is retold; the end card shows the whole board after it
+      const half = Math.ceil(comps.length / 2), back = T + D - tempo.minBeat - 0.05;
+      const halves = comps.length >= 4 ? [comps.slice(0, half), comps.slice(half)].map((p) => unionBox(p.map((c) => graph!.nodes.get(c.id)!).filter(Boolean), 70)) : [];
+      const mid = Math.min(back, Math.max(T + tempo.minBeat, (times[half] ?? 0) - tempo.move));
+      const closer = halves.length === 2 && mid >= T + tempo.minBeat && halves.every((h) => B.span(h) < 0.8 * B.span(ov, 1.3));
+      if (closer) {
+        const nodes = all.map((id) => graph!.nodes.get(id)!).filter(Boolean);
+        B.fit(halves[0], T, 1.3, 1.0, nodes);
+        B.fit(halves[1], mid, tempo.move, 1.0, nodes);
+      } else B.fit(ov, T, 1.3, 1.0);
     } else if (s.kind === "source" && inp.shot && shotBox) {
       const sb = shotBox;
       const gs = `src:${s.id}`;
