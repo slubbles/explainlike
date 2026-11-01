@@ -34,7 +34,7 @@ test("a chart and a timeline in a real plan stay whole on screen from their last
   for (const kind of ["chart", "timeline"]) {
     const s = plan.scenes.find((x: { kind: string }) => x.kind === kind);
     const head = film.headings.find((h) => h.text === s.heading)!;
-    const els = film.elements.filter((e) => e.g === `ci:${s.id}` && e.k === "text");
+    const els = film.elements.filter((e) => (e.g === `ci:${s.id}` || e.g === `ci:${s.id}~fine`) && e.k === "text");
     assert.ok(els.length >= s.items.length * 2, `${kind}: a label and a value or date per row`);
     const last = Math.max(...els.map((e) => e.t0 + e.dur));
     for (let t = last; t < head.t1 - 0.3; t += 0.5) {

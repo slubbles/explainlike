@@ -4,7 +4,7 @@ import { agreementSlips, phraseAt, shortHeading } from "@explainlike/core";
 import type { Architecture, ScenePlan, Scene, SceneAudio, Theme, ExplainSpec, Color, WordTiming, NoteItem } from "@explainlike/core";
 import type { Film, FElement, CamKey, Caption, Heading } from "./film.js";
 import { applyTempo, readableWidth, type PaceReport } from "./pace.js";
-import { placementPass, type Mark, type PlacementReport } from "./placement.js";
+import { placementPass, MIN_TEXT_PX, MIN_SMALL_TEXT_PX, type Mark, type PlacementReport } from "./placement.js";
 import { layoutGraph, unionBox, shiftLayout, wrapText, NODE, type Box, type GNode, type GEdge, type Layout, type PlacedNode, type PlacedEdge } from "./layout.js";
 import { textWidth, fontDataUrl, useHandFont, HAND_FONTS } from "./measure.js";
 import { penOutline } from "./draw.js";
@@ -1028,6 +1028,20 @@ export async function compose(inp: ComposeInput): Promise<Composed> {
         });
         B.fit(unionBox(all.map((b) => ({ x: b.x, y: b.y - 200, w: b.w, h: b.h + 200 })), 80), T, 0, 1.0);
         for (const b of boardShown) B.setOp(b.g, T, 1, 0.01);
+        // words too small to read on the whole wall (quotes, arrow labels) step aside for the recap;
+        // the board titles and box names carry it, and a wall of 9 px text reads as noise
+        const wide = B.cam[B.cam.length - 1].w;
+        for (const b of boardShown) {
+          const fine = `${b.g}~fine`;
+          for (const e of B.els) {
+            if (e.k !== "text" || e.g !== b.g || e.t0 >= T) continue;
+            const px = (e.size * W) / wide;
+            if (px >= (e.size >= 34 ? MIN_TEXT_PX : MIN_SMALL_TEXT_PX)) continue;
+            if (!B.groups[fine]) { B.groups[fine] = (B.groups[b.g] ?? []).map(([t, v]) => [t, v]); B.cur.set(fine, B.cur.get(b.g) ?? 1); }
+            e.g = fine;
+          }
+          if (B.groups[fine]) B.setOp(fine, T, 0, 0.3);
+        }
         const times = eventTimes(words, boardShown.map((b) => [b.heading, ...b.keys]), t0 + 0.8, tEnd - 1.4, 1.2);
         // overview first, then the camera visits each board as it is recalled, then pulls back to the whole wall
         boardShown.forEach((b, i) => {
