@@ -51,7 +51,17 @@ Paste a link and watch it build, with a live cost meter. Or press the **mic butt
 
 When the video is done you can tap any box for a short explanation from the code, render a 15-20 s deep dive on it, ask "what if 10x traffic?", or download the boards.
 
-It runs on localhost only. Every job spends your API credits, so don't put it on the public internet as is.
+Every job spends your API credits. The web app has a per-IP rate limit, size limits and a spend guard that pauses new work before the Meta or Deepgram cap (`EXPLAINLIKE_META_CAP_USD`, `EXPLAINLIKE_VOICE_CAP_USD`). Voice mode only answers on localhost. Read [docs/deploy.md](docs/deploy.md) before you put it anywhere public.
+
+If a server restart cuts a video off, it starts again on its own the next time the app loads. Every setting is listed in [`.env.example`](.env.example).
+
+## Checks
+
+```bash
+pnpm typecheck && pnpm test
+```
+
+The tests need ffmpeg and Chrome but no API keys.
 
 ## CLI
 
