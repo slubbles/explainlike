@@ -657,7 +657,7 @@ export async function planConceptScenes(o: { ledger: CostLedger; doc: SourceDoc;
   ].join("\n");
   const user = `SOURCE (${o.doc.kind}) by ${o.doc.author ?? "unknown"}: ${o.doc.title}\nURL: ${o.doc.url}\n\nTEXT:\n${o.doc.text.slice(0, 30000)}`;
   let plan = await sparkJson({ ledger: o.ledger, step: "concept-plan", schema: ScenePlan, name: "scene_plan", effort: "low", maxTokens: 9000, messages: [{ role: "system", content: sys }, { role: "user", content: user }] });
-  let { plan: fixed, dropped } = validateConcept(plan, o.doc.text);
+  let { plan: fixed, dropped, unsaid } = validateConcept(plan, o.doc.text);
   if (dropped.length > 2) {
     o.progress?.({ stage: "plan", message: `re-planning: ${dropped.length} quotes were not in the source` });
     plan = await sparkJson({
@@ -665,13 +665,28 @@ export async function planConceptScenes(o: { ledger: CostLedger; doc: SourceDoc;
       messages: [{ role: "system", content: sys }, { role: "user", content: user }, { role: "assistant", content: JSON.stringify(plan) },
         { role: "user", content: `These rows failed the source check (a quote not copied verbatim, a chart or timeline quote that does not state its number or date, or a map place that is not a real country or city named in its quote). Replace each with an exact copied phrase that does, or remove it:\n${dropped.join("\n")}\nReturn the full corrected plan.` }],
     });
-    ({ plan: fixed, dropped } = validateConcept(plan, o.doc.text));
+    ({ plan: fixed, dropped, unsaid } = validateConcept(plan, o.doc.text));
   }
-  return { ...fixed, repairs: dropped.map((d) => `dropped unquoted: ${d}`) };
+  // a dropped row still named next to a kept one ("from china through persia to rome") needs a real rewrite of that scene
+  const retold: string[] = [];
+  for (const u of unsaid) {
+    const sc = fixed.scenes.find((x) => x.id === u.id)!;
+    const out = await sparkJson({
+      ledger: o.ledger, step: "cut-in-retell", schema: z.object({ narration: z.string() }), name: "narration", effort: "minimal", maxTokens: 2000,
+      messages: [{ role: "system", content: "Rewrite this narration for a whiteboard explainer so it no longer mentions the removed items, which are not shown on screen. Keep everything else, the voice and the length; say each shown item's name as it is now said." },
+        { role: "user", content: JSON.stringify({ narration: sc.narration, removed: u.names, shown: sc.items.map((it) => it.text) }) }],
+    }).catch(() => undefined);
+    const next = out?.narration.trim() ?? "";
+    const r = wordCount(next) / Math.max(1, wordCount(sc.narration));
+    if (next && r > 0.6 && r < 1.3 && !u.names.some((n) => new RegExp(`\\b${n}\\b`, "i").test(next))) { sc.narration = tidySpeech(next); retold.push(`${u.id}: narration retold without ${u.names.join(", ")}`); }
+    else retold.push(`${u.id}: narration still names dropped ${u.names.join(", ")}`);
+  }
+  return { ...fixed, repairs: [...dropped.map((d) => `dropped unquoted: ${d}`), ...retold] };
 }
 
-export function validateConcept(plan: ScenePlan, source: string): { plan: ScenePlan; dropped: string[] } {
+export function validateConcept(plan: ScenePlan, source: string): { plan: ScenePlan; dropped: string[]; unsaid: { id: string; names: string[] }[] } {
   const dropped: string[] = [];
+  const unsaid: { id: string; names: string[] }[] = [];
   const kw = (s: string) => lower(s).split(/\s+/).slice(0, 3).join(" ");
   const scenes = plan.scenes.map((s, i) => {
     const highlights = s.highlights.filter((h) => (quoteInSource(h.quote, source) ? true : (dropped.push(`highlight "${h.quote}"`), false))).map((h) => ({ ...h, note: kw(h.note) }));
@@ -681,10 +696,51 @@ export function validateConcept(plan: ScenePlan, source: string): { plan: SceneP
     const callouts = s.kind === "board" ? (s.callouts ?? []).filter((c) => ok.has(c.target)).slice(0, 1).map((c) => ({ ...c, text: kw(c.text) })) : [];
     const items = s.kind === "notes" ? validateNotes(s.items ?? [], { source }).items : s.kind === "chart" || s.kind === "timeline" || s.kind === "map" ? validateCutIn(s.kind, s.items ?? [], source, dropped) : [];
     for (const n of board_nodes) n.count = Math.max(1, Math.min(9, Math.round(n.count ?? 1)));
-    return { ...s, id: `s${String(i + 1).padStart(2, "0")}-${s.kind}`, narration: tidySpeech(s.narration), heading: shortHeading(s.heading), highlights, board_nodes, board_edges, callouts, items, add_components: [], add_connections: [] };
+    const id = `s${String(i + 1).padStart(2, "0")}-${s.kind}`;
+    // the voice and the heading say only what is drawn: "three stations" with two on screen, or a dropped place, would not match
+    let { narration, heading } = s;
+    if (s.kind === "chart" || s.kind === "timeline" || s.kind === "map") {
+      const r = retellCutIn({ narration, heading, kind: s.kind }, s.items ?? [], items);
+      ({ narration, heading } = r);
+      if (r.left.length) unsaid.push({ id, names: r.left });
+    }
+    return { ...s, id, narration: tidySpeech(narration), heading: shortHeading(heading), highlights, board_nodes, board_edges, callouts, items, add_components: [], add_connections: [] };
   }).filter((s) => !(s.kind === "board" && s.board_nodes.length < 2) && !(s.kind === "source" && !s.highlights.length && !s.narration) && !(s.kind === "notes" && s.items.length < 2)
     && !((s.kind === "chart" || s.kind === "map") && s.items.length < 2) && !(s.kind === "timeline" && s.items.length < 3));
-  return { plan: { ...plan, title: lower(plan.title), subtitle: lower(plan.subtitle), scenes }, dropped };
+  return { plan: { ...plan, title: lower(plan.title), subtitle: lower(plan.subtitle), scenes }, dropped, unsaid: unsaid.filter((u) => scenes.some((s) => s.id === u.id)) };
+}
+
+const COUNT = ["zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten"];
+/** What a cut-in row is called aloud: the place for a map, the label words for a bar, the date for a timeline. */
+const rowName = (kind: string, it: NoteItem) => (kind === "map" ? it.target : kind === "chart" ? it.text.replace(/[-+$€£]?\d[\d,.]*\s*(%|[a-z]+)?/gi, "").trim() : parseDated(it.text)?.when ?? "");
+
+/**
+ * When the source check drops rows from a cut-in, the narration and heading are rewritten to match what
+ * is drawn: a count of the old rows becomes the new count, and a sentence about a dropped row goes.
+ * `left` lists dropped names still said in a sentence that also talks about a kept row.
+ */
+export function retellCutIn(s: { narration: string; heading: string; kind: string }, before: NoteItem[], after: NoteItem[]): { narration: string; heading: string; left: string[] } {
+  const keptText = new Set(after.map((it) => lower(it.text)));
+  const gone = before.filter((it) => !keptText.has(lower(it.text).split(/\s+/).slice(0, 5).join(" ")) && !keptText.has(lower(it.text))).map((it) => lower(rowName(s.kind, it))).filter((n) => n.length > 1);
+  if (before.length === after.length && !gone.length) return { ...s, left: [] };
+  const kept = after.map((it) => lower(rowName(s.kind, it))).filter((n) => n.length > 1);
+  const recount = (t: string) => {
+    if (before.length === after.length || before.length > 10) return t;
+    // only the word ("three"), never digits, which in a chart are the figures themselves
+    return t.replace(new RegExp(`\\b${COUNT[before.length]}\\b`, "gi"), (m) => {
+      const to = COUNT[after.length];
+      return m[0] === m[0].toUpperCase() ? to[0].toUpperCase() + to.slice(1) : to;
+    });
+  };
+  const says = (sent: string, name: string) => new RegExp(`\\b${name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "i").test(sent);
+  const left: string[] = [];
+  const sents = s.narration.trim().split(/(?<=[.!?])\s+/).filter((sent) => {
+    const bad = gone.filter((g) => says(sent, g));
+    if (!bad.length) return true;
+    if (kept.some((k) => says(sent, k))) { left.push(...bad); return true; }
+    return false;
+  });
+  return { narration: recount(sents.join(" ")), heading: recount(s.heading), left: [...new Set(left)] };
 }
 
 /** Explainer style adds news-style cut-ins; the whiteboard style keeps to boards. Both only use what the source states. */
