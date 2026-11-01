@@ -1,0 +1,169 @@
+{
+ "product": "rxi/microui",
+ "one_liner": "Tiny ANSI C immediate-mode UI that rebuilds controls every frame in fixed memory.",
+ "components": [
+  {
+   "id": "demo-app",
+   "name": "Demo C App",
+   "kind": "client",
+   "layer": "frontend",
+   "keyword": "demo app",
+   "icon": "laptop",
+   "what": "Drives the frame loop, feeds mouse/keys and declares widgets every frame.",
+   "evidence": [
+    "doc/usage.md",
+    "README.md"
+   ]
+  },
+  {
+   "id": "microui-ctx",
+   "name": "microui mu_Context",
+   "kind": "api",
+   "layer": "frontend",
+   "keyword": "ui context",
+   "icon": "gear",
+   "what": "Holds input, focus and frame state for immediate-mode processing.",
+   "evidence": [
+    "src/microui.h",
+    "src/microui.c"
+   ]
+  },
+  {
+   "id": "ui-controls",
+   "name": "microui Controls mu_button",
+   "kind": "api",
+   "layer": "frontend",
+   "keyword": "built in controls",
+   "icon": "browser",
+   "what": "Rebuilds window button slider label fresh every frame and returns press.",
+   "evidence": [
+    "README.md",
+    "src/microui.h"
+   ]
+  },
+  {
+   "id": "cmd-pool",
+   "name": "mu_Command Pool",
+   "kind": "cache",
+   "layer": "cache",
+   "keyword": "fixed memory",
+   "icon": "memory",
+   "what": "Stores rect text clip icon commands in fixed memory with no alloc.",
+   "evidence": [
+    "src/microui.h",
+    "README.md"
+   ]
+  },
+  {
+   "id": "host-renderer",
+   "name": "Host Renderer",
+   "kind": "third-party",
+   "layer": "third-party",
+   "keyword": "host renderer",
+   "icon": "gpu",
+   "what": "User-provided backend that draws the queued rectangles and text.",
+   "evidence": [
+    "doc/usage.md",
+    "README.md"
+   ]
+  }
+ ],
+ "connections": [
+  {
+   "from": "demo-app",
+   "to": "microui-ctx",
+   "label": "feed input",
+   "evidence": "doc/usage.md"
+  },
+  {
+   "from": "demo-app",
+   "to": "ui-controls",
+   "label": "declare widgets",
+   "evidence": "README.md"
+  },
+  {
+   "from": "ui-controls",
+   "to": "microui-ctx",
+   "label": "check state",
+   "evidence": "src/microui.c"
+  },
+  {
+   "from": "ui-controls",
+   "to": "cmd-pool",
+   "label": "queue draws",
+   "evidence": "src/microui.c"
+  },
+  {
+   "from": "ui-controls",
+   "to": "demo-app",
+   "label": "report press",
+   "evidence": "README.md"
+  },
+  {
+   "from": "cmd-pool",
+   "to": "demo-app",
+   "label": "send queue",
+   "evidence": "doc/usage.md"
+  },
+  {
+   "from": "demo-app",
+   "to": "host-renderer",
+   "label": "draw rects",
+   "evidence": "doc/usage.md"
+  },
+  {
+   "from": "host-renderer",
+   "to": "demo-app",
+   "label": "show frame",
+   "evidence": "doc/usage.md"
+  }
+ ],
+ "walkthrough": {
+  "name": "click a button",
+  "steps": [
+   {
+    "from": "demo-app",
+    "to": "microui-ctx",
+    "label": "feed input",
+    "evidence": "doc/usage.md"
+   },
+   {
+    "from": "demo-app",
+    "to": "ui-controls",
+    "label": "declare widgets",
+    "evidence": "README.md"
+   },
+   {
+    "from": "ui-controls",
+    "to": "cmd-pool",
+    "label": "queue draws",
+    "evidence": "src/microui.c"
+   },
+   {
+    "from": "ui-controls",
+    "to": "demo-app",
+    "label": "report press",
+    "evidence": "README.md"
+   },
+   {
+    "from": "cmd-pool",
+    "to": "demo-app",
+    "label": "send queue",
+    "evidence": "doc/usage.md"
+   },
+   {
+    "from": "demo-app",
+    "to": "host-renderer",
+    "label": "draw rects",
+    "evidence": "doc/usage.md"
+   },
+   {
+    "from": "host-renderer",
+    "to": "demo-app",
+    "label": "show frame",
+    "evidence": "doc/usage.md"
+   }
+  ]
+ },
+ "scale": []
+}

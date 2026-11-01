@@ -35,7 +35,7 @@ export interface PlacementReport {
   warnings: PlacementIssue[];
 }
 /** An issue with what the fixes need: the item, and how bad it is. */
-export type Found = PlacementIssue & { item?: Item; px?: number; need?: number; seen?: number };
+export type Found = PlacementIssue & { item?: Item; px?: number; need?: number; seen?: number; later?: boolean };
 
 /** Gap, in world units, at which an arrow or wire end still reads as touching what it points at. */
 export const TOUCH = 10;
@@ -236,14 +236,15 @@ export function checkPlacement(p: Placed, counts: Record<string, number> = {}): 
     const cam = cameraAt(film, t), m = (4 * cam.w) / film.width;
     count("cropped");
     if (!contains(cam, it.box, -m)) out.push({ rule: "cropped", t, what: `${it.label} is cut off by the frame edge`, item: it, seen: seen(cam, it.box) });
-    else if (it.kind === "ring" || it.kind === "arrow") {
-      // a ring or arrow stays whole while it is lit, through every later shot that comes to rest on it
+    else {
+      // it stays whole while it is lit, through every later shot that comes to rest on part of it
+      // (a word a later shot slices is a slip to fix, never a reason to stop the video)
       const end = film.end?.t0 ?? film.duration;
       for (const k of film.camera) {
         const r = k.t + k.move + 0.01;
         if (k.t <= t || r >= end || opacity(film, it.g, r) < 0.6) continue;
         const c = cameraAt(film, r);
-        if (!contains(c, it.box, -m) && seen(c, it.box) > 0) { out.push({ rule: "cropped", t: r, what: `${it.label} is cut off by the frame edge at ${r.toFixed(1)}s`, item: it, seen: seen(c, it.box) }); break; }
+        if (!contains(c, it.box, -m) && seen(c, it.box) > 0) { out.push({ rule: "cropped", t: r, what: `${it.label} is cut off by the frame edge at ${r.toFixed(1)}s`, item: it, seen: seen(c, it.box), later: it.kind === "text" }); break; }
       }
     }
     if (it.el) {
@@ -293,8 +294,8 @@ function enlarge(p: Placed, it: Item, what: string): string | undefined {
 }
 
 
-/** The shots that cut an item off while it is lit: for a word the one it finishes in, for a ring or arrow
- * every later shot that comes to rest on part of it too, so one fix covers the whole time it is on screen. */
+/** The shots that cut an item off while it is lit: the one it finishes in, and every later shot that
+ * comes to rest on part of it, so one fix covers the whole time it is on screen. */
 function cropShots(p: Placed, it: Item): { k: CamKey; r: number }[] {
   const { film } = p, K = film.camera, end = film.end?.t0 ?? film.duration, start = settled(film, it.t0);
   let i0 = 0;
@@ -302,7 +303,7 @@ function cropShots(p: Placed, it: Item): { k: CamKey; r: number }[] {
   const out: { k: CamKey; r: number }[] = [];
   for (let i = i0; i < K.length; i++) {
     const k = K[i], r = i === i0 ? start : k.t + k.move + 0.01;
-    if (i > i0 && (it.kind === "text" || r >= end)) break;
+    if (i > i0 && r >= end) break;
     if (opacity(film, it.g, r) < 0.6) continue;
     const m = (4 * k.w) / film.width;
     if (!contains(k, it.box, -m) && (i === i0 || seen(k, it.box) > 0)) out.push({ k, r });
@@ -310,10 +311,14 @@ function cropShots(p: Placed, it: Item): { k: CamKey; r: number }[] {
   return out;
 }
 
-/** Something already whole on screen at r that the new frame would slice. */
+/** Does the new frame cut through something lit that the old frame showed whole or left out entirely? */
 function slices(p: Placed, before: Box, after: Box, r: number, skip: Item) {
-  return items(p).some((o) => o.kind !== "wire" && o.kind !== "node" && o.label !== skip.label && o.t0 <= r && opacity(p.film, o.g, r) > 0.6
-    && contains(before, o.box) && !contains(after, o.box) && area(after, o.box) > 0);
+  return sliced(p, before, after, r, skip).length > 0;
+}
+function sliced(p: Placed, before: Box, after: Box, r: number, skip: Item): Item[] {
+  const cut = (f: Box, b: Box) => !contains(f, b) && area(f, b) > 0;
+  return items(p).filter((o) => o.kind !== "wire" && o.kind !== "node" && o.label !== skip.label && o.t0 <= r && opacity(p.film, o.g, r) > 0.6
+    && cut(after, o.box) && !cut(before, o.box));
 }
 
 /** Slide one shot, same size, so the item sits whole inside it (clear of the title, and of the captions when there is room). */
@@ -332,7 +337,7 @@ function pan(p: Placed, it: Item, k: CamKey, r: number): boolean {
 }
 
 /** Widen one shot just enough to take the item in. Capped: never past the width where box names stay readable. */
-function widen(p: Placed, it: Item, k: CamKey, r: number, capped: boolean): boolean {
+function widen(p: Placed, it: Item, k: CamKey, r: number, capped: boolean, depth = 0): boolean {
   const { film } = p, pad = 30, b = it.box;
   // a mark's own label (same group, already written) rides along so the title never covers it either
   const top = Math.min(b.y, ...items(p).filter((o) => o.kind === "text" && it.kind !== "text" && it.g && o.g === it.g && o.t0 <= r).map((o) => o.box.y));
@@ -353,7 +358,16 @@ function widen(p: Placed, it: Item, k: CamKey, r: number, capped: boolean): bool
     h = (w * film.height) / film.width;
   }
   if (capped && w > readableWidth(film) * 1.5 && w > k.w * 1.05) return false;
-  Object.assign(k, { x: (x0 + x1) / 2 - w / 2, y: (y0 + y1) / 2 - h / 2, w, h });
+  const nf = { x: (x0 + x1) / 2 - w / 2, y: (y0 + y1) / 2 - h / 2, w, h };
+  // the wider shot must not newly slice a lit word or mark at its edge: it takes those in too, within the same cap
+  const hit = sliced(p, k, nf, r, it);
+  if (hit.length) {
+    const xs = [b, ...hit.map((o) => o.box)];
+    const all = { x: Math.min(...xs.map((q) => q.x)), y: Math.min(...xs.map((q) => q.y)), w: 0, h: 0 };
+    all.w = Math.max(...xs.map((q) => q.x + q.w)) - all.x; all.h = Math.max(...xs.map((q) => q.y + q.h)) - all.y;
+    return depth < 2 && widen(p, { ...it, box: all }, k, r, capped, depth + 1);
+  }
+  Object.assign(k, nf);
   return true;
 }
 
@@ -375,7 +389,7 @@ function reframes(p: Placed, it: Item, fallback: boolean): (() => string | undef
 
 /** Left after the fixes, does this break the picture, or is it a slip worth a warning? */
 export function severe(i: Found): boolean {
-  if (i.rule === "cropped") return (i.seen ?? 0) < 0.75;
+  if (i.rule === "cropped") return !i.later && (i.seen ?? 0) < 0.75;
   if (i.rule === "text-small") return (i.px ?? 0) < (i.need ?? 0) * 0.6;
   return false;
 }
