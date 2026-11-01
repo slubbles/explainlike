@@ -138,6 +138,17 @@ function cutMidMove(film: Film, box: Box, g: string | undefined, t: number, only
   return undefined;
 }
 
+/** How much of the box at each end of a board arrow must be in shot with it (world px). */
+const END_SLICE = 120;
+const clipBox = (a: Box, b: Box): Box => {
+  const x = Math.max(a.x, b.x), y = Math.max(a.y, b.y);
+  return { x, y, w: Math.max(0, Math.min(a.x + a.w, b.x + b.w) - x), h: Math.max(0, Math.min(a.y + a.h, b.y + b.h) - y) };
+};
+const unionOf = (a: Box, b: Box): Box => {
+  const x = Math.min(a.x, b.x), y = Math.min(a.y, b.y);
+  return { x, y, w: Math.max(a.x + a.w, b.x + b.w) - x, h: Math.max(a.y + a.h, b.y + b.h) - y };
+};
+
 export interface Item { kind: "text" | "node" | "ring" | "arrow" | "wire"; box: Box; t0: number; g?: string; owner?: number; el?: FText; mark?: Mark; label: string }
 
 function items(p: Placed): Item[] {
@@ -161,7 +172,14 @@ function items(p: Placed): Item[] {
       const xs = m.points.map((q) => q[0]), ys = m.points.map((q) => q[1]);
       return { x: Math.min(...xs), y: Math.min(...ys), w: Math.max(...xs) - Math.min(...xs), h: Math.max(...ys) - Math.min(...ys) };
     })();
-    out.push({ kind: m.kind, box, t0: m.t0 + m.dur, g: m.g, mark: m, label: m.kind === "wire" ? `wire ${m.from}>${m.to}` : `${m.kind} at ${(m.t0).toFixed(1)}s` });
+    // a board's arrow reads only with a piece of the box at each end in shot, or it seems to come from nowhere
+    const shown = m.kind === "wire" && m.g && !m.g.startsWith("e:") && m.points.length > 1
+      ? [box, ...([[m.from, m.points[0]], [m.to, m.points[m.points.length - 1]]] as const).flatMap(([id, q]) => {
+        const nb = nodes.filter((n) => n.id === id).sort((a, b) => Math.abs(boxDist(q, a.box)) - Math.abs(boxDist(q, b.box)))[0]?.box;
+        return nb && Math.abs(boxDist(q, nb)) <= TOUCH * 4 ? [clipBox({ x: q[0] - END_SLICE, y: q[1] - END_SLICE, w: 2 * END_SLICE, h: 2 * END_SLICE }, nb)] : [];
+      })].reduce(unionOf)
+      : box;
+    out.push({ kind: m.kind, box: shown, t0: m.t0 + m.dur, g: m.g, mark: m, label: m.kind === "wire" ? `wire ${m.from}>${m.to}` : `${m.kind} at ${(m.t0).toFixed(1)}s` });
   }
   return out;
 }
