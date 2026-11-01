@@ -35,7 +35,7 @@ Explain Like turns a GitHub repo, an X post, an article or a plain topic into a 
 - Samples are in the Google Drive folder "Explain Like samples" (microui v8, Silk Road v3, DNS, how the internet grew, minbpe, OpenMausBot).
 
 ## Open items
-1. Pronunciation: the listening check hears "personal relay" for "parcel relay" and "Curriers" for "Couriers" in the Silk Road retake. Retake hints now cover parcel and couriers (unit-tested); one real-audio check still needed.
+1. Pronunciation: closed on real audio (Nov 2). "par-sel" is heard as "parcel" where plain "parcel" and "parsel" were heard as other words, and "Couriers" comes back clean. Checked with one Aura take plus the recogniser, no render, about half a cent. The check script is `.tmp/voice-check.ts` (untracked).
 2. microui pacing accepted at 7.48 cuts/min for that sample. Closed.
 3. What-if wording now covers libraries (traffic or adoption). Closed.
 4. Box summaries drop rendering-mode claims the evidence never shows (groundedSummary, tested). Closed.
