@@ -40,3 +40,13 @@ test("a body is rebuilt for every attempt", async () => {
   await fetchRetry("https://x.test/a", () => { built++; return { method: "POST", body: new FormData() }; }, { service: "s", sleep: async () => {}, fetchImpl: fake([500, 200]) });
   assert.equal(built, 2);
 });
+
+test("with retryTimeouts off, a timeout fails after one try and says it timed out", async () => {
+  let tries = 0;
+  const f = (async (...a: Parameters<typeof fetch>) => { tries++; return fake(["slow"])(...a); }) as typeof fetch;
+  await assert.rejects(fetchRetry("https://x.test/a", () => ({}), { service: "Meta Muse", timeoutMs: 20, retryTimeouts: false, sleep: async () => {}, fetchImpl: f }), (e: ServiceError) => {
+    assert.equal(tries, 1);
+    assert.equal(e.timedOut, true);
+    return true;
+  });
+});
