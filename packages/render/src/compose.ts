@@ -814,7 +814,9 @@ export async function compose(inp: ComposeInput): Promise<Composed> {
       const sc = sb.w / inp.shot.width;
       B.els.push({ k: "img", id: B.id("i"), href: `data:image/png;base64,${fs.readFileSync(inp.shot.file).toString("base64")}`, x: sb.x, y: sb.y, w: sb.w, h: sb.h, t0: T, dur: 0.6, g: gs, anim: "fade" });
       B.sketch.images.push({ box: sb, file: inp.shot.file });
-      B.fit({ x: sb.x, y: sb.y, w: sb.w, h: Math.min(sb.h, sb.w * 0.52) }, T, 0, 1.0);
+      // room above the page for the scene heading, so it never sits on the page's own title
+      const headRoom = sb.w * 0.09;
+      B.fit({ x: sb.x, y: sb.y - headRoom, w: sb.w, h: Math.min(sb.h, sb.w * 0.52) + headRoom }, T, 0, 1.0);
       fades.push({ t: T, dur: 0.35 });
       const hs = s.highlights.filter((h) => inp.shot!.rects[h.quote]?.length);
       const noteYs: number[] = [];
