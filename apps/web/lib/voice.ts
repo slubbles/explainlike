@@ -12,11 +12,11 @@ export const START_TOOL = {
   type: "function",
   function: {
     name: "start_video",
-    description: "Start making the explainer video. Call it only after you know the link and asked if there's anything else to cover.",
+    description: "Start making the explainer video. Call it only after you know the link or the topic and asked if there's anything else to cover.",
     parameters: {
       type: "object",
       properties: {
-        link: { type: "string", description: "the GitHub repo, X post or article URL, written as a URL (https://github.com/owner/repo)" },
+        link: { type: "string", description: "the GitHub repo, X post or article URL, written as a URL (https://github.com/owner/repo); or, when they have no link, the topic in a few words ('how DNS works')" },
         goal: { type: "string", description: "what they want to understand, in a short plain phrase" },
         audience: { type: "string", description: "who the video is for, as a viewer description: 'a non-technical cofounder', 'a developer new to the project'" },
         depth: { type: "string", enum: ["overview", "working", "deep"], description: "overview: the big idea; working: how it works, the default; deep: internals and trade-offs" },
@@ -30,11 +30,11 @@ export const START_TOOL = {
 
 export function voiceSystem(typed?: string): string {
   return [
-    "You're the voice of Explain Like, an app that turns a GitHub repo, an X post or an article into a short whiteboard explainer video.",
+    "You're the voice of Explain Like, an app that turns a GitHub repo, an X post, an article or a plain topic into a short whiteboard explainer video.",
     "You're talking out loud with someone, in English, like a warm, casual friend who's good at this. Not an interviewer, not a form.",
     "Keep every reply short: one or two spoken sentences, under 30 words. No lists, no markdown, no emoji. Never read a full URL out loud; say 'that repo' or its name.",
     "Over the chat, find out naturally: the link (repo, X post or article) or the topic, what they want to understand about it, and who it's for or how deep to go. One question at a time, and pick up whatever they already said instead of asking again.",
-    "If they only have a topic, ask for a link to a repo, post or article about it; the app needs a link. Spoken links come out like 'github dot com slash owner slash repo': write them as https://github.com/owner/repo.",
+    "If they only have a topic, that's fine: the app reads reputable sources about it, so pass the topic in a few words as the link. Spoken links come out like 'github dot com slash owner slash repo': write them as https://github.com/owner/repo.",
     "If they don't care who it's for, assume a curious developer new to the project and a working depth.",
     "Once you have enough, ask something like 'anything else you want me to cover?'. After they answer, call start_video right away, with no other text; its confirm line is what you say.",
     "Never say you are starting in your own words: only the confirm line, after start_video works, says that.",
@@ -46,7 +46,7 @@ export function voiceSystem(typed?: string): string {
 export function greeting(typed?: string): string {
   return typed
     ? `Hey! I see you've got ${shortLink(typed).split("/").slice(-1)[0]} there. What do you want to understand about it?`
-    : "Hey! What do you want explained today? A repo, a post, an article?";
+    : "Hey! What do you want explained today? A repo, a post, an article, or just a topic?";
 }
 
 /** "github dot com slash slubbles slash explain like" and other spoken links, as a URL. */
@@ -64,9 +64,10 @@ export function readStart(args: unknown, valid: (url: string) => boolean): { ok:
   const a = (args ?? {}) as Record<string, unknown>;
   const str = (k: string, max: number) => (typeof a[k] === "string" ? (a[k] as string).replace(/\s+/g, " ").trim().replace(/^-+\s*/, "").slice(0, max) : "");
   const raw = str("link", 300);
-  if (!raw) return { ok: false, error: "no link yet: ask for the repo, post or article link" };
-  const input = spokenUrl(raw);
-  if (!valid(input)) return { ok: false, error: `"${raw}" is not a public GitHub, X or article link: ask them to say or type it again` };
+  if (!raw) return { ok: false, error: "no link or topic yet: ask what they want explained" };
+  // a topic in words has spaces and no "dot" or "slash"; anything else is a spoken link
+  const input = /\s/.test(raw) && !/\b(dot|slash)\b|\.[a-z]{2,}(\/|$)|:\/\//i.test(raw) && valid(raw) ? raw : spokenUrl(raw);
+  if (!valid(input)) return { ok: false, error: `"${raw}" is not a public GitHub, X or article link or a topic: ask them to say or type it again` };
   const depth = (["overview", "working", "deep"] as const).find((d) => d === a.depth) ?? "working";
   return {
     ok: true,

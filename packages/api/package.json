@@ -12,6 +12,7 @@
     ".": "./src/index.ts"
   },
   "dependencies": {
+    "@explainlike/core": "workspace:*",
     "tsx": "^4.19.2"
   }
 }

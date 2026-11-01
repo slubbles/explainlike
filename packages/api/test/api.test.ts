@@ -15,10 +15,14 @@ test("output folders are named after what is being explained", () => {
   assert.equal(nameFor("https://blog.vllm.ai/2023/06/20/vllm.html"), "blog-vllm-ai-2023-06-20-vllm-html");
 });
 
-test("a link or a local folder is accepted, a bare topic is refused with a reason", () => {
+test("a link, a local folder or a topic in words is accepted; a missing folder is refused with a reason", () => {
   assert.equal(checkInput("github.com/owner/repo"), "https://github.com/owner/repo");
+  assert.equal(checkInput("blog.vllm.ai/2023/06/20/vllm.html"), "https://blog.vllm.ai/2023/06/20/vllm.html");
   assert.equal(checkInput(os.tmpdir()), path.resolve(os.tmpdir()));
-  assert.throws(() => checkInput("how do vector databases work"), /plain topic/);
+  assert.equal(checkInput("  how do vector   databases work "), "how do vector databases work");
+  assert.equal(nameFor("how DNS works"), "how-dns-works");
+  assert.throws(() => checkInput("./no-such-folder-here"), /no folder/);
+  assert.throws(() => checkInput("x".repeat(301) + " y"), /too long/);
 });
 
 test("a job runs to the end and hands back the paths of the video and both boards", async () => {

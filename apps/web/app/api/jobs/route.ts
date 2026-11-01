@@ -15,7 +15,7 @@ export async function POST(req: Request) {
   if ("error" in read) return read.error;
   const input = typeof read.body.input === "string" ? read.body.input.trim() : "";
   if (input.length > MAX_INPUT_CHARS) return NextResponse.json({ error: "That link is too long. Paste just the repo, post or article URL." }, { status: 400 });
-  if (!validInput(input)) return NextResponse.json({ error: "Paste a GitHub repo, X post or article URL." }, { status: 400 });
+  if (!validInput(input)) return NextResponse.json({ error: "Paste a GitHub repo, X post or article URL, or name a topic in a few words." }, { status: 400 });
   const no = admit(clientIp(req));
   if (no) return NextResponse.json({ error: no }, { status: 429 });
   const job = startJob(input, read.body.voice === "silent" ? "silent" : "deepgram");

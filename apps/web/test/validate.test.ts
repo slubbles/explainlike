@@ -23,3 +23,8 @@ test("local paths only with EXPLAINLIKE_ALLOW_LOCAL=1, and only absolute existin
   assert.ok(!validInput("/definitely/not/here"));
   delete process.env.EXPLAINLIKE_ALLOW_LOCAL;
 });
+
+test("a topic in words is accepted, but not a path or a bare word list too long to be a question", () => {
+  for (const t of ["how DNS works", "why is the sky blue?", "inflation"]) assert.ok(validInput(t), t);
+  for (const t of ["../etc/passwd", "~/secrets", "./x", "a ".repeat(200), "example.com/page"]) assert.ok(!validInput(t), t);
+});

@@ -64,9 +64,9 @@ export function createExplainLikeServer(runner = new JobRunner()) {
 
   server.registerTool("explain", {
     title: "Make an explainer video",
-    description: "Make a narrated, hand-drawn whiteboard explainer video of a GitHub repo, an X post, an article, or a local repo folder. The engine reads the source and decides the explaining style, depth and length itself. Writes an mp4, a .tldr (tldraw) and an .excalidraw board to a folder on this machine and returns their paths. Uses the Meta Model API and Deepgram keys from the environment, so each new video costs a little (usually well under $0.50); re-running the same source into the same folder reuses the cached plan.",
+    description: "Make a narrated, hand-drawn whiteboard explainer video of a GitHub repo, an X post, an article, a local repo folder, or a plain topic (\"how DNS works\": it reads and cites a few reputable pages about it). The engine reads the source and decides the explaining style, depth and length itself. Writes an mp4, a .tldr (tldraw) and an .excalidraw board to a folder on this machine and returns their paths. Uses the Meta Model API and Deepgram keys from the environment, so each new video costs a little (usually well under $0.50); re-running the same source into the same folder reuses the cached plan.",
     inputSchema: {
-      source: z.string().min(1).describe("A GitHub repo URL, an x.com post URL, an article URL, or an absolute path to a local repo folder."),
+      source: z.string().min(1).describe("A GitHub repo URL, an x.com post URL, an article URL, an absolute path to a local repo folder, or a topic in a few words ('how DNS works') when there is no link."),
       outDir: z.string().optional().describe("Folder to write the files to. Default: ~/explainlike-videos/<name> (or $EXPLAINLIKE_OUT_DIR)."),
       voice: z.enum(["deepgram", "silent"]).optional().describe("deepgram narrates (default when DEEPGRAM_API_KEY is set); silent keeps captions only."),
       fresh: z.boolean().optional().describe("Re-plan from scratch instead of reusing a plan cached in outDir or for this repo commit."),
@@ -122,7 +122,7 @@ export function createExplainLikeServer(runner = new JobRunner()) {
         text: [
           `Make an Explain Like video for this request: ${request}`,
           "",
-          "1. Find the source in the request: a GitHub repo URL, an x.com post URL, an article URL, or a local repo folder (use the current project folder if I say \"this repo\" without a link).",
+          "1. Find the source in the request: a GitHub repo URL, an x.com post URL, an article URL, or a local repo folder (use the current project folder if I say \"this repo\" without a link). With no link at all, use the topic itself in a few words (\"how DNS works\").",
           "2. Call the explain tool with it as `source`. If I asked about something specific (\"what this repo is about\" is general, \"how auth works\" is specific), pass that as `question`; pass `audience` or `depth` only if I said them.",
           "3. If it says it is still working, call explain_status with the jobId until it is done.",
           "4. Tell me in two or three plain sentences what the video covers, then give me the paths of the mp4, the .tldr and the .excalidraw files.",
