@@ -12,7 +12,121 @@ Explain Like is built to run on your own machine. This page is what to check bef
 
 A video takes 3 to 6 minutes and runs as a child process. That does not fit serverless functions with short time limits. Use a VM or a container with a disk instead.
 
-## Build and start
+## Run it in Docker
+
+The [`Dockerfile`](../Dockerfile) at the repo root builds one image with Node 22, pnpm, Chromium, ffmpeg and git. Everything the server writes goes to a volume at `/data`: jobs, the spend ledger, and the repo, plan, voice and icon caches. Without that volume, a restart loses every video and resets the spend count, which also resets the spend guard.
+
+```bash
+docker build -t explainlike .
+docker run -d --name explainlike --restart unless-stopped -p 127.0.0.1:3000:3000 \
+  -v explainlike-data:/data \
+  -e MODEL_API_KEY -e DEEPGRAM_API_KEY \
+  -e EXPLAINLIKE_TRUST_PROXY=1 \
+  explainlike
+curl -s localhost:3000/api/health
+```
+
+`-e MODEL_API_KEY` with no value passes the key from your shell, so it never lands in your shell history.
+
+### Health check
+
+`GET /api/health` answers `200` when a video can be made and `503` when it cannot:
+
+```json
+{"ok":true,"checks":{"ffmpeg":true,"chrome":true,"modelKey":true,"voiceKey":true,"jobsDir":true},"paused":false,"problems":[]}
+```
+
+- Keys appear only as `true` or `false`, never their values.
+- `voiceKey: false` is not a failure. Videos then render silent with captions.
+- `paused: true` means demo-only mode is on or a spend cap is reached. The server is still healthy.
+- The image runs this check every 30 seconds. Point your host's health check at the same path.
+
+## Pick a host
+
+A render needs about 2 CPU cores, 2 GB of memory and 3 to 6 minutes. Pick a plan with that much, and one machine. The rate limit lives in memory, so two machines would each allow the full rate.
+
+### Railway
+
+1. Create a project from the GitHub repo. Railway finds the `Dockerfile`.
+2. Add a volume and mount it at `/data`.
+3. Under Variables, add `MODEL_API_KEY`, `DEEPGRAM_API_KEY` and `EXPLAINLIKE_TRUST_PROXY=1`. Railway sets `PORT` itself.
+4. Under Settings, set the health check path to `/api/health`.
+5. Keep replicas at 1.
+
+### Fly.io
+
+```toml
+# fly.toml
+app = "explainlike"
+primary_region = "sin"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  EXPLAINLIKE_TRUST_PROXY = "1"
+
+[mounts]
+  source = "explainlike_data"
+  destination = "/data"
+
+[http_service]
+  internal_port = 3000
+  force_https = true
+  auto_stop_machines = "off"   # a stopped machine kills a render in progress
+  min_machines_running = 1
+
+[[http_service.checks]]
+  method = "GET"
+  path = "/api/health"
+  interval = "30s"
+  timeout = "10s"
+  grace_period = "30s"
+
+[[vm]]
+  size = "shared-cpu-2x"
+  memory = "2gb"
+```
+
+```bash
+fly volumes create explainlike_data --size 10
+fly secrets set MODEL_API_KEY=... DEEPGRAM_API_KEY=...
+fly deploy
+```
+
+Run `fly scale count 1` so there is one machine.
+
+### Your own server (VPS)
+
+Run the container as above, and put Caddy in front for TLS:
+
+```
+# /etc/caddy/Caddyfile
+explainlike.co, www.explainlike.co {
+  reverse_proxy 127.0.0.1:3000
+}
+```
+
+Caddy gets and renews the certificate itself and sets `X-Forwarded-For`, so `EXPLAINLIKE_TRUST_PROXY=1` is right here. The `docker run` above publishes the port on `127.0.0.1` only, so nobody can skip the proxy and fake the header. Keep it that way.
+
+## Point explainlike.co at it
+
+The domain is not bought yet. Once it is, add these records at the registrar or DNS host:
+
+| Host | Railway | Fly.io | VPS |
+| --- | --- | --- | --- |
+| `explainlike.co` | `ALIAS`/`ANAME` (or `CNAME` with flattening) to the target Railway gives under Settings → Domains | `A` and `AAAA` from `fly ips list` | `A` (and `AAAA`) to the server's IP |
+| `www` | `CNAME` to the same Railway target | `CNAME` to `explainlike.fly.dev` | `CNAME` to `explainlike.co` |
+
+Then:
+
+1. Add both names on the host: Settings → Domains on Railway, `fly certs add explainlike.co` and `fly certs add www.explainlike.co` on Fly, or the Caddyfile above on a VPS.
+2. Wait for the certificate. `fly certs show explainlike.co` or the Railway domain page shows when it is issued.
+3. Check `https://explainlike.co/api/health` returns `200`.
+
+A plain `CNAME` is not allowed on the bare domain, which is why Railway needs `ALIAS`, `ANAME` or CNAME flattening there. Cloudflare flattens by default. If you use Cloudflare's proxy (orange cloud), set SSL to "Full (strict)".
+
+## Build and start without Docker
 
 ```bash
 pnpm install --frozen-lockfile
@@ -38,12 +152,16 @@ Every setting is listed with its default in [`.env.example`](../.env.example). T
 | `EXPLAINLIKE_TRUST_PROXY` | 0 | Trust `X-Forwarded-For` for the client IP. |
 | `EXPLAINLIKE_DEMO_ONLY` | 0 | Show the finished examples only and refuse new videos. |
 | `EXPLAINLIKE_RESUME` | 1 | After a restart, start the job it cut off once more, if it is under 6 hours old. |
+| `EXPLAINLIKE_JOBS_DIR` | `explainlike-out/web` (`/data/jobs` in Docker) | Where jobs and the spend ledger live. Must be on a persistent disk. |
+| `EXPLAINLIKE_ALLOW_LOCAL` | 0 | Accept folder paths on the server. Leave off in public. |
+| `EXPLAINLIKE_ALLOW_PRIVATE_URLS` | 0 | Read links that resolve to private addresses. Leave off in public. |
 
 ## What is already guarded
 
 - **Spend.** Each job records its Meta and Deepgram cost. Voice chat, speech and box explanations are added to `spend.jsonl` in the jobs folder. A warning appears past 80% of a cap. New work stops while the cap is less than one job's reserve away.
 - **Rate and size.** Each IP is rate-limited. JSON bodies are capped at 16 KB (96 KB for voice turns), and links at 2,048 characters. Repos over the clone limit, private repos, and pages over 5 MB are refused with a plain message.
 - **Keys.** API keys are read only in server code. A test fails if a client component touches `process.env` or an API key.
+- **Private networks.** A link, and every redirect from it, must resolve to a public address. Links to localhost, private ranges or the cloud metadata address (169.254.169.254) are refused.
 - **Voice mode** only answers requests to localhost.
 - **Failures.** Muse and Deepgram calls retry with backoff and time out. Errors name the service and the setting to check, and never print the key.
 
@@ -53,3 +171,6 @@ Every setting is listed with its default in [`.env.example`](../.env.example). T
 - The rate limit is in memory, on one process. Use a shared store if you run more than one instance.
 - Voice mode has no login. Keep it local, or add auth before you open it up.
 - There is no sign-in or per-user quota.
+- The private-address check resolves the name, then fetches. A DNS server that answers differently the second time could still slip through (DNS rebinding). Pinning the checked address in the connection needs the `undici` package. Until then, block the metadata address and your private ranges in the host's firewall as well.
+- Chromium loads images named in a page's card (avatars, preview images) without that check. It can only show them as pictures, but a firewall rule covers it too.
+- The GitHub Actions in CI still run on Node 20 and print deprecation notices. Move `actions/checkout`, `pnpm/action-setup` and `actions/setup-node` to their latest majors.
