@@ -526,12 +526,12 @@ export async function planConceptScenes(o: { ledger: CostLedger; doc: SourceDoc;
     o.doc.kind === "topic" ? "title: under 6 lowercase words. subtitle: the source sites, lowercase." : "title: under 6 lowercase words. subtitle: who wrote it, lowercase.",
   ].join("\n");
   const user = `SOURCE (${o.doc.kind}) by ${o.doc.author ?? "unknown"}: ${o.doc.title}\nURL: ${o.doc.url}\n\nTEXT:\n${o.doc.text.slice(0, 30000)}`;
-  let plan = await sparkJson({ ledger: o.ledger, step: "concept-plan", schema: ScenePlan, name: "scene_plan", effort: "medium", maxTokens: 9000, messages: [{ role: "system", content: sys }, { role: "user", content: user }] });
+  let plan = await sparkJson({ ledger: o.ledger, step: "concept-plan", schema: ScenePlan, name: "scene_plan", effort: "low", maxTokens: 9000, messages: [{ role: "system", content: sys }, { role: "user", content: user }] });
   let { plan: fixed, dropped } = validateConcept(plan, o.doc.text);
   if (dropped.length > 2) {
     o.progress?.({ stage: "plan", message: `re-planning: ${dropped.length} quotes were not in the source` });
     plan = await sparkJson({
-      ledger: o.ledger, step: "concept-plan-revise", schema: ScenePlan, name: "scene_plan", effort: "medium", maxTokens: 9000,
+      ledger: o.ledger, step: "concept-plan-revise", schema: ScenePlan, name: "scene_plan", effort: "low", maxTokens: 9000,
       messages: [{ role: "system", content: sys }, { role: "user", content: user }, { role: "assistant", content: JSON.stringify(plan) },
         { role: "user", content: `These rows failed the source check (a quote not copied verbatim, or a chart or timeline quote that does not state its number or date). Replace each with an exact copied phrase that does, or remove it:\n${dropped.join("\n")}\nReturn the full corrected plan.` }],
     });
