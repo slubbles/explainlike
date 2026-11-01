@@ -20,7 +20,9 @@ const PRICE = { sparkIn: 1.25e-6, sparkOut: 4.25e-6, image: 0.01, sam: 0.0025, t
 
 export class CostLedger {
   entries: CostEntry[] = [];
-  add(e: CostEntry) { this.entries.push(e); }
+  private t0 = Date.now();
+  /** each entry also records when its call started, in seconds from the ledger's start, so overlapping calls show up in the profile */
+  add(e: CostEntry) { this.entries.push({ ...e, detail: { ...e.detail, startedAt: Number(((Date.now() - this.t0) / 1000 - e.seconds).toFixed(1)) } }); }
   get total() { return this.entries.reduce((a, e) => a + e.usd, 0); }
   byModel() {
     const m: Record<string, { calls: number; usd: number; seconds: number }> = {};
@@ -52,7 +54,7 @@ export type ChatMessage = { role: "system" | "user" | "assistant"; content: stri
 /** Muse Spark with strict structured output validated by zod. */
 export async function sparkJson<T extends z.ZodType>(opts: {
   ledger: CostLedger; step: string; schema: T; name: string; messages: ChatMessage[];
-  effort?: "low" | "medium" | "high"; maxTokens?: number;
+  effort?: "minimal" | "low" | "medium" | "high"; maxTokens?: number;
 }): Promise<z.infer<T>> {
   const t = Date.now();
   const body = {
@@ -65,9 +67,11 @@ export async function sparkJson<T extends z.ZodType>(opts: {
   const out = await post("/chat/completions", body);
   const u = out.usage ?? {};
   const usd = (u.prompt_tokens ?? 0) * PRICE.sparkIn + (u.completion_tokens ?? 0) * PRICE.sparkOut;
-  opts.ledger.add({ step: opts.step, model: SPARK, seconds: (Date.now() - t) / 1000, usd, detail: { prompt: u.prompt_tokens, completion: u.completion_tokens } });
+  opts.ledger.add({ step: opts.step, model: SPARK, seconds: (Date.now() - t) / 1000, usd, detail: { prompt: u.prompt_tokens, completion: u.completion_tokens, reasoning: u.completion_tokens_details?.reasoning_tokens, effort: body.reasoning_effort } });
   const content = out.choices?.[0]?.message?.content;
   if (!content) throw new Error(`Muse Spark returned no content for ${opts.step}`);
+  // a cut-off answer is half a JSON object; say so instead of a parse error
+  if (out.choices?.[0]?.finish_reason === "length") throw new Error(`Muse Spark ran out of room (${body.max_tokens} tokens) on ${opts.step}`);
   return opts.schema.parse(JSON.parse(content));
 }
 
