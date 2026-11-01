@@ -106,6 +106,7 @@ test("missing articles before common nouns are caught", async () => {
   const { missingArticles } = await import("@explainlike/core");
   assert.deepEqual(missingArticles("The guest will send message to manager, then we run agent."), ["send message", "run agent", "to manager"]);
   assert.deepEqual(missingArticles("The guest sends a message to the manager, who saves messages and runs the agent."), []);
+  assert.deepEqual(missingArticles("The demo app declares widgets for the open window, then a used file."), []);
 });
 
 test("what the viewer asked for reaches the script", () => {
