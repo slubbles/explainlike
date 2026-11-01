@@ -162,6 +162,8 @@ export function missingArticles(text: string): string[] {
   const out: string[] = [];
   for (let i = 1; i < ws.length; i++) {
     if (!BARE_NOUNS.test(ws[i]) || !NEEDS_OBJECT.test(ws[i - 1]) || /[,.;:!?]$/.test(raw[i - 1])) continue;
+    // "the open window": after an article the word is an adjective, and the noun already has its article
+    if (i > 1 && /^(the|a|an|your|its|this|that|each|every|one)$/.test(ws[i - 2])) continue;
     out.push(`${ws[i - 1]} ${ws[i]}`);
   }
   for (let i = 1; i < ws.length; i++) if (ws[i - 1] === "to" && /^(manager|counter|user|server|database|agent|browser|worker|engine|notebook|ledger|logbook)$/.test(ws[i])) out.push(`to ${ws[i]}`);
