@@ -30,7 +30,7 @@ Explain Like turns a GitHub repo, an X post, an article or a plain topic into a 
 
 ## Where things stand (Nov 1, 6:30 PM Manila)
 - 220+ commits, 218 tests, CI green.
-- A fresh repo run takes about 2:50 and a cached re-render about 30 s.
+- A cached run spends $0 but still redraws every frame: about 20 frames a second, so the wall clock is roughly 1.4x the video's length (a 4-minute video took 6:20).
 - Spend so far is about $6.30 on Meta and about $1.90 on Deepgram.
 - Samples are in the Google Drive folder "Explain Like samples" (microui v8, Silk Road v3, DNS, how the internet grew, minbpe, OpenMausBot).
 
