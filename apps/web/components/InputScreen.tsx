@@ -18,7 +18,7 @@ export default function InputScreen({ form, set, go, busy, err, gallery, talking
         <p className="lede">Paste a link. Explain Like reads the code or the text, draws the system piece by piece, walks one real request through it, and narrates it, choosing the analogy, depth and pace that fit the topic. You get an mp4 plus editable .tldr and .excalidraw boards.</p>
         {talking ? <VoiceMode typed={form.input.trim() || undefined} voice={form.voice} onJob={onVoiceJob} onEnd={() => talk(false)} /> : (
         <form className="prompt" onSubmit={(e) => { e.preventDefault(); if (ready) go(); }}>
-          <input className="field" type="text" aria-label="Link to explain" placeholder="github.com/owner/repo, an X post, or an article URL"
+          <input className="field" type="text" inputMode="url" maxLength={2048} aria-label="Link to explain" aria-invalid={!!err} aria-describedby={err ? "input-err" : undefined} placeholder="github.com/owner/repo, an X post, or an article URL"
             value={form.input} onChange={(e) => set({ input: e.target.value })} autoComplete="off" spellCheck={false} />
           <div className="pbar">
             <div className="group" role="radiogroup" aria-label="Voice">
@@ -27,12 +27,12 @@ export default function InputScreen({ form, set, go, busy, err, gallery, talking
             </div>
             <div className="acts">
               <button type="button" className="mic" aria-label="Talk it through instead" title="Talk it through instead" onClick={() => talk(true)}><Mic /></button>
-              <button className="send" type="submit" disabled={!ready}>{busy ? "Drawing…" : <>Explain it <Arrow /></>}</button>
+              <button className="send" type="submit" disabled={!ready} aria-busy={busy}>{busy ? "Starting…" : <>Explain it <Arrow /></>}</button>
             </div>
           </div>
         </form>
         )}
-        {err && <div className="err" role="alert">{err}</div>}
+        {err && <div className="err" id="input-err" role="alert">{err}</div>}
         <div className="try"><span className="label">Try:</span>{EXAMPLES.map((x) => <button type="button" key={x} className="chip" onClick={() => set({ input: x })}>{shortLink(x)}</button>)}</div>
       </section>
 

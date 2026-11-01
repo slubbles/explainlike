@@ -9,7 +9,7 @@ export default function JobBar({ form, set, go, busy, fold, quiet }: { form: For
   const ready = !!form.input.trim() && !busy;
   return (
     <form className={`jobbar${fold && !open ? " fold" : ""}`} onSubmit={(e) => { e.preventDefault(); if (ready) go(); }}>
-      <input className="in" type="text" aria-label="Link to explain" value={form.input} onChange={(e) => set({ input: e.target.value })} spellCheck={false} autoComplete="off" onFocus={() => setOpen(true)} />
+      <input className="in" type="text" inputMode="url" maxLength={2048} aria-label="Link to explain" value={form.input} onChange={(e) => set({ input: e.target.value })} spellCheck={false} autoComplete="off" onFocus={() => setOpen(true)} />
       <button type="button" className="btn edit" onClick={() => setOpen(true)}>Change</button>
       <div className="opts">
         <label className="pick"><span className="sr">Voice</span>
