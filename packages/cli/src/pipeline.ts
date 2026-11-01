@@ -55,6 +55,12 @@ export async function runExplainLike(o: RunOptions) {
   };
   const P: Progress = (e) => o.progress?.({ ...e, usd: spend() });
   const t0 = Date.now();
+  // wall-clock per stage (start and length, seconds from the run's start), so a slow stage shows up in the manifest
+  const stages: { stage: string; at: number; seconds: number }[] = [];
+  const timed = async <T>(stage: string, f: () => Promise<T> | T): Promise<T> => {
+    const a = Date.now();
+    try { return await f(); } finally { stages.push({ stage, at: Number(((a - t0) / 1000).toFixed(1)), seconds: Number(((Date.now() - a) / 1000).toFixed(1)) }); }
+  };
   const extra = (o.packs ?? builtinPackIds()).map((d) => loadIconPack(d));
   const pack: IconPack = mergePacks([loadIconPack(), ...extra]);
   let detected: DetectedComponent[] = [];
@@ -75,14 +81,14 @@ export async function runExplainLike(o: RunOptions) {
   // the engine decides how to explain: approach, depth, tempo and look come from Muse Spark's brief
   let spec: ExplainSpec = specFromBrief(DEFAULT_BRIEF);
   const decide = async (file: string, kindOf: "repo" | "x-post" | "article", name: string, text: string) => {
-    const b = await cacheJson<Brief>(file, () => planBrief({ ledger, kind: kindOf, name, text, ask: o.ask, progress: P }));
+    const b = await timed("brief", () => cacheJson<Brief>(file, () => planBrief({ ledger, kind: kindOf, name, text, ask: o.ask, progress: P })));
     spec = specFromBrief(b, o.ask);
     notes.push(`brief: ${b.approach}, ${b.depth}, ${b.complexity} -> ${spec.tempo.id} tempo, ${b.look}; ${b.why}`);
   };
 
   if (kind === "repo") {
     P({ stage: "ingest", message: "reading the repository", pct: 2 });
-    const r = await ingestRepo(o.input);
+    const r = await timed("ingest", () => ingestRepo(o.input));
     doc = r;
     const name = o.name ?? r.title;
     // a repo URL shows itself; a local checkout shows --name or its folder name, never the path on this machine
@@ -125,7 +131,7 @@ export async function runExplainLike(o: RunOptions) {
       fs.writeFileSync(done, JSON.stringify({ key, plan, arch }));
     } else {
     await decide(path.join(out, "brief.json"), "repo", name, r.digest.text);
-    arch = await cacheJson(path.join(out, "architecture.json"), async () => {
+    arch = await timed("architecture", () => cacheJson(path.join(out, "architecture.json"), async () => {
       P({ stage: "architecture", message: "Muse Spark is mapping the architecture", pct: 8 });
       let a = await extractArchitecture({ ledger, digest: r.digest.text, name, spec, icons: iconCatalog(pack), hints, progress: P });
       let v = validateArchitecture(a, r.digest.files, resolve, fb);
@@ -144,11 +150,11 @@ export async function runExplainLike(o: RunOptions) {
         if (d && resolve(d.component.icon)) c.icon = resolve(d.component.icon)!;
       }
       return v.arch;
-    });
-    plan = await cacheJson(path.join(out, "plan.json"), () => {
+    }));
+    plan = await timed("scene plan", () => cacheJson(path.join(out, "plan.json"), () => {
       P({ stage: "plan", message: "writing the scene plan", pct: 32 });
       return planRepoScenes({ ledger, arch: arch!, spec, progress: P });
-    });
+    }));
     const chk = (plan as { check?: { first: string[]; final: string[]; revised: boolean } }).check;
     // plain part names chosen by the narration polish are what the board shows and the voice says
     const pol = plan as { renames?: { id: string; keyword: string }[]; polish?: { rewritten: number; kept: string[]; issues: string[] } };
@@ -187,17 +193,17 @@ export async function runExplainLike(o: RunOptions) {
   const audioDir = path.join(out, "audio");
   const audio: SceneAudio[] = [];
   const queue = [...plan.scenes];
-  await Promise.all([0, 1, 2, 3].map(async () => {
+  await timed("voice", () => Promise.all([0, 1, 2, 3].map(async () => {
     for (let s = queue.shift(); s; s = queue.shift()) audio.push(await voice.synthesize(s.id, s.narration, audioDir));
-  }));
+  })));
   audio.sort((a, b) => plan.scenes.findIndex((s) => s.id === a.sceneId) - plan.scenes.findIndex((s) => s.id === b.sceneId));
 
   // ---------- compose + render ----------
   P({ stage: "compose", message: "laying out the canvas", pct: 44 });
-  const { film, sketch, timeline, pace, placement } = await compose({
+  const { film, sketch, timeline, pace, placement } = await timed("compose", () => compose({
     plan, audio, theme, spec, pack, sourceLabel, arch, shot,
     colorOf: (c) => kindColor(c.kind) as any,
-  });
+  }));
   P({ stage: "compose", message: `pacing: ${pace.cutsPerMin} cuts a minute, shortest hold ${pace.shortestHold} s (${pace.tempo})`, pct: 46 });
   // nothing is drawn until every ring, arrow and label sits where it should
   fs.writeFileSync(path.join(out, "placement.json"), JSON.stringify(placement, null, 1));
@@ -243,7 +249,7 @@ export async function runExplainLike(o: RunOptions) {
   P({ stage: "render", message: "drawing frames", pct: 48 });
   let cap: Awaited<ReturnType<typeof captureFrames>>;
   try {
-    cap = await captureFrames(film, frames, { workers: o.workers, onFrame: encoder.frame, onProgress: (d, t) => P({ stage: "render", message: `drawing frames ${d}/${t}`, pct: 48 + Math.round((d / t) * 42) }) });
+    cap = await timed("render frames", () => captureFrames(film, frames, { workers: o.workers, onFrame: encoder.frame, onProgress: (d, t) => P({ stage: "render", message: `drawing frames ${d}/${t}`, pct: 48 + Math.round((d / t) * 42) }) }));
   } catch (e) {
     encoder.abort();
     throw e;
@@ -255,15 +261,15 @@ export async function runExplainLike(o: RunOptions) {
   encoded.catch(() => {});
   // look at the picture itself: where every word, ring and caption actually landed, frame by frame
   P({ stage: "render", message: "checking the rendered frames", pct: 91 });
-  const fc = await frameCheck(film, { workDir: path.join(out, "frame-check"), frameDir: frames, visionFrames: o.visionReview ? 8 : 0, ledger });
+  const fc = await timed("frame check", () => frameCheck(film, { workDir: path.join(out, "frame-check"), frameDir: frames, visionFrames: o.visionReview ? 8 : 0, ledger }));
   fs.rmSync(path.join(out, "frame-check"), { recursive: true, force: true });
   fs.writeFileSync(path.join(out, "frame-check.json"), JSON.stringify(fc, null, 1));
   notes.push(`frame check: ${fc.atRest} of ${fc.samples} sampled frames at rest, ${fc.issues.length} issue(s)${fc.issues.length ? `: ${fc.issues.slice(0, 4).map((i) => `${i.t}s ${i.rule} ${i.detail}`).join("; ")}` : ""}`);
   if (fc.vision) notes.push(`vision review: ${fc.vision.reduce((n, f) => n + f.problems.length, 0)} problem(s) across ${fc.vision.length} frames`);
   P({ stage: "encode", message: "encoding the mp4", pct: 92 });
-  await encoded;
+  await timed("encode tail", () => encoded);
   const sheet = path.join(out, `${base}.contact.jpg`);
-  await contactSheet(mp4, sheet, Math.max(2, Math.ceil(film.duration / 40)));
+  await timed("contact sheet", () => contactSheet(mp4, sheet, Math.max(2, Math.ceil(film.duration / 40))));
   fs.copyFileSync(cap.html, path.join(out, "stage.html"));
   fs.rmSync(frames, { recursive: true, force: true });
 
@@ -273,7 +279,7 @@ export async function runExplainLike(o: RunOptions) {
     P({ stage: "qa", message: "Muse Transcribe is checking the voiceover", pct: 96 });
     try {
       const script = plan.scenes.map((s) => s.narration).join(" ");
-      const tr = await museTranscribe({ ledger, step: "voice-qa", wav: fs.readFileSync(narration), durationSec: film.duration, keywords: (arch?.components ?? []).map((c) => c.keyword) });
+      const tr = await timed("voice qa", () => museTranscribe({ ledger, step: "voice-qa", wav: fs.readFileSync(narration), durationSec: film.duration, keywords: (arch?.components ?? []).map((c) => c.keyword) }));
       qa = { overlap: Number(wordOverlap(script, tr.transcript).toFixed(3)), transcript: tr.transcript };
     } catch (e) { qa = { error: String(e).slice(0, 300) }; }
   }
@@ -289,6 +295,7 @@ export async function runExplainLike(o: RunOptions) {
     captionsCovering: cap.captions.filter((c) => c.overlapPx > 0),
     cost: { metaUsd: Number(ledger.total.toFixed(4)), byModel: ledger.byModel(), entries: ledger.entries, voiceUsd: Number(voiceUsd.toFixed(4)), voice: voice.id },
     seconds: Math.round((Date.now() - t0) / 1000),
+    stages,
   };
   fs.writeFileSync(path.join(out, "manifest.json"), JSON.stringify(manifest, null, 1));
   P({ stage: "done", message: "done", pct: 100 });
