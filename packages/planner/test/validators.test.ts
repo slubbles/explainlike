@@ -293,3 +293,8 @@ test("a review's changes fix only what it names and keep the rest of the map", (
   assert.deepEqual(out.walkthrough, arch.walkthrough);
   assert.deepEqual(out.scale, arch.scale);
 });
+
+test("the walkthrough heading the prompt asks for ('follow one click') is not read as a part", () => {
+  const plan = { title: "x", subtitle: "", scenes: [{ ...sc("walkthrough", "Now follow one click from your mouse all the way to the screen."), id: "s05-walkthrough", heading: "follow one click" }] };
+  assert.ok(!speechIssues(plan, storyArch, "a hotel front desk").some((i) => /heading "follow one click"/.test(i)));
+});
