@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { Architecture, COLOR_MEANING, lower, type ExplainSpec, type Progress } from "@explainlike/core";
+import { Architecture, Component, Connection, ScaleRisk, COLOR_MEANING, lower, type ExplainSpec, type Progress } from "@explainlike/core";
 import { sparkJson, type CostLedger } from "@explainlike/models";
 
 export interface ArchIssue { target: string; problem: string }
@@ -110,23 +110,50 @@ export function evidencePack(arch: Architecture, read: (p: string, max?: number)
 
 const REVIEWER = "You are a strict staff engineer reviewing an architecture map that will be shown to thousands of developers. Compare every component, connection, walkthrough step and scale risk against the cited file excerpts. Flag: components whose cited files do not support them, wrong technology names, wrong direction of data flow, missing major components that the files clearly show (e.g. a database client that is imported but not drawn), walkthrough steps that the code does not do, scale risks that are generic or not grounded in this code. Return verdict 'ok' only if a skeptical maintainer of this repo would sign off. Max 10 issues, most important first.";
 
-const ReviewFix = Review.extend({ architecture: Architecture.describe("the full architecture with every issue fixed; unchanged when the verdict is ok") });
+const ReviewPatch = Review.extend({
+  upsert_components: z.array(Component).describe("components to add, or to replace whole when an id already exists; empty when no component changes"),
+  remove_components: z.array(z.string()).describe("ids of components to drop"),
+  upsert_connections: z.array(Connection).describe("connections to add, or to replace whole when the same from and to already exist"),
+  remove_connections: z.array(z.string()).describe("'from>to' of connections to drop"),
+  walkthrough_steps: z.array(Connection).describe("the full new list of walkthrough steps when any step changes; empty to keep the steps as they are"),
+  scale: z.array(ScaleRisk).describe("the full new list of scale risks when any risk changes; empty to keep them as they are"),
+});
+export type ReviewPatch = z.infer<typeof ReviewPatch>;
+
+/** Applies a review's changes to the map: whole-item replace by id (or from>to), removals, and full lists for the walkthrough and scale. */
+export function applyReviewPatch(arch: Architecture, p: Omit<ReviewPatch, "verdict" | "issues">): Architecture {
+  const gone = new Set(p.remove_components);
+  const comps = arch.components.filter((c) => !gone.has(c.id)).map((c) => p.upsert_components.find((u) => u.id === c.id) ?? c);
+  for (const u of p.upsert_components) if (!comps.some((c) => c.id === u.id)) comps.push(u);
+  const key = (c: { from: string; to: string }) => `${c.from}>${c.to}`;
+  const cut = new Set(p.remove_connections.map((k) => k.replace(/\s+/g, "")));
+  const conns = arch.connections.filter((c) => !cut.has(key(c))).map((c) => p.upsert_connections.find((u) => key(u) === key(c)) ?? c);
+  for (const u of p.upsert_connections) if (!conns.some((c) => key(c) === key(u))) conns.push(u);
+  return {
+    ...arch,
+    components: comps,
+    connections: conns,
+    walkthrough: { ...arch.walkthrough, steps: p.walkthrough_steps.length ? p.walkthrough_steps : arch.walkthrough.steps },
+    scale: p.scale.length ? p.scale : arch.scale,
+  };
+}
 
 /**
- * One call reviews the map against the cited code and returns it corrected, so a flagged map costs
- * one round trip instead of a review and a separate rewrite. The reviewer sees the digest too, so it
- * can add a component the files show but the map missed.
+ * One call reviews the map against the cited code and returns only the changes its issues need, so a
+ * flagged map costs one round trip, and a map that is mostly right is not rewritten (and re-reasoned)
+ * whole. The reviewer sees the digest too, so it can add a component the files show but the map missed.
  */
-export async function reviewArchitecture(o: { ledger: CostLedger; arch: Architecture; evidence: string; digest: string; name: string; found?: ArchIssue[]; spec: ExplainSpec; icons: string; hints?: string; progress?: Progress }) {
+export async function reviewArchitecture(o: { ledger: CostLedger; arch: Architecture; evidence: string; digest: string; name: string; found?: ArchIssue[]; spec: ExplainSpec; icons: string; hints?: string; progress?: Progress; effort?: "minimal" | "low" | "medium" }) {
   o.progress?.({ stage: "plan", message: "reviewing the architecture against the cited files" });
   const found = o.found?.length ? `\n\nA file check already found:\n${o.found.map((i, n) => `${n + 1}. [${i.target}] ${i.problem}`).join("\n")}` : "";
-  return sparkJson({
-    ledger: o.ledger, step: "architecture-review", schema: ReviewFix, name: "review", effort: "medium", maxTokens: 20000,
+  const r = await sparkJson({
+    ledger: o.ledger, step: "architecture-review", schema: ReviewPatch, name: "review", effort: o.effort ?? "low", maxTokens: 14000,
     messages: [
-      { role: "system", content: `${REVIEWER}\nWrite the issues first, as full sentences that quote the code. Then return the full architecture with every issue fixed, keeping everything that was right. The architecture (not the issues) follows the same rules as the original map, including its component count and number of scale risks:\n${archSystem(o.spec, o.icons, o.hints)}` },
+      { role: "system", content: `${REVIEWER}\nWrite the issues first, as full sentences that quote the code. Then return only the changes that fix them: each changed or new component or connection whole, the ids of ones to drop, and the full walkthrough steps or scale list only if they change. Leave everything that was right out of the changes. Every issue you list has a matching change. Changed and new items follow the same rules as the original map, and the result keeps its component count and number of scale risks:\n${archSystem(o.spec, o.icons, o.hints)}` },
       { role: "user", content: `Repository: ${o.name}\n\nARCHITECTURE JSON:\n${JSON.stringify(o.arch)}${found}\n\nCITED FILE EXCERPTS:\n${o.evidence}\n\nDIGEST (secrets stripped):\n${o.digest}` },
     ],
   });
+  return { verdict: r.verdict, issues: r.issues, architecture: applyReviewPatch(o.arch, r), changes: { upsert: r.upsert_components.length + r.upsert_connections.length, removed: r.remove_components.length + r.remove_connections.length, walkthrough: r.walkthrough_steps.length > 0, scale: r.scale.length > 0 } };
 }
 
 export const kindColor = (kind: string): keyof typeof COLOR_MEANING => {
