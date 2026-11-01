@@ -27,7 +27,35 @@ commit, and every run prints its spend against a guard.
 
 - OpenMausBot repo walkthrough (see README).
 - Meta hackathon event page, plain-language cut (`meta-million-dollar-build-sprint.mp4`).
+  The first cut reached for a pantry analogy unprompted. The kept cut was
+  steered with plain direct language and no forced analogy. Steering is per
+  run, so repeat the note on every re-render.
 - Third sample to be locked before submission.
+
+## Verification (Nov 1)
+
+- Follow-up what-if runs clean end to end on article input, producing video
+  and boards with no errors. Its manifest reads like a full story render, so
+  what-if-specific content on articles is unconfirmed; advertise follow-ups
+  for repo runs, where the architecture path is designed for them.
+- Deep-dive focus stays unverified live: the engine channel dropped before a
+  focus clip could render, and five retries across two sessions all failed
+  with the channel closed. A minbpe focus run is queued with its component
+  (regex-tokenizer) and output folder ready; it needs a live engine channel.
+  Shared prompt and validator logic is unit-tested.
+- Frame check on the kept hackathon cut: three sampled frames show distinct
+  scenes, synced captions, and no cut-off or blank frames. Plain language
+  held with no pantry analogy.
+- A minbpe repo run verified the review pass finds real walkthrough issues,
+  both boards read back clean, and 2111 frames encoded to a 6.8 MB mp4.
+- MCP server verified over stdio: handshake answers and all three tools
+  (explain, explain_status, explain_cancel) list with correct schemas. The
+  dead channel is the host connection, not the server code.
+- Follow-ups are repo-video-only by tool contract, which explains the article
+  what-if rendering a full video. No code change; scope note stands.
+- microui pacing accepted at 7.48 cuts/min for that sample. No code change.
+- New respellings (parsel, cooriers) await one real-audio check on a live
+  render. Retake logic is unit-tested.
 
 ## X drafts (do not post)
 
