@@ -36,3 +36,15 @@ test("the recap's whole-wall shot shows no lit words too small to read", async (
   assert.ok(wide > 0, "the recap does pull back over the whole wall");
   assert.ok(kept > 0, "the board titles and box names stay up on the wall");
 });
+
+test("recapShots: one shot per board when the recap is long enough, grouped boards when it is not", async () => {
+  const { recapShots } = await import("../src/index.js");
+  const boxes = [0, 1, 2, 3].map((i) => ({ x: i * 2000, y: 0, w: 1800, h: 1000 }));
+  const tempo = { move: 1.1, minBeat: 4 };
+  const roomy = recapShots([5, 9, 13, 17], boxes, 0, 26, tempo)!;
+  assert.deepEqual(roomy.shots.map((s) => [s.first, s.last]), [[0, 0], [1, 1], [2, 2], [3, 3]]);
+  roomy.shots.forEach((s, k) => { if (k) assert.ok(s.t - roomy.shots[k - 1].t >= 4 - 1e-6, "every shot holds a full beat"); });
+  const tight = recapShots([1, 2, 3, 4], boxes, 0, 9, tempo)!;
+  assert.ok(tight.shots.length < 4, "a short recap groups boards instead of cutting under the beat");
+  tight.shots.forEach((s, k) => { if (k) assert.ok(s.t - tight.shots[k - 1].t >= 4 - 1e-6); });
+});

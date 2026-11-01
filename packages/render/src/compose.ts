@@ -318,6 +318,36 @@ function followShots(ev: { t: number; box: Box; wide: Box }[], start: number, en
   for (let i = n; i < ev.length && shots.length; i++) { const cur = shots[shots.length - 1]; cur.box = unionBox([cur.box, ev[i].box], 0); }
   return shots;
 }
+/**
+ * Recap shots: the camera visits the boards as the voice recalls them, each shot holding at least a full
+ * beat. Boards recalled close together share a shot when there is no time for one each. The plan with
+ * the most shots wins; then one that opens on the whole wall and pulls back to it at the end; then the
+ * one whose widest shot is narrowest. Undefined when even a single shot cannot hold a beat.
+ */
+export function recapShots(times: number[], boxes: Box[], start: number, end: number, tempo: { move: number; minBeat: number }, aspect = 16 / 9): { overview: boolean; shots: { t: number; first: number; last: number }[]; close?: number } | undefined {
+  const n = Math.min(times.length, 12), beat = tempo.minBeat;
+  const span = (b: Box) => Math.max(b.w, b.h * aspect);
+  let best: { overview: boolean; shots: { t: number; first: number; last: number }[]; close?: number } | undefined, bestScore = -Infinity;
+  for (const overview of [true, false]) for (const close of [true, false]) for (let mask = 0; n > 0 && mask < 1 << (n - 1); mask++) {
+    const shots: { t: number; first: number; last: number }[] = [];
+    for (let i = 0; i < n; i++) {
+      if (i === 0 || (mask >> (i - 1)) & 1) shots.push({ t: 0, first: i, last: i });
+      else shots[shots.length - 1].last = i;
+    }
+    // each shot lands one move before its first board is recalled, a beat after the shot before it
+    shots.forEach((sh, k) => { sh.t = k === 0 && !overview ? start : Math.max(times[sh.first] - tempo.move - 0.15, k === 0 ? start + beat : shots[k - 1].t + beat); });
+    // pull shots earlier where the end leaves no room for a full beat (arriving early reads better than cramped)
+    let cap = end - beat - (close ? beat : 0);
+    for (let k = shots.length - 1; k >= 0; k--) { if (shots[k].t > cap) shots[k].t = cap; cap = shots[k].t - beat; }
+    const ok = shots.every((sh, k) => sh.t >= (k === 0 ? (overview ? start + beat : start) : shots[k - 1].t + beat) - 1e-6 && sh.t <= times[sh.first] + 2.0);
+    if (!ok) continue;
+    const widest = Math.max(...shots.map((sh) => span(unionBox(boxes.slice(sh.first, sh.last + 1), 0))));
+    const score = shots.length * 1000 + (overview ? 300 : 0) + (close ? 200 : 0) - widest / 100;
+    if (score > bestScore) { bestScore = score; best = { overview, shots, close: close ? end - beat : undefined }; }
+  }
+  return best;
+}
+
 function holdUntilSettled(times: number[], shots: { t: number; first: number }[], move: number) {
   for (const sh of shots) if (sh.first > 0) times[sh.first] = Math.max(times[sh.first], sh.t + move + 0.05);
   for (let i = 1; i < times.length; i++) times[i] = Math.max(times[i], times[i - 1]);
@@ -1049,11 +1079,12 @@ export async function compose(inp: ComposeInput): Promise<Composed> {
       const all = boardShown.map((b) => regionBox(b.id)!).filter(Boolean);
       if (all.length) {
         fades.push({ t: T, dur: 0.35 });
-        boardShown.forEach((b, i) => {
+        // each board's title is written as the camera first shows it (all at once on the overview)
+        const title = (b: (typeof boardShown)[number], t: number) => {
           const rb = regionBox(b.id)!;
-          B.text({ text: b.heading, x: rb.x + rb.w / 2, y: rb.y - 110, size: 84, color: theme.ink, anchor: "middle", t0: T + 0.3 + i * 0.15, dur: 0.6, g: "recap-titles" });
-          B.rough(gen.line(rb.x + rb.w / 2 - textWidth(b.heading, 84) / 2, rb.y - 86, rb.x + rb.w / 2 + textWidth(b.heading, 84) / 2, rb.y - 82, { seed: B.seed++, stroke: theme.accent, strokeWidth: 6, roughness: 1.2 }), T + 0.6 + i * 0.15, 0.4, "recap-titles");
-        });
+          B.text({ text: b.heading, x: rb.x + rb.w / 2, y: rb.y - 110, size: 84, color: theme.ink, anchor: "middle", t0: t, dur: 0.6, g: "recap-titles" });
+          B.rough(gen.line(rb.x + rb.w / 2 - textWidth(b.heading, 84) / 2, rb.y - 86, rb.x + rb.w / 2 + textWidth(b.heading, 84) / 2, rb.y - 82, { seed: B.seed++, stroke: theme.accent, strokeWidth: 6, roughness: 1.2 }), t + 0.3, 0.4, "recap-titles");
+        };
         B.fit(unionBox(all.map((b) => ({ x: b.x, y: b.y - 200, w: b.w, h: b.h + 200 })), 80), T, 0, 1.0);
         for (const b of boardShown) B.setOp(b.g, T, 1, 0.01);
         // words too small to read on the whole wall (quotes, arrow labels) step aside for the recap;
@@ -1072,14 +1103,42 @@ export async function compose(inp: ComposeInput): Promise<Composed> {
           if (B.groups[fine]) B.setOp(fine, T - 0.02, 0, 0.02);
         }
         const times = eventTimes(words, boardShown.map((b) => [b.heading, ...b.keys]), t0 + 0.8, tEnd - 1.4, 1.2);
-        // overview first, then the camera visits each board as it is recalled, then pulls back to the whole wall
-        boardShown.forEach((b, i) => {
-          for (const o of boardShown) B.setOp(o.g, times[i], o === b ? 1 : dim, 0.35);
-          const rb = regionBox(b.id)!;
-          if (boardShown.length > 1) B.fit({ x: rb.x, y: rb.y - 200, w: rb.w, h: rb.h + 200 }, times[i] - 0.2, 0.8, 1.2);
-        });
-        for (const b of boardShown) B.setOp(b.g, tEnd - 0.8, 1, 0.4);
-        if (boardShown.length > 1) B.fit(unionBox(all.map((b) => ({ x: b.x, y: b.y - 200, w: b.w, h: b.h + 200 })), 80), tEnd - 1.2, 1.0, 1.0);
+        // the camera visits each board as it is recalled, one shot each, when every shot can hold a full beat;
+        // the opening overview and the closing pull-back are the first things to go when time is short
+        const wallBox = unionBox(all.map((b) => ({ x: b.x, y: b.y - 200, w: b.w, h: b.h + 200 })), 80);
+        const boxes = boardShown.map((b) => { const rb = regionBox(b.id)!; return { x: rb.x, y: rb.y - 200, w: rb.w, h: rb.h + 200 }; });
+        // a shot per board is worth up to 3 s of quiet hold at the very end of the film; past that, boards
+        // recalled close together share a shot
+        let plan = boardShown.length > 1 ? recapShots(times, boxes, T, T + D, tempo, W / H) : undefined;
+        for (let extra = 0.5; boardShown.length > 1 && (plan?.shots.length ?? 0) < boardShown.length && extra <= 3 + 1e-6; extra += 0.5) {
+          const longer = recapShots(times, boxes, T, T + D + extra, tempo, W / H);
+          if (longer && longer.shots.length === boardShown.length) { plan = longer; D += extra; timeline[timeline.length - 1].end = T + D; break; }
+        }
+        B.cam.pop();
+        if (!plan || plan.overview) { B.fit(wallBox, T, 0, 1.0); boardShown.forEach((b, i) => title(b, T + 0.3 + i * 0.15)); }
+        if (plan) {
+          plan.shots.forEach((sh, k) => {
+            const opening = k === 0 && !plan.overview, next = plan.shots[k + 1]?.t ?? plan.close ?? T + D + 1;
+            const lit = boardShown.slice(sh.first, sh.last + 1);
+            B.fit(unionBox(boxes.slice(sh.first, sh.last + 1), 0), sh.t, opening ? 0 : tempo.move, 1.2);
+            const vw = B.cam[B.cam.length - 1].w, settled = opening ? T + 0.05 : sh.t + tempo.move;
+            if (!plan.overview) lit.forEach((b, j) => title(b, (opening ? T + 0.3 : settled) + j * 0.15));
+            // boards sharing a shot are lit in turn as the voice reaches each; the others dim
+            lit.forEach((b, j) => { for (const o of boardShown) B.setOp(o.g, j === 0 ? (opening ? T : sh.t + tempo.move * 0.5) : Math.max(times[sh.first + j], settled), o === b ? 1 : dim, opening && j === 0 ? 0.01 : 0.35); });
+            // up close, a board's own quotes and arrow labels are readable again: back while the camera rests
+            for (const b of lit) {
+              const fine = `${b.g}~fine`;
+              if (!B.groups[fine] || !B.els.every((e) => e.k !== "text" || e.g !== fine || (e.size * W) / vw >= (e.size >= 34 ? MIN_TEXT_PX : MIN_SMALL_TEXT_PX))) continue;
+              B.setOp(fine, settled, 1, 0.3);
+              B.setOp(fine, next - 0.05, 0, 0.05);
+            }
+          });
+            if (plan.close !== undefined) { for (const b of boardShown) B.setOp(b.g, plan.close + tempo.move * 0.5, 1, 0.4); B.fit(wallBox, plan.close, tempo.move, 1.0); }
+        } else {
+          // too little time for a shot per board: one wide shot, each board lit in turn as it is recalled
+          boardShown.forEach((b, i) => { for (const o of boardShown) B.setOp(o.g, times[i], o === b ? 1 : dim, 0.35); });
+          for (const b of boardShown) B.setOp(b.g, tEnd - 0.8, 1, 0.4);
+        }
       }
     }
     // a scene ends only after its last ring or arrow finishes, so the next scene's camera move never cuts one off
