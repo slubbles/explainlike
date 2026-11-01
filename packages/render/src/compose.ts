@@ -790,6 +790,17 @@ export async function compose(inp: ComposeInput): Promise<Composed> {
       // a fix lights up together with the component it fixes, so the recap never shows the answers greyed out
       const fixesOf = (id: string) => (inp.arch?.scale ?? []).flatMap((r, j) => (r.component === id && present.has(fixIds[j]) ? [fixIds[j]] : []));
       comps.forEach((c, i) => { for (const id of [c.id, ...fixesOf(c.id)]) B.setOp(nodeGroup(id), times[i], 1, 0.35); });
+      // a dot retraces the walk: from each part as it is named to the next, along the wire already drawn between them
+      let dots = 0;
+      comps.forEach((c, i) => {
+        const nx = comps[i + 1], e = nx && findEdge(c.id, nx.id);
+        if (!e || !drawnEdges.has(edgeKey(e))) return;
+        const at = Math.max(times[i] + 0.2, T + 1.5), dur = Math.min(1.2, times[i + 1] - at - 0.1);
+        if (dur < 0.5) return;
+        B.els.push({ k: "dot", id: B.id("d"), pts: e.from === c.id ? e.points : [...e.points].reverse(), color: C("yellow"), r: 13, trail: C("yellow"), t0: at, dur, g: "recap-dot", cue: "whoosh" });
+        dots++;
+      });
+      if (dots) B.setOp("recap-dot", tEnd - 0.6, 0, 0.4);
       for (const id of all) B.setOp(nodeGroup(id), tEnd - 0.6, 1, 0.4);
     } else if (s.kind === "source" && inp.shot && shotBox) {
       const sb = shotBox;
