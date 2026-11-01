@@ -398,21 +398,102 @@ export async function planRepoScenes(o: { ledger: CostLedger; arch: Architecture
   const raw = await ask();
   let plan = repairRepoPlan(raw, o.arch, L);
   // the newcomer check and the narration polish both read the same draft, so they run side by side;
-  // the polish is redone only when the check sends the plan back for a revision
+  // what the check found is then looked for in the polished narration, which is what the viewer hears
   const polish = (p: ScenePlan & { repairs: string[] }) => polishNarration({ ledger: o.ledger, plan: p, arch: o.arch, analogy: L.brief.analogy, audience: L.audience, progress: o.progress });
-  const early = polish(plan);
-  early.catch(() => {});
-  const first = await review(plan);
-  let final = first, revised = false, pol: Awaited<ReturnType<typeof polishNarration>> | undefined;
-  if (first.length) {
-    o.progress?.({ stage: "plan", message: `self-check: ${first.length} issue(s), revising once` });
+  const critique = (p: ScenePlan) => critiquePlan(o.ledger, p, L.audience).catch(() => undefined);
+  const renamedArch = (r: { id: string; keyword: string }[]): Architecture => ({ ...o.arch, components: o.arch.components.map((c) => ({ ...c, keyword: r.find((x) => x.id === c.id)?.keyword ?? c.keyword })) });
+  const found = (p: ScenePlan, arch: Architecture, c: Critique | undefined) => [
+    ...checkStory(p, arch, L.brief.analogy),
+    ...(c?.undefined_terms ?? []).filter((t) => said(p, t.term)).map((t) => termIssue(t)),
+    ...(c && !c.flow_clear ? [`a newcomer could not retell the flow: ${c.flow_problem}`] : []),
+  ];
+  let [pol, crit] = await Promise.all([polish(plan), critique(plan)]);
+  let arch = renamedArch(pol.renames);
+  const first = found(pol.plan, arch, crit);
+  let final = first, revised = false, story = pol.plan;
+  if (first.some(structural)) {
+    // the board itself is wrong (scene order, what each scene draws): the whole plan is redone once
+    o.progress?.({ stage: "plan", message: `self-check: ${first.length} issue(s), revising the plan once` });
     plan = repairRepoPlan(await ask([{ role: "assistant", content: JSON.stringify(raw) }, { role: "user", content: `A newcomer test of this plan found these problems. Return the full corrected plan, keeping what works:\n${first.map((x, i) => `${i + 1}. ${x}`).join("\n")}` }]), o.arch, L);
     revised = true;
-    // the second check only reports what is left, so it runs alongside the polish of the revised plan
-    [final, pol] = await Promise.all([review(plan), polish(plan)]);
+    [pol, crit] = await Promise.all([polish(plan), critique(plan)]);
+    arch = renamedArch(pol.renames);
+    story = pol.plan;
+    final = found(story, arch, crit);
   }
-  pol ??= await early;
-  return { ...plan, scenes: pol.plan.scenes, check: { first, final, revised }, renames: pol.renames, polish: { rewritten: pol.rewritten, kept: pol.kept, issues: pol.issues } };
+  if (final.length && !final.some(structural)) {
+    // only the words are off: one small rewrite of the scenes involved, then the same checks again
+    o.progress?.({ stage: "plan", message: `self-check: ${final.length} issue(s), fixing the narration` });
+    const fix = await fixNarration({ ledger: o.ledger, plan: story, arch, issues: final, audience: L.audience });
+    revised = revised || fix.changed.length > 0;
+    story = fix.plan;
+    const asked = final.filter((x) => x.startsWith("\"") || x.startsWith("a newcomer"));
+    const left = asked.length ? await recheckTerms(o.ledger, story, asked, L.audience) : [];
+    final = [...checkStory(story, arch, L.brief.analogy), ...left];
+  }
+  return { ...plan, scenes: story.scenes, check: { first, final, revised }, renames: pol.renames, polish: { rewritten: pol.rewritten, kept: pol.kept, issues: pol.issues } };
+}
+
+const termIssue = (t: { term: string; scene: string }) => `"${t.term}" (${t.scene}) is used without a plain-words explanation; explain it in the same sentence or drop it`;
+const said = (p: ScenePlan, term: string) => p.scenes.some((s) => ` ${norm(s.narration)} `.includes(` ${norm(term)} `));
+
+/** Self-check problems only a new plan fixes: what the scenes draw, or in what order. The rest are wording. */
+export const structural = (issue: string) => /^(the video must open with a 'hook' scene|there is no 'walkthrough' scene|parts on the journey are drawn after|scale or list scenes come before|the core flow starts )/.test(issue);
+
+/**
+ * One small Muse Spark rewrite of just the scenes the self-check flagged. A scene keeps its rewrite only
+ * when the board can still sync to it, so a fix never costs the drawing its cues.
+ */
+export async function fixNarration(o: { ledger: CostLedger; plan: ScenePlan; arch: Architecture; issues: string[]; audience: string }): Promise<{ plan: ScenePlan; changed: string[] }> {
+  const named = o.plan.scenes.filter((s) => o.issues.some((x) => x.includes(s.id)));
+  // a problem that names no scene (the same opener three times, the flow as a whole) may need any of them
+  const scope = o.issues.some((x) => !o.plan.scenes.some((s) => x.includes(s.id))) ? o.plan.scenes : named;
+  const out = await sparkJson({
+    ledger: o.ledger, step: "narration-fix", schema: Polish, name: "narration_fix", effort: "minimal", maxTokens: 5000,
+    messages: [
+      { role: "system", content: [
+        "You fix specific problems in a whiteboard explainer's narration. The viewer hears every scene once, in order.",
+        `Audience: ${o.audience}.`,
+        "- Change only what the problems need; keep everything else word for word, including facts and their order.",
+        "- Each scene lists 'must_say': phrases the board syncs to. Keep each one, in that order, with its words in that order ('the', 'a' or 'your' may go between its words, verb endings may change).",
+        "- Keep each scene within 15% of its word count.",
+        "- A term explained in plain words: a few words right where it's first said ('the font atlas, one image holding every letter').",
+        "- Only say two parts talk to each other when the connections list joins them; otherwise tell the hop through the part between them.",
+        "- Return only the scenes you changed, by id, with their full narration; renames stays empty.",
+      ].join("\n") },
+      { role: "user", content: JSON.stringify({
+        problems: o.issues,
+        parts: o.arch.components.map((c) => ({ id: c.id, name: c.keyword, what: c.what })),
+        connections: o.arch.connections.map((c) => `${o.arch.components.find((x) => x.id === c.from)?.keyword ?? c.from} > ${o.arch.components.find((x) => x.id === c.to)?.keyword ?? c.to} (${c.label})`),
+        context: o.plan.scenes.map((s) => `[${s.id}] ${s.narration}`).join("\n"),
+        scenes: scope.map((s) => ({ id: s.id, kind: s.kind, words: wordCount(s.narration), must_say: syncPhrases(s, o.arch), narration: s.narration })),
+      }) },
+    ],
+  }).catch(() => undefined);
+  const changed: string[] = [];
+  const scenes = o.plan.scenes.map((s) => {
+    const next = out?.scenes.find((x) => x.id === s.id)?.narration?.trim();
+    if (!next || next === s.narration || !scope.includes(s) || !keepsSync(s.narration, next, syncPhrases(s, o.arch))) return s;
+    changed.push(s.id);
+    return { ...s, narration: tidySpeech(next) };
+  });
+  return { plan: { ...o.plan, scenes }, changed };
+}
+
+const Recheck = z.object({
+  open: z.array(z.string()).describe("the numbers of the problems still there, as written"),
+});
+/** A quick second look at the terms and flow the newcomer check flagged: which are still unexplained. */
+async function recheckTerms(ledger: CostLedger, plan: ScenePlan, issues: string[], audience: string): Promise<string[]> {
+  const r = await sparkJson({
+    ledger, step: "plan-recheck", schema: Recheck, name: "recheck", effort: "minimal", maxTokens: 1500,
+    messages: [
+      { role: "system", content: `You are ${audience}, hearing this explainer narration once, in order. For each numbered problem, decide whether it is still there in the narration below: a term counts as explained when plain words say what it is at or before its first use. Return the numbers still there.` },
+      { role: "user", content: `${issues.map((x, i) => `${i + 1}. ${x}`).join("\n")}\n\nNarration:\n${plan.scenes.map((s) => `[${s.id}] ${s.narration}`).join("\n")}` },
+    ],
+  }).catch(() => undefined);
+  if (!r) return issues;
+  return issues.filter((_, i) => r.open.some((n) => n.trim().replace(/\.$/, "") === String(i + 1)));
 }
 
 function notesRules(slots: { after: string; heading: string; brief: string }[]): string[] {
