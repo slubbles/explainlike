@@ -208,7 +208,7 @@ export function withLocate(doc: SourceDoc, card: Card): ConceptSource {
     async locate(quotes, pngPath) {
       const blocks = card.kind === "x-post" && card.blocks.join("").length < 3200 ? card.blocks : selectBlocks(card.blocks, quotes);
       const html = cardHtml(card, blocks);
-      const browser = await chromium.launch({ executablePath: findChrome(), args: ["--disable-gpu", "--hide-scrollbars"] });
+      const browser = await chromium.launch({ executablePath: findChrome(), args: ["--disable-gpu", "--disable-dev-shm-usage", "--hide-scrollbars"] });
       try {
         // 2x pixels: the video zooms into quoted lines, and a 1.5x shot looked soft there
         const page = await browser.newPage({ viewport: { width: 1280, height: 900 }, deviceScaleFactor: 2 });

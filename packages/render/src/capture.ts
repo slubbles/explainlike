@@ -45,7 +45,7 @@ export async function captureFrames(film: Film, dir: string, opts: { workers?: n
   let next = 0, done = 0, failed = false;
   let captions: CaptionSpot[] = [];
   await Promise.all([...Array(workers).keys()].map(async (w) => {
-    const browser = await chromium.launch({ executablePath: findChrome(), args: ["--disable-gpu", "--font-render-hinting=none", "--hide-scrollbars"] });
+    const browser = await chromium.launch({ executablePath: findChrome(), args: ["--disable-gpu", "--disable-dev-shm-usage", "--font-render-hinting=none", "--hide-scrollbars"] });
     try {
       const page = await browser.newPage({ viewport: { width: film.width, height: film.height }, deviceScaleFactor: 1 });
       await page.goto("file://" + html);
