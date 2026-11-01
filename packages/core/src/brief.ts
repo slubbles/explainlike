@@ -35,6 +35,13 @@ export const LOOKS = {
   "chalk-dark": "dark chalkboard; suits deep infrastructure and low-level systems topics",
 } as const;
 export type Look = keyof typeof LOOKS;
+
+/** How the video shows things: the hand-drawn board, or that board with news-explainer cut-ins. */
+export const STYLES = {
+  whiteboard: "diagrams drawn on the board; right for systems, code, processes and how-things-work ideas",
+  explainer: "the same board plus news-explainer cut-ins (a chart of numbers the sources state, a timeline of their dates, highlighted source quotes); right when the core is a trend, a comparison or a history",
+} as const;
+export type Style = keyof typeof STYLES;
 const LOOK_IDS = Object.keys(LOOKS) as [Look, ...Look[]];
 
 export const Brief = z.object({
@@ -46,6 +53,7 @@ export const Brief = z.object({
   analogy: z.string().describe("one everyday analogy for the whole system (a restaurant kitchen, a post office, a front desk), used in the hook and on the journey; never empty"),
   why: z.string().describe("one sentence: why this approach and depth fit this source"),
   look: z.enum(LOOK_IDS),
+  style: z.enum(Object.keys(STYLES) as [Style, ...Style[]]),
   extras: z.array(z.enum(NOTE_IDS)).describe("0 or 1 extra list scene, only when the topic truly needs it; usually empty"),
 });
 export type Brief = z.infer<typeof Brief>;
@@ -94,6 +102,7 @@ export interface ExplainSpec {
   notes: NotesSlot[];
   tempo: Tempo;
   look: Look;
+  style: Style;
 }
 
 const DEPTH = {
@@ -121,6 +130,8 @@ export function specFromBrief(b: Brief, ask?: Ask): ExplainSpec {
     brief: b, audience: b.audience, minComponents: d.minComponents, maxComponents: d.maxComponents, perScene,
     scaleItems: d.scaleItems, scaleAt: [...d.scaleAt], wordsPerScene: d.wordsPerScene, voice, notes,
     tempo: tempoOf(tempoId), look: b.look,
+    // briefs saved before styles existed are whiteboard videos
+    style: b.style ?? "whiteboard",
   };
 }
 
@@ -139,5 +150,5 @@ export function coverageSeconds(spec: ExplainSpec, c: { components: number; step
 /** Used when no model call is possible (tests, silent dry runs). */
 export const DEFAULT_BRIEF: Brief = {
   topic: "a software project", complexity: "moderate", audience: "a developer new to this codebase", depth: "working",
-  approach: "build-up", analogy: "", why: "default", look: "pen-light", extras: [],
+  approach: "build-up", analogy: "", why: "default", look: "pen-light", style: "whiteboard", extras: [],
 };

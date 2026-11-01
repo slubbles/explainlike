@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import type { Architecture, NoteItem, Scene } from "@explainlike/core";
-import { validateNotes, validateArchitecture, repairRepoPlan, checkStory, journeyOrder, speechIssues, keepsSync, syncPhrases, fillerIn, hookLine } from "@explainlike/planner";
+import { validateNotes, validateArchitecture, repairRepoPlan, checkStory, journeyOrder, speechIssues, keepsSync, syncPhrases, fillerIn, hookLine, validateCutIn, cutInRules } from "@explainlike/planner";
 
 const item = (text: string, extra: Partial<NoteItem> = {}): NoteItem => ({ text, color: "white", icon: "", target: "", estimate: false, evidence: "", ...extra });
 const ids = new Set(["d1-db", "edge"]);
@@ -231,4 +231,38 @@ test("the self-check wants a short hook line up front and no filler", () => {
   assert.ok(issues.some((i) => /recap: filler "it's special"/.test(i)), issues.join("; "));
   assert.deepEqual(fillerIn("You’ll see the desk. Basically, it waits."), ["you'll see", "basically"]);
   assert.equal(hookLine("How does a computer learn? It keeps receipts."), "How does a computer learn?");
+});
+
+const row = (text: string, evidence: string): NoteItem => ({ text, evidence, color: "blue", icon: "", target: "", estimate: false });
+
+test("a chart keeps only bars whose quote is in the source and states the number, all in one unit", () => {
+  const source = "Chrome holds about 65 percent of browsers. Safari is near 18 percent. There are 13 root server names.";
+  const dropped: string[] = [];
+  const bars = validateCutIn("chart", [
+    row("chrome 65%", "Chrome holds about 65 percent of browsers"),
+    row("safari 18%", "Safari is near 18 percent"),
+    row("firefox 3%", "Firefox has 3 percent"),
+    row("edge 5%", "Chrome holds about 65 percent of browsers"),
+    row("root servers 13", "There are 13 root server names"),
+  ], source, dropped);
+  assert.deepEqual(bars.map((b) => b.text), ["chrome 65%", "safari 18%"]);
+  assert.equal(dropped.length, 2, "a made-up quote and a quote that does not say 5 are both reported");
+});
+
+test("a timeline sorts its dates oldest first and drops dates its quote does not state", () => {
+  const source = "In 1983 DNS was invented. The first .com came in 1985. ARPANET started in 1969.";
+  const dropped: string[] = [];
+  const rows = validateCutIn("timeline", [
+    row("1985 first .com", "The first .com came in 1985"),
+    row("1969 arpanet starts", "ARPANET started in 1969"),
+    row("1983 dns is invented", "In 1983 DNS was invented"),
+    row("1991 web is born", "In 1983 DNS was invented"),
+  ], source, dropped);
+  assert.deepEqual(rows.map((r) => r.text), ["1969 arpanet starts", "1983 dns is invented", "1985 first .com"]);
+  assert.equal(dropped.length, 1);
+});
+
+test("only the explainer style asks for cut-ins", () => {
+  assert.match(cutInRules("whiteboard", "").join(" "), /No 'chart' or 'timeline'/);
+  assert.match(cutInRules("explainer", "").join(" "), /'chart'.*exactly as the source writes it/);
 });

@@ -1,9 +1,9 @@
-import { APPROACHES, Brief, LOOKS, NOTE_LIBRARY, type Ask, type Progress, type SourceKind } from "@explainlike/core";
+import { APPROACHES, Brief, LOOKS, NOTE_LIBRARY, STYLES, type Ask, type Progress, type SourceKind } from "@explainlike/core";
 import { sparkJson, type CostLedger } from "@explainlike/models";
 
 /**
  * Step one of every video: read the source and decide how to explain it.
- * The engine, not the viewer, picks the approach, depth, tempo and look.
+ * The engine, not the viewer, picks the approach, depth, tempo, look and style.
  */
 export async function planBrief(o: { ledger: CostLedger; kind: SourceKind; name: string; text: string; ask?: Ask; progress?: Progress }): Promise<Brief> {
   o.progress?.({ stage: "plan", message: "deciding how to explain it" });
@@ -29,12 +29,13 @@ export async function planBrief(o: { ledger: CostLedger; kind: SourceKind; name:
         "Pick depth from what the viewer needs, not from how big the code is: 'working' by default, 'overview' for small tools, 'deep' only when the internals are the point. Extras: usually none.",
         `Approaches:\n${list(APPROACHES)}`,
         `Looks:\n${list(LOOKS)}`,
+        `Styles (repositories are always whiteboard; pick explainer only when the sources state real numbers or dates that carry the story):\n${list(STYLES)}`,
         `Extra list scenes (only when they teach something the diagram cannot):\n${list(NOTE_LIBRARY)}`,
         ask ?? "",
       ].filter(Boolean).join("\n") },
       { role: "user", content: `${o.kind === "repo" ? "Repository" : o.kind === "x-post" ? "X post" : o.kind === "topic" ? "Topic (asked by the viewer; the text is from reputable sources)" : "Article"}: ${o.name}\n\n${o.text.slice(0, 14000)}` },
     ],
   });
-  // what the viewer asked for is not a suggestion
-  return { ...b, depth: o.ask?.depth ?? b.depth };
+  // what the viewer asked for is not a suggestion; a repo has no stated figures to chart, so it stays a whiteboard
+  return { ...b, depth: o.ask?.depth ?? b.depth, style: o.kind === "repo" ? "whiteboard" : b.style };
 }
