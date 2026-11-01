@@ -9,7 +9,7 @@ button { cursor: pointer; }
 :focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
 .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 .muted { color: var(--muted); }
-.err { margin-top: 14px; color: var(--red); font-weight: 600; font-size: 14px; }
+.err { margin-top: 14px; color: var(--red); font-weight: 600; font-size: 14px; overflow-wrap: anywhere; white-space: pre-line; }
 code { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 12.5px; background: var(--soft); color: var(--ink); padding: 2px 6px; border-radius: 6px; overflow-wrap: anywhere; }
 
 /* nav */
@@ -44,7 +44,7 @@ h1 em { font-style: normal; font-family: var(--hand); font-weight: 400; color: v
 .prompt { text-align: left; padding: 22px 22px 16px; background: #fff; border: 1px solid var(--line); border-radius: 24px; box-shadow: 0 1px 2px rgba(0,0,0,.04), 0 12px 40px -12px rgba(28,43,51,.16); }
 .prompt:focus-within { border-color: #c9ccd1; }
 .prompt .field { width: 100%; border: 0; outline: none; background: none; font-size: 17px; padding: 4px 4px 22px; color: var(--ink); }
-.prompt .field::placeholder { color: #8a8d91; }
+.prompt .field::placeholder { color: var(--muted); }
 .pbar { display: flex; align-items: center; gap: 16px; }
 .group { display: flex; align-items: center; gap: 6px; flex: none; }
 .group .label { margin-right: 6px; }
@@ -91,7 +91,7 @@ footer { text-align: center; color: var(--muted); font-size: 13px; padding: 56px
 .vhint { margin: 8px 0 0; color: var(--muted); font-size: 14.5px; }
 .vtype { margin-top: 10px; border-top: 1px solid var(--line); padding-top: 10px; }
 .vtype input { width: 100%; border: 0; outline: 0; background: transparent; font: inherit; font-size: 14.5px; color: var(--ink); padding: 4px 0; }
-.vtype input::placeholder { color: var(--faint); }
+.vtype input::placeholder { color: var(--muted); }
 
 /* job screens */
 .jobbar { max-width: 1200px; margin: 28px auto 0; display: flex; align-items: center; gap: 12px; background: #fff; border: 1px solid var(--line); border-radius: 999px; padding: 8px 8px 8px 22px; }
@@ -222,3 +222,9 @@ footer { text-align: center; color: var(--muted); font-size: 13px; padding: 56px
   .screen, .player { border-radius: 12px; }
   .row2 { flex-direction: column; }
 }
+
+/* progress bar under the percent, and budget notes above a new job */
+.track { height: 6px; border-radius: 999px; background: var(--soft); overflow: hidden; margin: 10px 0 4px; }
+.track i { display: block; height: 100%; background: var(--blue); border-radius: 999px; transition: width .6s ease; }
+.note { max-width: 1200px; margin: 14px auto 0; padding: 10px 14px; border-radius: 12px; background: #fff7e6; color: #6b4a00; font-size: 14px; border: 1px solid #f5d9a0; }
+@media (prefers-reduced-motion: reduce) { .track i { transition: none; } }
