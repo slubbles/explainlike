@@ -18,7 +18,9 @@ let data: Data | undefined;
 const load = (): Data => (data ??= JSON.parse(fs.readFileSync(path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../data/naturalearth.json"), "utf8")));
 
 const key = (s: string) => s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/^the\s+/, "").replace(/[^a-z0-9]+/g, " ").trim();
-const EXTRA: Record<string, string> = { usa: "USA", us: "USA", america: "USA", uk: "GBR", britain: "GBR", "great britain": "GBR", england: "GBR", holland: "NLD" };
+const EXTRA: Record<string, string> = { usa: "USA", us: "USA", america: "USA", uk: "GBR", britain: "GBR", "great britain": "GBR", england: "GBR", holland: "NLD",
+  // older names a history topic will use for the same land
+  persia: "IRN", burma: "MMR", siam: "THA", ceylon: "LKA", zaire: "COD", swaziland: "SWZ", macedonia: "MKD", turkiye: "TUR" };
 
 export const countries = (): Country[] => load().countries;
 
