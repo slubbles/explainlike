@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { strictJsonSchema, type Architecture, type NoteItem, type Scene } from "@explainlike/core";
-import { validateNotes, validateArchitecture, repairRepoPlan, checkStory, journeyOrder, speechIssues, keepsSync, syncPhrases, fillerIn, hookLine, validateCutIn, cutInRules, applyReviewPatch, actionName, archWire, reviewWire, undrawnLinks, retellCutIn, validateConcept, structural, pictureWords, conceptSlips, namesPlace, respeak } from "@explainlike/planner";
+import { validateNotes, validateArchitecture, repairRepoPlan, checkStory, journeyOrder, speechIssues, keepsSync, syncPhrases, fillerIn, hookLine, validateCutIn, cutInRules, applyReviewPatch, actionName, archWire, reviewWire, undrawnLinks, retellCutIn, validateConcept, structural, pictureWords, conceptSlips, namesPlace, respeak, emptyPoint } from "@explainlike/planner";
 
 const item = (text: string, extra: Partial<NoteItem> = {}): NoteItem => ({ text, color: "white", icon: "", target: "", estimate: false, evidence: "", ...extra });
 const ids = new Set(["d1-db", "edge"]);
@@ -511,4 +511,12 @@ test("a board node a topic scene draws is a phrase its rewrite must keep", () =>
   const s = { ...sc("board", "Silk makers hand cloth to the relay hubs."), board_nodes: [{ id: "a", keyword: "silk makers", icon: "box", color: "blue", evidence: "", count: 1 }, { id: "b", keyword: "relay hubs", icon: "box", color: "blue", evidence: "", count: 1 }] } as any;
   const none: Architecture = { product: "", one_liner: "", components: [], connections: [], walkthrough: { name: "", steps: [] }, scale: [] };
   assert.deepEqual(syncPhrases(s, none), ["silk makers", "relay hubs"]);
+});
+
+test("a tapped box's answer drops points that only say the files don't show something", () => {
+  // real point from the microui "ui core" answer, cited to src/microui.c
+  assert.ok(emptyPoint("The files provided do not show host-app widget-declaration calls."));
+  assert.ok(emptyPoint("Host-side declaration code is not visible here."));
+  assert.ok(!emptyPoint("It connects outward by emitting MU_COMMAND_* rect/text/icon/clip items into command_list for a renderer to draw."));
+  assert.ok(!emptyPoint("The core is mu_Context, holding style, hover/focus, fixed-size stacks, and container pools with no dynamic allocation shown."));
 });
