@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import { getTheme, specFromBrief, DEFAULT_BRIEF, type Brief } from "@explainlike/core";
-import { compose, loadIconPack, checkPlacement, placementPass, textWidth, type Film, type FText, type Mark, type Sketch } from "../src/index.js";
+import { compose, loadIconPack, checkPlacement, placementPass, textWidth, cameraAt, type Film, type FText, type Mark, type Sketch } from "../src/index.js";
 
 const fx = new URL("./fixtures/", import.meta.url);
 const plan = JSON.parse(fs.readFileSync(new URL("spotibai.plan.json", fx), "utf8"));
@@ -96,6 +96,34 @@ test("an arrow cut off in a later shot is fixed in every shot it is on screen, i
   assert.equal(rep.fixed.length, 1);
   assert.match(rep.fixed[0].how, /0\.0s, 4\.0s/);
   assert.deepEqual(checkPlacement(p), []);
+});
+
+test("a slow pan that drags a lit word half off the frame is caught and fixed, though both shots are clean", () => {
+  // the shot at 3s slides 420 px right over 1.66s: "separate networks" is whole before and gone after, but half cut for most of the move
+  const mk = (move: number) => {
+    const f = film([text("separate networks", 40, 500), { ...text("shared rules", 1900, 500), t0: 5 }]);
+    f.camera.push({ t: 3, x: 420, y: 0, w: 1920, h: 1080, move });
+    f.duration = 8;
+    return { film: f, sketch: sketch(), marks: [] as Mark[] };
+  };
+  const p = mk(1.66);
+  const found = checkPlacement(p);
+  assert.deepEqual(found.map((i) => i.rule), ["cropped"]);
+  assert.match(found[0].what, /while the camera moves/);
+  const rep = placementPass(p);
+  assert.ok(rep.ok);
+  assert.deepEqual([rep.issues, rep.warnings], [[], []]);
+  assert.deepEqual(checkPlacement(p), []);
+  // every frame of the move now shows the word whole or for under half a second cut
+  const w = textWidth("separate networks", 40);
+  let cut = 0;
+  for (let t = 3; t < 3 + p.film.camera[1].move; t += 0.05) {
+    const c = cameraAt(p.film, t);
+    if (c.x > 40 - 1 && c.x < 40 + w) cut += 0.05;
+  }
+  assert.ok(cut <= 0.55, `cut for ${cut.toFixed(2)}s`);
+  // a quick pan that sweeps it out at once is fine as it is
+  assert.deepEqual(checkPlacement(mk(0.4)), []);
 });
 
 test("text just under the minimum is a warning that does not stop the video; text far too small still fails", () => {

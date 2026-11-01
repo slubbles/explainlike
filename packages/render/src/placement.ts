@@ -35,10 +35,12 @@ export interface PlacementReport {
   warnings: PlacementIssue[];
 }
 /** An issue with what the fixes need: the item, and how bad it is. */
-export type Found = PlacementIssue & { item?: Item; px?: number; need?: number; seen?: number; later?: boolean };
+export type Found = PlacementIssue & { item?: Item; px?: number; need?: number; seen?: number; later?: boolean; shot?: CamKey };
 
 /** Gap, in world units, at which an arrow or wire end still reads as touching what it points at. */
 export const TOUCH = 10;
+/** Longest a lit word may sit half off the frame while the camera pans past it, in seconds. */
+export const MID_MOVE_CUT = 0.5;
 /** Smallest a word may be on a 1080p frame when it finishes appearing (a box name at 1.5x readable width). */
 export const MIN_TEXT_PX = 17;
 /** Smallest a secondary word (a description, a wire label, a quote) may be. */
@@ -114,6 +116,26 @@ function opacity(film: Film, g: string | undefined, t: number) {
 function settled(film: Film, t: number) {
   for (const k of film.camera) if (k.t <= t && k.t + k.move > t) t = k.t + k.move;
   return t + 0.01;
+}
+
+/**
+ * The first camera move after t that drags a lit word half off the frame for longer than
+ * MID_MOVE_CUT: a slow pan that slides a word out over a second or more reads as a cut-off label
+ * even though both shots it moves between are clean.
+ */
+function cutMidMove(film: Film, box: Box, g: string | undefined, t: number, only?: CamKey): { k: CamKey; t: number; dur: number; seen: number } | undefined {
+  const end = film.end?.t0 ?? film.duration, dt = 0.1;
+  for (const k of film.camera) {
+    if ((only && k !== only) || k.move <= 0 || k.t < t - 0.01 || k.t >= end) continue;
+    let dur = 0, low = 1, at = 0;
+    for (let s = k.t + dt / 2; s < Math.min(end, k.t + k.move); s += dt) {
+      if (opacity(film, g, s) < 0.6) continue;
+      const c = cameraAt(film, s), v = seen(c, box);
+      if (v > 0 && !contains(c, box, -(4 * c.w) / film.width)) { if (!dur) at = s; dur += dt; low = Math.min(low, v); }
+    }
+    if (dur > MID_MOVE_CUT) return { k, t: at, dur, seen: low };
+  }
+  return undefined;
 }
 
 export interface Item { kind: "text" | "node" | "ring" | "arrow" | "wire"; box: Box; t0: number; g?: string; owner?: number; el?: FText; mark?: Mark; label: string }
@@ -245,6 +267,12 @@ export function checkPlacement(p: Placed, counts: Record<string, number> = {}): 
         if (k.t <= t || r >= end || opacity(film, it.g, r) < 0.6) continue;
         const c = cameraAt(film, r);
         if (!contains(c, it.box, -m) && seen(c, it.box) > 0) { out.push({ rule: "cropped", t: r, what: `${it.label} is cut off by the frame edge at ${r.toFixed(1)}s`, item: it, seen: seen(c, it.box), later: it.kind === "text" }); break; }
+      }
+      // and no pan drags it half off the frame for long on the way between two clean shots
+      const last = out[out.length - 1];
+      if (it.kind === "text" && !(last?.item === it && last.rule === "cropped")) {
+        const cut = cutMidMove(film, it.box, it.g, t);
+        if (cut) out.push({ rule: "cropped", t: cut.t, what: `${it.label} is cut off by the frame edge for ${cut.dur.toFixed(1)}s while the camera moves at ${cut.t.toFixed(1)}s`, item: it, seen: cut.seen, later: true, shot: cut.k });
       }
     }
     if (it.el) {
@@ -387,6 +415,28 @@ function reframes(p: Placed, it: Item, fallback: boolean): (() => string | undef
   return out;
 }
 
+/**
+ * Fixes for a word a pan drags half off the frame: frame the shot the pan lands on so the word
+ * stays whole, or, when that shot cannot take it in, pan quicker so the word leaves at once.
+ */
+function passing(p: Placed, it: Item, k: CamKey): (() => string | undefined)[] {
+  const r = k.t + k.move + 0.01, at = `the shot at ${k.t.toFixed(1)}s`;
+  const quicker = () => {
+    const was = k.move;
+    for (const f of [0.75, 0.6, 0.45]) {
+      k.move = Math.max(0.5, was * f);
+      if (!cutMidMove(p.film, it.box, it.g, it.t0, k)) return `panned quicker into ${at} (${was.toFixed(1)}s to ${k.move.toFixed(1)}s) so the word leaves at once`;
+    }
+    k.move = was;
+    return undefined;
+  };
+  return [
+    () => (pan(p, it, k, r) ? `panned ${at} to keep it whole` : undefined),
+    () => (widen(p, it, k, r, true) ? `widened ${at} to keep it whole (now ${Math.round(k.w)} wide)` : undefined),
+    quicker,
+  ];
+}
+
 /** Left after the fixes, does this break the picture, or is it a slip worth a warning? */
 export function severe(i: Found): boolean {
   if (i.rule === "cropped") return !i.later && (i.seen ?? 0) < 0.75;
@@ -394,7 +444,8 @@ export function severe(i: Found): boolean {
   return false;
 }
 /** Lower is better: breaks weigh most, then crops, then the rest. */
-const score = (fs: Found[]) => fs.reduce((s, i) => s + (severe(i) ? 10 : i.rule === "cropped" ? 4 : i.rule === "text-small" ? 1 : 2), 0);
+// (a word sliding off during a pan weighs a little less than one cut at rest, so a fix that trades the second for the first is kept and the pan is fixed next)
+const score = (fs: Found[]) => fs.reduce((s, i) => s + (severe(i) ? 10 : i.rule === "cropped" ? (i.shot ? 3 : 4) : i.rule === "text-small" ? 1 : 2), 0);
 
 /** Everything a fix may change, so a fix that makes things worse can be undone. */
 function snapshot(p: Placed) {
@@ -432,7 +483,7 @@ export function placementPass(p: Placed, passes = 8): PlacementReport {
       for (const is of [...found]) {
         if (!is.item || !found.some((f) => same(f, is)) || (fallback && !last(is))) continue;
         const fixes = is.rule === "label-overlap" && is.item.el ? [() => nudge(p, is.item!)]
-          : is.rule === "cropped" ? reframes(p, is.item, fallback)
+          : is.rule === "cropped" ? (is.shot ? passing(p, is.item, is.shot) : reframes(p, is.item, fallback))
           : is.rule === "text-small" ? [() => enlarge(p, is.item!, is.what)] : [];
         const how = fixes.length ? bestFix(p, fixes, score(found)) : undefined;
         if (!how) continue;
