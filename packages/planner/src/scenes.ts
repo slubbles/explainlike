@@ -1,6 +1,6 @@
 import { findPlace } from "@explainlike/core/places";
 import { z } from "zod";
-import { ScenePlan, coverageSeconds, parseFigure, parseDated, figureInQuote, lower, norm, tidySpeech, wordCount, quoteInSource, phraseAt, spokenWords, missingArticles, soundsLikeKeywords, shortHeading, type Architecture, type ExplainSpec, type Progress, type NoteItem, type Scene, type SourceDoc } from "@explainlike/core";
+import { ScenePlan, coverageSeconds, parseFigure, parseDated, figureInQuote, lower, norm, tidySpeech, wordCount, quoteInSource, phraseAt, spokenWords, missingArticles, grammarSlips, soundsLikeKeywords, shortHeading, type Architecture, type ExplainSpec, type Progress, type NoteItem, type Scene, type SourceDoc } from "@explainlike/core";
 import { sparkJson, type CostLedger } from "@explainlike/models";
 
 const STYLE = [
@@ -198,9 +198,11 @@ export function hookLine(narration: string): string {
  */
 export function speechIssues(plan: ScenePlan, arch: Architecture, analogy = ""): string[] {
   const issues: string[] = [];
+  const metaphor = pictureWords(analogy, arch);
   for (const s of plan.scenes) {
     const miss = missingArticles(s.narration);
     if (miss.length) issues.push(`${s.id}: missing article in ${miss.map((m) => `"${m}"`).join(", ")}; say "the" or "a" before the noun`);
+    for (const g of grammarSlips(s.narration, { metaphor })) issues.push(`${s.id}: ${g}`);
     const filler = fillerIn(s.narration);
     if (filler.length) issues.push(`${s.id}: filler ${filler.map((f) => `"${f}"`).join(", ")}; say the thing itself instead`);
   }
@@ -261,10 +263,19 @@ const Polish = z.object({
   renames: z.array(z.object({ id: z.string(), keyword: z.string() })),
 });
 
+/** Words of the borrowed picture ("cook tickets", "kitchen") that the map itself never uses, so said bare they stand in for a part. */
+export function pictureWords(analogy: string, arch: Architecture): string[] {
+  const used = norm([...arch.components.flatMap((c) => [c.keyword, c.name, c.what]), ...arch.connections.map((c) => c.label), ...arch.walkthrough.steps.map((c) => c.label)].join(" "));
+  const have = new Set(used.split(" ").flatMap((w) => [w, w.replace(/s$/, "")]));
+  // nouns only: "from drawing" or "into everything" are ordinary speech
+  const words = norm(analogy).split(" ").filter((w) => w.length >= 4 && !/(ing|ed)$/.test(w) && !/^(every|some|any|no)thing$/.test(w) && !/^(that|this|with|from|then|than|each|every|whole|whoever|does|into|your|their|what|when|where|which|simple|short|loop|order)$/.test(w));
+  return [...new Set(words)].filter((w) => !have.has(w) && !have.has(w.replace(/s$/, "")));
+}
+
 /** The phrases a scene's narration must keep, in the order it says them, so the board stays in sync. */
 export function syncPhrases(s: Scene, arch: Architecture): string[] {
   const ws = spokenWords(s.narration);
-  const cands = [...arch.components.map((c) => c.keyword), ...(s.kind === "walkthrough" ? arch.walkthrough.steps.map((x) => x.label) : []), ...(s.items ?? []).map((i) => i.text)];
+  const cands = [...arch.components.map((c) => c.keyword), ...(s.kind === "walkthrough" ? arch.walkthrough.steps.map((x) => x.label) : []), ...(s.items ?? []).map((i) => i.text), ...(s.board_nodes ?? []).map((n) => n.keyword)];
   return cands.map((p) => ({ p, at: phraseAt(ws, p) })).filter((x) => x.at >= 0).sort((a, b) => a.at - b.at).map((x) => x.p);
 }
 
@@ -681,7 +692,26 @@ export async function planConceptScenes(o: { ledger: CostLedger; doc: SourceDoc;
     if (next && r > 0.6 && r < 1.3 && !u.names.some((n) => new RegExp(`\\b${n}\\b`, "i").test(next))) { sc.narration = tidySpeech(next); retold.push(`${u.id}: narration retold without ${u.names.join(", ")}`); }
     else retold.push(`${u.id}: narration still names dropped ${u.names.join(", ")}`);
   }
+  // broken sentences ("Bandits harsh deserts make travel costly") get one small rewrite of just those scenes
+  const slips = conceptSlips(fixed);
+  if (slips.length) {
+    o.progress?.({ stage: "plan", message: `fixing ${slips.length} broken sentence(s)` });
+    const f = await fixNarration({ ledger: o.ledger, plan: fixed, arch: NO_ARCH, issues: slips, audience: L.audience });
+    fixed = { ...fixed, scenes: f.plan.scenes };
+    const left = conceptSlips(fixed);
+    retold.push(`speech: ${slips.length} problem(s), ${f.changed.length} scene(s) rewritten, ${left.length} left${left.length ? `: ${left.join("; ")}` : ""}`);
+  }
   return { ...fixed, repairs: [...dropped.map((d) => `dropped unquoted: ${d}`), ...retold] };
+}
+
+const NO_ARCH: Architecture = { product: "", one_liner: "", components: [], connections: [], walkthrough: { name: "", steps: [] }, scale: [] };
+/** What a topic or article video's narration trips on: missing articles and broken sentences, per scene. */
+export function conceptSlips(plan: ScenePlan): string[] {
+  return plan.scenes.flatMap((s) => {
+    const miss = missingArticles(s.narration).map((m) => `missing article in "${m}"; say "the" or "a" before the noun`);
+    const all = [...miss, ...grammarSlips(s.narration)];
+    return all.map((g) => `${s.id}: ${g}`);
+  });
 }
 
 export function validateConcept(plan: ScenePlan, source: string): { plan: ScenePlan; dropped: string[]; unsaid: { id: string; names: string[] }[] } {
