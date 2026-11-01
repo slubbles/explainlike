@@ -306,15 +306,21 @@ export async function planRepoScenes(o: { ledger: CostLedger; arch: Architecture
   };
   const raw = await ask();
   let plan = repairRepoPlan(raw, o.arch, L);
+  // the newcomer check and the narration polish both read the same draft, so they run side by side;
+  // the polish is redone only when the check sends the plan back for a revision
+  const polish = (p: ScenePlan & { repairs: string[] }) => polishNarration({ ledger: o.ledger, plan: p, arch: o.arch, analogy: L.brief.analogy, audience: L.audience, progress: o.progress });
+  const early = polish(plan);
+  early.catch(() => {});
   const first = await review(plan);
-  let final = first, revised = false;
-  if (first.length) {
+  let final = first, revised = false, pol: Awaited<ReturnType<typeof polishNarration>> | undefined;
+  if (!first.length) pol = await early;
+  else {
     o.progress?.({ stage: "plan", message: `self-check: ${first.length} issue(s), revising once` });
     plan = repairRepoPlan(await ask([{ role: "assistant", content: JSON.stringify(raw) }, { role: "user", content: `A newcomer test of this plan found these problems. Return the full corrected plan, keeping what works:\n${first.map((x, i) => `${i + 1}. ${x}`).join("\n")}` }]), o.arch, L);
     final = await review(plan);
     revised = true;
   }
-  const pol = await polishNarration({ ledger: o.ledger, plan, arch: o.arch, analogy: L.brief.analogy, audience: L.audience, progress: o.progress });
+  pol ??= await polish(plan);
   return { ...plan, scenes: pol.plan.scenes, check: { first, final, revised }, renames: pol.renames, polish: { rewritten: pol.rewritten, kept: pol.kept, issues: pol.issues } };
 }
 
