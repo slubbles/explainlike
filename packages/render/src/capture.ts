@@ -5,7 +5,7 @@ import { spawn } from "node:child_process";
 import { chromium } from "playwright-core";
 import type { Film } from "./film.js";
 import { stageHtml } from "./stage.js";
-import { makeBed, mixGraph } from "./music.js";
+import { makeBed, makeSfx, mixGraph, type SfxCue } from "./music.js";
 
 export function findChrome(): string {
   const c = [process.env.EXPLAINLIKE_CHROME, "/usr/bin/google-chrome", "/usr/bin/google-chrome-stable", "/usr/bin/chromium", "/usr/bin/chromium-browser",
@@ -100,39 +100,44 @@ export function mixNarration(parts: { file: string; at: number }[], duration: nu
 }
 
 /** ffmpeg arguments for the mp4 after the video input: narration, the music bed (unless `music` is false), codecs. */
-function mp4Args(fps: number, duration: number, out: string, bedDir: string, audio: string | undefined, music: boolean | undefined) {
+function mp4Args(fps: number, duration: number, out: string, bedDir: string, audio: string | undefined, music: boolean | undefined, cues: SfxCue[] = []) {
   const args: string[] = [];
-  let bed: string | undefined;
+  let bed: string | undefined, fx: string | undefined;
   if (music !== false) {
     bed = path.join(bedDir, "bed.wav");
     makeBed(duration + 1, bed);
   }
-  if (audio) args.push("-i", audio);
-  if (bed) args.push("-i", bed);
-  if (audio || bed) args.push("-filter_complex", mixGraph(audio ? 1 : undefined, bed ? (audio ? 2 : 1) : undefined, duration), "-map", "0:v", "-map", "[aout]");
+  if (cues.length) {
+    fx = path.join(bedDir, "sfx.wav");
+    makeSfx(duration + 0.5, cues, fx);
+  }
+  const ins = [audio, bed, fx].filter(Boolean) as string[];
+  for (const f of ins) args.push("-i", f);
+  const at = (f?: string) => (f ? ins.indexOf(f) + 1 : undefined);
+  if (ins.length) args.push("-filter_complex", mixGraph(at(audio), at(bed), duration, at(fx)), "-map", "0:v", "-map", "[aout]");
   args.push("-c:v", "libx264", "-preset", "veryfast", "-crf", "20", "-pix_fmt", "yuv420p", "-movflags", "+faststart");
-  if (audio || bed) args.push("-c:a", "aac", "-b:a", "160k", "-t", duration.toFixed(3));
+  if (ins.length) args.push("-c:a", "aac", "-b:a", "160k", "-t", duration.toFixed(3));
   args.push(out);
   return args;
 }
 
 /**
- * Frames on disk, the narration (if any) and the music bed (unless `music` is false) into one mp4.
- * The bed sits well under the voice and ducks while it speaks (see music.ts).
+ * Frames on disk, the narration (if any), the music bed (unless `music` is false) and soft sound effects at
+ * `cues` into one mp4. The bed sits well under the voice and ducks while it speaks (see music.ts).
  */
-export async function encodeMp4(frameDir: string, fps: number, out: string, audio?: string, opts: { music?: boolean; duration?: number } = {}) {
+export async function encodeMp4(frameDir: string, fps: number, out: string, audio?: string, opts: { music?: boolean; duration?: number; cues?: SfxCue[] } = {}) {
   const frames = fs.readdirSync(frameDir).filter((f) => /^f\d+\.jpg$/.test(f)).length;
   const duration = opts.duration ?? frames / fps;
-  await run("ffmpeg", ["-y", "-loglevel", "error", "-framerate", String(fps), "-i", path.join(frameDir, "f%06d.jpg"), ...mp4Args(fps, duration, out, frameDir, audio, opts.music)]);
+  await run("ffmpeg", ["-y", "-loglevel", "error", "-framerate", String(fps), "-i", path.join(frameDir, "f%06d.jpg"), ...mp4Args(fps, duration, out, frameDir, audio, opts.music, opts.cues)]);
 }
 
 /**
  * The same mp4 as encodeMp4, encoded while the frames are still being drawn: hand each JPEG to `frame`
  * in any order (it is fed to ffmpeg in frame order), then await `done`.
  */
-export function mp4Encoder(fps: number, out: string, opts: { duration: number; workDir: string; audio?: string; music?: boolean }) {
+export function mp4Encoder(fps: number, out: string, opts: { duration: number; workDir: string; audio?: string; music?: boolean; cues?: SfxCue[] }) {
   fs.mkdirSync(opts.workDir, { recursive: true });
-  const args = ["-y", "-loglevel", "error", "-f", "image2pipe", "-c:v", "mjpeg", "-framerate", String(fps), "-i", "pipe:0", ...mp4Args(fps, opts.duration, out, opts.workDir, opts.audio, opts.music)];
+  const args = ["-y", "-loglevel", "error", "-f", "image2pipe", "-c:v", "mjpeg", "-framerate", String(fps), "-i", "pipe:0", ...mp4Args(fps, opts.duration, out, opts.workDir, opts.audio, opts.music, opts.cues)];
   const p = spawn("ffmpeg", args, { stdio: ["pipe", "ignore", "pipe"] });
   let err = "", failure: Error | undefined;
   p.stderr.on("data", (d) => (err = (err + d).slice(-4000)));

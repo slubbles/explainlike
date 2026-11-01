@@ -89,13 +89,17 @@ class Builder {
   constructor(public theme: Theme, public pack: IconPack) {}
   id(p: string) { return `${p}${this.n++}`; }
 
+  /** the next element pushed carries this sound cue */
+  cueNext(cue: "pop" | "whoosh") { this.pendingCue = cue; }
+  pendingCue?: "pop" | "whoosh";
   rough(drawable: any, t0: number, dur: number, g?: string, anim: "draw" | "pop" | "fade" = "draw", origin?: [number, number]) {
     const ps = gen.toPaths(drawable);
     const pen = this.theme.stroke === "pen";
     ps.forEach((p: any, i: number) => {
       const set = drawable.sets[i];
       const outline = pen && set?.type !== "fillPath" && p.stroke !== "none" ? penOutline(set.ops, set.type === "fillSketch" ? p.strokeWidth * 0.8 : p.strokeWidth) || undefined : undefined;
-      this.els.push({ k: "path", id: this.id("p"), d: p.d, stroke: p.stroke === "none" ? "none" : p.stroke, sw: p.strokeWidth, fill: p.fill && p.fill !== "none" ? p.fill : undefined, outline, t0: t0 + i * dur * 0.15, dur: dur * (ps.length > 1 ? 0.85 : 1), g, anim, origin });
+      this.els.push({ k: "path", id: this.id("p"), d: p.d, stroke: p.stroke === "none" ? "none" : p.stroke, sw: p.strokeWidth, fill: p.fill && p.fill !== "none" ? p.fill : undefined, outline, t0: t0 + i * dur * 0.15, dur: dur * (ps.length > 1 ? 0.85 : 1), g, anim, origin, cue: i === 0 ? this.pendingCue : undefined });
+      this.pendingCue = undefined;
     });
   }
   /** a ring, arrow or highlight: drawn like rough(), and the camera holds still while it draws */
@@ -117,6 +121,7 @@ class Builder {
   }
   node(n: PlacedNode, t0: number, g: string) {
     const c = n.color;
+    this.cueNext("pop");
     this.rough(gen.rectangle(n.x, n.y, n.w, n.h, { seed: this.seed++, stroke: c, strokeWidth: 3.2, roughness: 1.1, bowing: 1.2 }), t0, 0.6, g);
     const ic = iconHref(this.pack, n.icon, this.icons);
     this.img({ href: ic.href, x: n.x + n.w / 2 - NODE.icon / 2, y: n.y + 16, w: NODE.icon, h: NODE.icon, t0: t0 + 0.3, dur: 0.45, g });
@@ -132,6 +137,7 @@ class Builder {
   /** Big concept-board node: doodle or icon grid, large keyword, quote below the box. */
   boardNode(n: PlacedNode, t0: number, g: string) {
     const c = n.color, bh = BOARD.boxH;
+    this.cueNext("pop");
     this.rough(gen.rectangle(n.x, n.y, n.w, bh, { seed: this.seed++, stroke: c, strokeWidth: 4, roughness: 1.2, bowing: 1.3 }), t0, 0.6, g);
     const ic = iconHref(this.pack, n.icon, this.icons);
     const cx = n.x + n.w / 2;
@@ -610,6 +616,7 @@ export async function compose(inp: ComposeInput): Promise<Composed> {
             const w = line[i], ww = textWidth(w.word, size), at = T + LEAD + w.start - 0.04;
             B.text({ text: w.word, x, y: y0 + r * lh, size, color: i === key ? C("orange") : theme.ink, t0: at, dur: 0.22, g: "hookline", anim: "fade", sketch: false });
             const uw = textWidth(w.word.replace(/[^\p{L}\p{N}]+$/u, ""), size);
+            if (i === key) B.cueNext("pop");
             if (i === key) B.rough(gen.line(x, y0 + r * lh + size * 0.2, x + uw, y0 + r * lh + size * 0.24, { seed: B.seed++, stroke: C("orange"), strokeWidth: 6, roughness: 1.3 }), T + LEAD + w.end, 0.4, "hookline");
             x += ww + sp;
           }
@@ -718,7 +725,7 @@ export async function compose(inp: ComposeInput): Promise<Composed> {
         const fwd = e.from === st.from;
         const pts = fwd ? e.points : [...e.points].reverse();
         const dur = Math.min(1.5, Math.max(0.7, (times[i + 1] ?? tEnd + 0.6) - times[i] - 0.25));
-        B.els.push({ k: "dot", id: B.id("d"), pts, color: C("yellow"), r: 13, trail: C("yellow"), t0: times[i], dur, g: "walk" });
+        B.els.push({ k: "dot", id: B.id("d"), pts, color: C("yellow"), r: 13, trail: C("yellow"), t0: times[i], dur, g: "walk", cue: "whoosh" });
         const tgt = graph!.nodes.get(st.to)!;
         B.ring(gen.rectangle(tgt.x - 12, tgt.y - 12, tgt.w + 24, tgt.h + 24, { seed: B.seed++, stroke: C("yellow"), strokeWidth: 4, roughness: 1.4 }), times[i] + dur * 0.8, 0.4, `w:${i}`);
         B.marks.push({ kind: "ring", g: `w:${i}`, t0: times[i] + dur * 0.8, dur: 0.4, shape: { k: "rect", box: { x: tgt.x - 12, y: tgt.y - 12, w: tgt.w + 24, h: tgt.h + 24 } }, target: tgt });

@@ -173,6 +173,6 @@ Everything below fits a hand-drawn whiteboard. None of it adds fast cuts, stock 
 5. **Build on one canvas, and point.** Boxes still draw in the order the request meets them. The recap sends a dot along the same path again, hop by hop, timed to when each part is named. The camera rule stays: it holds still while marks are drawn, and shots last at least about 3–4 s.
 6. **Soft sound effects under the voice.**
    - A quiet pop when a component appears and a soft whoosh when a request dot starts moving.
-   - They are mixed into the music bed, so the same sidechain ducking keeps them under the voice.
+   - They are short and written at fixed levels (a pop peaks near -25 dBFS, a whoosh near -28) and join the mix after the bed's ducking, about 18 dB under the voice. A burst of parts drawn together makes one pop, not a rattle.
    - All sounds are synthesised on the box from sine waves and filtered noise (`packages/render/src/music.ts`). No samples, so there is nothing to license or credit.
    - `--no-sfx` turns them off.
