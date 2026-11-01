@@ -6,7 +6,7 @@ import { fileURLToPath } from "node:url";
 import { getTheme, looksLikeTopic, specFromBrief, DEFAULT_BRIEF, type Ask, type Brief, type ExplainSpec, type Architecture, type Progress, type SceneAudio, type ScenePlan, type SourceDoc, type SourceKind } from "@explainlike/core";
 import { CostLedger, museTranscribe } from "@explainlike/models";
 import { ingestRepo } from "@explainlike/ingest";
-import { planBrief, extractArchitecture, validateArchitecture, evidencePack, reviewArchitecture, planRepoScenes, planFocus, planWhatIf, kindColor } from "@explainlike/planner";
+import { planBrief, extractArchitecture, validateArchitecture, evidencePack, reviewArchitecture, fixArchitecture, planRepoScenes, planFocus, planWhatIf, kindColor } from "@explainlike/planner";
 import { pickVoice, wordOverlap, DeepgramVoice, type VoiceProvider } from "@explainlike/voice";
 import { captionMismatches, loadIconPack, mergePacks, builtinPackIds, detectComponents, packHints, type DetectedComponent, iconCatalog, resolveIcon, compose, captureFrames, mixNarration, mp4Encoder, sfxCues, contactSheet, frameCheck, checkTldr, checkExcalidraw, toExcalidraw, toTldraw, type IconPack, type SourceShot } from "@explainlike/render";
 
@@ -180,16 +180,24 @@ export async function runExplainLike(o: RunOptions) {
     arch = await timed("architecture", () => cacheJson(path.join(out, "architecture.json"), async () => {
       P({ stage: "architecture", message: "Muse Spark is mapping the architecture", pct: 8 });
       let a = await extractArchitecture({ ledger, digest: r.digest.text, name, spec, icons: iconCatalog(pack), hints, progress: P });
-      let v = validateArchitecture(a, r.digest.files, resolve, fb);
+      const check = (x: Architecture) => validateArchitecture(x, r.digest.files, resolve, fb, r.digest.read);
+      let v = check(a);
       P({ stage: "review", message: "second pass: checking every box against the code", pct: 20 });
-      const rev = await reviewArchitecture({ ledger, arch: v.arch, evidence: evidencePack(v.arch, r.digest.read), digest: r.digest.text, name, found: v.issues, spec, icons: iconCatalog(pack), hints, progress: P });
-      notes.push(`review verdict: ${rev.verdict}; ${rev.issues.length} issues; ${rev.changes.upsert} item(s) changed or added, ${rev.changes.removed} dropped${rev.changes.walkthrough ? ", walkthrough redone" : ""}${rev.changes.scale ? ", scale redone" : ""}; validator: ${v.issues.length} fixes`);
-      if (rev.verdict === "revise" || v.issues.length) {
-        const first = v.issues;
-        v = validateArchitecture(rev.architecture, r.digest.files, resolve, fb);
-        v.issues.unshift(...first);
+      // the review sees what the file check could not fix (action names, arrows against the code) and fixes it in the same call
+      const rev = await reviewArchitecture({ ledger, arch: v.arch, evidence: evidencePack(v.arch, r.digest.read), digest: r.digest.text, name, found: [...v.issues, ...v.open], spec, icons: iconCatalog(pack), hints, progress: P });
+      notes.push(`review verdict: ${rev.verdict}; ${rev.issues.length} issues; ${rev.changes.upsert} item(s) changed or added, ${rev.changes.removed} dropped${rev.changes.walkthrough ? ", walkthrough redone" : ""}${rev.changes.scale ? ", scale redone" : ""}; validator: ${v.issues.length} fixes, ${v.open.length} open`);
+      const first = [...v.issues, ...v.open];
+      if (rev.verdict === "revise" || first.length) v = check(rev.architecture);
+      // what is still wrong after the review gets one short call aimed at just those problems
+      let fixed: Awaited<ReturnType<typeof fixArchitecture>> | undefined;
+      if (v.open.length) {
+        const open = v.open;
+        fixed = await fixArchitecture({ ledger, arch: v.arch, open, read: r.digest.read, spec, icons: iconCatalog(pack), hints, progress: P });
+        v = check(fixed.architecture);
+        notes.push(`map fix: ${open.length} problem(s) sent, ${v.open.length} left${v.open.length ? `: ${v.open.map((i) => i.problem).join("; ")}` : ""}`);
       }
-      fs.writeFileSync(path.join(out, "review.json"), JSON.stringify({ review: { verdict: rev.verdict, issues: rev.issues }, validator: v.issues }, null, 1));
+      v.issues.unshift(...first);
+      fs.writeFileSync(path.join(out, "review.json"), JSON.stringify({ review: { verdict: rev.verdict, issues: rev.issues }, fix: fixed?.issues ?? [], validator: v.issues, open: v.open }, null, 1));
       // a box the model drew from a detected pack component gets that pack's icon, so the same block always looks the same
       for (const c of v.arch.components) {
         const d = detected.find((x) => x.component.kind === c.kind && (c.evidence.some((e) => x.evidence.includes(e)) || c.name.toLowerCase().includes(x.component.name.toLowerCase())));
