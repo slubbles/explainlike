@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { shortSub, plainCase } from "../src/index.js";
+import { shortSub, plainCase, subLine } from "../src/index.js";
 
 test("box descriptions shorten at whole words, never mid-word", () => {
   assert.equal(shortSub("cloudflare cdn clips.example-app.com edge", 30), "cloudflare cdn");
@@ -68,4 +68,12 @@ test("a two-way wire keeps both labels, so the way back is on the board", async 
   assert.equal(g.edges.length, 1);
   assert.equal(g.edges[0].label, "send message / show reply");
   assert.equal(g.edges[0].both, true);
+});
+
+test("a box's sub line is dropped when it only repeats the keyword", () => {
+  // real microui boxes: "command list" over "command list", "host app" over "host app"
+  assert.equal(subLine("command list", "Command List"), undefined);
+  assert.equal(subLine("host app", "Host App"), undefined);
+  assert.equal(subLine("ui core", "MicroUI Core"), "MicroUI core");
+  assert.equal(subLine("sdl window", "Demo Renderer"), "demo renderer");
 });

@@ -482,6 +482,12 @@ export function plainCase(s: string) {
   return s.replace(/\S+/g, (w) => (/[a-z][A-Z]|[A-Z]{2}|[0-9_]/.test(w) ? w : w.toLowerCase()));
 }
 
+export function subLine(keyword: string, name: string) {
+  const sub = shortSub(plainCase(name), 36);
+  const bare = (x: string) => x.toLowerCase().replace(/[^a-z0-9]+/g, "");
+  return bare(sub) === bare(keyword) ? undefined : sub;
+}
+
 export function shortSub(s: string, n: number) {
   if (s.length <= n) return s;
   const ws = s.split(/\s+/);
@@ -533,7 +539,8 @@ export async function compose(inp: ComposeInput): Promise<Composed> {
     const order = new Map<string, number>();
     plan.scenes.forEach((s) => s.add_components.forEach((id) => { if (!order.has(id)) order.set(id, order.size); }));
     const comps = [...a.components].sort((x, y) => (order.get(x.id) ?? 99) - (order.get(y.id) ?? 99));
-    const gnodes: GNode[] = comps.map((c) => ({ id: c.id, keyword: c.keyword, sub: shortSub(plainCase(c.name), 36), icon: c.icon, color: C(inp.colorOf ? inp.colorOf(c) : "white") }));
+    // a sub line that only repeats the keyword ("command list" under "command list") is dropped
+    const gnodes: GNode[] = comps.map((c) => ({ id: c.id, keyword: c.keyword, sub: subLine(c.keyword, c.name), icon: c.icon, color: C(inp.colorOf ? inp.colorOf(c) : "white") }));
     const gedges: GEdge[] = a.connections.map((c) => ({ from: c.from, to: c.to, label: c.label }));
     a.scale.forEach((r, i) => {
       const id = `fix-${i}`;
