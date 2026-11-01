@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import type { Architecture, NoteItem, Scene } from "@explainlike/core";
-import { validateNotes, validateArchitecture, repairRepoPlan, checkStory, journeyOrder, speechIssues, keepsSync, syncPhrases, fillerIn, hookLine, validateCutIn, cutInRules } from "@explainlike/planner";
+import { validateNotes, validateArchitecture, repairRepoPlan, checkStory, journeyOrder, speechIssues, keepsSync, syncPhrases, fillerIn, hookLine, validateCutIn, cutInRules, applyReviewPatch } from "@explainlike/planner";
 
 const item = (text: string, extra: Partial<NoteItem> = {}): NoteItem => ({ text, color: "white", icon: "", target: "", estimate: false, evidence: "", ...extra });
 const ids = new Set(["d1-db", "edge"]);
@@ -265,4 +265,31 @@ test("a timeline sorts its dates oldest first and drops dates its quote does not
 test("only the explainer style asks for cut-ins", () => {
   assert.match(cutInRules("whiteboard", "").join(" "), /No 'chart' or 'timeline'/);
   assert.match(cutInRules("explainer", "").join(" "), /'chart'.*exactly as the source writes it/);
+});
+
+test("a review's changes fix only what it names and keep the rest of the map", () => {
+  const arch: Architecture = {
+    product: "p", one_liner: "x",
+    components: [comp("app", ["main.c"]), comp("lib", ["lib.c"]), comp("gfx", ["gfx.c"])],
+    connections: [
+      { from: "app", to: "lib", label: "build ui", evidence: "main.c" },
+      { from: "lib", to: "app", label: "push draws", evidence: "lib.h" },
+      { from: "gfx", to: "app", label: "show frame", evidence: "gfx.c" },
+    ],
+    walkthrough: { name: "click", steps: [{ from: "app", to: "lib", label: "build ui", evidence: "main.c" }] },
+    scale: [{ component: "lib", at: "10x", problem: "a", why: "b", fix: "c", fix_detail: "d", evidence: "lib.c" }],
+  };
+  const out = applyReviewPatch(arch, {
+    upsert_components: [{ ...comp("gfx", ["gfx.c"]), name: "SDL renderer" }, comp("input", ["main.c"])],
+    remove_components: [],
+    upsert_connections: [{ from: "lib", to: "app", label: "pull draws", evidence: "main.c" }, { from: "app", to: "gfx", label: "draw rects", evidence: "main.c" }],
+    remove_connections: ["gfx > app"],
+    walkthrough_steps: [],
+    scale: [],
+  });
+  assert.deepEqual(out.components.map((c) => [c.id, c.name]), [["app", "app"], ["lib", "lib"], ["gfx", "SDL renderer"], ["input", "input"]]);
+  assert.deepEqual(out.connections.map((c) => `${c.from}>${c.to} ${c.label}`), ["app>lib build ui", "lib>app pull draws", "app>gfx draw rects"]);
+  // an empty walkthrough or scale list means "unchanged", never "delete them all"
+  assert.deepEqual(out.walkthrough, arch.walkthrough);
+  assert.deepEqual(out.scale, arch.scale);
 });

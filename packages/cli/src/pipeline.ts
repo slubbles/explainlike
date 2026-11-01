@@ -183,7 +183,7 @@ export async function runExplainLike(o: RunOptions) {
       let v = validateArchitecture(a, r.digest.files, resolve, fb);
       P({ stage: "review", message: "second pass: checking every box against the code", pct: 20 });
       const rev = await reviewArchitecture({ ledger, arch: v.arch, evidence: evidencePack(v.arch, r.digest.read), digest: r.digest.text, name, found: v.issues, spec, icons: iconCatalog(pack), hints, progress: P });
-      notes.push(`review verdict: ${rev.verdict}; ${rev.issues.length} issues; validator: ${v.issues.length} fixes`);
+      notes.push(`review verdict: ${rev.verdict}; ${rev.issues.length} issues; ${rev.changes.upsert} item(s) changed or added, ${rev.changes.removed} dropped${rev.changes.walkthrough ? ", walkthrough redone" : ""}${rev.changes.scale ? ", scale redone" : ""}; validator: ${v.issues.length} fixes`);
       if (rev.verdict === "revise" || v.issues.length) {
         const first = v.issues;
         v = validateArchitecture(rev.architecture, r.digest.files, resolve, fb);
