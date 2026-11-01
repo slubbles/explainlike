@@ -20,8 +20,10 @@ test("the recap's whole-wall shot shows no lit words too small to read", async (
   const recap = plan.scenes.find((s: { kind: string }) => s.kind === "recap");
   const caps = film.captions.filter((c) => c.scene === recap.id);
   const head = { t0: Math.min(...caps.map((c) => c.t0)), t1: Math.max(...caps.map((c) => c.t1)) };
+  // the recap opens on the fade into it, before its first caption
+  const start = Math.max(...film.fades.filter((f) => f.t <= head.t0).map((f) => f.t));
   let wide = 0, kept = 0;
-  for (let t = head.t0 + 0.5; t < head.t1 - 0.3; t += 0.25) {
+  for (let t = start; t < head.t1 - 0.3; t += 0.25) {
     const c = cameraAt(film, t);
     if (c.w > 3500) wide++;
     for (const e of film.elements) {
