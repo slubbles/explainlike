@@ -15,10 +15,11 @@ function archSystem(L: ExplainSpec, icons: string, hints = "") {
     `- ${L.minComponents} to ${L.maxComponents} components. Merge minor helpers into the component they serve. Always include who/what starts requests (users, a browser, a tracker script, a CLI) as a client component.`,
     "- Optional infrastructure (enabled by an env var or config flag) is fine to include; say 'optional' in `what`.",
     "- connections follow the direction requests/data flow (from caller to callee). Each one cites one file where that call happens.",
-    "- walkthrough: the core flow of the product: the most common real user action, traced from the client through 4 to 7 connections in order. If the user gets something back (an answer, a page, a result), the last step brings it back to the client along a connection that already exists. Steps must reuse component ids. Labels are plain verbs a newcomer understands ('send message', 'pick a bot', 'reply').",
+    "- walkthrough: the core flow of the product: the most common real user action, traced from the client through 4 to 7 connections in order. If the user gets something back (an answer, a page, a result), the last step brings it back to the client along a connection that already exists. Steps must reuse component ids. Each step label is used once; when the flow loops back to a part, say what is different ('ask again', 'send result'). Labels are plain verbs a newcomer understands ('send message', 'pick a bot', 'reply').",
     L.scaleItems ? `- scale: exactly ${L.scaleItems} risk(s) at ${L.scaleAt.join(" / ")} traffic. Each must be about a component in this design, explain WHY it breaks using what the code actually does, and give a concrete fix. Cite one file.` : "- scale: an empty array (this video stays on the core flow).",
     `- ${KEYWORD_RULE}`,
     `- icon: pick the closest name from this icon pack: ${icons}`,
+    ...(L.brief.topic ? [`- What this is: ${L.brief.topic}. The walkthrough must show the thing it is known for (the handoff in an agent library, the cache hit in a CDN, the merge in a version control tool), not only a generic request and reply.`] : []),
     `Audience for wording later: ${L.audience}.`,
     ...(hints ? [hints] : []),
   ].join("\n");
@@ -72,7 +73,14 @@ export function validateArchitecture(arch: Architecture, files: string[], resolv
     const ev = fixPath(e.evidence) ?? comps.find((c) => c.id === e.from)!.evidence[0];
     conns.push({ ...e, label: kw(e.label), evidence: ev });
   }
-  const steps = arch.walkthrough.steps.filter((s) => ids.has(s.from) && ids.has(s.to)).map((s) => ({ ...s, label: kw(s.label), evidence: fixPath(s.evidence) ?? "" }));
+  const said = new Set<string>();
+  const steps = arch.walkthrough.steps.filter((s) => ids.has(s.from) && ids.has(s.to)).map((s) => {
+    // a label said twice reads as the same step twice; the repeat of a loop says "again"
+    let label = kw(s.label);
+    if (said.has(label) && label.split(" ").length < 3) { issues.push({ target: "walkthrough", problem: `repeated step "${label}" renamed "${label} again"` }); label += " again"; }
+    said.add(label);
+    return { ...s, label, evidence: fixPath(s.evidence) ?? "" };
+  });
   // walkthrough steps must be drawable: add the connection if the model forgot it
   for (const s of steps) if (!edgeKey.has(`${s.from}>${s.to}`) && !edgeKey.has(`${s.to}>${s.from}`)) {
     edgeKey.add(`${s.from}>${s.to}`); conns.push({ ...s, evidence: s.evidence || comps.find((c) => c.id === s.from)!.evidence[0] });
@@ -84,7 +92,11 @@ export function validateArchitecture(arch: Architecture, files: string[], resolv
 
 const Review = z.object({
   verdict: z.enum(["ok", "revise"]),
-  issues: z.array(z.object({ target: z.string().describe("component id, connection 'from>to', 'walkthrough' or 'scale'"), problem: z.string(), fix: z.string() })),
+  issues: z.array(z.object({
+    target: z.string().describe("component id, connection 'from>to', 'walkthrough' or 'scale'"),
+    problem: z.string().describe("one or two full sentences quoting the code that shows the problem"),
+    fix: z.string().describe("one full sentence saying what to change"),
+  })),
 });
 
 /** Evidence pack: the start of every cited file, so the reviewer judges claims against code, not vibes. */
@@ -96,26 +108,23 @@ export function evidencePack(arch: Architecture, read: (p: string, max?: number)
   return out;
 }
 
-export async function reviewArchitecture(o: { ledger: CostLedger; arch: Architecture; evidence: string; spec: ExplainSpec; progress?: Progress }) {
-  o.progress?.({ stage: "plan", message: "reviewing the architecture against the cited files" });
-  return sparkJson({
-    ledger: o.ledger, step: "architecture-review", schema: Review, name: "review", effort: "medium", maxTokens: 6000,
-    messages: [
-      { role: "system", content: "You are a strict staff engineer reviewing an architecture map that will be shown to thousands of developers. Compare every component, connection, walkthrough step and scale risk against the cited file excerpts. Flag: components whose cited files do not support them, wrong technology names, wrong direction of data flow, missing major components that the files clearly show (e.g. a database client that is imported but not drawn), walkthrough steps that the code does not do, scale risks that are generic or not grounded in this code. Return verdict 'ok' only if a skeptical maintainer of this repo would sign off. Max 10 issues, most important first." },
-      { role: "user", content: `ARCHITECTURE JSON:\n${JSON.stringify(o.arch)}\n\nCITED FILE EXCERPTS:\n${o.evidence}` },
-    ],
-  });
-}
+const REVIEWER = "You are a strict staff engineer reviewing an architecture map that will be shown to thousands of developers. Compare every component, connection, walkthrough step and scale risk against the cited file excerpts. Flag: components whose cited files do not support them, wrong technology names, wrong direction of data flow, missing major components that the files clearly show (e.g. a database client that is imported but not drawn), walkthrough steps that the code does not do, scale risks that are generic or not grounded in this code. Return verdict 'ok' only if a skeptical maintainer of this repo would sign off. Max 10 issues, most important first.";
 
-export async function reviseArchitecture(o: { ledger: CostLedger; arch: Architecture; issues: { target: string; problem: string; fix?: string }[]; digest: string; name: string; spec: ExplainSpec; icons: string; hints?: string; progress?: Progress }) {
-  o.progress?.({ stage: "plan", message: `fixing ${o.issues.length} review issues` });
+const ReviewFix = Review.extend({ architecture: Architecture.describe("the full architecture with every issue fixed; unchanged when the verdict is ok") });
+
+/**
+ * One call reviews the map against the cited code and returns it corrected, so a flagged map costs
+ * one round trip instead of a review and a separate rewrite. The reviewer sees the digest too, so it
+ * can add a component the files show but the map missed.
+ */
+export async function reviewArchitecture(o: { ledger: CostLedger; arch: Architecture; evidence: string; digest: string; name: string; found?: ArchIssue[]; spec: ExplainSpec; icons: string; hints?: string; progress?: Progress }) {
+  o.progress?.({ stage: "plan", message: "reviewing the architecture against the cited files" });
+  const found = o.found?.length ? `\n\nA file check already found:\n${o.found.map((i, n) => `${n + 1}. [${i.target}] ${i.problem}`).join("\n")}` : "";
   return sparkJson({
-    ledger: o.ledger, step: "architecture-revise", schema: Architecture, name: "architecture", effort: "medium", maxTokens: 16000,
+    ledger: o.ledger, step: "architecture-review", schema: ReviewFix, name: "review", effort: "medium", maxTokens: 20000,
     messages: [
-      { role: "system", content: archSystem(o.spec, o.icons, o.hints) },
-      { role: "user", content: `Repository: ${o.name}\n\nDIGEST (secrets stripped):\n${o.digest}` },
-      { role: "assistant", content: JSON.stringify(o.arch) },
-      { role: "user", content: `A reviewer checked this against the code and found these issues. Return the corrected full architecture JSON. Keep everything that was right.\n${o.issues.map((i, n) => `${n + 1}. [${i.target}] ${i.problem}${i.fix ? ` -> ${i.fix}` : ""}`).join("\n")}` },
+      { role: "system", content: `${REVIEWER}\nWrite the issues first, as full sentences that quote the code. Then return the full architecture with every issue fixed, keeping everything that was right. The architecture (not the issues) follows the same rules as the original map, including its component count and number of scale risks:\n${archSystem(o.spec, o.icons, o.hints)}` },
+      { role: "user", content: `Repository: ${o.name}\n\nARCHITECTURE JSON:\n${JSON.stringify(o.arch)}${found}\n\nCITED FILE EXCERPTS:\n${o.evidence}\n\nDIGEST (secrets stripped):\n${o.digest}` },
     ],
   });
 }

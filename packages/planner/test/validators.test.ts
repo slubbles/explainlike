@@ -80,6 +80,22 @@ test("validateArchitecture: no box without a real file", () => {
   assert.ok(issues.some((i) => i.target === "ghost" && /no evidence/.test(i.problem)));
 });
 
+test("validateArchitecture: a loop back says 'again' instead of repeating a step", () => {
+  const arch: Architecture = {
+    product: "p", one_liner: "x",
+    components: [comp("loop", ["a.ts"]), comp("model", ["a.ts"])],
+    connections: [{ from: "loop", to: "model", label: "get completion", evidence: "a.ts" }],
+    walkthrough: { name: "chat", steps: [
+      { from: "loop", to: "model", label: "get completion", evidence: "a.ts" },
+      { from: "model", to: "loop", label: "return completion", evidence: "a.ts" },
+      { from: "loop", to: "model", label: "Get Completion", evidence: "a.ts" },
+    ] },
+    scale: [],
+  };
+  const { arch: a } = validateArchitecture(arch, ["a.ts"], (n) => n, () => "box");
+  assert.deepEqual(a.walkthrough.steps.map((s) => s.label), ["get completion", "return completion", "get completion again"]);
+});
+
 // ---------------------------------------------------------------------------
 // story order and the plan-stage self-check (docs/explaining-playbook.md)
 // ---------------------------------------------------------------------------

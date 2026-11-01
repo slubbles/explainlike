@@ -3,7 +3,7 @@ import path from "node:path";
 import { getTheme, specFromBrief, DEFAULT_BRIEF, type Ask, type Brief, type ExplainSpec, type Architecture, type Progress, type SceneAudio, type ScenePlan, type SourceDoc } from "@explainlike/core";
 import { CostLedger, museTranscribe } from "@explainlike/models";
 import { ingestRepo } from "@explainlike/ingest";
-import { planBrief, extractArchitecture, validateArchitecture, evidencePack, reviewArchitecture, reviseArchitecture, planRepoScenes, planFocus, planWhatIf, kindColor } from "@explainlike/planner";
+import { planBrief, extractArchitecture, validateArchitecture, evidencePack, reviewArchitecture, planRepoScenes, planFocus, planWhatIf, kindColor } from "@explainlike/planner";
 import { pickVoice, wordOverlap, DeepgramVoice, type VoiceProvider } from "@explainlike/voice";
 import { captionMismatches, loadIconPack, mergePacks, builtinPackIds, detectComponents, packHints, type DetectedComponent, iconCatalog, resolveIcon, compose, captureFrames, mixNarration, mp4Encoder, sfxCues, contactSheet, frameCheck, checkTldr, checkExcalidraw, toExcalidraw, toTldraw, type IconPack, type SourceShot } from "@explainlike/render";
 
@@ -141,14 +141,14 @@ export async function runExplainLike(o: RunOptions) {
       let a = await extractArchitecture({ ledger, digest: r.digest.text, name, spec, icons: iconCatalog(pack), hints, progress: P });
       let v = validateArchitecture(a, r.digest.files, resolve, fb);
       P({ stage: "review", message: "second pass: checking every box against the code", pct: 20 });
-      const rev = await reviewArchitecture({ ledger, arch: v.arch, evidence: evidencePack(v.arch, r.digest.read), spec, progress: P });
+      const rev = await reviewArchitecture({ ledger, arch: v.arch, evidence: evidencePack(v.arch, r.digest.read), digest: r.digest.text, name, found: v.issues, spec, icons: iconCatalog(pack), hints, progress: P });
       notes.push(`review verdict: ${rev.verdict}; ${rev.issues.length} issues; validator: ${v.issues.length} fixes`);
-      if (rev.verdict === "revise" && rev.issues.length) {
-        P({ stage: "review", message: `fixing ${rev.issues.length} review issues`, pct: 26 });
-        a = await reviseArchitecture({ ledger, arch: v.arch, issues: [...rev.issues, ...v.issues], digest: r.digest.text, name, spec, icons: iconCatalog(pack), hints, progress: P });
-        v = validateArchitecture(a, r.digest.files, resolve, fb);
+      if (rev.verdict === "revise" || v.issues.length) {
+        const first = v.issues;
+        v = validateArchitecture(rev.architecture, r.digest.files, resolve, fb);
+        v.issues.unshift(...first);
       }
-      fs.writeFileSync(path.join(out, "review.json"), JSON.stringify({ review: rev, validator: v.issues }, null, 1));
+      fs.writeFileSync(path.join(out, "review.json"), JSON.stringify({ review: { verdict: rev.verdict, issues: rev.issues }, validator: v.issues }, null, 1));
       // a box the model drew from a detected pack component gets that pack's icon, so the same block always looks the same
       for (const c of v.arch.components) {
         const d = detected.find((x) => x.component.kind === c.kind && (c.evidence.some((e) => x.evidence.includes(e)) || c.name.toLowerCase().includes(x.component.name.toLowerCase())));
