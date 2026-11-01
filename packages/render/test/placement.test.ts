@@ -218,3 +218,22 @@ test("the walkthrough follows the walk up close instead of showing the whole boa
   assert.ok(pace.shortestHold >= 4 - 0.05, `no shot under 4 s: shortest hold ${pace.shortestHold}`);
   assert.ok(pace.cutsPerMin >= 6.5 && pace.cutsPerMin <= 9, `${pace.cutsPerMin} cuts a minute`);
 });
+
+test("a long repo recap moves through the trip instead of holding one wide frame", async () => {
+  // rxi/microui (run microui8): a small five-part board sat on one frame for the last 30 s, the recipe
+  // drawer scene and the whole 16 s recap, at 3.7 cuts a minute
+  const read = (n: string) => JSON.parse(fs.readFileSync(new URL(`microui8.${n}.json`, fx), "utf8"));
+  const mplan = read("plan"), march = read("architecture"), brief: Brief = read("brief");
+  const secs: Record<string, number> = { "s01-hook": 15.82, "s02-layer": 10.78, "s03-layer": 12.3, "s04-walkthrough": 17.5, "s05-layer": 8.54, "s06-recap": 16.3 };
+  const maudio = mplan.scenes.map((s: any) => {
+    const ws = s.narration.split(/\s+/), st = (secs[s.id] - 1.2) / ws.length;
+    return { sceneId: s.id, duration: secs[s.id] - 1.2, words: ws.map((w: string, i: number) => ({ word: w, start: i * st, end: i * st + st * 0.8 })) };
+  });
+  const spec = specFromBrief(brief);
+  const { film, pace, timeline } = await compose({ plan: mplan, audio: maudio, theme: getTheme(spec.look), spec, pack: loadIconPack(), sourceLabel: "x", arch: march });
+  const recap = timeline.find((s) => s.kind === "recap")!, layer = timeline.find((s) => s.id === "s05-layer")!;
+  const inRecap = shotStarts(film).filter((t) => t > recap.start - 0.01 && t < recap.end);
+  assert.ok(inRecap.length >= 2, `recap shots at ${inRecap.join(", ")}`);
+  assert.ok(pace.shortestHold >= 4 - 0.05, `no shot under 4 s: shortest hold ${pace.shortestHold}`);
+  assert.ok(pace.cutsPerMin >= 5, `${pace.cutsPerMin} cuts a minute`);
+});
