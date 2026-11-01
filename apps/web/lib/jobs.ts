@@ -37,8 +37,9 @@ if (!g.__explainlikeResumed && process.env.EXPLAINLIKE_RESUME !== "0") { g.__exp
 
 function loadJobs(): Map<string, Job> {
   const m = new Map<string, Job>();
-  if (!fs.existsSync(JOBS_DIR)) return m;
-  for (const id of fs.readdirSync(JOBS_DIR)) {
+  // turbopackIgnore: the jobs folder only exists at run time; tracing it would copy the whole repo into the server build
+  if (!fs.existsSync(/*turbopackIgnore: true*/ JOBS_DIR)) return m;
+  for (const id of fs.readdirSync(/*turbopackIgnore: true*/ JOBS_DIR)) {
     const f = path.join(JOBS_DIR, id, "job.json");
     if (!ID.test(id) || !fs.existsSync(f)) continue;
     try {
