@@ -58,9 +58,9 @@ function fitView(film: Film, b: Box, minW: number): Omit<CamKey, "t" | "move"> {
  * or recap shows the whole board on purpose: the moving dot or the summary is the point.
  */
 /** News-style cut-ins: one chart or timeline framed whole. */
-export const CUT_IN_KINDS = new Set(["chart", "timeline"]);
+export const CUT_IN_KINDS = new Set(["chart", "timeline", "map"]);
 
-export const READ_KINDS = new Set(["layer", "scale", "notes", "chart", "timeline", "board", "establish"]);
+export const READ_KINDS = new Set(["layer", "scale", "notes", "chart", "timeline", "map", "board", "establish"]);
 
 /**
  * Every moment the picture changes: an element starting to appear, the camera

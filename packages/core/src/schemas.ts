@@ -103,7 +103,7 @@ export type Highlight = z.infer<typeof Highlight>;
 // ---------------------------------------------------------------------------
 // Scene plan: the core contract between the planner and the renderer.
 // ---------------------------------------------------------------------------
-export const SceneKind = z.enum(["hook", "source", "layer", "walkthrough", "scale", "board", "notes", "chart", "timeline", "establish", "recap", "outro"]);
+export const SceneKind = z.enum(["hook", "source", "layer", "walkthrough", "scale", "board", "notes", "chart", "timeline", "map", "establish", "recap", "outro"]);
 export type SceneKind = z.infer<typeof SceneKind>;
 
 export const Callout = z.object({ target: z.string(), text: keyword, color: Color });
@@ -135,7 +135,7 @@ export const Scene = z.object({
   /** source scenes: phrases to circle on the real screenshot */
   highlights: z.array(Highlight),
   callouts: z.array(Callout),
-  /** notes scenes: list rows, or annotations on the canvas when they target components; chart and timeline scenes: one row per bar or date */
+  /** notes scenes: list rows, or annotations on the canvas when they target components; chart and timeline scenes: one row per bar or date; map scenes: one row per place, its name in target */
   items: z.array(NoteItem),
 });
 export type Scene = z.infer<typeof Scene>;

@@ -8,7 +8,8 @@ import { placementPass, MIN_TEXT_PX, MIN_SMALL_TEXT_PX, type Mark, type Placemen
 import { layoutGraph, unionBox, shiftLayout, wrapText, NODE, type Box, type GNode, type GEdge, type Layout, type PlacedNode, type PlacedEdge } from "./layout.js";
 import { textWidth, fontDataUrl, useHandFont, HAND_FONTS } from "./measure.js";
 import { penOutline } from "./draw.js";
-import { chartLayout, timelineLayout, cutInSize, CHART, TIMELINE } from "./cutins.js";
+import { chartLayout, timelineLayout, sceneMap, cutInSize, CHART, TIMELINE, MAP } from "./cutins.js";
+import { MAP_CREDIT } from "@explainlike/core/places";
 import type { IconPack } from "./icons.js";
 import { resolveIcon } from "./icons.js";
 import { ringOf, scaleArrow, placeFix, placeRingLabel, polyBox } from "./annotate.js";
@@ -544,7 +545,7 @@ export async function compose(inp: ComposeInput): Promise<Composed> {
       const z = panelSize(s.items);
       if (graph) { panels.set(s.id, { x: gb.x + gb.w + 500, y: gb.y + [...panels.values()].reduce((a, b) => a + b.h + 300, 0), ...z }); continue; }
       regions.push({ id: s.id, ...z, place: (x, y) => panels.set(s.id, { x, y, ...z }) });
-    } else if ((s.kind === "chart" || s.kind === "timeline") && s.items.length) {
+    } else if ((s.kind === "chart" || s.kind === "timeline" || s.kind === "map") && s.items.length) {
       const z = cutInSize(s.kind, s.items);
       if (graph) { panels.set(s.id, { x: gb.x + gb.w + 500, y: gb.y + [...panels.values()].reduce((a, b) => a + b.h + 300, 0), ...z }); continue; }
       regions.push({ id: s.id, ...z, place: (x, y) => panels.set(s.id, { x, y, ...z }) });
@@ -974,10 +975,11 @@ export async function compose(inp: ComposeInput): Promise<Composed> {
         });
         pins.forEach((_, k) => B.setOp(pg(k), T + D - 0.2, 0, 0.4));
       }
-    } else if ((s.kind === "chart" || s.kind === "timeline") && s.items.length && panels.has(s.id)) {
-      // a cut-in: the board steps back, the chart or timeline fills the frame, each row drawn as it is said
+    } else if ((s.kind === "chart" || s.kind === "timeline" || s.kind === "map") && s.items.length && panels.has(s.id)) {
+      // a cut-in: the board steps back, the chart, timeline or map fills the frame, each row drawn as it is said
       const pb = panels.get(s.id)!, g = `ci:${s.id}`, items = s.items;
-      const times = eventTimes(words, items.map((i) => [i.text.replace(/[\d$€£%.,]+/g, " ").trim().split(/\s+/).slice(0, 2).join(" "), i.text.split(" ").slice(-1)[0]]), t0 + 0.4, tEnd - 0.5, 1.0);
+      const said = (i: NoteItem) => s.kind === "map" ? [i.target, i.text.split(" ")[0]] : [i.text.replace(/[\d$€£%.,]+/g, " ").trim().split(/\s+/).slice(0, 2).join(" "), i.text.split(" ").slice(-1)[0]];
+      const times = eventTimes(words, items.map(said), t0 + 0.4, tEnd - 0.5, 1.0);
       if (!graph) { fades.push({ t: T, dur: 0.35 }); for (const b of boardShown) B.setOp(b.g, T + 0.1, 0, 0.05); }
       else { for (const id of present) B.setOp(nodeGroup(id), T, dim); for (const k of drawnEdges) B.setOp(k, T, dim); }
       B.fit(pb, T, graph ? 1.1 : 0, 1.25);
@@ -993,6 +995,30 @@ export async function compose(inp: ComposeInput): Promise<Composed> {
           B.sketch.polygons.push({ points: [[r.x, r.y], [r.x + r.w, r.y], [r.x + r.w, r.y + r.h], [r.x, r.y + r.h]], color: col });
           B.text({ text: b.shown, x: pb.x + b.value_x, y: pb.y + b.text_y, size: CHART.size, color: ink(col), t0: t + 0.8, g, weight: 700 });
         }
+      } else if (s.kind === "map") {
+        // real coastlines first, quickly and light; then each named place shaded or pinned as it is said
+        const L = sceneMap(items), at = (p: [number, number]): [number, number] => [pb.x + p[0], pb.y + p[1]];
+        B.rough(gen.rectangle(pb.x, pb.y, L.w, L.h, { seed: B.seed++, stroke: theme.ink, strokeWidth: 3.5, roughness: 0.9 }), t0, 0.5, g);
+        const named = new Map(L.pins.filter((p) => p.kind === "country").map((p) => [p.iso, p.item]));
+        for (const c of L.land) {
+          const hit = named.get(c.iso);
+          for (const r of c.rings) {
+            const pts = r.map(at);
+            if (hit == null) B.rough(gen.polygon(pts, { seed: B.seed++, stroke: theme.ink, strokeWidth: 1.8, roughness: 0.5, bowing: 0.3 }), t0 + 0.2, 0.7, g);
+            else {
+              const col = C(items[hit].color);
+              B.rough(gen.polygon(pts, { seed: B.seed++, stroke: col, strokeWidth: 3, roughness: 0.6, fill: col, fillStyle: "hachure", hachureGap: 12, fillWeight: 2.2 }), times[hit], 0.7, g);
+              B.sketch.polygons.push({ points: pts, color: col });
+            }
+          }
+        }
+        for (const p of L.pins) {
+          const col = C(items[p.item].color), t = times[p.item], [x, y] = at([p.x, p.y]);
+          if (p.kind === "city") { B.cueNext("pop"); B.rough(gen.circle(x, y, MAP.dot * 2, { seed: B.seed++, stroke: col, strokeWidth: 3, fill: col, fillStyle: "solid", roughness: 0.6 }), t, 0.3, g); }
+          if (p.lead) B.rough(gen.line(x, y, pb.x + p.lead[0], pb.y + p.lead[1], { seed: B.seed++, stroke: col, strokeWidth: 2.5, roughness: 0.6 }), t + 0.15, 0.25, g);
+          B.text({ text: p.label, x: pb.x + p.lx, y: pb.y + p.ly, size: MAP.label, color: ink(col), anchor: p.anchor, t0: t + 0.25, g, bg: true, weight: 700 });
+        }
+        B.text({ text: MAP_CREDIT, x: pb.x + L.credit.x, y: pb.y + L.credit.y, size: MAP.credit, color: C("gray"), t0, g, bg: true });
       } else {
         const L = timelineLayout(items), ly = pb.y + L.lineY, first = L.ticks[0], last = L.ticks[L.ticks.length - 1];
         B.rough(gen.line(pb.x + first.x - 60, ly, pb.x + last.x + 60, ly, { seed: B.seed++, stroke: theme.ink, strokeWidth: 4.5, roughness: 0.9 }), t0, 0.8, g);
@@ -1008,7 +1034,7 @@ export async function compose(inp: ComposeInput): Promise<Composed> {
         B.setOp(g, T + D - 0.2, 0, 0.4);
         for (const id of present) B.setOp(nodeGroup(id), T + D - 0.2, 1, 0.4);
         for (const k of drawnEdges) B.setOp(k, T + D - 0.2, 1, 0.4);
-      } else boardShown.push({ id: s.id, heading: s.heading, keys: items.map((i) => i.text.split(" ")[0]), g });
+      } else boardShown.push({ id: s.id, heading: s.heading, keys: items.map((i) => (s.kind === "map" ? i.target : i.text.split(" ")[0])), g });
     } else if (s.kind === "establish" && graph) {
       // draw the whole known system quickly (deep dives and what-ifs start here)
       const ids = [...graph.nodes.keys()].filter((id) => !fixIds.includes(id));

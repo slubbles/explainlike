@@ -1,3 +1,4 @@
+import { findPlace } from "@explainlike/core/places";
 import { z } from "zod";
 import { ScenePlan, coverageSeconds, parseFigure, parseDated, figureInQuote, lower, norm, tidySpeech, wordCount, quoteInSource, phraseAt, spokenWords, missingArticles, soundsLikeKeywords, shortHeading, type Architecture, type ExplainSpec, type Progress, type NoteItem, type Scene, type SourceDoc } from "@explainlike/core";
 import { sparkJson, type CostLedger } from "@explainlike/models";
@@ -522,7 +523,7 @@ export async function planConceptScenes(o: { ledger: CostLedger; doc: SourceDoc;
     ...cutInRules(L.style, o.icons),
     "4. 'recap': the whole idea in two sentences, what to remember.",
     `Each narration about ${L.wordsPerScene} words at ${L.tempo.wps} words/sec. There is no set length: stop once the core of ${o.doc.kind === "topic" ? "what was asked" : "the source"} is covered, never pad, and stay under ${hi} seconds. Leave out side details that do not help answer the hook. Do not claim anything the source does not say; ${o.doc.kind === "topic" ? "every fact must come from the sources (no outside facts)." : "say 'the author claims' when it is a claim."}`,
-    "Leave add_components, add_connections empty. callouts only on boards. items only in notes, chart and timeline scenes.",
+    "Leave add_components, add_connections empty. callouts only on boards. items only in notes, chart, timeline and map scenes.",
     o.doc.kind === "topic" ? "title: under 6 lowercase words. subtitle: the source sites, lowercase." : "title: under 6 lowercase words. subtitle: who wrote it, lowercase.",
   ].join("\n");
   const user = `SOURCE (${o.doc.kind}) by ${o.doc.author ?? "unknown"}: ${o.doc.title}\nURL: ${o.doc.url}\n\nTEXT:\n${o.doc.text.slice(0, 30000)}`;
@@ -533,7 +534,7 @@ export async function planConceptScenes(o: { ledger: CostLedger; doc: SourceDoc;
     plan = await sparkJson({
       ledger: o.ledger, step: "concept-plan-revise", schema: ScenePlan, name: "scene_plan", effort: "low", maxTokens: 9000,
       messages: [{ role: "system", content: sys }, { role: "user", content: user }, { role: "assistant", content: JSON.stringify(plan) },
-        { role: "user", content: `These rows failed the source check (a quote not copied verbatim, or a chart or timeline quote that does not state its number or date). Replace each with an exact copied phrase that does, or remove it:\n${dropped.join("\n")}\nReturn the full corrected plan.` }],
+        { role: "user", content: `These rows failed the source check (a quote not copied verbatim, a chart or timeline quote that does not state its number or date, or a map place that is not a real country or city named in its quote). Replace each with an exact copied phrase that does, or remove it:\n${dropped.join("\n")}\nReturn the full corrected plan.` }],
     });
     ({ plan: fixed, dropped } = validateConcept(plan, o.doc.text));
   }
@@ -549,27 +550,42 @@ export function validateConcept(plan: ScenePlan, source: string): { plan: SceneP
     const ok = new Set(board_nodes.map((n) => n.id));
     const board_edges = s.board_edges.filter((e) => ok.has(e.from) && ok.has(e.to));
     const callouts = s.kind === "board" ? (s.callouts ?? []).filter((c) => ok.has(c.target)).slice(0, 1).map((c) => ({ ...c, text: kw(c.text) })) : [];
-    const items = s.kind === "notes" ? validateNotes(s.items ?? [], { source }).items : s.kind === "chart" || s.kind === "timeline" ? validateCutIn(s.kind, s.items ?? [], source, dropped) : [];
+    const items = s.kind === "notes" ? validateNotes(s.items ?? [], { source }).items : s.kind === "chart" || s.kind === "timeline" || s.kind === "map" ? validateCutIn(s.kind, s.items ?? [], source, dropped) : [];
     for (const n of board_nodes) n.count = Math.max(1, Math.min(9, Math.round(n.count ?? 1)));
     return { ...s, id: `s${String(i + 1).padStart(2, "0")}-${s.kind}`, narration: tidySpeech(s.narration), heading: shortHeading(s.heading), highlights, board_nodes, board_edges, callouts, items, add_components: [], add_connections: [] };
   }).filter((s) => !(s.kind === "board" && s.board_nodes.length < 2) && !(s.kind === "source" && !s.highlights.length && !s.narration) && !(s.kind === "notes" && s.items.length < 2)
-    && !(s.kind === "chart" && s.items.length < 2) && !(s.kind === "timeline" && s.items.length < 3));
+    && !((s.kind === "chart" || s.kind === "map") && s.items.length < 2) && !(s.kind === "timeline" && s.items.length < 3));
   return { plan: { ...plan, title: lower(plan.title), subtitle: lower(plan.subtitle), scenes }, dropped };
 }
 
 /** Explainer style adds news-style cut-ins; the whiteboard style keeps to boards. Both only use what the source states. */
 export function cutInRules(style: ExplainSpec["style"], icons: string): string[] {
-  if (style !== "explainer") return ["No 'chart' or 'timeline' scenes."];
+  if (style !== "explainer") return ["No 'chart', 'timeline' or 'map' scenes."];
   return [
-    "Cut-ins: add a 'chart' or 'timeline' scene where it shows the point better than a diagram, right after the board it belongs to, and only from figures the source states. Usually one cut-in, at most two.",
+    "Cut-ins: add a 'chart', 'timeline' or 'map' scene where it shows the point better than a diagram, right after the board it belongs to, and only from figures and places the source states. Usually one cut-in, at most two.",
     `- 'chart': 2 to 6 quantities of the same kind and unit, compared. items: text is 1 to 4 lowercase label words then the number exactly as the source writes it ('chrome 65%', 'root servers 13'); evidence is an exact quote (5 to 20 words) from the source that contains that number; color orange for the bar the narration is about, blue for the rest; icon from: ${icons}; target empty; estimate false. Heading names what is compared. Narration says which bar matters and what it means; never read every number out.`,
     "- 'timeline': 3 to 6 dated events, oldest first. items: text is the date as the source writes it then 2 to 6 lowercase words ('1983 dns is invented'); evidence an exact quote containing that date; color blue, green for the latest; icon from the same list; target empty; estimate false. Narration tells the turn the dates show, not a list of years.",
+    "- 'map': only when where it happened is part of the point (a place of origin, a spread, a route, a border). 2 to 6 real countries or cities the source names. items: target is the place's common English name ('france', 'geneva', 'united states'); text is 2 to 5 lowercase words saying what happened there ('geneva web is born'); evidence an exact quote (5 to 20 words) from the source that names the place; color orange for the place the narration is about, blue for the rest; icon from the same list; estimate false. Narration says why the places matter, not a list of names.",
     "Never estimate, round or convert a number for a cut-in; leave the cut-in out when the source gives no figures.",
   ];
 }
 
+/** Map rows: a real place (in the Natural Earth gazetteer) that the quoted source sentence names, each place once. */
+function validateMap(items: NoteItem[], source: string, dropped: string[]): NoteItem[] {
+  const seen = new Set<string>();
+  const fold = (x: string) => x.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  return items.map((it) => ({ ...it, text: lower(it.text).split(/\s+/).slice(0, 5).join(" "), target: lower(it.target).replace(/^the\s+/, ""), estimate: false })).filter((it) => {
+    const p = findPlace(it.target);
+    const why = !p ? "not a place on the map" : !quoteInSource(it.evidence, source) ? "quote not in the source" : !fold(it.evidence).includes(fold(it.target)) ? "the quote does not name it" : seen.has(p.iso + p.name) ? "the same place twice" : "";
+    if (why) dropped.push(`map "${it.target}": ${why}`);
+    else seen.add(p!.iso + p!.name);
+    return !why;
+  }).slice(0, 6);
+}
+
 /** Chart and timeline rows: the quote must be in the source and state the row's number or date. Bars share one unit; dates go oldest first. */
-export function validateCutIn(kind: "chart" | "timeline", items: NoteItem[], source: string, dropped: string[]): NoteItem[] {
+export function validateCutIn(kind: "chart" | "timeline" | "map", items: NoteItem[], source: string, dropped: string[]): NoteItem[] {
+  if (kind === "map") return validateMap(items, source, dropped);
   const ok = items.map((it) => ({ ...it, text: lower(it.text), target: "", estimate: false })).filter((it) => {
     // a timeline row is checked by its year, so "jan 5, 1985" needs 1985 in the quote, not just a 5
     const fig = kind === "chart" ? parseFigure(it.text)?.shown : /\d{3,4}/.exec(parseDated(it.text)?.when ?? "")?.[0];

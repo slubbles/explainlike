@@ -262,8 +262,24 @@ test("a timeline sorts its dates oldest first and drops dates its quote does not
   assert.equal(dropped.length, 1);
 });
 
+test("a map keeps only real places that its quote names, each once", () => {
+  const source = "The web was invented at CERN in Geneva. It spread to Stanford in the United States. Atlantis had none.";
+  const dropped: string[] = [];
+  const place = (target: string, text: string, evidence: string): NoteItem => ({ ...row(text, evidence), target });
+  const rows = validateCutIn("map", [
+    place("Geneva", "web is born", "The web was invented at CERN in Geneva"),
+    place("the United States", "it spreads to stanford", "It spread to Stanford in the United States"),
+    place("atlantis", "nothing here", "Atlantis had none"),
+    place("france", "web is born nearby", "The web was invented at CERN in Geneva"),
+    place("geneva", "again", "The web was invented at CERN in Geneva"),
+    place("tokyo", "it reaches japan", "It reached Tokyo by 1993"),
+  ], source, dropped);
+  assert.deepEqual(rows.map((r) => r.target), ["geneva", "united states"]);
+  assert.equal(dropped.length, 4, "a made-up place, a quote that does not name it, a repeat and a quote not in the source");
+});
+
 test("only the explainer style asks for cut-ins", () => {
-  assert.match(cutInRules("whiteboard", "").join(" "), /No 'chart' or 'timeline'/);
+  assert.match(cutInRules("whiteboard", "").join(" "), /No 'chart', 'timeline' or 'map'/);
   assert.match(cutInRules("explainer", "").join(" "), /'chart'.*exactly as the source writes it/);
 });
 

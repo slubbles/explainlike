@@ -39,7 +39,7 @@ export type Look = keyof typeof LOOKS;
 /** How the video shows things: the hand-drawn board, or that board with news-explainer cut-ins. */
 export const STYLES = {
   whiteboard: "diagrams drawn on the board; right for systems, code, processes and how-things-work ideas",
-  explainer: "the same board plus news-explainer cut-ins (a chart of numbers the sources state, a timeline of their dates, highlighted source quotes); right when the core is a trend, a comparison or a history",
+  explainer: "the same board plus news-explainer cut-ins (a chart of numbers the sources state, a timeline of their dates, a map of the places they name, highlighted source quotes); right when the core is a trend, a comparison or a history",
 } as const;
 export type Style = keyof typeof STYLES;
 const LOOK_IDS = Object.keys(LOOKS) as [Look, ...Look[]];
