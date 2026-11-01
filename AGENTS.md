@@ -29,15 +29,16 @@ Explain Like turns a GitHub repo, an X post, an article or a plain topic into a 
 - Don't deploy publicly without the user's OK. The domain explainlike.co isn't bought yet.
 
 ## Where things stand (Nov 1, 6:30 PM Manila)
-- 212 commits, 210+ tests, CI green.
+- 220+ commits, 218 tests, CI green.
 - A fresh repo run takes about 2:50 and a cached re-render about 30 s.
 - Spend so far is about $6.30 on Meta and about $1.90 on Deepgram.
 - Samples are in the Google Drive folder "Explain Like samples" (microui v8, Silk Road v3, DNS, how the internet grew, minbpe, OpenMausBot).
 
 ## Open items
-1. Awkward line endings still get through the broken-sentence check (for example, "and you'll follow one click with you").
-2. Deepgram may mispronounce proper nouns ("Rome", "Parthian"). Add pronunciation hints that respell risky names for speech only, keeping the captions as written.
-3. Long openings (about 15 s) should split into two shots so the pace gets to about 7 to 8 cuts a minute, with every hold at least 4 s.
-4. Do a full web app walkthrough at 1440 and 390 px: paste a link, watch progress, download, use the board links and ask follow-ups.
-5. Deploy prep is ready (Dockerfile, health check, rate limits, spend guard). It still needs a host, the domain, and the user's go.
-6. Later: the hackathon write-up and X post drafts (don't post), an architecture diagram for the README, and voice cloning.
+1. Pronunciation: the listening check hears "personal relay" for "parcel relay" and "Curriers" for "Couriers" in the Silk Road retake. Extend the retake hints.
+2. microui runs at 7.48 cuts a minute, just under 8, because scenes s02 and s03 have no clean split point.
+3. The "What if 10x traffic?" follow-up assumes a service; hide or adapt it for libraries like microui.
+4. Box answers can repeat model mistakes (it called microui "retained" when it's immediate-mode). Ground them more tightly in the files.
+5. Follow-up clips (deep dive, what-if) haven't been tested end to end since the latest changes.
+6. Deploy prep is ready (Dockerfile, health check, rate limits, spend guard). It still needs a host, the domain, and the user's go.
+7. Later: hackathon write-up and X post drafts (don't post), an architecture diagram for the README, and voice cloning.
