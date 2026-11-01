@@ -175,7 +175,7 @@ const DANGLING = /^(the|a|an|and|or|of|to|in|on|for|at|by|with|from|into|start|t
  */
 export function shortHeading(s: string, max = 4): string {
   const all = lower(s).replace(/[,;:.!?]+/g, " ").split(/\s+/).filter(Boolean);
-  if (all.length <= max) return all.join(" ");
+  // a heading that already fits can still end mid-phrase ("one message start to")
   const ws = all.slice(0, max);
   while (ws.length > 2 && DANGLING.test(ws[ws.length - 1]!)) ws.pop();
   return ws.join(" ");
