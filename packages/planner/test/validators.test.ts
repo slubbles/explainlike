@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import type { Architecture, NoteItem, Scene } from "@explainlike/core";
-import { validateNotes, validateArchitecture, repairRepoPlan, checkStory, journeyOrder, speechIssues, keepsSync, syncPhrases, fillerIn, hookLine, validateCutIn, cutInRules, applyReviewPatch } from "@explainlike/planner";
+import { validateNotes, validateArchitecture, repairRepoPlan, checkStory, journeyOrder, speechIssues, keepsSync, syncPhrases, fillerIn, hookLine, validateCutIn, cutInRules, applyReviewPatch, actionName } from "@explainlike/planner";
 
 const item = (text: string, extra: Partial<NoteItem> = {}): NoteItem => ({ text, color: "white", icon: "", target: "", estimate: false, evidence: "", ...extra });
 const ids = new Set(["d1-db", "edge"]);
@@ -94,6 +94,50 @@ test("validateArchitecture: a loop back says 'again' instead of repeating a step
   };
   const { arch: a } = validateArchitecture(arch, ["a.ts"], (n) => n, () => "box");
   assert.deepEqual(a.walkthrough.steps.map((s) => s.label), ["get completion", "return completion", "get completion again"]);
+});
+
+test("validateArchitecture: a part named by what it does gets the noun from its name", () => {
+  const arch: Architecture = {
+    product: "p", one_liner: "x",
+    components: [comp("app", ["app.c"], { keyword: "frame loop" }), comp("core", ["ui.c"], { name: "microUI via microui.h", keyword: "rebuild widgets" })],
+    connections: [{ from: "app", to: "core", label: "rebuild widgets", evidence: "app.c" }],
+    walkthrough: { name: "w", steps: [{ from: "app", to: "core", label: "rebuild widgets", evidence: "app.c" }] },
+    scale: [],
+  };
+  const { arch: a, issues, open } = validateArchitecture(arch, ["app.c", "ui.c"], (n) => n, () => "box");
+  assert.deepEqual(a.components.map((c) => c.keyword), ["frame loop", "microui"]);
+  assert.match(issues[0].problem, /is an action, renamed "microui"/);
+  assert.deepEqual(open, []);
+  assert.ok(actionName("poll input") && actionName("draw rects") && actionName("send queue"));
+  assert.ok(!actionName("host renderer") && !actionName("command list") && !actionName("job queue") && !actionName("cache") && !actionName("build tool"));
+});
+
+test("validateArchitecture: an arrow against the code's includes is dropped or sent for a fix", () => {
+  const src: Record<string, string> = { "demo/main.c": '#include "microui.h"\n#include "renderer.h"\nint main() {}', "src/microui.c": '#include "microui.h"', "src/microui.h": "", "demo/renderer.c": '#include "renderer.h"', "demo/renderer.h": "" };
+  const files = Object.keys(src);
+  const arch: Architecture = {
+    product: "p", one_liner: "x",
+    components: [comp("app", ["demo/main.c"], { keyword: "demo app" }), comp("core", ["src/microui.c", "src/microui.h"], { keyword: "ui core" }), comp("gfx", ["demo/renderer.c"], { keyword: "renderer" })],
+    connections: [
+      { from: "app", to: "core", label: "build widgets", evidence: "demo/main.c" },
+      { from: "core", to: "app", label: "emit commands", evidence: "src/microui.c" },
+      { from: "gfx", to: "app", label: "ask for rects", evidence: "demo/renderer.c" },
+    ],
+    walkthrough: { name: "w", steps: [
+      { from: "app", to: "core", label: "build widgets", evidence: "demo/main.c" },
+      { from: "core", to: "app", label: "emit commands", evidence: "src/microui.c" },
+      { from: "app", to: "gfx", label: "draw rects", evidence: "demo/main.c" },
+      { from: "core", to: "app", label: "return result", evidence: "src/microui.c" },
+    ] },
+    scale: [],
+  };
+  const { arch: a, issues, open } = validateArchitecture(arch, files, (n) => n, () => "box", (p) => src[p] ?? "");
+  assert.deepEqual(a.connections.map((c) => `${c.from}>${c.to}`), ["app>core", "gfx>app"], "the backwards duplicate of a drawn arrow goes");
+  assert.ok(issues.some((i) => i.target === "core>app" && /dropped "emit commands"/.test(i.problem)));
+  assert.equal(open.length, 2);
+  assert.ok(open.some((i) => i.target === "gfx>app" && /points the wrong way/.test(i.problem)));
+  assert.ok(open.some((i) => i.target === "walkthrough" && /step 2 core>app "emit commands"/.test(i.problem)));
+  assert.ok(!open.some((i) => /return result/.test(i.problem)), "an answer worded as an answer is fine");
 });
 
 // ---------------------------------------------------------------------------
