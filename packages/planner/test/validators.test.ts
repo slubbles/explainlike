@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { strictJsonSchema, type Architecture, type NoteItem, type Scene } from "@explainlike/core";
-import { validateNotes, validateArchitecture, repairRepoPlan, checkStory, journeyOrder, speechIssues, keepsSync, syncPhrases, fillerIn, hookLine, validateCutIn, cutInRules, applyReviewPatch, actionName, archWire, undrawnLinks, retellCutIn, validateConcept, structural } from "@explainlike/planner";
+import { validateNotes, validateArchitecture, repairRepoPlan, checkStory, journeyOrder, speechIssues, keepsSync, syncPhrases, fillerIn, hookLine, validateCutIn, cutInRules, applyReviewPatch, actionName, archWire, undrawnLinks, retellCutIn, validateConcept, structural, pictureWords, conceptSlips } from "@explainlike/planner";
 
 const item = (text: string, extra: Partial<NoteItem> = {}): NoteItem => ({ text, color: "white", icon: "", target: "", estimate: false, evidence: "", ...extra });
 const ids = new Set(["d1-db", "edge"]);
@@ -442,4 +442,34 @@ test("structural issues replan the scenes; wording issues only fix the narration
   assert.ok(structural("there is no 'walkthrough' scene"));
   assert.ok(!structural('s05-recap: "ui core" is explained again; say what it is only the first time, then just its name'));
   assert.ok(!structural("walkthrough: says the front door and the agent drivers talk directly, but the board draws no arrow between them; tell the hop through the part that really sits between them"));
+});
+
+test("the speech check flags the picture word used as a part, but only words the map never uses", () => {
+  const arch: Architecture = {
+    product: "p", one_liner: "x",
+    components: [comp("core", ["ui.c"], { keyword: "ui core", kind: "client" }), comp("list", ["ui.c"], { keyword: "command list", what: "drawing commands for rectangles" }), comp("gfx", ["r.c"], { keyword: "sdl renderer" })],
+    connections: [{ from: "gfx", to: "list", label: "read commands", evidence: "r.c" }],
+    walkthrough: { name: "w", steps: [] }, scale: [],
+  };
+  const analogy = "a kitchen that hands simple cook tickets for rectangles to whoever does the drawing";
+  assert.deepEqual(pictureWords(analogy, arch), ["kitchen", "hands", "cook", "tickets"]);
+  assert.ok(!pictureWords(analogy, arch).includes("rectangles"), "a word the map uses is a real thing, not the picture");
+  const plan = { title: "t", subtitle: "", scenes: [{ ...sc("walkthrough", "Then the sdl renderer reads commands from tickets for rectangles."), id: "s04-walkthrough" }] } as any;
+  const issues = speechIssues(plan, arch, analogy);
+  assert.ok(issues.some((i) => /s04-walkthrough: "from tickets" uses the picture word/.test(i)), issues.join("; "));
+  assert.ok(!issues.some((i) => /for rectangles/.test(i)));
+});
+
+test("a topic plan's broken sentences are listed by scene for the narration fix", () => {
+  const plan = { title: "t", subtitle: "", scenes: [
+    { ...sc("board", "Faith rides with parcels. Bandits harsh deserts make travel costly."), id: "s05-board" },
+    { ...sc("map", "Rome pays gold here as the end market."), id: "s06-map" },
+  ] } as any;
+  assert.deepEqual(conceptSlips(plan), ['s05-board: noun stack "Bandits harsh deserts": two things run together with no "and" or verb between them']);
+});
+
+test("a board node a topic scene draws is a phrase its rewrite must keep", () => {
+  const s = { ...sc("board", "Silk makers hand cloth to the relay hubs."), board_nodes: [{ id: "a", keyword: "silk makers", icon: "box", color: "blue", evidence: "", count: 1 }, { id: "b", keyword: "relay hubs", icon: "box", color: "blue", evidence: "", count: 1 }] } as any;
+  const none: Architecture = { product: "", one_liner: "", components: [], connections: [], walkthrough: { name: "", steps: [] }, scale: [] };
+  assert.deepEqual(syncPhrases(s, none), ["silk makers", "relay hubs"]);
 });

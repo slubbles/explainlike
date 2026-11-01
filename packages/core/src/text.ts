@@ -170,6 +170,47 @@ export function missingArticles(text: string): string[] {
   return out;
 }
 
+const ADJ = /^(harsh|long|short|high|low|cold|hot|dry|wet|wide|narrow|rich|poor|vast|steep|rough|big|small|huge|tiny|old|new|great|safe|risky|slow|fast|quick|cheap|costly|rare|common|deep|dark|empty|full|heavy|light|hard|soft|strong|weak|wild|bare|endless|distant|remote|foreign|local|simple|plain|raw|fresh|busy|lonely|dusty|icy|sandy|rocky|frozen|open|closed)$/;
+const ADJ_END = /^[a-z]{3,}(ous|ful|ive|less|ish|able|ible)$/;
+const PLURAL = /^[a-z]{3,}s$/;
+const NOT_PLURAL = /(ss|us|is|ys)$|^(this|has|was|does|its|always|across|perhaps|sometimes|plus|less|unless|thus|yes|towards|besides|whereas|afterwards)$/;
+const OPENS = /^(and|or|but|from|with|by|of|to|into|through|past|so|then|while|when|as)$/;
+const PREP = /^(from|behind|into|onto|to|through|via|past|beyond|inside|under|over)$/;
+
+/**
+ * Lines a listener trips on that the article check misses:
+ * - a noun stack with the "and" left out ("Bandits harsh deserts make travel costly")
+ * - the picture the video borrows used bare as if it were a part ("reads commands from tickets",
+ *   "Behind tickets the renderer"); `metaphor` lists the picture's words the map itself never uses
+ * - one action said twice over ("you press keys on the OK button")
+ * - a sentence that ends on a vague word instead of what happens ("... for action.")
+ */
+export function grammarSlips(text: string, o: { metaphor?: string[] } = {}): string[] {
+  const out: string[] = [];
+  const pic = new Set((o.metaphor ?? []).map((w) => w.toLowerCase()));
+  for (const sent of text.split(/(?<=[.!?])\s+/)) {
+    const raw = spokenWords(sent);
+    const ws = raw.map((w) => w.toLowerCase().replace(/[^a-z'-]/g, ""));
+    for (let i = 0; i + 2 < ws.length; i++) {
+      const [a, b, c] = [ws[i], ws[i + 1], ws[i + 2]];
+      // a comma between the words is a list, not a stack
+      if (/[,;:]$/.test(raw[i]) || /[,;:]$/.test(raw[i + 1])) continue;
+      if (i > 0 && !OPENS.test(ws[i - 1]) && !/[,;:]$/.test(raw[i - 1])) continue;
+      if (PLURAL.test(a) && !NOT_PLURAL.test(a) && (ADJ.test(b) || ADJ_END.test(b)) && PLURAL.test(c) && !NOT_PLURAL.test(c)) out.push(`noun stack "${raw.slice(i, i + 3).join(" ")}": two things run together with no "and" or verb between them`);
+    }
+    for (let i = 1; i < ws.length; i++) {
+      const w = ws[i], sing = w.replace(/s$/, "");
+      if (!PREP.test(ws[i - 1]) || /[,;:]$/.test(raw[i - 1])) continue;
+      if (pic.has(w) || pic.has(sing)) out.push(`"${ws[i - 1]} ${w}" uses the picture word "${w}" as if it were a part; name the part, or say "the ${w}" right after the part it stands for`);
+    }
+    const twice = sent.match(/\b(press|presses|pressed|pressing|tap|taps|tapped|click|clicks|clicked|hit|hits)\s+(keys|key|buttons)\s+on\s+(the|a|an|your)\s+(?:[\w-]+\s+){0,2}?(button|key|icon|link)\b/i);
+    if (twice) out.push(`"${twice[0]}" says the action twice; say "${twice[1]} ${twice[0].split(/\s+on\s+/i)[1]}"`);
+    const vague = sent.match(/\bfor (action|effect|work|change|things|stuff)[.!?]?$/i);
+    if (vague) out.push(`"${vague[0].replace(/[.!?]$/, "")}" ends the sentence on a vague word; say what happens instead`);
+  }
+  return out;
+}
+
 const DANGLING = /^(the|a|an|and|or|of|to|in|on|for|at|by|with|from|into|start|then|your|its)$/;
 /**
  * A scene heading of at most `max` words that still reads as a name: "one message, start to end"
