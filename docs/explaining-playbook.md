@@ -104,7 +104,7 @@ Sources:
 - **One analogy world, kept all the way through.** KodeKloud's post office: envelope → producer, post office → broker, sorting shelves → topics, the friend in Berlin → consumer. Every new term lands on a place already drawn.
 - **Humour comes in small, dry asides, not as a set piece.**
   - "Kibitz is the Yiddish word for that guy standing behind you at a chess game... the perfect analogy for a coding agent." (Fireship)
-  - "...and the employees learn the hard way what a pivot is." (Fireship)
+  - "Microsoft offered a quarter of its employees money to leave so it can afford more of them." (Fireship, said about GPUs)
   - Crayon uses a one-line character gag ("Hey nerd, give me your lunch money").
   - Each aside takes about one sentence, then the video moves on.
 - **Contrast and turns.**
