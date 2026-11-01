@@ -204,6 +204,36 @@ class Builder {
   }
 }
 
+/**
+ * How many leading words of the hook to draw as kinetic type: its first sentence, when it is a short
+ * question or claim (3 to 16 words), the recogniser timed it word for word, and more narration follows.
+ */
+export function kineticLine(narration: string, words: WordTiming[]): number {
+  const first = narration.trim().split(/(?<=[.!?])\s+/)[0] ?? "";
+  const n = first.split(/\s+/).filter(Boolean).length;
+  if (n < 3 || n > 16 || words.length < n + 6) return 0;
+  return words.slice(0, n).map((w) => w.word).join(" ") === first.replace(/\s+/g, " ") ? n : 0;
+}
+const FLAT = /^(the|and|of|a|an|to|in|on|for|at|is|it|its|by|with|you|your|does|do|how|why|what|when|that|this|from|into|just|every|ever|can|will|would|could|be|are|was|were|has|have|had|own)$/;
+/** The word the hook line lands on: its last content word, drawn in the accent colour and underlined. */
+export function keyWordIndex(words: string[]): number {
+  for (let i = words.length - 1; i >= 0; i--) { const w = normW(words[i]); if (w.length >= 4 && !FLAT.test(w)) return i; }
+  return words.length - 1;
+}
+/** Greedy rows of word indices that fit maxW at this size. */
+function wordRows(words: string[], size: number, maxW: number): number[][] {
+  const rows: number[][] = [[]];
+  let w = 0;
+  const sp = textWidth(" ", size);
+  words.forEach((t, i) => {
+    const tw = textWidth(t, size);
+    if (rows[rows.length - 1].length && w + sp + tw > maxW) { rows.push([]); w = 0; }
+    w += (rows[rows.length - 1].length ? sp : 0) + tw;
+    rows[rows.length - 1].push(i);
+  });
+  return rows;
+}
+
 const STOP = new Set(["the", "and", "of", "a", "an", "to", "in", "on", "for", "at", "is", "it", "its", "by", "with", "vs", "in", "x"]);
 const sameWord = (a: string, b: string) => a === b || (b.length >= 4 && a.length >= 4 && (a.startsWith(b.slice(0, 4)) || b.startsWith(a.slice(0, 4))));
 /** Content words of `phrase` that the narration does not say. */
@@ -553,19 +583,50 @@ export async function compose(inp: ComposeInput): Promise<Composed> {
     // one title on screen at a time: the concept recap titles every board on the wall, so it gets no heading of its own
     const worldTitles = (s.kind === "recap" || s.kind === "outro") && !graph && boardShown.length > 0;
     if (s.kind !== "hook" && !worldTitles) headings.push({ t0: T, t1: T + D, text: spokenHeading(s.heading, s.narration, scaleRisk ? [scaleRisk.problem] : []) });
-    captions.push(...captionsFor(s.id, au.words, T + LEAD, T + D));
+    // the hook line is drawn big as it is said, so its words skip the subtitle bar
+    const kin = s.kind === "hook" ? kineticLine(s.narration, au.words) : 0;
+    if (kin) {
+      const lineEnd = T + LEAD + au.words[kin - 1].end;
+      captions.push(...captionsFor(s.id, au.words.slice(0, kin), T + LEAD, Math.min(lineEnd + 0.5, T + LEAD + au.words[kin].start)).map((c) => ({ ...c, hidden: true })));
+      captions.push(...captionsFor(s.id, au.words.slice(kin), T + LEAD, T + D));
+    } else captions.push(...captionsFor(s.id, au.words, T + LEAD, T + D));
 
     if (s.kind === "hook") {
       const title = plan.title.toLowerCase();
+      let Th = T;
+      if (kin) {
+        const line = au.words.slice(0, kin);
+        const key = keyWordIndex(line.map((w) => w.word));
+        const maxW = 1500;
+        let size = 104;
+        let rows = wordRows(line.map((w) => w.word), size, maxW);
+        while (rows.length > 2 && size > 72) { size -= 8; rows = wordRows(line.map((w) => w.word), size, maxW); }
+        const lh = size * 1.3, y0 = hookCy + 120 - ((rows.length - 1) * lh) / 2;
+        const sp = textWidth(" ", size);
+        rows.forEach((row, r) => {
+          const rw = row.reduce((a, i) => a + textWidth(line[i].word, size), 0) + sp * (row.length - 1);
+          let x = hookCx - rw / 2;
+          for (const i of row) {
+            const w = line[i], ww = textWidth(w.word, size), at = T + LEAD + w.start - 0.04;
+            B.text({ text: w.word, x, y: y0 + r * lh, size, color: i === key ? C("orange") : theme.ink, t0: at, dur: 0.22, g: "hookline", anim: "fade", sketch: false });
+            const uw = textWidth(w.word.replace(/[^\p{L}\p{N}]+$/u, ""), size);
+            if (i === key) B.rough(gen.line(x, y0 + r * lh + size * 0.2, x + uw, y0 + r * lh + size * 0.24, { seed: B.seed++, stroke: C("orange"), strokeWidth: 6, roughness: 1.3 }), T + LEAD + w.end, 0.4, "hookline");
+            x += ww + sp;
+          }
+        });
+        const lineEnd = T + LEAD + line[kin - 1].end;
+        B.setOp("hookline", lineEnd + 0.45, 0, 0.4);
+        Th = lineEnd + 0.6;
+      }
       const ts = Math.min(150, 2400 / Math.max(6, title.length) * 1.6);
       const tw = textWidth(title, ts);
-      B.text({ text: title, x: hookCx, y: hookCy - 40, size: ts, color: theme.ink, anchor: "middle", t0: T + 0.3, dur: 1.0, g: "hook" });
-      B.rough(gen.line(hookCx - tw / 2, hookCy + 0, hookCx + tw / 2, hookCy + 6, { seed: B.seed++, stroke: C("orange"), strokeWidth: 7, roughness: 1.4 }), T + 1.1, 0.5, "hook");
-      B.text({ text: plan.subtitle.toLowerCase(), x: hookCx, y: hookCy + 80, size: 46, color: theme.colors.gray, anchor: "middle", t0: T + 1.5, dur: 0.8, g: "hook" });
+      B.text({ text: title, x: hookCx, y: hookCy - 40, size: ts, color: theme.ink, anchor: "middle", t0: Th + 0.3, dur: 1.0, g: "hook" });
+      B.rough(gen.line(hookCx - tw / 2, hookCy + 0, hookCx + tw / 2, hookCy + 6, { seed: B.seed++, stroke: C("orange"), strokeWidth: 7, roughness: 1.4 }), Th + 1.1, 0.5, "hook");
+      B.text({ text: plan.subtitle.toLowerCase(), x: hookCx, y: hookCy + 80, size: 46, color: theme.colors.gray, anchor: "middle", t0: Th + 1.5, dur: 0.8, g: "hook" });
       // preview icons of what is coming
       const prev = inp.arch ? inp.arch.components.slice(0, 5).map((c) => ({ icon: c.icon, color: C(inp.colorOf ? inp.colorOf(c) : "white"), kw: c.keyword }))
         : plan.scenes.flatMap((x) => x.board_nodes).slice(0, 5).map((n) => ({ icon: n.icon, color: C(n.color), kw: n.keyword }));
-      const ts2 = eventTimes(words, prev.map((p) => [p.kw]), T + 2.4, tEnd, 0.6);
+      const ts2 = eventTimes(words, prev.map((p) => [p.kw]), Math.min(Th + 2.4, tEnd - prev.length * 0.6), tEnd, 0.6);
       const gap = 260, x0 = hookCx - ((prev.length - 1) * gap) / 2;
       prev.forEach((p, i) => {
         const cx = x0 + i * gap, cy = hookCy + 260;
@@ -574,7 +635,8 @@ export async function compose(inp: ComposeInput): Promise<Composed> {
         const ic = iconHref(inp.pack, p.icon, B.icons);
         B.img({ href: ic.href, x: cx - 50, y: cy - 50, w: 100, h: 100, t0: ts2[i] + 0.2, dur: 0.4, g: "hook" });
       });
-      B.fit({ x: hookCx - Math.max(tw, prev.length * gap) / 2, y: hookCy - 40 - ts, w: Math.max(tw, prev.length * gap), h: ts + 480 }, T, 0, 1.0);
+      const hw = Math.max(tw, prev.length * gap, kin ? 1500 : 0);
+      B.fit({ x: hookCx - hw / 2, y: hookCy - 40 - ts, w: hw, h: ts + 480 }, T, 0, 1.0);
       B.setOp("hook", T + D - 0.2, 0, 0.6);
     } else if (s.kind === "layer" && graph) {
       const adds = s.add_components.filter((id) => graph!.nodes.has(id) && !present.has(id));

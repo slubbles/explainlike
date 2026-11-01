@@ -187,6 +187,7 @@
     const report = [];
     cap.style.display = "inline-block";
     for (const c of F.captions) {
+      if (c.hidden) continue;
       cap.innerHTML = c.words.map((w) => `<span>${w.w.replace(/&/g, "&amp;").replace(/</g, "&lt;")}</span>`).join(" ");
       const r = cap.getBoundingClientRect(), rect = { x: r.left, y: r.top, w: r.width, h: r.height };
       const lines = Math.round((r.height - 32) / 60);
@@ -254,7 +255,7 @@
       if (wait && k < HOUT) drawHead(slots[1], prev, 1, clamp(k / HOUT, 0, 1), 1);
     }
 
-    const c = F.captions.find((x) => t >= x.t0 && t < x.t1);
+    const c = F.captions.find((x) => !x.hidden && t >= x.t0 && t < x.t1);
     if (c) {
       if (lastCap !== c) { cap.innerHTML = c.words.map((w, i) => `<span data-i="${i}">${w.w.replace(/&/g, "&amp;").replace(/</g, "&lt;")}</span>`).join(" "); lastCap = c; }
       cap.style.opacity = clamp((t - c.t0) / 0.12, 0, 1);

@@ -4,7 +4,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { getTheme, specFromBrief, DEFAULT_BRIEF, agreementSlips } from "@explainlike/core";
-import { compose, loadIconPack, captureFrames, captionsFor } from "../src/index.js";
+import { compose, loadIconPack, captureFrames, captionsFor, kineticLine, keyWordIndex } from "../src/index.js";
 
 const fx = new URL("./fixtures/", import.meta.url);
 const plan = JSON.parse(fs.readFileSync(new URL("example-app.plan.json", fx), "utf8"));
@@ -20,7 +20,7 @@ test("captions sit in one fixed spot at the bottom, on one line, and never cover
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), "explainlike-cap-"));
     const { captions } = await captureFrames(film, dir, { only: [0], workers: 1 });
     fs.rmSync(dir, { recursive: true, force: true });
-    assert.equal(captions.length, film.captions.length);
+    assert.equal(captions.length, film.captions.filter((c) => !c.hidden).length);
     const bottoms = new Set(captions.map((c) => c.rect!.y + c.rect!.h));
     assert.equal(bottoms.size, 1, `captions sit at different heights: ${[...bottoms].join(", ")}`);
     for (const c of captions) {
@@ -113,4 +113,32 @@ test("a compound noun and a relative clause stay whole at real speech speed", ()
   assert.ok(recipe.some((p) => p.includes("recipe card")), `"recipe card" is split: ${recipe.join(" | ")}`);
   const files = cut([["and", 3.2, 3.44], ["Muse", 3.44, 3.76], ["Spark", 3.76, 4], ["explains", 4, 4.48], ["it,", 4.48, 4.96], ["citing", 5.12, 5.44], ["only", 5.44, 5.76], ["the", 5.76, 5.92], ["files", 5.92, 6.16], ["that", 6.16, 6.32], ["box", 6.32, 6.64], ["was", 6.64, 6.8], ["built", 6.8, 7.04], ["from.", 7.04, 7.36]]);
   assert.ok(files.some((p) => p.includes("files that box was built from.")), `the relative clause is split from its noun: ${files.join(" | ")}`);
+});
+
+test("the hook's first line is drawn word by word as it is said, and the subtitle bar skips those words", async () => {
+  const hook = plan.scenes.find((s: any) => s.kind === "hook");
+  const p2 = { ...plan, scenes: plan.scenes.map((s: any) => (s === hook ? { ...s, narration: `What if every song came from a robot? ${s.narration}` } : s)) };
+  const a2 = p2.scenes.map((s: any) => {
+    const ws = s.narration.split(/\s+/);
+    return { sceneId: s.id, duration: ws.length * 0.38, words: ws.map((w: string, i: number) => ({ word: w, start: i * 0.38, end: i * 0.38 + 0.3 })) };
+  });
+  const { film } = await compose({ plan: p2, audio: a2, theme: getTheme("pen-light"), spec: specFromBrief(DEFAULT_BRIEF), pack: loadIconPack(), sourceLabel: "x", arch });
+  const line = film.elements.filter((e) => e.g === "hookline" && e.k === "text").map((e: any) => e.text);
+  assert.deepEqual(line, "What if every song came from a robot?".split(" "));
+  assert.ok(film.elements.some((e) => e.g === "hookline" && e.k === "text" && e.t0 < 5), "the hook line starts within five seconds");
+  const caps = film.captions.filter((c) => c.scene === hook.id);
+  assert.equal(caps.filter((c) => c.hidden).map((c) => c.words.map((w) => w.w).join(" ")).join(" "), line.join(" "));
+  // every spoken word is still in the captions, so the caption check still sees the whole narration
+  assert.equal(caps.flatMap((c) => c.words.map((w) => w.w)).join(" "), a2.find((x: any) => x.sceneId === hook.id).words.map((w: any) => w.word).join(" "));
+});
+
+test("only a short first sentence the voice said word for word becomes the kinetic line", () => {
+  const w = (s: string) => s.split(" ").map((word, i) => ({ word, start: i * 0.3, end: i * 0.3 + 0.25 }));
+  const said = "Why does your chat feel slow? It waits for a server across the ocean every time.";
+  assert.equal(kineticLine(said, w(said)), 6);
+  assert.equal(kineticLine("Hi. " + said, w("Hi. " + said)), 0, "one word is not a line");
+  assert.equal(kineticLine(said, w(said.replace("slow?", "slowly?"))), 0, "the recogniser heard something else");
+  assert.equal(kineticLine("Why does your chat feel slow?", w("Why does your chat feel slow?")), 0, "nothing follows it");
+  assert.equal(keyWordIndex("Why does your chat feel slow?".split(" ")), 5);
+  assert.equal(keyWordIndex("What if every song came from a robot?".split(" ")), 7);
 });
