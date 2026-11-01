@@ -167,3 +167,16 @@ export function missingArticles(text: string): string[] {
   for (let i = 1; i < ws.length; i++) if (ws[i - 1] === "to" && /^(manager|counter|user|server|database|agent|browser|worker|engine|notebook|ledger|logbook)$/.test(ws[i])) out.push(`to ${ws[i]}`);
   return out;
 }
+
+const DANGLING = /^(the|a|an|and|or|of|to|in|on|for|at|by|with|from|into|start|then|your|its)$/;
+/**
+ * A scene heading of at most `max` words that still reads as a name: "one message, start to end"
+ * becomes "one message", never "one message start to".
+ */
+export function shortHeading(s: string, max = 4): string {
+  const all = lower(s).replace(/[,;:.!?]+/g, " ").split(/\s+/).filter(Boolean);
+  if (all.length <= max) return all.join(" ");
+  const ws = all.slice(0, max);
+  while (ws.length > 2 && DANGLING.test(ws[ws.length - 1]!)) ws.pop();
+  return ws.join(" ");
+}

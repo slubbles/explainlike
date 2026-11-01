@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { ScenePlan, coverageSeconds, lower, norm, tidySpeech, wordCount, quoteInSource, phraseAt, spokenWords, missingArticles, soundsLikeKeywords, type Architecture, type ExplainSpec, type Progress, type NoteItem, type Scene, type SourceDoc } from "@explainlike/core";
+import { ScenePlan, coverageSeconds, lower, norm, tidySpeech, wordCount, quoteInSource, phraseAt, spokenWords, missingArticles, soundsLikeKeywords, shortHeading, type Architecture, type ExplainSpec, type Progress, type NoteItem, type Scene, type SourceDoc } from "@explainlike/core";
 import { sparkJson, type CostLedger } from "@explainlike/models";
 
 const STYLE = [
@@ -42,7 +42,7 @@ function repoSystem(arch: Architecture, L: ExplainSpec, lo: number, hi: number):
     "Scene order and rules:",
     "1. one 'hook' scene, 3 or 4 sentences. Sentence one is the hook, shown big on screen as it is spoken: a question the viewer would ask, or one surprising, concrete claim about the problem this project solves, at most 14 words, no product name needed (good: 'How does a computer learn from its own mistakes?' or 'Every app you use forgets you the moment you close it.'; bad: 'This is X, a tool for Y.'). Then what the product is in plain words (no part names, no jargon) and what goes wrong without it or what it lets you do (the stakes), the everyday analogy, and the promise of the story, e.g. 'Let's follow one message through it.' add_components empty.",
     `2. 'layer' scenes along the journey: add exactly these components, in this order, at most ${L.perScene} per scene: ${path.map(kw).join(", ")}. Tell it as the request moving forward ('First...', 'Next it reaches...'). For each added component say its keyword out loud (in add_components order), what it does in plain words, its role in the analogy, and why it is there.`,
-    `3. one 'walkthrough' scene right after them: the core flow told once, end to end, as one short story. Say these step labels in order, each as the action of a natural sentence about who does what (the analogy role first), adding articles and verb endings as speech needs ('send message' becomes 'sends the message'): ${steps}. Good: 'You type a question, and the counter sends the message to the manager.' Bad: 'Step one is send message.' Never number the steps out loud. End with the concrete thing the user gets back (e.g. 'a working fix in your chat'), not 'an answer'. Heading like 'one message, start to end'. About ${Math.round(L.wordsPerScene * 1.6)} words. add_components empty.`,
+    `3. one 'walkthrough' scene right after them: the core flow told once, end to end, as one short story. Say these step labels in order, each as the action of a natural sentence about who does what (the analogy role first), adding articles and verb endings as speech needs ('send message' becomes 'sends the message'): ${steps}. Good: 'You type a question, and the counter sends the message to the manager.' Bad: 'Step one is send message.' Never number the steps out loud. End with the concrete thing the user gets back (e.g. 'a working fix in your chat'), not 'an answer'. Heading like 'follow one message'. About ${Math.round(L.wordsPerScene * 1.6)} words. add_components empty.`,
     side.length
       ? `4. then 'layer' scene(s) for the side parts the request does not pass through: ${side.map(kw).join(", ")}. Keep them short: as few scenes as fit (at most ${L.perScene} parts per scene), one short clause per part (its keyword and plain job), opening with one tie-back to the journey such as 'Around the manager sit a few helpers:'. Do not repeat the same opener for each part.`
       : "4. (no side parts)",
@@ -396,7 +396,7 @@ export function repairRepoPlan(plan: ScenePlan, arch: Architecture, L: { perScen
   const files = new Set(arch.components.flatMap((c) => c.evidence));
   const evidenceOf = (id: string) => arch.components.find((c) => c.id === id)?.evidence[0] ?? "";
   for (const s0 of plan.scenes) {
-    const s = { ...s0, heading: lower(s0.heading).split(/\s+/).slice(0, 4).join(" ") };
+    const s = { ...s0, heading: shortHeading(s0.heading) };
     if (s.kind === "layer") {
       const add = s.add_components.filter((id) => { if (!ids.has(id)) { repairs.push(`unknown component ${id} removed`); return false; } if (seen.has(id)) { repairs.push(`${id} added twice`); return false; } return true; });
       add.forEach((id) => seen.add(id));
@@ -530,7 +530,7 @@ export function validateConcept(plan: ScenePlan, source: string): { plan: SceneP
     const callouts = s.kind === "board" ? (s.callouts ?? []).filter((c) => ok.has(c.target)).slice(0, 1).map((c) => ({ ...c, text: kw(c.text) })) : [];
     const items = s.kind === "notes" ? validateNotes(s.items ?? [], { source }).items : [];
     for (const n of board_nodes) n.count = Math.max(1, Math.min(9, Math.round(n.count ?? 1)));
-    return { ...s, id: `s${String(i + 1).padStart(2, "0")}-${s.kind}`, narration: tidySpeech(s.narration), heading: lower(s.heading).split(/\s+/).slice(0, 4).join(" "), highlights, board_nodes, board_edges, callouts, items, add_components: [], add_connections: [] };
+    return { ...s, id: `s${String(i + 1).padStart(2, "0")}-${s.kind}`, narration: tidySpeech(s.narration), heading: shortHeading(s.heading), highlights, board_nodes, board_edges, callouts, items, add_components: [], add_connections: [] };
   }).filter((s) => !(s.kind === "board" && s.board_nodes.length < 2) && !(s.kind === "source" && !s.highlights.length && !s.narration) && !(s.kind === "notes" && s.items.length < 2));
   return { plan: { ...plan, title: lower(plan.title), subtitle: lower(plan.subtitle), scenes }, dropped };
 }
