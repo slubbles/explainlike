@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { strictJsonSchema, type Architecture, type NoteItem, type Scene } from "@explainlike/core";
-import { validateNotes, validateArchitecture, repairRepoPlan, checkStory, journeyOrder, speechIssues, keepsSync, syncPhrases, fillerIn, hookLine, validateCutIn, cutInRules, applyReviewPatch, actionName, archWire, undrawnLinks, retellCutIn, validateConcept, structural, pictureWords, conceptSlips } from "@explainlike/planner";
+import { validateNotes, validateArchitecture, repairRepoPlan, checkStory, journeyOrder, speechIssues, keepsSync, syncPhrases, fillerIn, hookLine, validateCutIn, cutInRules, applyReviewPatch, actionName, archWire, reviewWire, undrawnLinks, retellCutIn, validateConcept, structural, pictureWords, conceptSlips } from "@explainlike/planner";
 
 const item = (text: string, extra: Partial<NoteItem> = {}): NoteItem => ({ text, color: "white", icon: "", target: "", estimate: false, evidence: "", ...extra });
 const ids = new Set(["d1-db", "edge"]);
@@ -137,6 +137,17 @@ test("archWire caps the map the API may send: parts, arrows, steps, scale and lo
   assert.equal(w.properties.components.items.properties.what.maxLength, 200);
   assert.equal(w.properties.components.items.properties.evidence.maxItems, 3);
   assert.equal(w.properties.components.items.additionalProperties, false, "still strict");
+});
+
+test("reviewWire caps the review the same way, with at most 10 short issues", () => {
+  const w = strictJsonSchema(reviewWire({ maxComponents: 6, scaleItems: 1 })) as any;
+  assert.equal(w.properties.issues.maxItems, 10);
+  assert.equal(w.properties.issues.items.properties.problem.maxLength, 300);
+  assert.equal(w.properties.upsert_components.maxItems, 6);
+  assert.equal(w.properties.upsert_components.items.properties.what.maxLength, 200);
+  assert.equal(w.properties.walkthrough_steps.maxItems, 7);
+  assert.equal(w.properties.scale.maxItems, 1);
+  assert.deepEqual(w.required.sort(), ["issues", "remove_components", "remove_connections", "scale", "upsert_components", "upsert_connections", "verdict", "walkthrough_steps"]);
 });
 
 test("validateArchitecture: an arrow against the code's includes is dropped or sent for a fix", () => {

@@ -32,15 +32,25 @@ function archSystem(L: ExplainSpec, icons: string, hints = "") {
  * prompt already asks for these sizes; the limits make them binding.
  */
 export function archWire(L: Pick<ExplainSpec, "maxComponents" | "scaleItems">) {
-  const conn = Connection.extend({ label: z.string().max(40), evidence: z.string().max(160) });
+  const w = wireParts(L);
   return Architecture.extend({
     product: z.string().max(80),
     one_liner: z.string().max(200),
+    components: w.components,
+    connections: w.connections,
+    walkthrough: z.object({ name: z.string().max(80), steps: w.steps }),
+    scale: w.scale,
+  });
+}
+
+function wireParts(L: Pick<ExplainSpec, "maxComponents" | "scaleItems">) {
+  const conn = Connection.extend({ label: z.string().max(40), evidence: z.string().max(160) });
+  return {
     components: z.array(Component.extend({ name: z.string().max(80), keyword: z.string().max(40), what: z.string().max(200), evidence: z.array(z.string().max(160)).max(3) })).max(L.maxComponents),
     connections: z.array(conn).max(L.maxComponents + 4),
-    walkthrough: z.object({ name: z.string().max(80), steps: z.array(conn).max(7) }),
+    steps: z.array(conn).max(7),
     scale: z.array(ScaleRisk.extend({ why: z.string().max(300), fix_detail: z.string().max(300) })).max(Math.max(0, L.scaleItems)),
-  });
+  };
 }
 
 /**
@@ -238,6 +248,20 @@ const ReviewPatch = Review.extend({
 });
 export type ReviewPatch = z.infer<typeof ReviewPatch>;
 
+/** The review as sent to the API: the same limits as the map, and at most 10 issues of a sentence or two. */
+export function reviewWire(L: Pick<ExplainSpec, "maxComponents" | "scaleItems">) {
+  const w = wireParts(L);
+  return ReviewPatch.extend({
+    issues: z.array(z.object({ target: z.string().max(80), problem: z.string().max(300), fix: z.string().max(300) })).max(10),
+    upsert_components: w.components,
+    remove_components: z.array(z.string().max(80)).max(L.maxComponents),
+    upsert_connections: w.connections,
+    remove_connections: z.array(z.string().max(160)).max(L.maxComponents + 4),
+    walkthrough_steps: w.steps,
+    scale: w.scale,
+  });
+}
+
 /** Applies a review's changes to the map: whole-item replace by id (or from>to), removals, and full lists for the walkthrough and scale. */
 export function applyReviewPatch(arch: Architecture, p: Omit<ReviewPatch, "verdict" | "issues">): Architecture {
   const gone = new Set(p.remove_components);
@@ -261,11 +285,12 @@ export function applyReviewPatch(arch: Architecture, p: Omit<ReviewPatch, "verdi
  * flagged map costs one round trip, and a map that is mostly right is not rewritten (and re-reasoned)
  * whole. The reviewer sees the digest too, so it can add a component the files show but the map missed.
  */
-export async function reviewArchitecture(o: { ledger: CostLedger; arch: Architecture; evidence: string; digest: string; name: string; found?: ArchIssue[]; spec: ExplainSpec; icons: string; hints?: string; progress?: Progress; effort?: "minimal" | "low" | "medium" }) {
+export async function reviewArchitecture(o: { ledger: CostLedger; arch: Architecture; evidence: string; digest: string; name: string; found?: ArchIssue[]; spec: ExplainSpec; icons: string; hints?: string; progress?: Progress; effort?: "minimal" | "low" | "medium"; timeoutMs?: number }) {
   o.progress?.({ stage: "plan", message: "reviewing the architecture against the cited files" });
   const found = o.found?.length ? `\n\nA file check already found:\n${o.found.map((i, n) => `${n + 1}. [${i.target}] ${i.problem}`).join("\n")}` : "";
   const r = await sparkJson({
-    ledger: o.ledger, step: "architecture-review", schema: ReviewPatch, name: "review", effort: o.effort ?? "low", maxTokens: 14000,
+    // the time limit bounds a run of long reasoning (microui: 38 s at 4.2k reasoning tokens); a stuck call gets one quicker try
+    ledger: o.ledger, step: "architecture-review", schema: ReviewPatch, wire: reviewWire(o.spec), name: "review", effort: o.effort ?? "low", maxTokens: 14000, timeoutMs: o.timeoutMs ?? 75_000,
     messages: [
       { role: "system", content: `${REVIEWER}\nWrite the issues first, as full sentences that quote the code. Then return only the changes that fix them: each changed or new component or connection whole, the ids of ones to drop, and the full walkthrough steps or scale list only if they change. Leave everything that was right out of the changes. Every issue you list has a matching change. Changed and new items follow the same rules as the original map, and the result keeps its component count and number of scale risks:\n${archSystem(o.spec, o.icons, o.hints)}` },
       { role: "user", content: `Repository: ${o.name}\n\nARCHITECTURE JSON:\n${JSON.stringify(o.arch)}${found}\n\nCITED FILE EXCERPTS:\n${o.evidence}\n\nDIGEST (secrets stripped):\n${o.digest}` },
@@ -283,7 +308,7 @@ export async function fixArchitecture(o: { ledger: CostLedger; arch: Architectur
   const ids = new Set(o.open.flatMap((i) => (i.target === "walkthrough" ? o.arch.walkthrough.steps.flatMap((s) => [s.from, s.to]) : i.target.split(">"))));
   const evidence = evidencePack({ ...o.arch, components: o.arch.components.filter((c) => ids.has(c.id)), connections: [], scale: [] }, o.read, 12000);
   const r = await sparkJson({
-    ledger: o.ledger, step: "architecture-fix", schema: ReviewPatch, name: "review", effort: "low", maxTokens: 8000,
+    ledger: o.ledger, step: "architecture-fix", schema: ReviewPatch, wire: reviewWire(o.spec), name: "review", effort: "low", maxTokens: 8000, timeoutMs: 60_000,
     messages: [
       { role: "system", content: `You fix specific problems in an architecture map for a whiteboard explainer. Fix exactly the listed problems and nothing else: return each changed component or connection whole, ids to drop, and the full walkthrough steps only if a step changes. Keep every id and the component count. verdict is 'revise'; list one issue per problem you fixed.\n${archSystem(o.spec, o.icons, o.hints)}` },
       { role: "user", content: `ARCHITECTURE JSON:\n${JSON.stringify(o.arch)}\n\nPROBLEMS:\n${o.open.map((i, n) => `${n + 1}. [${i.target}] ${i.problem}`).join("\n")}\n\nCITED FILE EXCERPTS:\n${evidence}` },
