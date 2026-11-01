@@ -1,0 +1,120 @@
+{
+ "title": "rxi/microui",
+ "subtitle": "tiny buttons from fresh frames",
+ "scenes": [
+  {
+   "id": "s01-hook",
+   "kind": "hook",
+   "heading": "buttons that forget",
+   "narration": "What if buttons forgot you after every click? This tiny kit redraws windows each frame for you, skipping hand-placed pixels. Picture a short-order kitchen tracking one press.",
+   "add_components": [],
+   "add_connections": [],
+   "board_nodes": [],
+   "board_edges": [],
+   "highlights": [],
+   "callouts": [],
+   "items": []
+  },
+  {
+   "id": "s02-layer",
+   "kind": "layer",
+   "heading": "the front counter",
+   "narration": "You press keys as the app user, and you click too. The demo app, your per-frame loop helper, loops frames so you see change.",
+   "add_components": [
+    "app-user",
+    "demo-app"
+   ],
+   "add_connections": [
+    "app-user>demo-app"
+   ],
+   "board_nodes": [],
+   "board_edges": [],
+   "highlights": [],
+   "callouts": [],
+   "items": []
+  },
+  {
+   "id": "s03-layer",
+   "kind": "layer",
+   "heading": "the forgetful kitchen",
+   "narration": "The ui core, microui, a tiny C library, rebuilds widgets, clickable buttons, from scratch for you. It records the command list, simple kitchen tickets, so drawing stays trivial.",
+   "add_components": [
+    "microui",
+    "command-list"
+   ],
+   "add_connections": [
+    "demo-app>microui",
+    "microui>command-list"
+   ],
+   "board_nodes": [],
+   "board_edges": [],
+   "highlights": [],
+   "callouts": [],
+   "items": []
+  },
+  {
+   "id": "s04-layer",
+   "kind": "layer",
+   "heading": "the ticket window",
+   "narration": "Behind tickets the sdl renderer, an SDL drawing helper, paints for you. It presents the frame, or you see nothing.",
+   "add_components": [
+    "renderer"
+   ],
+   "add_connections": [
+    "renderer>app-user",
+    "renderer>command-list"
+   ],
+   "board_nodes": [],
+   "board_edges": [],
+   "highlights": [],
+   "callouts": [],
+   "items": []
+  },
+  {
+   "id": "s05-walkthrough",
+   "kind": "walkthrough",
+   "heading": "follow one press",
+   "narration": "To trail one press, you press keys on the OK button for action. The demo app declares widgets for the open window for you. Next the ui core records commands into the command list as rect, a colored box, plus text. Then the sdl renderer reads commands from tickets. It shows the frame with OK lit for you.",
+   "add_components": [],
+   "add_connections": [],
+   "board_nodes": [],
+   "board_edges": [],
+   "highlights": [],
+   "callouts": [],
+   "items": []
+  },
+  {
+   "id": "s06-recap",
+   "kind": "recap",
+   "heading": "the whole trip",
+   "narration": "Across the whole trip you, as the app user, tap through the demo app, the ui core, the command list, and the sdl renderer back to a lit button. So forgetting each frame keeps the kit tiny, yet familiar for you.",
+   "add_components": [],
+   "add_connections": [],
+   "board_nodes": [],
+   "board_edges": [],
+   "highlights": [],
+   "callouts": [],
+   "items": []
+  }
+ ],
+ "repairs": [],
+ "check": {
+  "first": [
+   "s05-walkthrough: missing article in \"open window\"; say \"the\" or \"a\" before the noun",
+   "\"widgets\" (s03-layer) is used without a plain-words explanation; explain it in the same sentence or drop it",
+   "\"rect\" (s05-walkthrough) is used without a plain-words explanation; explain it in the same sentence or drop it"
+  ],
+  "final": [
+   "s05-walkthrough: missing article in \"open window\"; say \"the\" or \"a\" before the noun"
+  ],
+  "revised": true
+ },
+ "renames": [],
+ "polish": {
+  "rewritten": 6,
+  "kept": [],
+  "issues": [
+   "s05-walkthrough: missing article in \"open window\"; say \"the\" or \"a\" before the noun"
+  ]
+ }
+}

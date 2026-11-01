@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import { getTheme, specFromBrief, DEFAULT_BRIEF, type Brief } from "@explainlike/core";
-import { compose, loadIconPack, checkPlacement, placementPass, textWidth, cameraAt, type Film, type FText, type Mark, type Sketch } from "../src/index.js";
+import { compose, loadIconPack, checkPlacement, placementPass, textWidth, cameraAt, readableWidth, shotStarts, type Film, type FText, type Mark, type Sketch } from "../src/index.js";
 
 const fx = new URL("./fixtures/", import.meta.url);
 const plan = JSON.parse(fs.readFileSync(new URL("example-app.plan.json", fx), "utf8"));
@@ -195,4 +195,24 @@ test("widening a shot to reach one word never slices another lit word at the fra
       assert.ok(inside || outside, `"${t.text}" sliced by the shot at ${k.t.toFixed(1)}s`);
     }
   }
+});
+
+test("the walkthrough follows the walk up close instead of showing the whole board the whole time", async () => {
+  // rxi/microui (run microui7): the last step runs back across the whole board, and that one wide shot
+  // used to pull the entire 19 s walk out to an unreadable full-board view
+  const read = (n: string) => JSON.parse(fs.readFileSync(new URL(`microui7.${n}.json`, fx), "utf8"));
+  const mplan = read("plan"), march = read("architecture"), brief: Brief = read("brief");
+  const secs: Record<string, number> = { "s01-hook": 10.82, "s02-layer": 10.02, "s03-layer": 13.98, "s04-layer": 8.66, "s05-walkthrough": 19.42, "s06-recap": 14.74 };
+  const maudio = mplan.scenes.map((s: any) => {
+    const ws = s.narration.split(/\s+/), st = (secs[s.id] - 1.2) / ws.length;
+    return { sceneId: s.id, duration: secs[s.id] - 1.2, words: ws.map((w: string, i: number) => ({ word: w, start: i * st, end: i * st + st * 0.8 })) };
+  });
+  const spec = specFromBrief(brief);
+  const { film, timeline } = await compose({ plan: mplan, audio: maudio, theme: getTheme(spec.look), spec, pack: loadIconPack(), sourceLabel: "x", arch: march });
+  const walk = timeline.find((s) => s.kind === "walkthrough")!;
+  const RW = readableWidth(film);
+  let close = 0;
+  for (let t = walk.start + 0.05; t < walk.end; t += 0.1) if (cameraAt(film, t).w <= RW) close += 0.1;
+  assert.ok(close / (walk.end - walk.start) >= 0.6, `readable for ${close.toFixed(1)} of ${(walk.end - walk.start).toFixed(1)} s`);
+  assert.ok(shotStarts(film).filter((t) => t > walk.start - 0.01 && t < walk.end).length >= 3, "the walk gets a shot per stretch of steps");
 });

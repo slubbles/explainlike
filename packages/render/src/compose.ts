@@ -280,8 +280,8 @@ export const FIRST_WITHIN = 1.0;
 /**
  * Camera shots that follow a run of events, each with the box it needs ("box") and the box it would
  * share with the event before it in the same shot ("wide"). Every way to split the run into consecutive
- * shots is tried (a scene has a handful of events); the one whose widest shot is narrowest wins, then the
- * one with fewer cuts. A shot starts one move before its first event and holds at least a full beat.
+ * shots is tried (a scene has a handful of events); the one that is closest for most of the scene's time
+ * wins (its widest shot counts a little too), then the one with fewer cuts. A shot starts one move before its first event and holds at least a full beat.
  * `holdUntilSettled` moves each event's time to no earlier than its shot has settled.
  */
 function followShots(ev: { t: number; box: Box; wide: Box }[], start: number, end: number, tempo: { move: number; minBeat: number }, W: number, H: number): { t: number; box: Box; first: number }[] {
@@ -312,7 +312,11 @@ function followShots(ev: { t: number; box: Box; wide: Box }[], start: number, en
       late += Math.max(0, t + tempo.move - e.t);
     }
     if (!ok) continue;
-    const score = Math.max(...cand.map((c) => span(c.box))) + cand.length * 40 + late * 300;
+    // what the viewer sees most of the time counts most: one shot that must be wide (a wire that runs the
+    // whole board) no longer drags the rest of the scene out to that width
+    const until = (k: number) => (k + 1 < cand.length ? cand[k + 1].t : end);
+    const seen = cand.reduce((a, c, k) => a + span(c.box) * Math.max(0.1, until(k) - c.t), 0) / Math.max(0.1, end - start);
+    const score = seen + 0.25 * Math.max(...cand.map((c) => span(c.box))) + cand.length * 40 + late * 300;
     if (score < best) { best = score; shots = cand; }
   }
   for (let i = n; i < ev.length && shots.length; i++) { const cur = shots[shots.length - 1]; cur.box = unionBox([cur.box, ev[i].box], 0); }
