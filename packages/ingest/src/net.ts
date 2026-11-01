@@ -1,0 +1,46 @@
+/**
+ * Fetches for links a stranger can type: every hop (the link and each redirect) must resolve to a public
+ * address, so a page cannot point the server at itself, its cloud metadata service or a private network.
+ * EXPLAINLIKE_ALLOW_PRIVATE_URLS=1 lifts this for a self-hosted CLI reading an intranet page.
+ */
+import dns from "node:dns/promises";
+import net from "node:net";
+
+export class PrivateAddressError extends Error {}
+
+/** Loopback, private, link-local, carrier-grade NAT, multicast and other non-public ranges, IPv4 and IPv6. */
+export function privateAddress(ip: string): boolean {
+  const v4 = ip.replace(/^::ffff:/i, "");
+  if (net.isIPv4(v4)) {
+    const [a, b] = v4.split(".").map(Number) as [number, number];
+    return a === 0 || a === 10 || a === 127 || a >= 224 || (a === 169 && b === 254) || (a === 172 && b >= 16 && b <= 31)
+      || (a === 192 && b === 168) || (a === 100 && b >= 64 && b <= 127) || (a === 192 && b === 0) || (a === 198 && (b === 18 || b === 19));
+  }
+  if (!net.isIPv6(ip)) return true;
+  const h = ip.toLowerCase();
+  // ::, ::1, unique local fc00::/7, link-local fe80::/10, multicast ff00::/8, and IPv4-mapped forms in hex
+  return h === "::" || h === "::1" || /^f[cd]/.test(h) || /^fe[89ab]/.test(h) || /^ff/.test(h) || /^::ffff:[0-9a-f]+:[0-9a-f]+$/.test(h);
+}
+
+async function assertPublic(url: URL, isPrivate: (ip: string) => boolean): Promise<void> {
+  if (url.protocol !== "https:" && url.protocol !== "http:") throw new PrivateAddressError(`Only http and https links can be read (got ${url.protocol}).`);
+  if (process.env.EXPLAINLIKE_ALLOW_PRIVATE_URLS === "1") return;
+  const host = url.hostname.replace(/^\[|\]$/g, "");
+  const addrs = net.isIP(host) ? [host] : (await dns.lookup(host, { all: true }).catch(() => [])).map((a) => a.address);
+  if (!addrs.length) throw new Error(`Could not find the site ${host}. Check the link.`);
+  if (addrs.some(isPrivate)) throw new PrivateAddressError(`That link points at a private network address (${host}), which this server does not read.`);
+}
+
+/** fetch() that checks each hop's address and follows at most `hops` redirects itself. The response's url is the final one. */
+export async function publicFetch(link: string, init: RequestInit = {}, hops = 5, isPrivate = privateAddress): Promise<Response> {
+  let url = new URL(link);
+  for (let i = 0; ; i++) {
+    await assertPublic(url, isPrivate);
+    const r = await fetch(url, { ...init, redirect: "manual" });
+    const loc = r.status >= 300 && r.status < 400 ? r.headers.get("location") : null;
+    if (!loc) { Object.defineProperty(r, "url", { value: url.href }); return r; }
+    if (i >= hops) throw new Error("That link redirects too many times. Link to the page itself.");
+    await r.body?.cancel().catch(() => {});
+    url = new URL(loc, url);
+  }
+}

@@ -4,6 +4,7 @@ import { Readability } from "@mozilla/readability";
 import { parseHTML } from "linkedom";
 import type { SourceDoc } from "@explainlike/core";
 import { redact } from "./secrets.js";
+import { publicFetch, PrivateAddressError } from "./net.js";
 
 export interface Rect { x: number; y: number; w: number; h: number }
 export interface SourceShotOut { file: string; width: number; height: number; rects: Record<string, Rect[]> }
@@ -56,8 +57,9 @@ function cardHtml(c: Card, blocks: (string | null)[]): string {
 /** fetch with a time limit, turning a hang or a dropped connection into a sentence a person can act on. */
 async function get(url: string, what: string, init: RequestInit = {}): Promise<Response> {
   try {
-    return await fetch(url, { ...init, signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) });
+    return await publicFetch(url, { ...init, signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) });
   } catch (e) {
+    if (e instanceof PrivateAddressError || /^(Could not find the site|That link redirects)/.test((e as Error)?.message ?? "")) throw e;
     const name = (e as Error)?.name;
     throw new Error(name === "TimeoutError" || name === "AbortError" ? `${what} did not load within ${FETCH_TIMEOUT_MS / 1000} s. Try again, or try another link.` : `Could not reach ${what}. Check the link and the internet connection.`);
   }
@@ -104,7 +106,7 @@ async function fetchX(url: string, id: string): Promise<Card & { url: string }> 
 }
 
 export async function fetchArticle(url: string): Promise<Card & { url: string }> {
-  const r = await get(url, new URL(url).hostname, { headers: { "user-agent": UA, accept: "text/html" }, redirect: "follow" });
+  const r = await get(url, new URL(url).hostname, { headers: { "user-agent": UA, accept: "text/html" } });
   if (!r.ok) throw new Error(fetchError("article", r.status));
   const type = r.headers.get("content-type") ?? "";
   if (type && !/html|xml|text\/plain/i.test(type)) throw new Error(`That link is not a web page (${type.split(";")[0]}). Link to an article instead.`);
