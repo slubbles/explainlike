@@ -2,14 +2,15 @@ import type { Film, FText, CamKey } from "./film.js";
 import type { Box } from "./layout.js";
 import type { Sketch } from "./compose.js";
 import { cameraAt } from "./check.js";
-import { boxOf, readableWidth, TITLE_BAND } from "./pace.js";
+import { boxOf, readableWidth, TITLE_BAND, CAPTION_BAND } from "./pace.js";
 import { RING_PAD, ringReach } from "./annotate.js";
 
 /**
  * The placement check that runs before a single frame is drawn: rings clear the box they circle and
  * cross no other box or word, labels sit clear of lines, arrows and other words, arrows and wires touch
  * what they join, rings sit centred on their target, nothing is cut off by the frame edge, and no word
- * is too small to read. A few fix passes nudge what can be nudged; whatever is left fails loudly.
+ * is too small to read. Fix passes repeat until the plan is clean or stops improving; each fix is kept only
+ * when a fresh check scores better. Whatever is left fails loudly.
  */
 
 export type RingShape = { k: "super"; cx: number; cy: number; rx: number; ry: number } | { k: "circle"; cx: number; cy: number; r: number } | { k: "rect"; box: Box };
@@ -28,6 +29,8 @@ export interface PlacementReport {
   fixed: { pass: number; rule: Rule; what: string; how: string }[];
   issues: PlacementIssue[];
 }
+/** An issue with the item a fix would change. */
+export type Found = PlacementIssue & { item?: Item };
 
 /** Gap, in world units, at which an arrow or wire end still reads as touching what it points at. */
 export const TOUCH = 10;
@@ -39,6 +42,11 @@ export const MIN_SMALL_TEXT_PX = 12;
 const area = (a: Box, b: Box) => Math.max(0, Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x)) * Math.max(0, Math.min(a.y + a.h, b.y + b.h) - Math.max(a.y, b.y));
 const inset = (b: Box, m: number): Box => ({ x: b.x + m, y: b.y + m, w: b.w - 2 * m, h: b.h - 2 * m });
 const inBox = (p: [number, number], b: Box) => p[0] > b.x && p[0] < b.x + b.w && p[1] > b.y && p[1] < b.y + b.h;
+/** Share of b inside the frame f (a line with no height counts by its length). */
+const seen = (f: Box, b: Box) => {
+  const part = (f0: number, fl: number, b0: number, bl: number) => bl > 0 ? Math.max(0, Math.min(f0 + fl, b0 + bl) - Math.max(f0, b0)) / bl : b0 >= f0 && b0 <= f0 + fl ? 1 : 0;
+  return Math.min(part(f.x, f.w, b.x, b.w), part(f.y, f.h, b.y, b.h));
+};
 const contains = (o: Box, b: Box, m = 0) => b.x >= o.x - m && b.y >= o.y - m && b.x + b.w <= o.x + o.w + m && b.y + b.h <= o.y + o.h + m;
 /** Distance from p to the outline of b: positive outside, negative inside. */
 function boxDist(p: [number, number], b: Box) {
@@ -103,7 +111,7 @@ function settled(film: Film, t: number) {
   return t + 0.01;
 }
 
-interface Item { kind: "text" | "node" | "ring" | "arrow" | "wire"; box: Box; t0: number; g?: string; owner?: number; el?: FText; mark?: Mark; label: string }
+export interface Item { kind: "text" | "node" | "ring" | "arrow" | "wire"; box: Box; t0: number; g?: string; owner?: number; el?: FText; mark?: Mark; label: string }
 
 function items(p: Placed): Item[] {
   const out: Item[] = [];
@@ -143,8 +151,8 @@ function together(film: Film, a: Item, b: Item): number | undefined {
   return undefined;
 }
 
-export function checkPlacement(p: Placed, counts: Record<string, number> = {}): (PlacementIssue & { item?: Item })[] {
-  const { film } = p, out: (PlacementIssue & { item?: Item })[] = [];
+export function checkPlacement(p: Placed, counts: Record<string, number> = {}): Found[] {
+  const { film } = p, out: Found[] = [];
   const all = items(p);
   const count = (r: Rule) => (counts[r] = (counts[r] ?? 0) + 1);
   const texts = all.filter((i) => i.kind === "text"), nodes = all.filter((i) => i.kind === "node");
@@ -230,7 +238,7 @@ export function checkPlacement(p: Placed, counts: Record<string, number> = {}): 
         const r = k.t + k.move + 0.01;
         if (k.t <= t || r >= end || opacity(film, it.g, r) < 0.6) continue;
         const c = cameraAt(film, r);
-        if (!contains(c, it.box, -m) && area(c, it.box) > 0) { out.push({ rule: "cropped", t: r, what: `${it.label} is cut off by the frame edge at ${r.toFixed(1)}s`, item: it }); break; }
+        if (!contains(c, it.box, -m) && seen(c, it.box) > 0) { out.push({ rule: "cropped", t: r, what: `${it.label} is cut off by the frame edge at ${r.toFixed(1)}s`, item: it }); break; }
       }
     }
     if (it.el) {
@@ -279,53 +287,134 @@ function enlarge(p: Placed, it: Item, what: string): string | undefined {
   return `enlarged from ${from} to ${e.size}`;
 }
 
-/** Widen the shot that cuts a word or mark off just enough to take it in, while it stays readable. */
-function reframe(p: Placed, it: Item, t: number): string | undefined {
-  const { film } = p, ks = film.camera.filter((k) => k.t <= t);
-  const k: CamKey | undefined = ks[ks.length - 1];
-  if (!k) return undefined;
-  const pad = 30, b = it.box, rest = settled(film, t);
+
+/** The shots that cut an item off while it is lit: for a word the one it finishes in, for a ring or arrow
+ * every later shot that comes to rest on part of it too, so one fix covers the whole time it is on screen. */
+function cropShots(p: Placed, it: Item): { k: CamKey; r: number }[] {
+  const { film } = p, K = film.camera, end = film.end?.t0 ?? film.duration, start = settled(film, it.t0);
+  let i0 = 0;
+  for (let i = 0; i < K.length; i++) if (K[i].t <= start) i0 = i;
+  const out: { k: CamKey; r: number }[] = [];
+  for (let i = i0; i < K.length; i++) {
+    const k = K[i], r = i === i0 ? start : k.t + k.move + 0.01;
+    if (i > i0 && (it.kind === "text" || r >= end)) break;
+    if (opacity(film, it.g, r) < 0.6) continue;
+    const m = (4 * k.w) / film.width;
+    if (!contains(k, it.box, -m) && (i === i0 || seen(k, it.box) > 0)) out.push({ k, r });
+  }
+  return out;
+}
+
+/** Something already whole on screen at r that the new frame would slice. */
+function slices(p: Placed, before: Box, after: Box, r: number, skip: Item) {
+  return items(p).some((o) => o.kind !== "wire" && o.kind !== "node" && o.label !== skip.label && o.t0 <= r && opacity(p.film, o.g, r) > 0.6
+    && contains(before, o.box) && !contains(after, o.box) && area(after, o.box) > 0);
+}
+
+/** Slide one shot, same size, so the item sits whole inside it (clear of the title, and of the captions when there is room). */
+function pan(p: Placed, it: Item, k: CamKey, r: number): boolean {
+  const { film } = p, b = it.box, m = (4 * k.w) / film.width;
+  const top = film.headings.some((x) => r >= x.t0 && r < x.t1) ? (TITLE_BAND * k.h) / film.height : 0;
+  for (const [pad, bottom] of [[30, (CAPTION_BAND * k.h) / film.height], [30, 0], [8, 0]]) {
+    const lx = b.x + b.w + pad + m - k.w, hx = b.x - pad - m, ly = b.y + b.h + pad + m + bottom - k.h, hy = b.y - pad - m - top;
+    if (lx > hx || ly > hy) continue;
+    const nf = { ...k, x: Math.min(hx, Math.max(lx, k.x)), y: Math.min(hy, Math.max(ly, k.y)) };
+    if (slices(p, k, nf, r, it)) continue;
+    Object.assign(k, { x: nf.x, y: nf.y });
+    return true;
+  }
+  return false;
+}
+
+/** Widen one shot just enough to take the item in, never past the width where box names stay readable. */
+function widen(p: Placed, it: Item, k: CamKey, r: number): boolean {
+  const { film } = p, pad = 30, b = it.box;
   // a mark's own label (same group, already written) rides along so the title never covers it either
-  const top = Math.min(b.y, ...items(p).filter((o) => o.kind === "text" && it.kind !== "text" && it.g && o.g === it.g && o.t0 <= rest).map((o) => o.box.y));
+  const top = Math.min(b.y, ...items(p).filter((o) => o.kind === "text" && it.kind !== "text" && it.g && o.g === it.g && o.t0 <= r).map((o) => o.box.y));
   const x0 = Math.min(k.x, b.x - pad), x1 = Math.max(k.x + k.w, b.x + b.w + pad), y1 = Math.max(k.y + k.h, b.y + b.h + pad);
   let y0 = Math.min(k.y, b.y - pad), w = 0, h = 0;
   // when the shot grows upward to reach the item while a scene title is up, leave the title its band
-  const titled = film.headings.some((x) => t >= x.t0 && t < x.t1), up = top - pad < k.y;
+  const titled = film.headings.some((x) => r >= x.t0 && r < x.t1), up = top - pad < k.y;
   for (let i = 0; i < (titled && up ? 4 : 1); i++) {
     w = Math.max(x1 - x0, ((y1 - y0) * film.width) / film.height);
     h = (w * film.height) / film.width;
     if (titled && up) y0 = top - pad - (TITLE_BAND * h) / film.height;
   }
-  // unless that room would slice something already lit on the board: then reach just the item, as before
-  const cut = (f: Box) => items(p).some((o) => o.kind !== "wire" && o.t0 <= rest && opacity(film, o.g, rest) > 0.6 && area(f, o.box) > 0 && area(f, o.box) < o.box.w * o.box.h - 1);
+  // unless that room would slice something already lit on the board: then reach just the item
+  const cut = (f: Box) => items(p).some((o) => o.kind !== "wire" && o.t0 <= r && opacity(film, o.g, r) > 0.6 && area(f, o.box) > 0 && area(f, o.box) < o.box.w * o.box.h - 1);
   if (titled && up && cut({ x: (x0 + x1) / 2 - w / 2, y: (y0 + y1) / 2 - h / 2, w, h })) {
     y0 = Math.min(k.y, b.y - pad);
     w = Math.max(x1 - x0, ((y1 - y0) * film.width) / film.height);
     h = (w * film.height) / film.width;
   }
-  if (w > readableWidth(film) * 1.5 && w > k.w * 1.05) return undefined;
+  if (w > readableWidth(film) * 1.5 && w > k.w * 1.05) return false;
   Object.assign(k, { x: (x0 + x1) / 2 - w / 2, y: (y0 + y1) / 2 - h / 2, w, h });
-  return `widened the shot at ${k.t.toFixed(1)}s to ${Math.round(w)}`;
+  return true;
 }
 
-export function placementPass(p: Placed, passes = 3): PlacementReport {
+/** Ways to bring a cut-off item whole into every shot that cuts it, gentlest first: slide, slide or widen, widen. */
+function reframes(p: Placed, it: Item): (() => string | undefined)[] {
+  const all = (verb: string, f: (k: CamKey, r: number) => boolean) => () => {
+    const shots = cropShots(p, it);
+    if (!shots.length || !shots.every(({ k, r }) => f(k, r))) return undefined;
+    return `${verb} the shot${shots.length > 1 ? "s" : ""} at ${shots.map(({ k }) => `${k.t.toFixed(1)}s`).join(", ")}${verb === "panned" ? "" : ` (now ${shots.map(({ k }) => Math.round(k.w)).join(", ")} wide)`}`;
+  };
+  return [
+    all("panned", (k, r) => pan(p, it, k, r)),
+    all("panned or widened", (k, r) => pan(p, it, k, r) || widen(p, it, k, r)),
+    all("widened", (k, r) => widen(p, it, k, r)),
+  ];
+}
+
+/** Lower is better: a crop weighs most, then overlaps and loose ends, then text a little small. */
+const score = (fs: Found[]) => fs.reduce((s, i) => s + (i.rule === "cropped" ? 4 : i.rule === "text-small" ? 1 : 2), 0);
+
+/** Everything a fix may change, so a fix that makes things worse can be undone. */
+function snapshot(p: Placed) {
+  const cam = p.film.camera.map((k) => ({ ...k }));
+  const els = p.film.elements.map((e) => (e.k === "text" ? { x: e.x, y: e.y, size: e.size } : undefined));
+  const texts = p.sketch.texts.map((t) => ({ x: t.x, y: t.y, size: (t as { size?: number }).size }));
+  return () => {
+    p.film.camera.forEach((k, i) => Object.assign(k, cam[i]));
+    p.film.elements.forEach((e, i) => { if (e.k === "text") Object.assign(e, els[i]); });
+    p.sketch.texts.forEach((t, i) => Object.assign(t, texts[i]));
+  };
+}
+
+/** Try each fix on its own; keep the one a fresh check scores best, if it beats what is there now. */
+function bestFix(p: Placed, fixes: (() => string | undefined)[], now: number): string | undefined {
+  const undo = snapshot(p);
+  let best: { i: number; s: number } | undefined;
+  fixes.forEach((f, i) => {
+    if (f()) { const s = score(checkPlacement(p)); if (s < now && (!best || s < best.s)) best = { i, s }; }
+    undo();
+  });
+  return best ? fixes[best.i]() : undefined;
+}
+
+export function placementPass(p: Placed, passes = 8): PlacementReport {
   const fixed: PlacementReport["fixed"] = [];
-  let issues = checkPlacement(p), n = 0;
-  for (; n < passes && issues.length; n++) {
+  let found = checkPlacement(p), n = 0;
+  const same = (a: Found, b: Found) => a.rule === b.rule && a.item?.el === b.item?.el && a.item?.mark === b.item?.mark;
+  // repeat until clean or a whole pass gains nothing
+  for (; n < passes && found.length; ) {
+    const before = score(found);
     let any = false;
-    const done = new Set<unknown>();
-    for (const is of issues) {
-      if (!is.item || done.has(is.item.el ?? is.item.mark)) continue;
-      const how = is.rule === "label-overlap" && is.item.el ? nudge(p, is.item)
-        : is.rule === "cropped" ? reframe(p, is.item, is.t)
-        : is.rule === "text-small" ? enlarge(p, is.item, is.what) : undefined;
-      if (how) done.add(is.item.el ?? is.item.mark);
-      if (how) { fixed.push({ pass: n + 1, rule: is.rule, what: is.what, how }); any = true; }
+    n++;
+    for (const is of [...found]) {
+      if (!is.item || !found.some((f) => same(f, is))) continue;
+      const fixes = is.rule === "label-overlap" && is.item.el ? [() => nudge(p, is.item!)]
+        : is.rule === "cropped" ? reframes(p, is.item)
+        : is.rule === "text-small" ? [() => enlarge(p, is.item!, is.what)] : [];
+      const how = fixes.length ? bestFix(p, fixes, score(found)) : undefined;
+      if (!how) continue;
+      found = checkPlacement(p);
+      fixed.push({ pass: n, rule: is.rule, what: is.what, how });
+      any = true;
     }
-    issues = checkPlacement(p);
-    if (!any) break;
+    if (!any || score(found) >= before) break;
   }
   const checked: Record<string, number> = {};
   checkPlacement(p, checked);
-  return { ok: !issues.length, passes: n, checked, fixed, issues: issues.map(({ rule, t, what }) => ({ rule, t: Math.round(t * 100) / 100, what })) };
+  return { ok: !found.length, passes: n, checked, fixed, issues: found.map(({ rule, t, what }) => ({ rule, t: Math.round(t * 100) / 100, what })) };
 }
