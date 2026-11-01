@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import type { Architecture, NoteItem, Scene } from "@explainlike/core";
-import { validateNotes, validateArchitecture, repairRepoPlan, checkStory, journeyOrder, speechIssues, keepsSync, syncPhrases, fillerIn, hookLine, validateCutIn, cutInRules, applyReviewPatch, actionName, undrawnLinks } from "@explainlike/planner";
+import { validateNotes, validateArchitecture, repairRepoPlan, checkStory, journeyOrder, speechIssues, keepsSync, syncPhrases, fillerIn, hookLine, validateCutIn, cutInRules, applyReviewPatch, actionName, undrawnLinks, structural } from "@explainlike/planner";
 
 const item = (text: string, extra: Partial<NoteItem> = {}): NoteItem => ({ text, color: "white", icon: "", target: "", estimate: false, evidence: "", ...extra });
 const ids = new Set(["d1-db", "edge"]);
@@ -384,3 +384,9 @@ test("the speech check does not take a chain of parts for an explanation", () =>
   assert.deepEqual(speechIssues(plan, storyArch, "a hotel front desk").filter((i) => /explained again/.test(i)), []);
 });
 
+test("structural issues replan the scenes; wording issues only fix the narration", () => {
+  assert.ok(structural("the video must open with a 'hook' scene"));
+  assert.ok(structural("there is no 'walkthrough' scene"));
+  assert.ok(!structural('s05-recap: "ui core" is explained again; say what it is only the first time, then just its name'));
+  assert.ok(!structural("walkthrough: says the front door and the agent drivers talk directly, but the board draws no arrow between them; tell the hop through the part that really sits between them"));
+});
