@@ -60,7 +60,7 @@ function wireParts(L: Pick<ExplainSpec, "maxComponents" | "scaleItems">) {
  * the time limit means a stuck call costs one more quick try, never a hang.
  */
 export async function extractArchitecture(o: { ledger: CostLedger; digest: string; name: string; spec: ExplainSpec; icons: string; hints?: string; progress?: Progress; effort?: "low" | "medium"; timeoutMs?: number }): Promise<Architecture> {
-  o.progress?.({ stage: "plan", message: "mapping the architecture with Muse Spark" });
+  o.progress?.({ stage: "architecture", message: "mapping the architecture with Muse Spark" });
   const a = await sparkJson({
     ledger: o.ledger, step: "architecture", schema: Architecture, wire: archWire(o.spec), name: "architecture", effort: o.effort ?? "low", maxTokens: 10000, timeoutMs: o.timeoutMs ?? 90_000,
     messages: [
@@ -286,7 +286,7 @@ export function applyReviewPatch(arch: Architecture, p: Omit<ReviewPatch, "verdi
  * whole. The reviewer sees the digest too, so it can add a component the files show but the map missed.
  */
 export async function reviewArchitecture(o: { ledger: CostLedger; arch: Architecture; evidence: string; digest: string; name: string; found?: ArchIssue[]; spec: ExplainSpec; icons: string; hints?: string; progress?: Progress; effort?: "minimal" | "low" | "medium"; timeoutMs?: number }) {
-  o.progress?.({ stage: "plan", message: "reviewing the architecture against the cited files" });
+  o.progress?.({ stage: "review", message: "reviewing the architecture against the cited files" });
   const found = o.found?.length ? `\n\nA file check already found:\n${o.found.map((i, n) => `${n + 1}. [${i.target}] ${i.problem}`).join("\n")}` : "";
   const r = await sparkJson({
     // the time limit bounds a run of long reasoning (microui: 38 s at 4.2k reasoning tokens); a stuck call gets one quicker try
@@ -304,7 +304,7 @@ export async function reviewArchitecture(o: { ledger: CostLedger; arch: Architec
  * the parts involved, so it costs a short call instead of a second full review.
  */
 export async function fixArchitecture(o: { ledger: CostLedger; arch: Architecture; open: ArchIssue[]; read: (p: string, max?: number) => string; spec: ExplainSpec; icons: string; hints?: string; progress?: Progress }) {
-  o.progress?.({ stage: "plan", message: `fixing ${o.open.length} map problem(s) the file check found` });
+  o.progress?.({ stage: "review", message: `fixing ${o.open.length} map problem(s) the file check found` });
   const ids = new Set(o.open.flatMap((i) => (i.target === "walkthrough" ? o.arch.walkthrough.steps.flatMap((s) => [s.from, s.to]) : i.target.split(">"))));
   const evidence = evidencePack({ ...o.arch, components: o.arch.components.filter((c) => ids.has(c.id)), connections: [], scale: [] }, o.read, 12000);
   const r = await sparkJson({

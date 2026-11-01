@@ -6,7 +6,7 @@ import { sparkJson, type CostLedger } from "@explainlike/models";
  * The engine, not the viewer, picks the approach, depth, tempo, look and style.
  */
 export async function planBrief(o: { ledger: CostLedger; kind: SourceKind; name: string; text: string; ask?: Ask; progress?: Progress }): Promise<Brief> {
-  o.progress?.({ stage: "plan", message: "deciding how to explain it" });
+  o.progress?.({ stage: "brief", message: "deciding how to explain it" });
   const list = (r: Record<string, string | { brief: string }>) => Object.entries(r).map(([k, v]) => `- ${k}: ${typeof v === "string" ? v : v.brief.split(".")[0]}`).join("\n");
   const ask = o.ask && [
     "The viewer told us what they want; it outranks the defaults above:",

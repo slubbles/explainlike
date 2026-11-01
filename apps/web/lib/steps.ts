@@ -20,8 +20,10 @@ export function stepsFor(job: { kind: string; input: string; voice: string; focu
     return [{ stage: "ingest", label: "reading the repository" }, { stage: "plan", label: plan }, ...TAIL(job.voice)];
   }
   const qa = job.voice === "silent" ? [] : [QA];
+  // the brief comes right after reading: it picks the approach, depth and tempo before anything is mapped or planned
+  const brief: Step = { stage: "brief", label: "deciding how to explain it" };
   if (sourceKind(job.input) === "repo") return [
-    { stage: "ingest", label: "reading the repository" },
+    { stage: "ingest", label: "reading the repository" }, brief,
     { stage: "architecture", label: "Muse Spark is mapping the architecture" },
     { stage: "review", label: "second pass: checking every box against the code" },
     { stage: "plan", label: "writing the scene plan" },
@@ -29,6 +31,7 @@ export function stepsFor(job: { kind: string; input: string; voice: string; focu
   ];
   return [
     { stage: "ingest", label: { "X post": "reading the post", topic: "finding reputable sources on the topic" }[sourceKind(job.input) as string] ?? "reading the article" },
+    brief,
     { stage: "plan", label: "Muse Spark is planning the explainer" },
     ...TAIL(job.voice), ...qa,
   ];
