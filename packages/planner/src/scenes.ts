@@ -42,7 +42,7 @@ function repoSystem(arch: Architecture, L: ExplainSpec, lo: number, hi: number):
     "Scene order and rules:",
     "1. one 'hook' scene, 3 or 4 sentences. Sentence one is the hook, shown big on screen as it is spoken: a question the viewer would ask, or one surprising, concrete claim about the problem this project solves, at most 14 words, no product name needed (good: 'How does a computer learn from its own mistakes?' or 'Every app you use forgets you the moment you close it.'; bad: 'This is X, a tool for Y.'). Then what the product is in plain words (no part names, no jargon) and what goes wrong without it or what it lets you do (the stakes), the everyday analogy, and the promise of the story, e.g. 'Let's follow one message through it.' add_components empty.",
     `2. 'layer' scenes along the journey: add exactly these components, in this order, at most ${L.perScene} per scene: ${path.map(kw).join(", ")}. Tell it as the request moving forward ('First...', 'Next it reaches...'). For each added component say its keyword out loud (in add_components order), what it does in plain words, its role in the analogy, and why it is there.`,
-    `3. one 'walkthrough' scene right after them: the core flow told once, end to end, as one short story. Say these step labels in order, each as the action of a natural sentence about who does what (the analogy role first), adding articles and verb endings as speech needs ('send message' becomes 'sends the message'): ${steps}. Good: 'You type a question, and the counter sends the message to the manager.' Bad: 'Step one is send message.' Never number the steps out loud. End with the concrete thing the user gets back (e.g. 'a working fix in your chat'), not 'an answer'. Heading like 'follow one message'. About ${Math.round(L.wordsPerScene * 1.6)} words. add_components empty.`,
+    `3. one 'walkthrough' scene right after them: the core flow told once, end to end, as one short story. Say these step labels in order, each as the action of a natural sentence about who does what (the analogy role first), adding articles and verb endings as speech needs ('send message' becomes 'sends the message'): ${steps}. Good: 'You type a question, and the counter sends the message to the manager.' Bad: 'Step one is send message.' Never number the steps out loud. Follow one concrete example from the repo the whole way (a real input like the words 'hello world', a real message, a real file) and say what it looks like after each step, the way Caleb follows one 2 TB model from disk to GPU. End with the concrete thing the user gets back (e.g. 'a working fix in your chat'), not 'an answer'. Heading like 'follow one message'. About ${Math.round(L.wordsPerScene * 1.6)} words. add_components empty.`,
     side.length
       ? `4. then 'layer' scene(s) for the side parts the request does not pass through: ${side.map(kw).join(", ")}. Keep them short: as few scenes as fit (at most ${L.perScene} parts per scene), one short clause per part (its keyword and plain job), opening with one tie-back to the journey such as 'Around the manager sit a few helpers:'. Do not repeat the same opener for each part.`
       : "4. (no side parts)",
@@ -179,6 +179,19 @@ export function speechIssues(plan: ScenePlan, arch: Architecture, analogy = ""):
     const code = s.narration.match(/\bcalled (the )?[A-Z][\w-]*( [A-Z][\w-]*)*/);
     if (code) issues.push(`${s.id}: "${code[0]}" puts a code name up front; use the plain name, and add the code name after it only if it helps`);
   });
+  // a part is explained once; "the regex bpe, a smart chopping method" again in the recap slows it down
+  const defined = new Set<string>();
+  for (const s of plan.scenes) {
+    const text = s.narration.toLowerCase().replace(/[’‘]/g, "'");
+    for (const c of arch.components) {
+      const k = c.keyword.toLowerCase();
+      if (!k) continue;
+      const re = new RegExp(`\\b${k.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}, (a|an|that's|that is|which is|the) `, "g");
+      if (!re.test(text)) continue;
+      if (defined.has(k)) issues.push(`${s.id}: "${c.keyword}" is explained again; say what it is only the first time, then just its name`);
+      defined.add(k);
+    }
+  }
   const keywords = new Set(arch.components.map((c) => norm(c.keyword)));
   const labels = new Set(arch.walkthrough.steps.map((x) => norm(x.label)));
   const an = norm(analogy);
@@ -239,6 +252,8 @@ export async function polishNarration(o: { ledger: CostLedger; plan: ScenePlan; 
     "- Any technical word left ('api', 'driver', 'harness', a database or framework name) gets a few plain words saying what it is, the first time it's said.",
     "- The viewer is 'you' all the way through; never 'the guest', 'the user' or 'the customer'.",
     "- No two scenes, and no two sentences in a row, open with the same words.",
+    "- Every sentence is a whole sentence with its own subject and verb; no fragments like 'It's incremental counts that update tallies.' 'a' and 'an' go only before one thing ('a load of pieces', never 'a ready loads of').",
+    "- Say what a part is only the first time it's named; after that, just its name. The recap never re-explains a part.",
     "- No filler that announces instead of explains: never 'you'll meet', 'you'll see', 'you'll find', 'then you've got', 'let's take a look', 'basically', 'it's special'.",
     "- The hook scene's first sentence is shown on screen word by word: keep it a question or one surprising claim of at most 14 words, and keep it the first sentence.",
     "Part names: 'parts' lists every part's spoken name. If a name sounds awkward when spoken as a thing (for example 'computer use', a verb phrase, or an internal code name), give it a plain 1 to 3 word lowercase name in 'renames' (for example 'browser robot'), and use the new name in every scene instead of the old one. Rename only names that are genuinely awkward; most need none.",
