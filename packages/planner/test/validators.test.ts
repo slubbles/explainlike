@@ -185,6 +185,15 @@ test("the speech check flags missing articles and a heading read out as a part",
   assert.deepEqual(speechIssues(fine, storyArch, "a hotel front desk"), []);
 });
 
+test("the speech check flags a part explained a second time", () => {
+  const plan = { title: "x", subtitle: "", scenes: [
+    { ...sc("layer", "Your words land in the team chat, a window where you type.", ["ui"]), id: "s02-layer", heading: "the back office" },
+    { ...sc("recap", "You typed in the team chat, a window where you type, and got a reply."), id: "s09-recap", heading: "the whole trip" },
+  ] };
+  const issues = speechIssues(plan, storyArch, "a hotel front desk");
+  assert.deepEqual(issues.filter((i) => /explained again/.test(i)), ['s09-recap: "team chat" is explained again; say what it is only the first time, then just its name']);
+});
+
 test("a polished line is kept only if the board can still sync to it", () => {
   const s = sc("walkthrough", "You send message, the door will forward, the harness will run bot.");
   const want = syncPhrases(s, storyArch);
