@@ -58,6 +58,45 @@ export function spokenWords(script: string): string[] {
   });
 }
 
+/**
+ * Proper nouns Aura has said so a listener hears another word, with a spelling it says clearly. Captions
+ * keep the script spelling; only the text sent to the voice changes. "silk reached Rome" came out as
+ * "reached Gromo" in two takes of four.
+ */
+export const RESPELL: Record<string, string> = { rome: "Rohm" };
+
+/**
+ * The names in a script a listener would notice said wrong: capitalised words (not acronyms) after a
+ * sentence's first word, plus any word with a known respelling. One entry per name, lowercased.
+ */
+export function namesIn(script: string): string[] {
+  const out = new Set<string>();
+  for (const sent of script.split(/(?<=[.!?])\s+/)) {
+    tokens(sent).forEach((w, i) => {
+      const core = w.replace(/^[^A-Za-z]+|[^A-Za-z']+$/g, "").replace(/'s$/, "");
+      if (core.length < 3 || core === core.toUpperCase()) return;
+      const n = core.toLowerCase();
+      if (RESPELL[n] || (i > 0 && /^[A-Z]/.test(core))) out.add(n);
+    });
+  }
+  return [...out];
+}
+
+/** The script's names the recogniser did not hear in a take: each is a word the voice likely said wrong. */
+export function misheard(script: string, heard: string): string[] {
+  const got = new Set(tokens(heard).map((w) => normW(w.replace(/'s$/i, ""))));
+  return namesIn(script).filter((n) => !got.has(normW(n)));
+}
+
+/** The spoken form with risky names respelled ("reached Rome" -> "reached Rohm"); one entry per script word. */
+export function hinted(sayAs: string[], names: string[]): string[] {
+  return sayAs.map((w) => {
+    const m = w.match(/^([^A-Za-z]*)([A-Za-z]+)(.*)$/);
+    const r = m && names.includes(m[2]!.toLowerCase()) ? RESPELL[m[2]!.toLowerCase()] : undefined;
+    return r ? `${m![1]}${r}${m![3]}` : w;
+  });
+}
+
 /** Map spoken (STT) word times onto the script's words so captions show the script spelling. */
 export function alignWords(script: string, spoken: { word: string; start: number; end: number }[]): WordTiming[] {
   const ws = tokens(script);
@@ -90,6 +129,8 @@ export function alignWords(script: string, spoken: { word: string; start: number
   return out as WordTiming[];
 }
 
+interface Take { words: { word: string; start: number; end: number }[]; duration: number; transcript: string; checked?: boolean; misheard?: string[] }
+
 export interface DeepgramOptions { apiKey?: string; model?: string; sttModel?: string }
 
 /** Deepgram Aura text-to-speech, then Deepgram speech-to-text for word timestamps. */
@@ -110,24 +151,39 @@ export class DeepgramVoice implements VoiceProvider {
     return fetchRetry(url, () => ({ method: "POST", headers: { Authorization: `Token ${this.key}`, "Content-Type": type }, body }), { service: "Deepgram", keyVar: "DEEPGRAM_API_KEY", timeoutMs: 90_000, attempts: 4, baseMs: 1500 });
   }
 
+  /** One Aura take of the text, and what Deepgram's recogniser hears in it (the word times captions use). */
+  private async take(said: string): Promise<Take & { wav: Buffer }> {
+    const tts = await this.req(`https://api.deepgram.com/v1/speak?model=${this.model}&encoding=linear16&sample_rate=24000&container=wav`, JSON.stringify({ text: said }), "application/json");
+    const wav = Buffer.from(await tts.arrayBuffer());
+    this.usage.ttsChars += said.length;
+    const stt = await this.req(`https://api.deepgram.com/v1/listen?model=${process.env.EXPLAINLIKE_STT ?? "nova-3"}&punctuate=true`, new Uint8Array(wav), "audio/wav");
+    const j: any = await stt.json();
+    const words = (j.results?.channels?.[0]?.alternatives?.[0]?.words ?? []).map((w: any) => ({ word: w.punctuated_word ?? w.word, start: w.start, end: w.end }));
+    const duration = j.metadata?.duration ?? wavDuration(wav);
+    this.usage.sttSeconds += duration;
+    return { wav, words, duration, transcript: j.results?.channels?.[0]?.alternatives?.[0]?.transcript ?? "" };
+  }
+
   async synthesize(sceneId: string, text: string, outDir: string): Promise<SceneAudio> {
     fs.mkdirSync(CACHE, { recursive: true });
     const sayAs = spokenWords(text), said = sayAs.join(" ");
     const h = crypto.createHash("sha1").update(this.model + "\n" + said).digest("hex").slice(0, 16);
     const wavCache = path.join(CACHE, `${h}.wav`), jsonCache = path.join(CACHE, `${h}.json`);
-    if (!fs.existsSync(wavCache) || !fs.existsSync(jsonCache)) {
-      const tts = await this.req(`https://api.deepgram.com/v1/speak?model=${this.model}&encoding=linear16&sample_rate=24000&container=wav`, JSON.stringify({ text: said }), "application/json");
-      const wav = Buffer.from(await tts.arrayBuffer());
-      this.usage.ttsChars += said.length;
-      const stt = await this.req(`https://api.deepgram.com/v1/listen?model=${process.env.EXPLAINLIKE_STT ?? "nova-3"}&punctuate=true`, new Uint8Array(wav), "audio/wav");
-      const j: any = await stt.json();
-      const words = (j.results?.channels?.[0]?.alternatives?.[0]?.words ?? []).map((w: any) => ({ word: w.punctuated_word ?? w.word, start: w.start, end: w.end }));
-      const duration = j.metadata?.duration ?? wavDuration(wav);
-      this.usage.sttSeconds += duration;
-      fs.writeFileSync(wavCache, wav);
-      fs.writeFileSync(jsonCache, JSON.stringify({ words, duration, transcript: j.results?.channels?.[0]?.alternatives?.[0]?.transcript ?? "" }));
+    // a take older than the name check is listened to again from its stored transcript, which costs nothing
+    let cached: Take | undefined = fs.existsSync(wavCache) && fs.existsSync(jsonCache) ? JSON.parse(fs.readFileSync(jsonCache, "utf8")) : undefined;
+    if (!cached || !cached.checked) {
+      let take = cached ? { wav: fs.readFileSync(wavCache), ...cached } : await this.take(said);
+      let miss = misheard(text, take.transcript);
+      // a name the recogniser did not hear gets one more take, with the risky names respelled
+      if (miss.length) {
+        const again = await this.take(hinted(sayAs, miss).join(" "));
+        const left = misheard(text, again.transcript);
+        if (left.length < miss.length) { take = again; miss = left; }
+      }
+      cached = { words: take.words, duration: take.duration, transcript: take.transcript, checked: true, misheard: miss };
+      fs.writeFileSync(wavCache, take.wav);
+      fs.writeFileSync(jsonCache, JSON.stringify(cached));
     }
-    const cached = JSON.parse(fs.readFileSync(jsonCache, "utf8"));
     fs.mkdirSync(outDir, { recursive: true });
     const file = path.join(outDir, `${sceneId}.wav`);
     fs.copyFileSync(wavCache, file);
