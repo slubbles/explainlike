@@ -142,3 +142,22 @@ test("only a short first sentence the voice said word for word becomes the kinet
   assert.equal(keyWordIndex("Why does your chat feel slow?".split(" ")), 5);
   assert.equal(keyWordIndex("What if every song came from a robot?".split(" ")), 7);
 });
+
+test("the recap sends a dot along wires already drawn, after the camera settles, one part to the next as each is named", async () => {
+  // a recap that names the first parts with room between them, as a real one does
+  const said = "So a tap starts in the fyp app on your phone, which knocks on the edge guard at the door, which waves it through to the worker host that runs everything. The ingest api files the clip into the d1 database and clip blobs, live chat and the like counter keep score, google login, edge cache, inbound mail and voice text do the rest.";
+  const p2 = { ...plan, scenes: plan.scenes.map((s: any) => (s.kind === "recap" ? { ...s, narration: said } : s)) };
+  const a2 = p2.scenes.map((s: any) => {
+    const ws = s.narration.split(/\s+/);
+    return { sceneId: s.id, duration: ws.length * 0.38, words: ws.map((w: string, i: number) => ({ word: w, start: i * 0.38, end: i * 0.38 + 0.3 })) };
+  });
+  const { film, timeline } = await compose({ plan: p2, audio: a2, theme: getTheme("pen-light"), spec: specFromBrief(DEFAULT_BRIEF), pack: loadIconPack(), sourceLabel: "x", arch });
+  const recap = timeline.find((s: any) => s.kind === "recap")!;
+  const dots = film.elements.filter((e) => e.g === "recap-dot");
+  assert.ok(dots.length > 0, "no recap dot");
+  for (const d of dots) {
+    assert.equal(d.k, "dot");
+    assert.equal(d.cue, "whoosh");
+    assert.ok(d.t0 >= recap.start + 1.4 && d.t0 + d.dur <= recap.end, `dot at ${d.t0}..${d.t0 + d.dur} outside the settled recap ${recap.start}..${recap.end}`);
+  }
+});
