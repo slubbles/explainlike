@@ -15,7 +15,7 @@ const audio = plan.scenes.map((s: any) => {
 test("every tempo: every ring, arrow and label passes the placement check before render", async () => {
   for (const complexity of ["simple", "moderate", "technical"] as Brief["complexity"][]) {
     const r = await compose({ plan, audio, theme: getTheme("chalk-dark"), spec: specFromBrief({ ...DEFAULT_BRIEF, complexity }), pack: loadIconPack(), sourceLabel: "x", arch });
-    assert.deepEqual(r.placement.issues, [], complexity);
+    assert.deepEqual([r.placement.issues, r.placement.warnings], [[], []], complexity);
     assert.ok(r.placement.ok);
     // the check really looked: rings, arrows, wires, labels and the frame
     for (const rule of ["ring-pad", "ring-centre", "ring-crosses", "label-overlap", "arrow-touch", "cropped", "text-small"]) assert.ok((r.placement.checked[rule] ?? 0) > 0, `${complexity}: nothing checked for ${rule}`);
@@ -79,7 +79,7 @@ test("an arrow past the frame edge is panned into view, not fixed by widening un
   assert.deepEqual(checkPlacement(p).map((i) => i.rule), ["cropped"]);
   const rep = placementPass(p);
   assert.ok(rep.ok);
-  assert.deepEqual(rep.issues, []);
+  assert.deepEqual([rep.issues, rep.warnings], [[], []]);
   assert.match(rep.fixed[0].how, /^panned/);
   assert.equal(p.film.camera[0].w, 3800);
 });
@@ -92,8 +92,31 @@ test("an arrow cut off in a later shot is fixed in every shot it is on screen, i
   assert.equal(checkPlacement(p).filter((i) => i.rule === "cropped").length, 1);
   const rep = placementPass(p);
   assert.ok(rep.ok, JSON.stringify(rep));
-  assert.deepEqual(rep.issues, []);
+  assert.deepEqual([rep.issues, rep.warnings], [[], []]);
   assert.equal(rep.fixed.length, 1);
   assert.match(rep.fixed[0].how, /0\.0s, 4\.0s/);
   assert.deepEqual(checkPlacement(p), []);
+});
+
+test("text just under the minimum is a warning that does not stop the video; text far too small still fails", () => {
+  // 15.4 px against 17, the leftover that used to abort a run
+  const slip = named({ x: 0, y: 0, w: (34 * 1920) / 15.4, h: (34 * 1080) / 15.4 });
+  const ok = placementPass({ film: slip.f, sketch: sketch(slip.nodes), marks: [] });
+  assert.ok(ok.ok);
+  assert.deepEqual(ok.issues, []);
+  assert.deepEqual(ok.warnings.map((w) => w.rule), ["text-small"]);
+  const broken = named({ x: 0, y: 0, w: 1920 * 4, h: 1080 * 4 });
+  const bad = placementPass({ film: broken.f, sketch: sketch(broken.nodes), marks: [] });
+  assert.equal(bad.ok, false);
+  assert.deepEqual(bad.issues.map((w) => w.rule), ["text-small"]);
+});
+
+test("an arrow too long for any readable shot falls back to a wider one and the video goes on, with warnings", () => {
+  const { f, nodes } = named({ x: 0, y: 0, w: 3800, h: 2137.5 });
+  const p = { film: f, sketch: sketch(nodes), marks: [line(-200, 4100)] };
+  const rep = placementPass(p);
+  assert.ok(rep.ok, JSON.stringify(rep));
+  assert.ok(rep.fixed.some((x) => x.rule === "cropped" && x.fallback));
+  assert.ok(rep.warnings.every((w) => w.rule === "text-small"));
+  assert.ok(rep.warnings.length > 0);
 });

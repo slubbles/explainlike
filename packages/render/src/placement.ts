@@ -10,7 +10,8 @@ import { RING_PAD, ringReach } from "./annotate.js";
  * cross no other box or word, labels sit clear of lines, arrows and other words, arrows and wires touch
  * what they join, rings sit centred on their target, nothing is cut off by the frame edge, and no word
  * is too small to read. Fix passes repeat until the plan is clean or stops improving; each fix is kept only
- * when a fresh check scores better. Whatever is left fails loudly.
+ * when a fresh check scores better. Slips a viewer barely notices are kept as warnings, and only a layout
+ * that stays broken after a degraded fallback fails.
  */
 
 export type RingShape = { k: "super"; cx: number; cy: number; rx: number; ry: number } | { k: "circle"; cx: number; cy: number; r: number } | { k: "rect"; box: Box };
@@ -23,14 +24,18 @@ export type Mark =
 export type Rule = "ring-pad" | "ring-centre" | "ring-crosses" | "label-overlap" | "arrow-touch" | "cropped" | "text-small";
 export interface PlacementIssue { rule: Rule; t: number; what: string }
 export interface PlacementReport {
+  /** false only when something is still broken after the fallback: the video should not be drawn */
   ok: boolean;
   passes: number;
   checked: Record<string, number>;
-  fixed: { pass: number; rule: Rule; what: string; how: string }[];
+  fixed: { pass: number; rule: Rule; what: string; how: string; fallback?: boolean }[];
+  /** what still breaks the picture (a word mostly off screen, text far too small to read) */
   issues: PlacementIssue[];
+  /** small slips left after the fixes (text just under the minimum, a sliver past the edge): recorded, not fatal */
+  warnings: PlacementIssue[];
 }
-/** An issue with the item a fix would change. */
-export type Found = PlacementIssue & { item?: Item };
+/** An issue with what the fixes need: the item, and how bad it is. */
+export type Found = PlacementIssue & { item?: Item; px?: number; need?: number; seen?: number };
 
 /** Gap, in world units, at which an arrow or wire end still reads as touching what it points at. */
 export const TOUCH = 10;
@@ -230,7 +235,7 @@ export function checkPlacement(p: Placed, counts: Record<string, number> = {}): 
     if (t >= (film.end?.t0 ?? film.duration) || opacity(film, it.g, t) < 0.6) continue;
     const cam = cameraAt(film, t), m = (4 * cam.w) / film.width;
     count("cropped");
-    if (!contains(cam, it.box, -m)) out.push({ rule: "cropped", t, what: `${it.label} is cut off by the frame edge`, item: it });
+    if (!contains(cam, it.box, -m)) out.push({ rule: "cropped", t, what: `${it.label} is cut off by the frame edge`, item: it, seen: seen(cam, it.box) });
     else if (it.kind === "ring" || it.kind === "arrow") {
       // a ring or arrow stays whole while it is lit, through every later shot that comes to rest on it
       const end = film.end?.t0 ?? film.duration;
@@ -238,7 +243,7 @@ export function checkPlacement(p: Placed, counts: Record<string, number> = {}): 
         const r = k.t + k.move + 0.01;
         if (k.t <= t || r >= end || opacity(film, it.g, r) < 0.6) continue;
         const c = cameraAt(film, r);
-        if (!contains(c, it.box, -m) && seen(c, it.box) > 0) { out.push({ rule: "cropped", t: r, what: `${it.label} is cut off by the frame edge at ${r.toFixed(1)}s`, item: it }); break; }
+        if (!contains(c, it.box, -m) && seen(c, it.box) > 0) { out.push({ rule: "cropped", t: r, what: `${it.label} is cut off by the frame edge at ${r.toFixed(1)}s`, item: it, seen: seen(c, it.box) }); break; }
       }
     }
     if (it.el) {
@@ -247,7 +252,7 @@ export function checkPlacement(p: Placed, counts: Record<string, number> = {}): 
       let px = 0;
       for (let s = t; s < (film.end?.t0 ?? film.duration) && opacity(film, it.g, s) > 0.6; s += 0.25) px = Math.max(px, (it.el.size * film.width) / cameraAt(film, s).w);
       const min = it.el.size >= 34 ? MIN_TEXT_PX : MIN_SMALL_TEXT_PX;
-      if (px < min - 0.05) out.push({ rule: "text-small", t, what: `${it.label} is at most ${px.toFixed(1)} px tall on screen (needs ${min})`, item: it });
+      if (px < min - 0.05) out.push({ rule: "text-small", t, what: `${it.label} is at most ${px.toFixed(1)} px tall on screen (needs ${min})`, item: it, px, need: min });
     }
   }
   return out;
@@ -326,8 +331,8 @@ function pan(p: Placed, it: Item, k: CamKey, r: number): boolean {
   return false;
 }
 
-/** Widen one shot just enough to take the item in, never past the width where box names stay readable. */
-function widen(p: Placed, it: Item, k: CamKey, r: number): boolean {
+/** Widen one shot just enough to take the item in. Capped: never past the width where box names stay readable. */
+function widen(p: Placed, it: Item, k: CamKey, r: number, capped: boolean): boolean {
   const { film } = p, pad = 30, b = it.box;
   // a mark's own label (same group, already written) rides along so the title never covers it either
   const top = Math.min(b.y, ...items(p).filter((o) => o.kind === "text" && it.kind !== "text" && it.g && o.g === it.g && o.t0 <= r).map((o) => o.box.y));
@@ -347,27 +352,35 @@ function widen(p: Placed, it: Item, k: CamKey, r: number): boolean {
     w = Math.max(x1 - x0, ((y1 - y0) * film.width) / film.height);
     h = (w * film.height) / film.width;
   }
-  if (w > readableWidth(film) * 1.5 && w > k.w * 1.05) return false;
+  if (capped && w > readableWidth(film) * 1.5 && w > k.w * 1.05) return false;
   Object.assign(k, { x: (x0 + x1) / 2 - w / 2, y: (y0 + y1) / 2 - h / 2, w, h });
   return true;
 }
 
 /** Ways to bring a cut-off item whole into every shot that cuts it, gentlest first: slide, slide or widen, widen. */
-function reframes(p: Placed, it: Item): (() => string | undefined)[] {
+function reframes(p: Placed, it: Item, fallback: boolean): (() => string | undefined)[] {
   const all = (verb: string, f: (k: CamKey, r: number) => boolean) => () => {
     const shots = cropShots(p, it);
     if (!shots.length || !shots.every(({ k, r }) => f(k, r))) return undefined;
     return `${verb} the shot${shots.length > 1 ? "s" : ""} at ${shots.map(({ k }) => `${k.t.toFixed(1)}s`).join(", ")}${verb === "panned" ? "" : ` (now ${shots.map(({ k }) => Math.round(k.w)).join(", ")} wide)`}`;
   };
-  return [
+  const out = [
     all("panned", (k, r) => pan(p, it, k, r)),
-    all("panned or widened", (k, r) => pan(p, it, k, r) || widen(p, it, k, r)),
-    all("widened", (k, r) => widen(p, it, k, r)),
+    all("panned or widened", (k, r) => pan(p, it, k, r) || widen(p, it, k, r, true)),
+    all("widened", (k, r) => widen(p, it, k, r, true)),
   ];
+  if (fallback) out.push(all("widened past the readable size", (k, r) => widen(p, it, k, r, false)));
+  return out;
 }
 
-/** Lower is better: a crop weighs most, then overlaps and loose ends, then text a little small. */
-const score = (fs: Found[]) => fs.reduce((s, i) => s + (i.rule === "cropped" ? 4 : i.rule === "text-small" ? 1 : 2), 0);
+/** Left after the fixes, does this break the picture, or is it a slip worth a warning? */
+export function severe(i: Found): boolean {
+  if (i.rule === "cropped") return (i.seen ?? 0) < 0.75;
+  if (i.rule === "text-small") return (i.px ?? 0) < (i.need ?? 0) * 0.6;
+  return false;
+}
+/** Lower is better: breaks weigh most, then crops, then the rest. */
+const score = (fs: Found[]) => fs.reduce((s, i) => s + (severe(i) ? 10 : i.rule === "cropped" ? 4 : i.rule === "text-small" ? 1 : 2), 0);
 
 /** Everything a fix may change, so a fix that makes things worse can be undone. */
 function snapshot(p: Placed) {
@@ -396,25 +409,33 @@ export function placementPass(p: Placed, passes = 8): PlacementReport {
   const fixed: PlacementReport["fixed"] = [];
   let found = checkPlacement(p), n = 0;
   const same = (a: Found, b: Found) => a.rule === b.rule && a.item?.el === b.item?.el && a.item?.mark === b.item?.mark;
-  // repeat until clean or a whole pass gains nothing
-  for (; n < passes && found.length; ) {
-    const before = score(found);
-    let any = false;
-    n++;
-    for (const is of [...found]) {
-      if (!is.item || !found.some((f) => same(f, is))) continue;
-      const fixes = is.rule === "label-overlap" && is.item.el ? [() => nudge(p, is.item!)]
-        : is.rule === "cropped" ? reframes(p, is.item)
-        : is.rule === "text-small" ? [() => enlarge(p, is.item!, is.what)] : [];
-      const how = fixes.length ? bestFix(p, fixes, score(found)) : undefined;
-      if (!how) continue;
-      found = checkPlacement(p);
-      fixed.push({ pass: n, rule: is.rule, what: is.what, how });
-      any = true;
+  // repeat until clean or a whole pass gains nothing; the fallback may widen past the readable size
+  const run = (fallback: boolean) => {
+    for (let i = 0; i < passes && found.length; i++) {
+      const before = score(found);
+      let any = false;
+      n++;
+      for (const is of [...found]) {
+        if (!is.item || !found.some((f) => same(f, is)) || (fallback && !last(is))) continue;
+        const fixes = is.rule === "label-overlap" && is.item.el ? [() => nudge(p, is.item!)]
+          : is.rule === "cropped" ? reframes(p, is.item, fallback)
+          : is.rule === "text-small" ? [() => enlarge(p, is.item!, is.what)] : [];
+        const how = fixes.length ? bestFix(p, fixes, score(found)) : undefined;
+        if (!how) continue;
+        found = checkPlacement(p);
+        fixed.push({ pass: n, rule: is.rule, what: is.what, how, ...(fallback ? { fallback: true } : {}) });
+        any = true;
+      }
+      if (!any || score(found) >= before) break;
     }
-    if (!any || score(found) >= before) break;
-  }
+  };
+  // a cut-off item is worth a smaller picture; anything else that is only a slip is left as a warning
+  const last = (i: Found) => severe(i) || i.rule === "cropped";
+  run(false);
+  if (found.some(last)) run(true);
   const checked: Record<string, number> = {};
   checkPlacement(p, checked);
-  return { ok: !found.length, passes: n, checked, fixed, issues: found.map(({ rule, t, what }) => ({ rule, t: Math.round(t * 100) / 100, what })) };
+  const plain = ({ rule, t, what }: Found): PlacementIssue => ({ rule, t: Math.round(t * 100) / 100, what });
+  const issues = found.filter(severe).map(plain), warnings = found.filter((i) => !severe(i)).map(plain);
+  return { ok: !issues.length, passes: n, checked, fixed, issues, warnings };
 }
