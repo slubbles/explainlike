@@ -19,9 +19,11 @@ files. Tapped boxes answer only from their evidence files. Names the voice
 mishears get one respelled retake. Labels, arrows, frames, and both boards
 pass deterministic checks before the render counts.
 
-A fresh repo run takes about three minutes and costs well under a dollar. A
-cached re-render takes about thirty seconds. The plan cache is shared per
-commit, and every run prints its spend against a guard.
+A fresh repo run takes three to six minutes and costs well under a dollar. A
+re-run of the same commit reuses the plan and the voiceover, so it makes no
+model calls and spends nothing; the drawing still redraws every frame, at about
+twenty frames a second. The plan cache is shared per commit, and every run
+prints its spend against a guard.
 
 ## Samples
 
@@ -65,4 +67,4 @@ commit, and every run prints its spend against a guard.
 2. Paste a link, get a 2-minute whiteboard video plus tldraw and Excalidraw
    boards. Every box is tied to real files. Every claim is checked.
 3. It speaks with Deepgram Aura, checks its own frames with Spark vision, and
-   re-renders from cache in ~30 seconds. Built for the Meta hackathon.
+   re-runs the same commit for zero model spend. Built for the Meta hackathon.
