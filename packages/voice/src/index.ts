@@ -7,7 +7,7 @@ import fs from "node:fs";
 import path from "node:path";
 import os from "node:os";
 import crypto from "node:crypto";
-import type { SceneAudio, WordTiming } from "@explainlike/core";
+import { fetchRetry, type SceneAudio, type WordTiming } from "@explainlike/core";
 
 export interface VoiceProvider {
   id: string;
@@ -83,13 +83,8 @@ export class DeepgramVoice implements VoiceProvider {
   }
   get usd() { return (this.usage.ttsChars / 1000) * 0.03 + (this.usage.sttSeconds / 60) * 0.0043; }
 
-  private async req(url: string, body: BodyInit, type: string, attempt = 0): Promise<Response> {
-    const r = await fetch(url, { method: "POST", headers: { Authorization: `Token ${this.key}`, "Content-Type": type }, body });
-    if (!r.ok) {
-      if ((r.status === 429 || r.status >= 500) && attempt < 3) { await new Promise((s) => setTimeout(s, 1500 * 2 ** attempt)); return this.req(url, body, type, attempt + 1); }
-      throw new Error(`Deepgram ${new URL(url).pathname} HTTP ${r.status}: ${(await r.text()).slice(0, 300)}`);
-    }
-    return r;
+  private req(url: string, body: BodyInit, type: string): Promise<Response> {
+    return fetchRetry(url, () => ({ method: "POST", headers: { Authorization: `Token ${this.key}`, "Content-Type": type }, body }), { service: "Deepgram", keyVar: "DEEPGRAM_API_KEY", timeoutMs: 90_000, attempts: 4, baseMs: 1500 });
   }
 
   async synthesize(sceneId: string, text: string, outDir: string): Promise<SceneAudio> {

@@ -7,7 +7,7 @@
  *  - muse-voice-transcribe-1.0  checks the voiceover says what the script says
  */
 import { z } from "zod";
-import { strictJsonSchema, type CostEntry } from "@explainlike/core";
+import { strictJsonSchema, fetchRetry, ServiceError, type CostEntry } from "@explainlike/core";
 
 const BASE = process.env.META_API_BASE ?? "https://api.meta.ai/v1";
 export const SPARK = process.env.EXPLAINLIKE_SPARK_MODEL ?? "muse-spark-1.3-contributor";
@@ -38,28 +38,13 @@ function key() {
   return k;
 }
 
-async function post(path: string, body: unknown, timeoutMs = 300_000, attempt = 0): Promise<any> {
-  const ctl = new AbortController();
-  const timer = setTimeout(() => ctl.abort(), timeoutMs);
-  try {
-    const r = await fetch(BASE + path, {
-      method: "POST",
-      headers: { Authorization: `Bearer ${key()}`, "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-      signal: ctl.signal,
-    });
-    const text = await r.text();
-    if (!r.ok) {
-      if ((r.status === 429 || r.status >= 500) && attempt < 3) {
-        await new Promise((res) => setTimeout(res, 1500 * 2 ** attempt));
-        return post(path, body, timeoutMs, attempt + 1);
-      }
-      throw new Error(`Meta API ${path} HTTP ${r.status}: ${text.slice(0, 400)}`);
-    }
-    return JSON.parse(text);
-  } finally {
-    clearTimeout(timer);
-  }
+const MUSE = { service: "Meta Muse", keyVar: "MODEL_API_KEY", baseMs: 1500 };
+
+async function post(path: string, body: unknown, timeoutMs = 300_000): Promise<any> {
+  const json = JSON.stringify(body), k = key();
+  const r = await fetchRetry(BASE + path, () => ({ method: "POST", headers: { Authorization: `Bearer ${k}`, "Content-Type": "application/json" }, body: json }), { ...MUSE, timeoutMs, attempts: 4 });
+  const text = await r.text();
+  try { return JSON.parse(text); } catch { throw new ServiceError("Meta Muse sent back an answer that was not JSON. Try again.", "Meta Muse", r.status, text.slice(0, 200)); }
 }
 
 export type ChatMessage = { role: "system" | "user" | "assistant"; content: string | unknown[] };
@@ -123,10 +108,9 @@ export async function museTranscribe(opts: { ledger: CostLedger; step: string; w
   if (opts.keywords?.length) req.keywords = opts.keywords.slice(0, 50);
   fd.append("request", new Blob([JSON.stringify(req)], { type: "application/json" }));
   fd.append("audio", new Blob([new Uint8Array(opts.wav)], { type: "audio/wav" }), "narration.wav");
-  const r = await fetch(`${BASE}/asr/transcribe`, { method: "POST", headers: { Authorization: `Bearer ${key()}` }, body: fd });
-  const text = await r.text();
-  if (!r.ok) throw new Error(`Meta transcribe HTTP ${r.status}: ${text.slice(0, 300)}`);
-  const out = JSON.parse(text);
+  const k = key();
+  const r = await fetchRetry(`${BASE}/asr/transcribe`, () => ({ method: "POST", headers: { Authorization: `Bearer ${k}` }, body: fd }), { ...MUSE, timeoutMs: 180_000, attempts: 3 });
+  const out = JSON.parse(await r.text());
   const mins = (out.audioDurationMs ?? (opts.durationSec ?? 0) * 1000) / 60000;
   opts.ledger.add({ step: opts.step, model: TRANSCRIBE, seconds: (Date.now() - t) / 1000, usd: mins * PRICE.transcribePerMin });
   return { transcript: out.transcript ?? "", turns: out.turns ?? [] };
