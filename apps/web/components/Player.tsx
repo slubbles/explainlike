@@ -21,6 +21,19 @@ function camera(K: Key[], t: number): Box {
 export default function Player({ src, map, selected, onPick }: { src: string; map?: Interactive; selected?: string; onPick: (id: string) => void }) {
   const video = useRef<HTMLVideoElement>(null);
   const [t, setT] = useState(0);
+  // The first frame is an empty whiteboard. When the browser blocks autoplay, show a frame from the middle
+  // instead, and go back to the start the first time it plays unless the viewer has moved the playhead.
+  const preview = useRef(false);
+  useEffect(() => {
+    const v = video.current;
+    if (!v) return;
+    const still = () => { if (v.paused && v.currentTime === 0 && v.duration) { preview.current = true; v.currentTime = v.duration * 0.55; } };
+    const start = () => v.play().catch(() => (v.readyState >= 1 ? still() : v.addEventListener("loadedmetadata", still, { once: true })));
+    if (v.readyState >= 1) start(); else v.addEventListener("loadedmetadata", start, { once: true });
+    return () => { v.removeEventListener("loadedmetadata", start); v.removeEventListener("loadedmetadata", still); };
+  }, [src]);
+  const onPlay = () => { const v = video.current; if (v && preview.current) { preview.current = false; v.currentTime = 0; } };
+  const onSeeked = () => { const v = video.current; if (v && preview.current && Math.abs(v.currentTime - v.duration * 0.55) > 0.05) preview.current = false; };
   useEffect(() => {
     let raf = 0;
     const tick = () => { if (video.current) setT(video.current.currentTime); raf = requestAnimationFrame(tick); };
@@ -42,7 +55,7 @@ export default function Player({ src, map, selected, onPick }: { src: string; ma
 
   return (
     <div className="player">
-      <video ref={video} src={src} controls autoPlay playsInline />
+      <video ref={video} src={src} controls playsInline preload="auto" onPlay={onPlay} onSeeked={onSeeked} />
       {map && (
         <div className="overlay">
           {boxes.map((b) => (
