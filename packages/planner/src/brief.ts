@@ -1,11 +1,11 @@
-import { APPROACHES, Brief, LOOKS, NOTE_LIBRARY, type Ask, type Progress } from "@explainlike/core";
+import { APPROACHES, Brief, LOOKS, NOTE_LIBRARY, type Ask, type Progress, type SourceKind } from "@explainlike/core";
 import { sparkJson, type CostLedger } from "@explainlike/models";
 
 /**
  * Step one of every video: read the source and decide how to explain it.
  * The engine, not the viewer, picks the approach, depth, tempo and look.
  */
-export async function planBrief(o: { ledger: CostLedger; kind: "repo" | "x-post" | "article"; name: string; text: string; ask?: Ask; progress?: Progress }): Promise<Brief> {
+export async function planBrief(o: { ledger: CostLedger; kind: SourceKind; name: string; text: string; ask?: Ask; progress?: Progress }): Promise<Brief> {
   o.progress?.({ stage: "plan", message: "deciding how to explain it" });
   const list = (r: Record<string, string | { brief: string }>) => Object.entries(r).map(([k, v]) => `- ${k}: ${typeof v === "string" ? v : v.brief.split(".")[0]}`).join("\n");
   const ask = o.ask && [
@@ -32,7 +32,7 @@ export async function planBrief(o: { ledger: CostLedger; kind: "repo" | "x-post"
         `Extra list scenes (only when they teach something the diagram cannot):\n${list(NOTE_LIBRARY)}`,
         ask ?? "",
       ].filter(Boolean).join("\n") },
-      { role: "user", content: `${o.kind === "repo" ? "Repository" : o.kind === "x-post" ? "X post" : "Article"}: ${o.name}\n\n${o.text.slice(0, 14000)}` },
+      { role: "user", content: `${o.kind === "repo" ? "Repository" : o.kind === "x-post" ? "X post" : o.kind === "topic" ? "Topic (asked by the viewer; the text is from reputable sources)" : "Article"}: ${o.name}\n\n${o.text.slice(0, 14000)}` },
     ],
   });
   // what the viewer asked for is not a suggestion

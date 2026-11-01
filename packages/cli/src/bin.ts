@@ -12,7 +12,10 @@ for (const f of [".env", ".env.local"]) {
   }
 }
 
-const HELP = `explainlike <github-url | local-repo-dir | x.com post url | article url> [options]
+const HELP = `explainlike <github-url | local-repo-dir | x.com post url | article url | "a topic in words"> [options]
+
+  A topic with no link ("how DNS works") is read from Wikipedia and the reputable pages it cites,
+  and the video names its sources (listed in sources.md and the manifest).
 
   Muse Spark reads the source first and decides the approach (analogy, story, step by step...),
   the depth, the tempo and the look. There are no levels or themes to pick.

@@ -3,7 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import crypto from "node:crypto";
 import { fileURLToPath } from "node:url";
-import { getTheme, specFromBrief, DEFAULT_BRIEF, type Ask, type Brief, type ExplainSpec, type Architecture, type Progress, type SceneAudio, type ScenePlan, type SourceDoc } from "@explainlike/core";
+import { getTheme, looksLikeTopic, specFromBrief, DEFAULT_BRIEF, type Ask, type Brief, type ExplainSpec, type Architecture, type Progress, type SceneAudio, type ScenePlan, type SourceDoc, type SourceKind } from "@explainlike/core";
 import { CostLedger, museTranscribe } from "@explainlike/models";
 import { ingestRepo } from "@explainlike/ingest";
 import { planBrief, extractArchitecture, validateArchitecture, evidencePack, reviewArchitecture, planRepoScenes, planFocus, planWhatIf, kindColor } from "@explainlike/planner";
@@ -69,10 +69,10 @@ export function planCacheDir(o: { url: string; commit: string; ask?: Ask }): str
 
 const slug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 60);
 
-export function detectKind(input: string): "repo" | "x-post" | "article" {
+export function detectKind(input: string): SourceKind {
   if (/^(https?:\/\/)?(www\.)?(x|twitter)\.com\/[^/]+\/status\/\d+/i.test(input)) return "x-post";
   if (/^(https?:\/\/)?(www\.)?github\.com\//i.test(input) || fs.existsSync(input)) return "repo";
-  return "article";
+  return looksLikeTopic(input) ? "topic" : "article";
 }
 
 export async function runExplainLike(o: RunOptions) {
@@ -125,7 +125,7 @@ export async function runExplainLike(o: RunOptions) {
   const notes: string[] = [];
   // the engine decides how to explain: approach, depth, tempo and look come from Muse Spark's brief
   let spec: ExplainSpec = specFromBrief(DEFAULT_BRIEF);
-  const decide = async (file: string, kindOf: "repo" | "x-post" | "article", name: string, text: string) => {
+  const decide = async (file: string, kindOf: SourceKind, name: string, text: string) => {
     const b = await timed("brief", () => cacheJson<Brief>(file, () => planBrief({ ledger, kind: kindOf, name, text, ask: o.ask, progress: P })));
     spec = specFromBrief(b, o.ask);
     notes.push(`brief: ${b.approach}, ${b.depth}, ${b.complexity} -> ${spec.tempo.id} tempo, ${b.look}; ${b.why}`);
@@ -210,16 +210,20 @@ export async function runExplainLike(o: RunOptions) {
     }
     repoDir = r.repoDir;
   } else {
-    const { ingestConcept } = await import("@explainlike/ingest");
+    const { ingestConcept, ingestTopic } = await import("@explainlike/ingest");
     const { planConceptScenes } = await import("@explainlike/planner");
-    P({ stage: "ingest", message: kind === "x-post" ? "reading the post" : "reading the article", pct: 2 });
+    P({ stage: "ingest", message: kind === "x-post" ? "reading the post" : kind === "topic" ? "finding reputable sources on the topic" : "reading the article", pct: 2 });
     const tmpOut = o.out ?? path.resolve("explainlike-out", "tmp-" + Date.now());
     fs.mkdirSync(tmpOut, { recursive: true });
-    const c = await ingestConcept(o.input, tmpOut);
+    const c = kind === "topic" ? await ingestTopic(o.input) : await ingestConcept(o.input, tmpOut);
     doc = c.doc;
     out = o.out ?? path.resolve("explainlike-out", slug(o.name ?? doc.title));
     if (out !== tmpOut) { fs.mkdirSync(path.dirname(out), { recursive: true }); fs.rmSync(out, { recursive: true, force: true }); fs.renameSync(tmpOut, out); }
-    sourceLabel = doc.url.replace(/^https?:\/\/(www\.)?/, "").slice(0, 60);
+    sourceLabel = doc.sources ? `sources: ${doc.sources.map((x) => x.site).join(", ")}`.slice(0, 80) : doc.url.replace(/^https?:\/\/(www\.)?/, "").slice(0, 60);
+    if (doc.sources) {
+      fs.writeFileSync(path.join(out, "sources.md"), `# Sources for "${doc.title}"\n\n${doc.sources.map((x, i) => `${i + 1}. [${x.title}](${x.url}) (${x.site})`).join("\n")}\n`);
+      notes.push(`read ${doc.sources.length} source(s): ${doc.sources.map((x) => x.url).join(", ")}`);
+    }
     await decide(path.join(out, "brief.json"), kind, doc.title, doc.text);
     plan = await cacheJson(path.join(out, "plan.json"), () => {
       P({ stage: "plan", message: "Muse Spark is planning the explainer", pct: 15 });
@@ -335,7 +339,7 @@ export async function runExplainLike(o: RunOptions) {
 
     const voiceUsd = voice instanceof DeepgramVoice ? voice.usd : 0;
     const manifest = {
-      tool: "explainlike", input: o.input, kind, brief: spec.brief, tempo: spec.tempo, pace, repoDir, followUp: o.focus ? { focus: o.focus } : o.whatIf ? { whatIf: o.whatIf } : undefined, look: theme.id, packs: { loaded: extra.map((p) => p.id), detected: detected.map((d) => ({ pack: d.pack, id: d.component.id, name: d.component.name, evidence: d.evidence })) }, title: plan.title, durationSec: Number(film.duration.toFixed(1)),
+      tool: "explainlike", input: o.input, kind, sources: doc.sources, brief: spec.brief, tempo: spec.tempo, pace, repoDir, followUp: o.focus ? { focus: o.focus } : o.whatIf ? { whatIf: o.whatIf } : undefined, look: theme.id, packs: { loaded: extra.map((p) => p.id), detected: detected.map((d) => ({ pack: d.pack, id: d.component.id, name: d.component.name, evidence: d.evidence })) }, title: plan.title, durationSec: Number(film.duration.toFixed(1)),
       outputs: { mp4, tldr: tldrFile, excalidraw: excalidrawFile, contactSheet: sheet, plan: path.join(out, "plan.json"), architecture: arch ? path.join(out, "architecture.json") : undefined },
       scenes: timeline, repairs: plan.repairs ?? [], notes, qa,
       boardCheck: boardCheck.map((c) => ({ format: c.format, ok: c.ok, ...c.counts })),
