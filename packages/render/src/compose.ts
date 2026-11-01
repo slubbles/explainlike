@@ -1,6 +1,6 @@
 import fs from "node:fs";
 import rough from "roughjs";
-import { agreementSlips, phraseAt } from "@explainlike/core";
+import { agreementSlips, phraseAt, shortHeading } from "@explainlike/core";
 import type { Architecture, ScenePlan, Scene, SceneAudio, Theme, ExplainSpec, Color, WordTiming, NoteItem } from "@explainlike/core";
 import type { Film, FElement, CamKey, Caption, Heading } from "./film.js";
 import { applyTempo, readableWidth, type PaceReport } from "./pace.js";
@@ -588,7 +588,7 @@ export async function compose(inp: ComposeInput): Promise<Composed> {
     const scaleRisk = s.kind === "scale" ? inp.arch?.scale[plan.scenes.filter((x) => x.kind === "scale").indexOf(s)] : undefined;
     // one title on screen at a time: the concept recap titles every board on the wall, so it gets no heading of its own
     const worldTitles = (s.kind === "recap" || s.kind === "outro") && !graph && boardShown.length > 0;
-    if (s.kind !== "hook" && !worldTitles) headings.push({ t0: T, t1: T + D, text: spokenHeading(s.heading, s.narration, scaleRisk ? [scaleRisk.problem] : []) });
+    if (s.kind !== "hook" && !worldTitles) headings.push({ t0: T, t1: T + D, text: spokenHeading(shortHeading(s.heading), s.narration, scaleRisk ? [scaleRisk.problem] : []) });
     // the hook line is drawn big as it is said, so its words skip the subtitle bar
     const kin = s.kind === "hook" ? kineticLine(s.narration, au.words) : 0;
     if (kin) {
