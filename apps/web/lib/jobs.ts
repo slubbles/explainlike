@@ -18,16 +18,21 @@ export interface Job {
   costUsd?: number; error?: string; title?: string; durationSec?: number; interactive?: boolean;
   /** what the viewer asked for (from voice mode), and how the job was started */
   ask?: Ask; via?: "voice";
+  /** the CLI arguments, kept so a job cut off by a server restart can pick up where it stopped */
+  args?: string[]; resumed?: number;
 }
 export type Ask = { goal?: string; audience?: string; depth?: "overview" | "working" | "deep"; also?: string };
 
-const ROOT = path.resolve(process.cwd(), "../..");
+const ROOT = process.env.EXPLAINLIKE_ROOT ?? path.resolve(process.cwd(), "../..");
 export const JOBS_DIR = process.env.EXPLAINLIKE_JOBS_DIR ?? path.join(ROOT, "explainlike-out", "web");
 const ID = /^[a-f0-9]{12}$/;
+const INTERRUPTED = "Interrupted by a server restart. Start it again.";
 
 // Jobs live on disk (one job.json per folder) so they survive a server restart.
-const g = globalThis as unknown as { __explainlikeJobs?: Map<string, Job> };
+const g = globalThis as unknown as { __explainlikeJobs?: Map<string, Job>; __explainlikeResumed?: boolean };
 const jobs: Map<string, Job> = (g.__explainlikeJobs ??= loadJobs());
+// first load after a restart: carry on with a job the restart cut off (EXPLAINLIKE_RESUME=0 turns this off)
+if (!g.__explainlikeResumed && process.env.EXPLAINLIKE_RESUME !== "0") { g.__explainlikeResumed = true; setTimeout(() => resumeInterrupted(), 0); }
 
 function loadJobs(): Map<string, Job> {
   const m = new Map<string, Job>();
@@ -37,13 +42,27 @@ function loadJobs(): Map<string, Job> {
     if (!ID.test(id) || !fs.existsSync(f)) continue;
     try {
       const j: Job = { kind: "video", ...JSON.parse(fs.readFileSync(f, "utf8")) };
-      // the child process died with the old server: say so instead of spinning forever
-      if (j.state === "running") Object.assign(j, { state: "error", error: "interrupted by a server restart; start it again", finished: Date.now() });
+      // the child process died with the old server: say so instead of spinning forever (resumeInterrupted may restart it)
+      if (j.state === "running") Object.assign(j, { state: "error", error: INTERRUPTED, finished: Date.now() });
       m.set(id, j);
       save(j);
     } catch { /* skip a broken job file */ }
   }
   return m;
+}
+
+/**
+ * Restart the newest job a server restart cut off, once. The CLI keeps every paid step (brief, architecture,
+ * plan, voice) in the job folder, so the rerun only pays for what had not finished. Returns the job, if any.
+ */
+export function resumeInterrupted(): Job | undefined {
+  if ([...jobs.values()].some((j) => j.state === "running")) return undefined;
+  const j = [...jobs.values()].filter((x) => x.error === INTERRUPTED && x.args && (x.resumed ?? 0) < 1 && Date.now() - x.started < 6 * 3600_000).sort((a, b) => b.started - a.started)[0];
+  if (!j) return undefined;
+  Object.assign(j, { state: "running", error: undefined, finished: undefined, resumed: (j.resumed ?? 0) + 1, message: "picking up where it stopped" });
+  save(j);
+  run(j, j.args!);
+  return j;
 }
 
 const saveTimers = new Map<string, ReturnType<typeof setTimeout>>();
@@ -68,6 +87,7 @@ export function admit(client: string): string | undefined {
 const CLI = () => path.join(ROOT, "packages/cli/bin/explainlike.mjs");
 
 function run(job: Job, args: string[]) {
+  if (!job.args) { job.args = args; save(job); }
   const child = spawn(process.execPath, [CLI(), ...args, "--json"], { cwd: ROOT, env: process.env, stdio: ["ignore", "pipe", "pipe"] });
   let buf = "";
   child.stdout.on("data", (d: Buffer) => {
