@@ -8,6 +8,8 @@ test("places are found by their common names, accents and all, and made-up ones 
   assert.ok(fr!.lon > -5 && fr!.lon < 9 && fr!.lat > 42 && fr!.lat < 52, "france is pinned in mainland france, not french guiana");
   assert.equal(findPlace("the United States")?.iso, "USA");
   assert.equal(findPlace("UK")?.iso, "GBR");
+  assert.equal(findPlace("Persia")?.iso, "IRN", "older names reach the land they name");
+  assert.equal(findPlace("Burma")?.iso, "MMR");
   const z = findPlace("Zurich");
   assert.equal(z?.kind, "city");
   assert.ok(Math.abs(z!.lon - 8.55) < 0.1 && Math.abs(z!.lat - 47.38) < 0.1);
