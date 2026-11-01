@@ -18,7 +18,7 @@ export default function InputScreen({ form, set, go, busy, err, gallery, talking
         <p className="lede">Paste a link, or just name a topic. Explain Like reads the code, the text or a few cited reputable sources, draws the system piece by piece, walks one real request through it, and narrates it, choosing the analogy, depth and pace that fit the topic. You get an mp4 plus editable .tldr and .excalidraw boards.</p>
         {talking ? <VoiceMode typed={form.input.trim() || undefined} voice={form.voice} onJob={onVoiceJob} onEnd={() => talk(false)} /> : (
         <form className="prompt" onSubmit={(e) => { e.preventDefault(); if (ready) go(); }}>
-          <input className="field" type="text" maxLength={2048} aria-label="Link or topic to explain" aria-invalid={!!err} aria-describedby={err ? "input-err" : undefined} placeholder="github.com/owner/repo, an X post, an article URL, or a topic like how DNS works"
+          <input className="field" type="text" maxLength={2048} aria-label="Link or topic to explain" aria-invalid={!!err} aria-describedby={err ? "input-err" : undefined} placeholder="Paste a link or name a topic"
             value={form.input} onChange={(e) => set({ input: e.target.value })} autoComplete="off" spellCheck={false} />
           <div className="pbar">
             <div className="group" role="radiogroup" aria-label="Voice">
