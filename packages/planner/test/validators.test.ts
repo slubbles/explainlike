@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { strictJsonSchema, type Architecture, type NoteItem, type Scene } from "@explainlike/core";
-import { validateNotes, validateArchitecture, repairRepoPlan, checkStory, journeyOrder, speechIssues, keepsSync, syncPhrases, fillerIn, hookLine, validateCutIn, cutInRules, applyReviewPatch, actionName, archWire, reviewWire, undrawnLinks, retellCutIn, validateConcept, structural, pictureWords, conceptSlips } from "@explainlike/planner";
+import { validateNotes, validateArchitecture, repairRepoPlan, checkStory, journeyOrder, speechIssues, keepsSync, syncPhrases, fillerIn, hookLine, validateCutIn, cutInRules, applyReviewPatch, actionName, archWire, reviewWire, undrawnLinks, retellCutIn, validateConcept, structural, pictureWords, conceptSlips, namesPlace } from "@explainlike/planner";
 
 const item = (text: string, extra: Partial<NoteItem> = {}): NoteItem => ({ text, color: "white", icon: "", target: "", estimate: false, evidence: "", ...extra });
 const ids = new Set(["d1-db", "edge"]);
@@ -366,6 +366,25 @@ test("a map keeps only real places that its quote names, each once", () => {
   ], source, dropped);
   assert.deepEqual(rows.map((r) => r.target), ["geneva", "united states"]);
   assert.equal(dropped.length, 4, "a made-up place, a quote that does not name it, a repeat and a quote not in the source");
+});
+
+test("a map place counts when its quote says it the way a history source would", () => {
+  // silk road (run silkroad2): china and "merv, turkmenistan" were dropped, which left too few places and lost the whole map
+  const source = "Chinese silk reached Merv on the way west. Persian merchants carried it on to Roman buyers. Romania is not part of it.";
+  const dropped: string[] = [];
+  const place = (target: string, text: string, evidence: string): NoteItem => ({ ...row(text, evidence), target });
+  const rows = validateCutIn("map", [
+    place("china", "silk starts here", "Chinese silk reached Merv on the way west"),
+    place("merv, turkmenistan", "silk passes here", "Chinese silk reached Merv on the way west"),
+    place("persia", "the bridge", "Persian merchants carried it on to Roman buyers"),
+    place("rome", "the buyers", "Persian merchants carried it on to Roman buyers"),
+    place("france", "not named", "Persian merchants carried it on to Roman buyers"),
+  ], source, dropped);
+  assert.deepEqual(rows.map((r) => r.target), ["china", "merv, turkmenistan", "persia", "rome"]);
+  assert.deepEqual(dropped, ['map "france": the quote does not name it']);
+  assert.ok(namesPlace("chinese silk", ["china"]) && namesPlace("persian merchants", ["persia"]) && namesPlace("roman buyers", ["rome"]));
+  assert.ok(!namesPlace("romania is not part of it", ["rome"]), "a different place that starts the same way does not count");
+  assert.ok(!namesPlace("the french king", ["france"]) && !namesPlace("an indian ocean", ["india ink"]));
 });
 
 test("only the explainer style asks for cut-ins", () => {

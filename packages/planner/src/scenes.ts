@@ -669,7 +669,9 @@ export async function planConceptScenes(o: { ledger: CostLedger; doc: SourceDoc;
   const user = `SOURCE (${o.doc.kind}) by ${o.doc.author ?? "unknown"}: ${o.doc.title}\nURL: ${o.doc.url}\n\nTEXT:\n${o.doc.text.slice(0, 30000)}`;
   let plan = await sparkJson({ ledger: o.ledger, step: "concept-plan", schema: ScenePlan, name: "scene_plan", effort: "low", maxTokens: 9000, messages: [{ role: "system", content: sys }, { role: "user", content: user }] });
   let { plan: fixed, dropped, unsaid } = validateConcept(plan, o.doc.text);
-  if (dropped.length > 2) {
+  // a cut-in that lost too many rows to stand is dropped whole, so even one bad row is worth a re-plan then
+  const cutIns = (p: ScenePlan) => p.scenes.filter((s) => s.kind === "chart" || s.kind === "timeline" || s.kind === "map").length;
+  if (dropped.length > 2 || cutIns(fixed) < cutIns(plan)) {
     o.progress?.({ stage: "plan", message: `re-planning: ${dropped.length} quotes were not in the source` });
     plan = await sparkJson({
       ledger: o.ledger, step: "concept-plan-revise", schema: ScenePlan, name: "scene_plan", effort: "low", maxTokens: 9000,
@@ -785,13 +787,27 @@ export function cutInRules(style: ExplainSpec["style"], icons: string): string[]
   ];
 }
 
+/**
+ * Whether a quote names a place: the name itself, or a word grown from it the way the source would say it
+ * ("chinese" for china, "persian" for persia, "roman" for rome). Any part of "merv, turkmenistan" counts.
+ */
+export function namesPlace(quote: string, names: string[]): boolean {
+  const words = quote.toLowerCase().split(/[^a-z']+/).filter(Boolean);
+  return names.map((n) => n.trim().toLowerCase()).filter(Boolean).some((n) => {
+    if (` ${words.join(" ")} `.includes(` ${n.split(/[^a-z']+/).filter(Boolean).join(" ")} `)) return true;
+    if (/\s/.test(n)) return false;
+    const stem = n.replace(/[aeiouy]+$/, "");
+    return stem.length >= 3 && words.some((w) => w.startsWith(stem) && w.length > stem.length && /^(n|an|ian|ese|ic|ish|s|'s)$/.test(w.slice(stem.length)));
+  });
+}
+
 /** Map rows: a real place (in the Natural Earth gazetteer) that the quoted source sentence names, each place once. */
 function validateMap(items: NoteItem[], source: string, dropped: string[]): NoteItem[] {
   const seen = new Set<string>();
   const fold = (x: string) => x.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
   return items.map((it) => ({ ...it, text: lower(it.text).split(/\s+/).slice(0, 5).join(" "), target: lower(it.target).replace(/^the\s+/, ""), estimate: false })).filter((it) => {
     const p = findPlace(it.target);
-    const why = !p ? "not a place on the map" : !quoteInSource(it.evidence, source) ? "quote not in the source" : !fold(it.evidence).includes(fold(it.target)) ? "the quote does not name it" : seen.has(p.iso + p.name) ? "the same place twice" : "";
+    const why = !p ? "not a place on the map" : !quoteInSource(it.evidence, source) ? "quote not in the source" : !namesPlace(fold(it.evidence), it.target.split(",").map(fold)) ? "the quote does not name it" : seen.has(p.iso + p.name) ? "the same place twice" : "";
     if (why) dropped.push(`map "${it.target}": ${why}`);
     else seen.add(p!.iso + p!.name);
     return !why;
