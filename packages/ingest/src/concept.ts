@@ -1,4 +1,6 @@
 import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import { chromium } from "playwright-core";
 import { Readability } from "@mozilla/readability";
 import { parseHTML } from "linkedom";
@@ -22,8 +24,22 @@ export function xStatusId(url: string): string | undefined {
   return url.match(/(?:x|twitter)\.com\/[^/]+\/status(?:es)?\/(\d+)/i)?.[1] ?? url.match(/\/i\/(?:web\/)?status\/(\d+)/)?.[1];
 }
 
+/** Chrome's usual Windows install folders, so a fresh shell works without setting EXPLAINLIKE_CHROME. */
+function windowsChromePaths(): string[] {
+  if (process.platform !== "win32") return [];
+  const programFiles = process.env.PROGRAMFILES ?? "C:\\Program Files";
+  const programFilesX86 = process.env["PROGRAMFILES(X86)"] ?? "C:\\Program Files (x86)";
+  const localAppData = process.env.LOCALAPPDATA ?? path.join(os.homedir(), "AppData", "Local");
+  return [
+    path.join(programFiles, "Google", "Chrome", "Application", "chrome.exe"),
+    path.join(programFilesX86, "Google", "Chrome", "Application", "chrome.exe"),
+    path.join(localAppData, "Google", "Chrome", "Application", "chrome.exe"),
+  ];
+}
+
 function findChrome(): string {
-  const c = [process.env.EXPLAINLIKE_CHROME, "/usr/bin/google-chrome", "/usr/bin/google-chrome-stable", "/usr/bin/chromium", "/usr/bin/chromium-browser"].filter(Boolean) as string[];
+  const c = [process.env.EXPLAINLIKE_CHROME, "/usr/bin/google-chrome", "/usr/bin/google-chrome-stable", "/usr/bin/chromium", "/usr/bin/chromium-browser",
+    "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome", ...windowsChromePaths()].filter(Boolean) as string[];
   const f = c.find((p) => fs.existsSync(p));
   if (!f) throw new Error("no Chrome/Chromium found; set EXPLAINLIKE_CHROME");
   return f;

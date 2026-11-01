@@ -1,4 +1,5 @@
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
 
@@ -12,6 +13,19 @@ export interface Health {
 }
 
 const CHROME = ["/usr/bin/google-chrome", "/usr/bin/google-chrome-stable", "/usr/bin/chromium", "/usr/bin/chromium-browser", "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"];
+
+/** Chrome's usual Windows install folders, so a fresh machine is healthy without EXPLAINLIKE_CHROME. */
+function windowsChrome(env: NodeJS.ProcessEnv): string[] {
+  if (process.platform !== "win32") return [];
+  const programFiles = env.PROGRAMFILES ?? "C:\\Program Files";
+  const programFilesX86 = env["PROGRAMFILES(X86)"] ?? "C:\\Program Files (x86)";
+  const localAppData = env.LOCALAPPDATA ?? path.join(os.homedir(), "AppData", "Local");
+  return [
+    path.join(programFiles, "Google", "Chrome", "Application", "chrome.exe"),
+    path.join(programFilesX86, "Google", "Chrome", "Application", "chrome.exe"),
+    path.join(localAppData, "Google", "Chrome", "Application", "chrome.exe"),
+  ];
+}
 
 export interface Probe {
   env: NodeJS.ProcessEnv;
@@ -39,7 +53,7 @@ export const realProbe: Probe = {
 export function checkHealth(jobsDir: string, budgetOk: boolean, p: Probe = realProbe): Health {
   const checks = {
     ffmpeg: p.runs("ffmpeg"),
-    chrome: [p.env.EXPLAINLIKE_CHROME, ...CHROME].some((f) => !!f && p.has(f)),
+    chrome: [p.env.EXPLAINLIKE_CHROME, ...CHROME, ...windowsChrome(p.env)].some((f) => !!f && p.has(f)),
     modelKey: !!p.env.MODEL_API_KEY,
     voiceKey: !!p.env.DEEPGRAM_API_KEY,
     jobsDir: p.writable(jobsDir),
