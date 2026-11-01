@@ -1066,7 +1066,8 @@ export async function compose(inp: ComposeInput): Promise<Composed> {
             if (!B.groups[fine]) { B.groups[fine] = (B.groups[b.g] ?? []).map(([t, v]) => [t, v]); B.cur.set(fine, B.cur.get(b.g) ?? 1); }
             e.g = fine;
           }
-          if (B.groups[fine]) B.setOp(fine, T, 0, 0.3);
+          // gone by the cut itself: the camera jumps to the wall at T, under the fade
+          if (B.groups[fine]) B.setOp(fine, T - 0.02, 0, 0.02);
         }
         const times = eventTimes(words, boardShown.map((b) => [b.heading, ...b.keys]), t0 + 0.8, tEnd - 1.4, 1.2);
         // overview first, then the camera visits each board as it is recalled, then pulls back to the whole wall
