@@ -236,4 +236,11 @@ test("a long repo recap moves through the trip instead of holding one wide frame
   assert.ok(inRecap.length >= 2, `recap shots at ${inRecap.join(", ")}`);
   assert.ok(pace.shortestHold >= 4 - 0.05, `no shot under 4 s: shortest hold ${pace.shortestHold}`);
   assert.ok(pace.cutsPerMin >= 5, `${pace.cutsPerMin} cuts a minute`);
+  // the 15.8 s opening was one shot; it is now the hook line, a push-in on the title, and a pull back at a sentence end
+  const hook = timeline[0], inHook = shotStarts(film).filter((t) => t < hook.end - 0.01);
+  assert.equal(inHook.length, 2, `hook shots at ${inHook.join(", ")}`);
+  const words = maudio[0].words, said = (t: number) => words.filter((w: any) => w.end + 0.3 <= t).pop();
+  assert.match(said(inHook[1])!.word, /[.!?]$/, `the pull back at ${inHook[1]} s comes after a full sentence`);
+  const icons = film.elements.filter((e) => e.g === "hook" && e.k === "img");
+  assert.ok(icons.every((e) => e.t0 > inHook[1]), "the preview icons are drawn after the reveal starts, not off frame");
 });

@@ -641,6 +641,18 @@ export async function compose(inp: ComposeInput): Promise<Composed> {
 
     if (s.kind === "hook") {
       const title = plan.title.toLowerCase();
+      const ts = Math.min(150, 2400 / Math.max(6, title.length) * 1.6);
+      const tw = textWidth(title, ts);
+      const nPrev = Math.min(5, inp.arch ? inp.arch.components.length : plan.scenes.flatMap((x) => x.board_nodes).length);
+      // a long opening is told in shots: the hook line, a push-in on the title, then a pull back at a sentence end that reveals what is coming
+      const lineEnd0 = kin ? T + LEAD + au.words[kin - 1].end : T;
+      const tTitle = kin ? Math.max(lineEnd0 + 0.5, T + tempo.minBeat) : T;
+      const titleBox: Box = { x: hookCx - Math.max(tw, textWidth(plan.subtitle.toLowerCase(), 46)) / 2, y: hookCy - 40 - ts, w: Math.max(tw, textWidth(plan.subtitle.toLowerCase(), 46)), h: ts + 140 };
+      const zoomed = B.span(titleBox, 1.3) < W / 1.17;
+      const lo = Math.max(tTitle + tempo.minBeat, tTitle + (kin ? tempo.move : 0) + 2.4);
+      const hi = Math.min(T + D - tempo.minBeat - 0.1, tEnd - nPrev * 0.6 - tempo.move - 0.1);
+      const ends = words.slice(0, -1).map((w, i) => /[.!?]["')\]]*$/.test(w.word) ? (w.end + words[i + 1].start) / 2 : -1).filter((t) => t >= lo && t <= hi);
+      const reveal = zoomed && ends.length ? ends.reduce((a, b) => (Math.abs(b - (lo + hi) / 2) < Math.abs(a - (lo + hi) / 2) ? b : a)) : 0;
       let Th = T;
       if (kin) {
         const line = au.words.slice(0, kin);
@@ -664,18 +676,17 @@ export async function compose(inp: ComposeInput): Promise<Composed> {
           }
         });
         const lineEnd = T + LEAD + line[kin - 1].end;
-        B.setOp("hookline", lineEnd + 0.45, 0, 0.4);
-        Th = lineEnd + 0.6;
+        // when the title gets its own shot the line stays up until the push-in starts, and the title is drawn as it lands
+        B.setOp("hookline", reveal ? Math.max(lineEnd + 0.45, tTitle) : lineEnd + 0.45, 0, 0.4);
+        Th = reveal ? tTitle + 0.05 : lineEnd + 0.6;
       }
-      const ts = Math.min(150, 2400 / Math.max(6, title.length) * 1.6);
-      const tw = textWidth(title, ts);
       B.text({ text: title, x: hookCx, y: hookCy - 40, size: ts, color: theme.ink, anchor: "middle", t0: Th + 0.3, dur: 1.0, g: "hook" });
       B.rough(gen.line(hookCx - tw / 2, hookCy + 0, hookCx + tw / 2, hookCy + 6, { seed: B.seed++, stroke: C("orange"), strokeWidth: 7, roughness: 1.4 }), Th + 1.1, 0.5, "hook");
       B.text({ text: plan.subtitle.toLowerCase(), x: hookCx, y: hookCy + 80, size: 46, color: theme.colors.gray, anchor: "middle", t0: Th + 1.5, dur: 0.8, g: "hook" });
       // preview icons of what is coming
       const prev = inp.arch ? inp.arch.components.slice(0, 5).map((c) => ({ icon: c.icon, color: C(inp.colorOf ? inp.colorOf(c) : "white"), kw: c.keyword }))
         : plan.scenes.flatMap((x) => x.board_nodes).slice(0, 5).map((n) => ({ icon: n.icon, color: C(n.color), kw: n.keyword }));
-      const ts2 = eventTimes(words, prev.map((p) => [p.kw]), Math.min(Th + 2.4, tEnd - prev.length * 0.6), tEnd, 0.6);
+      const ts2 = eventTimes(words, prev.map((p) => [p.kw]), reveal ? reveal + tempo.move + 0.1 : Math.min(Th + 2.4, tEnd - prev.length * 0.6), tEnd, 0.6);
       const gap = 260, x0 = hookCx - ((prev.length - 1) * gap) / 2;
       prev.forEach((p, i) => {
         const cx = x0 + i * gap, cy = hookCy + 260;
@@ -685,7 +696,12 @@ export async function compose(inp: ComposeInput): Promise<Composed> {
         B.img({ href: ic.href, x: cx - 50, y: cy - 50, w: 100, h: 100, t0: ts2[i] + 0.2, dur: 0.4, g: "hook" });
       });
       const hw = Math.max(tw, prev.length * gap, kin ? 1500 : 0);
-      B.fit({ x: hookCx - hw / 2, y: hookCy - 40 - ts, w: hw, h: ts + 480 }, T, 0, 1.0);
+      const whole: Box = { x: hookCx - hw / 2, y: hookCy - 40 - ts, w: hw, h: ts + 480 };
+      if (reveal) {
+        if (kin) B.fit(whole, T, 0, 1.0);
+        B.fit(titleBox, tTitle, kin ? tempo.move : 0, 1.3);
+        B.fit(whole, reveal, tempo.move, 1.0);
+      } else B.fit(whole, T, 0, 1.0);
       B.setOp("hook", T + D - 0.2, 0, 0.6);
     } else if (s.kind === "layer" && graph) {
       const adds = s.add_components.filter((id) => graph!.nodes.has(id) && !present.has(id));
