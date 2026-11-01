@@ -16,7 +16,7 @@ export const COLOR_MEANING: Record<Color, string> = {
   gray: "third party, ops",
 };
 
-export const SourceKind = z.enum(["repo", "x-post", "article"]);
+export const SourceKind = z.enum(["repo", "x-post", "article", "topic"]);
 export type SourceKind = z.infer<typeof SourceKind>;
 
 const keyword = z.string().describe("1 to 3 lowercase words for the whiteboard");
@@ -157,6 +157,8 @@ export interface SourceDoc {
   author?: string;
   /** digest for repos, plain text for posts/articles (secrets already stripped) */
   text: string;
+  /** topic: the reputable pages the text was read from, cited in the video and the manifest */
+  sources?: { title: string; url: string; site: string }[];
   /** repo: local checkout and commit */
   repoDir?: string;
   commit?: string;

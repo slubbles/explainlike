@@ -29,7 +29,7 @@ function findChrome(): string {
 }
 
 /** blocks of text, each rendered as one paragraph on the card */
-interface Card { kind: "x-post" | "article"; title?: string; author?: string; handle?: string; avatar?: string; site?: string; date?: string; blocks: string[]; photo?: string; stats?: string }
+export interface Card { kind: "x-post" | "article"; title?: string; author?: string; handle?: string; avatar?: string; site?: string; date?: string; blocks: string[]; photo?: string; stats?: string }
 
 const CSS = `
 *{box-sizing:border-box;margin:0}
@@ -103,7 +103,7 @@ async function fetchX(url: string, id: string): Promise<Card & { url: string }> 
   };
 }
 
-async function fetchArticle(url: string): Promise<Card & { url: string }> {
+export async function fetchArticle(url: string): Promise<Card & { url: string }> {
   const r = await get(url, new URL(url).hostname, { headers: { "user-agent": UA, accept: "text/html" }, redirect: "follow" });
   if (!r.ok) throw new Error(fetchError("article", r.status));
   const type = r.headers.get("content-type") ?? "";
@@ -196,6 +196,11 @@ export async function ingestConcept(input: string, _outDir: string): Promise<Con
     author: card.kind === "x-post" ? `${card.author} (@${card.handle})` : card.author, text,
     images: card.photo ? [card.photo] : undefined,
   };
+  return withLocate(doc, card);
+}
+
+/** The source card the video zooms into: render the blocks that hold the quotes and find each quote's boxes. */
+export function withLocate(doc: SourceDoc, card: Card): ConceptSource {
   return {
     doc,
     async locate(quotes, pngPath) {

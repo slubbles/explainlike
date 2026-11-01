@@ -1,6 +1,6 @@
 # Explain Like
 
-Give it a GitHub repo, an article or an X post. It gives you back a narrated **whiteboard explainer video** and the same drawing as **editable boards** you can open in [tldraw](https://www.tldraw.com) or [Excalidraw](https://excalidraw.com).
+Give it a GitHub repo, an article, an X post, or just a topic ("how DNS works"). It gives you back a narrated **whiteboard explainer video** and the same drawing as **editable boards** you can open in [tldraw](https://www.tldraw.com) or [Excalidraw](https://excalidraw.com).
 
 ![Explain Like drawing the OpenMausBot repo](docs/media/openmausbot.gif)
 
@@ -66,7 +66,7 @@ The tests need ffmpeg and Chrome but no API keys.
 ## CLI
 
 ```
-pnpm explainlike <github url | local repo folder | article url | x.com post url> [options]
+pnpm explainlike <github url | local repo folder | article url | x.com post url | "a topic"> [options]
 
   --out <dir>                 output folder (default ./explainlike-out/<name>)
   --voice <deepgram|silent>   default: deepgram when DEEPGRAM_API_KEY is set
@@ -146,7 +146,7 @@ Want to call it from your own code instead? `packages/api` runs the same jobs ov
 
 ## How it works
 
-1. **Read.** It takes a digest of the repo (file tree, manifests, entry points, configs; secret files are never opened) or the article's text.
+1. **Read.** It takes a digest of the repo (file tree, manifests, entry points, configs; secret files are never opened) or the article's text. A plain topic is looked up on Wikipedia, and the article plus up to two reputable pages it cites (standards bodies, universities, governments, major outlets) are read; every quote on screen comes from them, and the sources are named in the video, `sources.md` and the manifest.
 2. **Plan.** Muse Spark maps the architecture, checks every box against real files, picks an approach and writes the scenes and narration.
 3. **Voice.** Deepgram Aura reads the script, and word timestamps let each box draw in on the word that names it.
 4. **Draw.** The scenes become one hand-drawn SVG canvas with a moving camera. Chrome draws the frames in parallel and ffmpeg encodes them as they arrive.

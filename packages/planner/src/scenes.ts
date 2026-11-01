@@ -506,18 +506,20 @@ export async function planConceptScenes(o: { ledger: CostLedger; doc: SourceDoc;
   const [lo, hi] = coverageSeconds(L, { components: 0, steps: 0, scale: 0, boards: 4 });
   o.progress?.({ stage: "plan", message: "breaking the source into concepts" });
   const sys = [
-    `You turn a dense ${o.doc.kind === "x-post" ? "X post" : "article"} into a whiteboard explainer video.`,
+    o.doc.kind === "topic"
+      ? `You explain the topic "${o.doc.title}" in a whiteboard explainer video, using only the numbered sources below (an encyclopedia article and the references it cites). Cover the core of what the viewer asked, not every detail in the sources.`
+      : `You turn a dense ${o.doc.kind === "x-post" ? "X post" : "article"} into a whiteboard explainer video.`,
     STYLE,
     L.voice,
     "Scenes:",
-    "1. 'hook': the one question this source answers, in plain words.",
-    "2. 'source' scene(s): the reader sees the real post/article screenshot. highlights: 2 to 4 phrases (2 to 10 words) copied VERBATIM from the source text, each with a 1 to 3 word note and a color (red = problem/claim to question, orange = key idea, green = result/fix, blue = actor/entity). Narration explains why those phrases matter.",
+    o.doc.kind === "topic" ? "1. 'hook': the viewer's question, in plain words, and why the answer is surprising or useful." : "1. 'hook': the one question this source answers, in plain words.",
+    `2. 'source' scene(s): the reader sees ${o.doc.kind === "topic" ? "a card with the sources' text (say where it comes from, e.g. 'the encyclopedia says', 'the standard says')" : "the real post/article screenshot"}. highlights: 2 to 4 phrases (2 to 10 words) copied VERBATIM from the source text, each with a 1 to 3 word note and a color (red = problem/claim to question, orange = key idea, green = result/fix, blue = actor/entity). Narration explains why those phrases matter.`,
     `3. 3 to 5 'board' scenes: each is a fresh mini diagram of one idea with 2 to ${Math.max(3, L.perScene + 1)} board_nodes and edges between them, drawn left to right in reading order. Every board node's evidence is an exact quote (3 to 12 words) from the source that justifies it (it is printed under the node, so pick the most telling words). count is 1, or 3 to 9 when the node means 'many of these' (8 GPUs, many workers, lots of docs): it becomes an icon grid. callouts: at most 1 per board, circling the node that matters most (target = board node id, text 1 to 3 words). Use colors semantically. icon from: ${o.icons}`,
     "Optionally one 'notes' scene (after the source scene) when the source lists concrete things (features, steps, numbers, stack): 3 to 6 items, text 2 to 7 words, evidence an exact quote, target empty, estimate false (a number the author states is their claim, not our estimate). icon from the same list.",
     "4. 'recap': the whole idea in two sentences, what to remember.",
-    `Each narration about ${L.wordsPerScene} words; total ${lo}-${hi} seconds at ${L.tempo.wps} words/sec. Do not claim anything the source does not say; say 'the author claims' when it is a claim.`,
+    `Each narration about ${L.wordsPerScene} words; total ${lo}-${hi} seconds at ${L.tempo.wps} words/sec. Do not claim anything the source does not say; ${o.doc.kind === "topic" ? "every fact must come from the sources (no outside facts)." : "say 'the author claims' when it is a claim."}`,
     "Leave add_components, add_connections empty. callouts only on boards. items only in notes scenes.",
-    "title: under 6 lowercase words. subtitle: who wrote it, lowercase.",
+    o.doc.kind === "topic" ? "title: under 6 lowercase words. subtitle: the source sites, lowercase." : "title: under 6 lowercase words. subtitle: who wrote it, lowercase.",
   ].join("\n");
   const user = `SOURCE (${o.doc.kind}) by ${o.doc.author ?? "unknown"}: ${o.doc.title}\nURL: ${o.doc.url}\n\nTEXT:\n${o.doc.text.slice(0, 30000)}`;
   let plan = await sparkJson({ ledger: o.ledger, step: "concept-plan", schema: ScenePlan, name: "scene_plan", effort: "medium", maxTokens: 9000, messages: [{ role: "system", content: sys }, { role: "user", content: user }] });
