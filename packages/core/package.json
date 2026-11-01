@@ -6,7 +6,8 @@
   "license": "MIT",
   "exports": {
     ".": "./src/index.ts",
-    "./topic": "./src/topic.ts"
+    "./topic": "./src/topic.ts",
+    "./places": "./src/places.ts"
   },
   "dependencies": {
     "zod": "^4.1.0"
