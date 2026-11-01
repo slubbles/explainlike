@@ -35,6 +35,29 @@ export class SilentVoice implements VoiceProvider {
   }
 }
 
+/** Lowercase letter-names a voice tends to read as a word ("bpe" came out as "pp a a", "minbpe" as "Mintay"). */
+// not "json" (said as a word), and nothing that ends common words ("platform", "outlaws", "drag")
+const SPELLED = ["bpe", "llm", "gpt", "api", "cli", "sdk", "url", "http", "sql", "cpu", "gpu", "mcp", "ssh", "dns", "cdn", "jwt", "npm", "css", "html", "gcp", "csv", "pdf"];
+const SPELL_RE = new RegExp(`^(.*?)(${SPELLED.join("|")})(s?)(\\d*)$`, "i");
+/**
+ * How a script word is said: letter-name acronyms in capitals so they are read letter by letter, and a
+ * code name built on one split off ("minbpe" -> "min BPE", "gpt4" -> "GPT 4"). One entry per script word.
+ */
+export function spokenWords(script: string): string[] {
+  return tokens(script).map((w) => {
+    const m = w.match(/^([^A-Za-z0-9]*)([A-Za-z0-9]+)([^A-Za-z0-9]*)$/);
+    if (!m) return w;
+    const [, pre, core, post] = m;
+    const k = core!.match(SPELL_RE);
+    // only lowercase words: "Api" or "API" in the script is already how the writer wants it said
+    if (!k || core !== core!.toLowerCase()) return w;
+    const [, head, ac, plural, num] = k;
+    // a short word that only ends in the letters ("rapi") is a word, not a code name
+    if (head && head.length < 3) return w;
+    return `${pre}${[head, ac!.toUpperCase() + (plural ? "s" : ""), num].filter(Boolean).join(" ")}${post}`;
+  });
+}
+
 /** Map spoken (STT) word times onto the script's words so captions show the script spelling. */
 export function alignWords(script: string, spoken: { word: string; start: number; end: number }[]): WordTiming[] {
   const ws = tokens(script);
@@ -89,12 +112,13 @@ export class DeepgramVoice implements VoiceProvider {
 
   async synthesize(sceneId: string, text: string, outDir: string): Promise<SceneAudio> {
     fs.mkdirSync(CACHE, { recursive: true });
-    const h = crypto.createHash("sha1").update(this.model + "\n" + text).digest("hex").slice(0, 16);
+    const sayAs = spokenWords(text), said = sayAs.join(" ");
+    const h = crypto.createHash("sha1").update(this.model + "\n" + said).digest("hex").slice(0, 16);
     const wavCache = path.join(CACHE, `${h}.wav`), jsonCache = path.join(CACHE, `${h}.json`);
     if (!fs.existsSync(wavCache) || !fs.existsSync(jsonCache)) {
-      const tts = await this.req(`https://api.deepgram.com/v1/speak?model=${this.model}&encoding=linear16&sample_rate=24000&container=wav`, JSON.stringify({ text }), "application/json");
+      const tts = await this.req(`https://api.deepgram.com/v1/speak?model=${this.model}&encoding=linear16&sample_rate=24000&container=wav`, JSON.stringify({ text: said }), "application/json");
       const wav = Buffer.from(await tts.arrayBuffer());
-      this.usage.ttsChars += text.length;
+      this.usage.ttsChars += said.length;
       const stt = await this.req(`https://api.deepgram.com/v1/listen?model=${process.env.EXPLAINLIKE_STT ?? "nova-3"}&punctuate=true`, new Uint8Array(wav), "audio/wav");
       const j: any = await stt.json();
       const words = (j.results?.channels?.[0]?.alternatives?.[0]?.words ?? []).map((w: any) => ({ word: w.punctuated_word ?? w.word, start: w.start, end: w.end }));
@@ -107,8 +131,19 @@ export class DeepgramVoice implements VoiceProvider {
     fs.mkdirSync(outDir, { recursive: true });
     const file = path.join(outDir, `${sceneId}.wav`);
     fs.copyFileSync(wavCache, file);
-    return { sceneId, file, duration: wavDuration(fs.readFileSync(file)), words: alignWords(text, cached.words) };
+    return { sceneId, file, duration: wavDuration(fs.readFileSync(file)), words: scriptTimes(text, sayAs, alignWords(said, cached.words)) };
   }
+}
+
+/** Fold timings for the spoken form ("min BPE") back onto the script's words ("minbpe"). */
+export function scriptTimes(script: string, sayAs: string[], said: WordTiming[]): WordTiming[] {
+  const ws = tokens(script);
+  let at = 0;
+  return ws.map((w, i) => {
+    const n = Math.max(1, tokens(sayAs[i] ?? w).length), part = said.slice(at, at + n);
+    at += n;
+    return { word: w, start: part[0]?.start ?? 0, end: part[part.length - 1]?.end ?? part[0]?.end ?? 0 };
+  });
 }
 
 export function wavDuration(wav: Buffer): number {
