@@ -120,4 +120,5 @@ test("a long scene heading is cut to a name, not mid-phrase", async () => {
   assert.equal(shortHeading("one message, start to end"), "one message");
   assert.equal(shortHeading("The Front Desk"), "the front desk");
   assert.equal(shortHeading("the whole trip from you and back"), "the whole trip");
+  assert.equal(shortHeading("one message start to"), "one message");
 });
