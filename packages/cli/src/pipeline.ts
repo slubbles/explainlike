@@ -243,6 +243,16 @@ export async function runExplainLike(o: RunOptions) {
     narration = path.join(out, "narration.wav");
     mixNarration(audio.filter((a) => a.file).map((a) => ({ file: a.file!, at: timeline.find((t) => t.id === a.sceneId)!.start + 0.3 })), film.duration, narration);
   }
+  // ---------- QA: Muse Transcribe listens to the voiceover while the frames are drawn ----------
+  // it only needs narration.wav, which is final before the first frame, so it adds no wall-clock time
+  const qaRun: Promise<Record<string, unknown> | undefined> = narration && o.qa !== false ? timed("voice qa", async () => {
+    P({ stage: "qa", message: "Muse Transcribe is checking the voiceover", pct: 48 });
+    try {
+      const script = plan.scenes.map((s) => s.narration).join(" ");
+      const tr = await museTranscribe({ ledger, step: "voice-qa", wav: fs.readFileSync(narration!), durationSec: film.duration, keywords: (arch?.components ?? []).map((c) => c.keyword) });
+      return { overlap: Number(wordOverlap(script, tr.transcript).toFixed(3)), transcript: tr.transcript };
+    } catch (e) { return { error: String(e).slice(0, 300) }; }
+  }) : Promise.resolve(undefined);
   // ffmpeg encodes each frame as soon as it is drawn, instead of waiting for all of them
   const mp4 = path.join(out, `${base}.mp4`);
   const encoder = mp4Encoder(film.fps, mp4, { duration: film.duration, workDir: frames, audio: narration, music: o.music });
@@ -273,16 +283,7 @@ export async function runExplainLike(o: RunOptions) {
   fs.copyFileSync(cap.html, path.join(out, "stage.html"));
   fs.rmSync(frames, { recursive: true, force: true });
 
-  // ---------- QA: Muse Transcribe listens to the final voiceover ----------
-  let qa: Record<string, unknown> | undefined;
-  if (narration && o.qa !== false) {
-    P({ stage: "qa", message: "Muse Transcribe is checking the voiceover", pct: 96 });
-    try {
-      const script = plan.scenes.map((s) => s.narration).join(" ");
-      const tr = await timed("voice qa", () => museTranscribe({ ledger, step: "voice-qa", wav: fs.readFileSync(narration), durationSec: film.duration, keywords: (arch?.components ?? []).map((c) => c.keyword) }));
-      qa = { overlap: Number(wordOverlap(script, tr.transcript).toFixed(3)), transcript: tr.transcript };
-    } catch (e) { qa = { error: String(e).slice(0, 300) }; }
-  }
+  const qa = await qaRun;
 
   const voiceUsd = voice instanceof DeepgramVoice ? voice.usd : 0;
   const manifest = {
