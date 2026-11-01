@@ -7,7 +7,7 @@ import JobBar from "../components/JobBar";
 import Steps from "../components/Steps";
 import ResultView from "../components/ResultView";
 import { DEFAULT_FORM, formFromJob, type Form } from "../lib/form";
-import { fileUrl, useJob, useJobs, type Explain } from "../lib/client";
+import { fileUrl, postJson, useJob, useJobs, type Explain } from "../lib/client";
 
 const urlJob = () => new URLSearchParams(location.search).get("job") ?? undefined;
 
@@ -23,6 +23,8 @@ export default function Home() {
   const [started, setStarted] = useState<string[]>([]);
   const [bump, setBump] = useState(0);
   const [talking, setTalking] = useState(false);
+  const [posting, setPosting] = useState(false);
+  const [notes, setNotes] = useState<string[]>([]);
   const job = useJob(jobId);
   const listed = useJobs(bump);
 
@@ -49,12 +51,14 @@ export default function Home() {
   const busy = job?.state === "running";
 
   async function go() {
-    setErr("");
-    const r = await fetch("/api/jobs", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ ...form, input: form.input.trim() }) }).catch(() => null);
-    const j = await r?.json().catch(() => ({}));
-    if (!r?.ok) return setErr(j?.error ?? "something went wrong");
-    history.pushState(null, "", `?job=${j.id}`);
-    setJobId(j.id);
+    if (posting) return;
+    setErr(""); setPosting(true);
+    const r = await postJson<{ id: string; warnings?: string[] }>("/api/jobs", { ...form, input: form.input.trim() });
+    setPosting(false);
+    if (!r.ok) return setErr(r.error);
+    setNotes(r.data.warnings ?? []);
+    history.pushState(null, "", `?job=${r.data.id}`);
+    setJobId(r.data.id);
     scrollTo({ top: 0 });
   }
 
@@ -69,20 +73,18 @@ export default function Home() {
   async function pick(id: string) {
     if (!job) return;
     setPicked(id); setExpl(null); setExplBusy(true); setErr("");
-    const r = await fetch(`/api/jobs/${job.id}/explain`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ component: id }) }).catch(() => null);
-    const j = await r?.json().catch(() => ({}));
+    const r = await postJson<Explain>(`/api/jobs/${job.id}/explain`, { component: id });
     setExplBusy(false);
-    if (!r?.ok) return setErr(j?.error ?? "could not explain that box");
-    setExpl(j);
+    if (!r.ok) return setErr(r.error);
+    setExpl(r.data);
   }
 
   async function followUp(body: { focus?: string; whatIf?: string }) {
     if (!job) return;
     setErr("");
-    const r = await fetch(`/api/jobs/${job.id}/followup`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) }).catch(() => null);
-    const j = await r?.json().catch(() => ({}));
-    if (!r?.ok) return setErr(j?.error ?? "could not start that clip");
-    setStarted((f) => [j.id, ...f]);
+    const r = await postJson<{ id: string }>(`/api/jobs/${job.id}/followup`, body);
+    if (!r.ok) return setErr(r.error);
+    setStarted((f) => [r.data.id, ...f]);
   }
 
   const gallery = listed.filter((j) => j.kind === "video" && j.state === "done" && j.mp4).slice(0, 6);
@@ -92,15 +94,17 @@ export default function Home() {
     <>
       <Nav />
       <main className="page">
-        {!jobId && <InputScreen form={form} set={set} go={go} busy={false} err={err} gallery={gallery} talking={talking} talk={setTalking} onVoiceJob={voiceJob} />}
+        {!jobId && <InputScreen form={form} set={set} go={go} busy={posting} err={err} gallery={gallery} talking={talking} talk={setTalking} onVoiceJob={voiceJob} />}
         {jobId && (
           <>
-            <JobBar form={form} set={set} go={go} busy={busy} fold={job?.state === "done"} quiet={job?.state === "done" && form.input.trim() === job.input && form.voice === job.voice} />
-            {!job && <div className="main solo"><div className="screen" /></div>}
-            {job && job.state !== "done" && (
+            <JobBar form={form} set={set} go={go} busy={busy || posting} fold={job?.state === "done"} quiet={job?.state === "done" && form.input.trim() === job.input && form.voice === job.voice} />
+            {notes.map((n) => <p className="note" role="status" key={n}>{n}</p>)}
+            {!job && <div className="main solo"><div className="screen wait" aria-busy="true">Loading…</div></div>}
+            {job?.stage === "missing" && <div className="main solo"><div className="screen wait" role="alert">{job.error}</div></div>}
+            {job && job.state !== "done" && job.stage !== "missing" && (
               <div className="main">
                 <div className="col">
-                  <div className="screen wait">{job.state === "error" ? "No video: this run stopped before the end." : "The video shows up here when it is ready."}</div>
+                  <div className="screen wait" aria-busy={job.state === "running"}>{job.state === "error" ? "No video: this run stopped before the end." : "The video shows up here when it is ready."}</div>
                   {err && <div className="err" role="alert">{err}</div>}
                 </div>
                 <Steps job={job} />
