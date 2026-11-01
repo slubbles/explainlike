@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import type { Architecture, NoteItem, Scene } from "@explainlike/core";
-import { validateNotes, validateArchitecture, repairRepoPlan, checkStory, journeyOrder, speechIssues, keepsSync, syncPhrases, fillerIn, hookLine, validateCutIn, cutInRules, applyReviewPatch, actionName, undrawnLinks, retellCutIn, validateConcept, structural } from "@explainlike/planner";
+import { strictJsonSchema, type Architecture, type NoteItem, type Scene } from "@explainlike/core";
+import { validateNotes, validateArchitecture, repairRepoPlan, checkStory, journeyOrder, speechIssues, keepsSync, syncPhrases, fillerIn, hookLine, validateCutIn, cutInRules, applyReviewPatch, actionName, archWire, undrawnLinks, retellCutIn, validateConcept, structural } from "@explainlike/planner";
 
 const item = (text: string, extra: Partial<NoteItem> = {}): NoteItem => ({ text, color: "white", icon: "", target: "", estimate: false, evidence: "", ...extra });
 const ids = new Set(["d1-db", "edge"]);
@@ -99,7 +99,7 @@ test("validateArchitecture: a loop back says 'again' instead of repeating a step
 test("validateArchitecture: a part named by what it does gets the noun from its name", () => {
   const arch: Architecture = {
     product: "p", one_liner: "x",
-    components: [comp("app", ["app.c"], { keyword: "frame loop" }), comp("core", ["ui.c"], { name: "microUI via microui.h", keyword: "rebuild widgets" })],
+    components: [comp("app", ["app.c"], { keyword: "frame loop", kind: "client" }), comp("core", ["ui.c"], { name: "microUI via microui.h", keyword: "rebuild widgets" })],
     connections: [{ from: "app", to: "core", label: "rebuild widgets", evidence: "app.c" }],
     walkthrough: { name: "w", steps: [{ from: "app", to: "core", label: "rebuild widgets", evidence: "app.c" }] },
     scale: [],
@@ -112,12 +112,39 @@ test("validateArchitecture: a part named by what it does gets the noun from its 
   assert.ok(!actionName("host renderer") && !actionName("command list") && !actionName("job queue") && !actionName("cache") && !actionName("build tool"));
 });
 
+test("validateArchitecture: a map with no client part is sent back to add who starts the flow", () => {
+  const arch: Architecture = {
+    product: "p", one_liner: "x",
+    components: [comp("app", ["app.c"], { keyword: "demo app", kind: "api" }), comp("core", ["ui.c"], { keyword: "ui core", kind: "api" })],
+    connections: [{ from: "app", to: "core", label: "call widgets", evidence: "app.c" }],
+    walkthrough: { name: "w", steps: [{ from: "app", to: "core", label: "call widgets", evidence: "app.c" }] },
+    scale: [],
+  };
+  const { open } = validateArchitecture(arch, ["app.c", "ui.c"], (n) => n, () => "box");
+  assert.equal(open.length, 1);
+  assert.equal(open[0].target, "app", "aimed at where the walkthrough starts");
+  assert.match(open[0].problem, /no client part/);
+  const withUser = { ...arch, components: [...arch.components, comp("user", ["app.c"], { keyword: "app user", kind: "client" })] };
+  assert.deepEqual(validateArchitecture(withUser, ["app.c", "ui.c"], (n) => n, () => "box").open, []);
+});
+
+test("archWire caps the map the API may send: parts, arrows, steps, scale and long sentences", () => {
+  const w = strictJsonSchema(archWire({ maxComponents: 6, scaleItems: 1 })) as any;
+  assert.equal(w.properties.components.maxItems, 6);
+  assert.equal(w.properties.connections.maxItems, 10);
+  assert.equal(w.properties.walkthrough.properties.steps.maxItems, 7);
+  assert.equal(w.properties.scale.maxItems, 1);
+  assert.equal(w.properties.components.items.properties.what.maxLength, 200);
+  assert.equal(w.properties.components.items.properties.evidence.maxItems, 3);
+  assert.equal(w.properties.components.items.additionalProperties, false, "still strict");
+});
+
 test("validateArchitecture: an arrow against the code's includes is dropped or sent for a fix", () => {
   const src: Record<string, string> = { "demo/main.c": '#include "microui.h"\n#include "renderer.h"\nint main() {}', "src/microui.c": '#include "microui.h"', "src/microui.h": "", "demo/renderer.c": '#include "renderer.h"', "demo/renderer.h": "" };
   const files = Object.keys(src);
   const arch: Architecture = {
     product: "p", one_liner: "x",
-    components: [comp("app", ["demo/main.c"], { keyword: "demo app" }), comp("core", ["src/microui.c", "src/microui.h"], { keyword: "ui core" }), comp("gfx", ["demo/renderer.c"], { keyword: "renderer" })],
+    components: [comp("app", ["demo/main.c"], { keyword: "demo app", kind: "client" }), comp("core", ["src/microui.c", "src/microui.h"], { keyword: "ui core" }), comp("gfx", ["demo/renderer.c"], { keyword: "renderer" })],
     connections: [
       { from: "app", to: "core", label: "build widgets", evidence: "demo/main.c" },
       { from: "core", to: "app", label: "emit commands", evidence: "src/microui.c" },

@@ -27,15 +27,39 @@ function archSystem(L: ExplainSpec, icons: string, hints = "") {
   ].join("\n");
 }
 
-export async function extractArchitecture(o: { ledger: CostLedger; digest: string; name: string; spec: ExplainSpec; icons: string; hints?: string; progress?: Progress }): Promise<Architecture> {
+/**
+ * The map as sent to the API: the same fields with hard limits, so a long answer cannot run on. The
+ * prompt already asks for these sizes; the limits make them binding.
+ */
+export function archWire(L: Pick<ExplainSpec, "maxComponents" | "scaleItems">) {
+  const conn = Connection.extend({ label: z.string().max(40), evidence: z.string().max(160) });
+  return Architecture.extend({
+    product: z.string().max(80),
+    one_liner: z.string().max(200),
+    components: z.array(Component.extend({ name: z.string().max(80), keyword: z.string().max(40), what: z.string().max(200), evidence: z.array(z.string().max(160)).max(3) })).max(L.maxComponents),
+    connections: z.array(conn).max(L.maxComponents + 4),
+    walkthrough: z.object({ name: z.string().max(80), steps: z.array(conn).max(7) }),
+    scale: z.array(ScaleRisk.extend({ why: z.string().max(300), fix_detail: z.string().max(300) })).max(Math.max(0, L.scaleItems)),
+  });
+}
+
+/**
+ * One call maps the repo. Its time is almost all reasoning: at medium effort the same microui digest took
+ * 50 to 98 s (5.3k to 11.1k reasoning tokens at about 120 tokens/s, no retries), at low effort 35 to 42 s
+ * with the same file check passing. Low effort plus the review and the targeted fix keeps the map right;
+ * the time limit means a stuck call costs one more quick try, never a hang.
+ */
+export async function extractArchitecture(o: { ledger: CostLedger; digest: string; name: string; spec: ExplainSpec; icons: string; hints?: string; progress?: Progress; effort?: "low" | "medium"; timeoutMs?: number }): Promise<Architecture> {
   o.progress?.({ stage: "plan", message: "mapping the architecture with Muse Spark" });
-  return sparkJson({
-    ledger: o.ledger, step: "architecture", schema: Architecture, name: "architecture", effort: "medium", maxTokens: 16000,
+  const a = await sparkJson({
+    ledger: o.ledger, step: "architecture", schema: Architecture, wire: archWire(o.spec), name: "architecture", effort: o.effort ?? "low", maxTokens: 10000, timeoutMs: o.timeoutMs ?? 90_000,
     messages: [
       { role: "system", content: archSystem(o.spec, o.icons, o.hints) },
       { role: "user", content: `Repository: ${o.name}\n\nDIGEST (secrets stripped):\n${o.digest}` },
     ],
   });
+  // the API may not hold to every limit; the walkthrough and the evidence lists are cut to them here
+  return { ...a, components: a.components.map((c) => ({ ...c, evidence: c.evidence.slice(0, 3) })), walkthrough: { ...a.walkthrough, steps: a.walkthrough.steps.slice(0, 7) } };
 }
 
 /**
@@ -125,6 +149,8 @@ export function validateArchitecture(arch: Architecture, files: string[], resolv
     });
     if (!steps.every((st) => out.some((e) => (e.from === st.from && e.to === st.to) || (e.from === st.to && e.to === st.from)))) out = conns;
   }
+  // the video follows someone doing something; without a client part there is no one to start the flow
+  if (comps.length && !comps.some((c) => c.kind === "client")) open.push({ target: steps[0]?.from ?? comps[0].id, problem: "no client part: add who starts the core flow (a user, a browser, a CLI, the app that calls the library) as a component of kind client, citing the file where it starts, and begin the walkthrough from it" });
   return { arch: { ...arch, components: comps, connections: out, walkthrough: { name: arch.walkthrough.name, steps }, scale }, issues, open };
 }
 
