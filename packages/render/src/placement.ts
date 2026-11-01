@@ -252,7 +252,8 @@ export function checkPlacement(p: Placed, counts: Record<string, number> = {}): 
 
   // the frame: every word, ring and arrow whole on screen as it finishes, and words big enough to read
   for (const it of all) {
-    if (it.kind === "node" || it.kind === "wire") continue;
+    // a system wire may lead off screen to a box out of shot; a board's own arrows are whole, like its words
+    if (it.kind === "node" || (it.kind === "wire" && (!it.g || it.g.startsWith("e:")))) continue;
     const t = settled(film, it.t0);
     if (t >= (film.end?.t0 ?? film.duration) || opacity(film, it.g, t) < 0.6) continue;
     const cam = cameraAt(film, t), m = (4 * cam.w) / film.width;
