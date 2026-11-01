@@ -8,6 +8,7 @@ import { placementPass, type Mark, type PlacementReport } from "./placement.js";
 import { layoutGraph, unionBox, shiftLayout, wrapText, NODE, type Box, type GNode, type GEdge, type Layout, type PlacedNode, type PlacedEdge } from "./layout.js";
 import { textWidth, fontDataUrl, useHandFont, HAND_FONTS } from "./measure.js";
 import { penOutline } from "./draw.js";
+import { chartLayout, timelineLayout, cutInSize, CHART, TIMELINE } from "./cutins.js";
 import type { IconPack } from "./icons.js";
 import { resolveIcon } from "./icons.js";
 import { ringOf, scaleArrow, placeFix, placeRingLabel, polyBox } from "./annotate.js";
@@ -543,6 +544,10 @@ export async function compose(inp: ComposeInput): Promise<Composed> {
       const z = panelSize(s.items);
       if (graph) { panels.set(s.id, { x: gb.x + gb.w + 500, y: gb.y + [...panels.values()].reduce((a, b) => a + b.h + 300, 0), ...z }); continue; }
       regions.push({ id: s.id, ...z, place: (x, y) => panels.set(s.id, { x, y, ...z }) });
+    } else if ((s.kind === "chart" || s.kind === "timeline") && s.items.length) {
+      const z = cutInSize(s.kind, s.items);
+      if (graph) { panels.set(s.id, { x: gb.x + gb.w + 500, y: gb.y + [...panels.values()].reduce((a, b) => a + b.h + 300, 0), ...z }); continue; }
+      regions.push({ id: s.id, ...z, place: (x, y) => panels.set(s.id, { x, y, ...z }) });
     }
   }
   let shotBox: Box | undefined;
@@ -969,6 +974,41 @@ export async function compose(inp: ComposeInput): Promise<Composed> {
         });
         pins.forEach((_, k) => B.setOp(pg(k), T + D - 0.2, 0, 0.4));
       }
+    } else if ((s.kind === "chart" || s.kind === "timeline") && s.items.length && panels.has(s.id)) {
+      // a cut-in: the board steps back, the chart or timeline fills the frame, each row drawn as it is said
+      const pb = panels.get(s.id)!, g = `ci:${s.id}`, items = s.items;
+      const times = eventTimes(words, items.map((i) => [i.text.replace(/[\d$€£%.,]+/g, " ").trim().split(/\s+/).slice(0, 2).join(" "), i.text.split(" ").slice(-1)[0]]), t0 + 0.4, tEnd - 0.5, 1.0);
+      if (!graph) { fades.push({ t: T, dur: 0.35 }); for (const b of boardShown) B.setOp(b.g, T + 0.1, 0, 0.05); }
+      else { for (const id of present) B.setOp(nodeGroup(id), T, dim); for (const k of drawnEdges) B.setOp(k, T, dim); }
+      B.fit(pb, T, graph ? 1.1 : 0, 1.25);
+      const ink = (c: string) => (c === C("white") ? theme.ink : c);
+      if (s.kind === "chart") {
+        const L = chartLayout(items), ax = pb.x + L.bars[0].bar.x;
+        B.rough(gen.line(ax, pb.y - 10, ax, pb.y + L.h + 10, { seed: B.seed++, stroke: theme.ink, strokeWidth: 4, roughness: 0.8 }), t0, 0.4, g);
+        for (const b of L.bars) {
+          const col = C(items[b.item].color), t = times[b.item], r = { ...b.bar, x: pb.x + b.bar.x, y: pb.y + b.bar.y };
+          B.text({ text: b.label, x: pb.x, y: pb.y + b.text_y, size: CHART.size, color: theme.ink, t0: t, g });
+          B.cueNext("pop");
+          B.rough(gen.rectangle(r.x, r.y, r.w, r.h, { seed: B.seed++, stroke: col, strokeWidth: 3.5, roughness: 1.1, fill: col, fillStyle: "hachure", hachureGap: 11, fillWeight: 2.6 }), t + 0.15, 0.7, g);
+          B.sketch.polygons.push({ points: [[r.x, r.y], [r.x + r.w, r.y], [r.x + r.w, r.y + r.h], [r.x, r.y + r.h]], color: col });
+          B.text({ text: b.shown, x: pb.x + b.value_x, y: pb.y + b.text_y, size: CHART.size, color: ink(col), t0: t + 0.8, g, weight: 700 });
+        }
+      } else {
+        const L = timelineLayout(items), ly = pb.y + L.lineY, first = L.ticks[0], last = L.ticks[L.ticks.length - 1];
+        B.rough(gen.line(pb.x + first.x - 60, ly, pb.x + last.x + 60, ly, { seed: B.seed++, stroke: theme.ink, strokeWidth: 4.5, roughness: 0.9 }), t0, 0.8, g);
+        for (const k of L.ticks) {
+          const col = C(items[k.item].color), t = times[k.item], x = pb.x + k.x;
+          B.cueNext("pop");
+          B.rough(gen.circle(x, ly, 30, { seed: B.seed++, stroke: col, strokeWidth: 3.5, fill: col, fillStyle: "solid", roughness: 0.8 }), t, 0.3, g);
+          B.text({ text: k.when, x, y: ly - 42, size: TIMELINE.date, color: ink(col), anchor: "middle", t0: t + 0.1, g, weight: 700 });
+          k.lines.forEach((l, j) => B.text({ text: l, x, y: ly + 70 + j * TIMELINE.label * 1.25, size: TIMELINE.label, color: theme.ink, anchor: "middle", t0: t + 0.35 + j * 0.15, g }));
+        }
+      }
+      if (graph) {
+        B.setOp(g, T + D - 0.2, 0, 0.4);
+        for (const id of present) B.setOp(nodeGroup(id), T + D - 0.2, 1, 0.4);
+        for (const k of drawnEdges) B.setOp(k, T + D - 0.2, 1, 0.4);
+      } else boardShown.push({ id: s.id, heading: s.heading, keys: items.map((i) => i.text.split(" ")[0]), g });
     } else if (s.kind === "establish" && graph) {
       // draw the whole known system quickly (deep dives and what-ifs start here)
       const ids = [...graph.nodes.keys()].filter((id) => !fixIds.includes(id));

@@ -1,0 +1,311 @@
+{
+ "title": "how the internet grew",
+ "subtitle": "en.wikipedia.org, icann.org, spectrum.ieee.org",
+ "scenes": [
+  {
+   "id": "s01-hook",
+   "kind": "hook",
+   "heading": "letters become postcards",
+   "narration": "You send mail every day, so why does the internet survive broken wires. Letters become postcards here, chopped up, sorted alone, then rebuilt for you at the end.",
+   "add_components": [],
+   "add_connections": [],
+   "board_nodes": [],
+   "board_edges": [],
+   "highlights": [],
+   "callouts": [],
+   "items": []
+  },
+  {
+   "id": "s02-source",
+   "kind": "source",
+   "heading": "what the sources say",
+   "narration": "What the sources say guides this story. The encyclopedia describes chopping data, joining networks, and the standards body describes later stewardship. Those phrases matter because each fixes one failure.",
+   "add_components": [],
+   "add_connections": [],
+   "board_nodes": [],
+   "board_edges": [],
+   "highlights": [
+    {
+     "quote": "splitting it into very short, standardized chunks",
+     "note": "core trick",
+     "color": "orange"
+    },
+    {
+     "quote": "multiple separate networks could be joined",
+     "note": "network join",
+     "color": "blue"
+    },
+    {
+     "quote": "transition of the coordination and management",
+     "note": "open governance",
+     "color": "green"
+    }
+   ],
+   "callouts": [],
+   "items": []
+  },
+  {
+   "id": "s03-board",
+   "kind": "board",
+   "heading": "chop the letter",
+   "narration": "Chop the letter first. Packet switching, meaning chopping data into addressed chunks, frees you from one fixed telephone line. If one road closes, your postcards take another road.",
+   "add_components": [],
+   "add_connections": [],
+   "board_nodes": [
+    {
+     "id": "n1",
+     "keyword": "long letter",
+     "icon": "mail",
+     "color": "orange",
+     "evidence": "divided into what he called \"message blocks\"",
+     "count": 1
+    },
+    {
+     "id": "n2",
+     "keyword": "small postcards",
+     "icon": "box",
+     "color": "yellow",
+     "evidence": "splitting it into very short, standardized chunks",
+     "count": 5
+    },
+    {
+     "id": "n3",
+     "keyword": "rebuilt message",
+     "icon": "check",
+     "color": "green",
+     "evidence": "all users of the network will provide",
+     "count": 1
+    }
+   ],
+   "board_edges": [
+    {
+     "from": "n1",
+     "to": "n2",
+     "label": "chopped"
+    },
+    {
+     "from": "n2",
+     "to": "n3",
+     "label": "travel alone"
+    }
+   ],
+   "highlights": [],
+   "callouts": [
+    {
+     "target": "n2",
+     "text": "packet switching",
+     "color": "yellow"
+    }
+   ],
+   "items": []
+  },
+  {
+   "id": "s04-board",
+   "kind": "board",
+   "heading": "join the networks",
+   "narration": "Join the networks next. A gateway, meaning a sorting office between networks, reads each postcard address and forwards it onward. Shared rules let old networks stay unchanged yet still deliver to you.",
+   "add_components": [],
+   "add_connections": [],
+   "board_nodes": [
+    {
+     "id": "g1",
+     "keyword": "separate networks",
+     "icon": "network",
+     "color": "blue",
+     "evidence": "clouds representing three different packet-switched networks",
+     "count": 3
+    },
+    {
+     "id": "g2",
+     "keyword": "sorting gateway",
+     "icon": "server",
+     "color": "orange",
+     "evidence": "boxes representing the computers hanging off",
+     "count": 1
+    },
+    {
+     "id": "g3",
+     "keyword": "shared rules",
+     "icon": "globe",
+     "color": "green",
+     "evidence": "Transmission Control Protocol (TCP) and Internet Protocol",
+     "count": 1
+    }
+   ],
+   "board_edges": [
+    {
+     "from": "g1",
+     "to": "g2",
+     "label": "connect"
+    },
+    {
+     "from": "g2",
+     "to": "g3",
+     "label": "forward"
+    }
+   ],
+   "highlights": [],
+   "callouts": [
+    {
+     "target": "g2",
+     "text": "gateway computer",
+     "color": "orange"
+    }
+   ],
+   "items": []
+  },
+  {
+   "id": "s05-timeline",
+   "kind": "timeline",
+   "heading": "dates show growth",
+   "narration": "Dates show growth from experiment to everyday utility. One military network becomes many research networks, then a public backbone, then community stewardship. The turn is from control toward shared care.",
+   "add_components": [],
+   "add_connections": [],
+   "board_nodes": [],
+   "board_edges": [],
+   "highlights": [],
+   "callouts": [],
+   "items": [
+    {
+     "text": "1969 arpanet project starts",
+     "color": "blue",
+     "icon": "server",
+     "target": "",
+     "estimate": false,
+     "evidence": "ARPA awarded contracts in 1969 for the development"
+    },
+    {
+     "text": "1974 join networks described",
+     "color": "blue",
+     "icon": "document",
+     "target": "",
+     "estimate": false,
+     "evidence": "published their research on internetworking in 1974"
+    },
+    {
+     "text": "1986 research backbone connects",
+     "color": "blue",
+     "icon": "network",
+     "target": "",
+     "estimate": false,
+     "evidence": "provided interconnectivity in 1986 with the NSFNET project"
+    },
+    {
+     "text": "1 october 2016 community takes stewardship",
+     "color": "green",
+     "icon": "users",
+     "target": "",
+     "estimate": false,
+     "evidence": "Today, 1 October 2016, the contract between the Internet"
+    }
+   ]
+  },
+  {
+   "id": "sxx-chart",
+   "kind": "chart",
+   "heading": "share of traffic",
+   "narration": "Then the share took off. In 1993 the internet carried one percent of two way traffic. By 2000 it was about half, and by 2007 it carried nearly all of it.",
+   "add_components": [],
+   "add_connections": [],
+   "board_nodes": [],
+   "board_edges": [],
+   "highlights": [],
+   "callouts": [],
+   "items": [
+    {
+     "text": "1993 share 1%",
+     "evidence": "only communicated 1% of the information flowing through two-way telecommunications networks in the year 1993",
+     "color": "blue",
+     "icon": "chart",
+     "target": "",
+     "estimate": false
+    },
+    {
+     "text": "2000 share 51%",
+     "evidence": "51% by 2000",
+     "color": "blue",
+     "icon": "chart",
+     "target": "",
+     "estimate": false
+    },
+    {
+     "text": "2007 share 97%",
+     "evidence": "more than 97% of the telecommunicated information by 2007",
+     "color": "orange",
+     "icon": "chart",
+     "target": "",
+     "estimate": false
+    }
+   ]
+  },
+  {
+   "id": "s06-board",
+   "kind": "board",
+   "heading": "names find pages",
+   "narration": "Names find pages for you. The address book, meaning the Domain Name System for finding computers, maps names to numbers. Linked pages then give you mail, calls, shopping, and news without new wires.",
+   "add_components": [],
+   "add_connections": [],
+   "board_nodes": [
+    {
+     "id": "w1",
+     "keyword": "street addresses",
+     "icon": "search",
+     "color": "blue",
+     "evidence": "emergence of architecture such as the Domain",
+     "count": 1
+    },
+    {
+     "id": "w2",
+     "keyword": "linked pages",
+     "icon": "browser",
+     "color": "teal",
+     "evidence": "linking hypertext documents into an information system",
+     "count": 1
+    },
+    {
+     "id": "w3",
+     "keyword": "open stewards",
+     "icon": "users",
+     "color": "green",
+     "evidence": "coordination and management of the Internet\u2019s unique identifiers",
+     "count": 1
+    }
+   ],
+   "board_edges": [
+    {
+     "from": "w1",
+     "to": "w2",
+     "label": "named"
+    },
+    {
+     "from": "w2",
+     "to": "w3",
+     "label": "linked"
+    }
+   ],
+   "highlights": [],
+   "callouts": [
+    {
+     "target": "w1",
+     "text": "address book",
+     "color": "blue"
+    }
+   ],
+   "items": []
+  },
+  {
+   "id": "s07-recap",
+   "kind": "recap",
+   "heading": "postcards still deliver",
+   "narration": "Postcards still deliver your internet. Chopped data survives breaks, gateways join networks, and shared names keep it open. Remember that trick, and the growth makes sense.",
+   "add_components": [],
+   "add_connections": [],
+   "board_nodes": [],
+   "board_edges": [],
+   "highlights": [],
+   "callouts": [],
+   "items": []
+  }
+ ],
+ "repairs": []
+}
