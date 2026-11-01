@@ -154,6 +154,27 @@ Want to call it from your own code instead? `packages/api` runs the same jobs ov
 
 The code is a pnpm workspace: `packages/` holds `core`, `models`, `ingest`, `planner`, `voice`, `render`, `cli`, `api` and `mcp`, and `apps/web` is the Next.js app. Icon packs are a plugin point; see [docs/plugins.md](docs/plugins.md). Run the tests with `pnpm test` and `pnpm typecheck`.
 
+### Architecture
+
+```mermaid
+flowchart TD
+    CLI["cli: pipeline"] --> ING["ingest: repos, posts, articles, topics"]
+    WEB["apps/web: Next.js + voice mode"] --> API["api: local job server"]
+    MCP["mcp: /explainlike server"] --> API
+    API --> ING
+    ING --> PLAN["planner: brief, architecture, scenes"]
+    PLAN --> VOICE["voice: Deepgram TTS + retake checks"]
+    VOICE --> REN["render: hand-drawn canvas, Chrome frames, ffmpeg"]
+    REN --> OUT["mp4 + .tldr + .excalidraw boards"]
+    MOD["models: Muse Spark, Image, SAM, Transcribe"] -.-> PLAN
+    MOD -.-> VOICE
+    MOD -.-> REN
+    CORE["core: shared types and checks"] -.-> ING
+    CORE -.-> PLAN
+    CORE -.-> VOICE
+    CORE -.-> REN
+```
+
 ## License
 
 MIT, see [LICENSE](LICENSE). Fonts and libraries are listed in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md). Not affiliated with or endorsed by Meta, tldraw or Excalidraw.
