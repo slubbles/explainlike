@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { strictJsonSchema, type Architecture, type NoteItem, type Scene } from "@explainlike/core";
-import { validateNotes, validateArchitecture, repairRepoPlan, checkStory, journeyOrder, speechIssues, keepsSync, syncPhrases, fillerIn, hookLine, validateCutIn, cutInRules, applyReviewPatch, actionName, archWire, reviewWire, undrawnLinks, retellCutIn, validateConcept, structural, pictureWords, conceptSlips, namesPlace, respeak, emptyPoint } from "@explainlike/planner";
+import { validateNotes, validateArchitecture, repairRepoPlan, checkStory, journeyOrder, speechIssues, keepsSync, syncPhrases, fillerIn, hookLine, validateCutIn, cutInRules, applyReviewPatch, actionName, archWire, reviewWire, undrawnLinks, retellCutIn, validateConcept, structural, pictureWords, conceptSlips, namesPlace, respeak, emptyPoint, groundedSummary } from "@explainlike/planner";
 
 const item = (text: string, extra: Partial<NoteItem> = {}): NoteItem => ({ text, color: "white", icon: "", target: "", estimate: false, evidence: "", ...extra });
 const ids = new Set(["d1-db", "edge"]);
@@ -519,4 +519,12 @@ test("a tapped box's answer drops points that only say the files don't show some
   assert.ok(emptyPoint("Host-side declaration code is not visible here."));
   assert.ok(!emptyPoint("It connects outward by emitting MU_COMMAND_* rect/text/icon/clip items into command_list for a renderer to draw."));
   assert.ok(!emptyPoint("The core is mu_Context, holding style, hover/focus, fixed-size stacks, and container pools with no dynamic allocation shown."));
+});
+
+test("a tapped box's summary drops rendering-mode claims the evidence does not show", () => {
+  // microui is immediate-mode; the model once called it "retained"
+  const ev = "### src/microui.c\nimmediate mode gui, redrawn each frame";
+  assert.ok(!groundedSummary("It is a retained mode gui.", ev).toLowerCase().includes("retained"));
+  assert.ok(groundedSummary("It is an immediate mode gui.", ev).toLowerCase().includes("immediate"));
+  assert.ok(groundedSummary("It is a retained mode gui.", "### src/x.c\nretained widgets").toLowerCase().includes("retained"));
 });
