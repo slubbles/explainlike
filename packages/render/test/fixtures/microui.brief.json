@@ -1,0 +1,12 @@
+{
+ "topic": "A tiny immediate-mode UI library in ANSI C that rebuilds controls every frame in fixed memory",
+ "complexity": "simple",
+ "audience": "a developer new to immediate-mode UI who has never built a GUI toolkit",
+ "depth": "overview",
+ "approach": "story",
+ "analogy": "a cafe chalkboard menu that is erased and rewritten from scratch on every customer visit",
+ "why": "A story following one frame from input to draw commands fits because the UI is recreated every frame, and overview depth fits a tiny 1100-line tool.",
+ "look": "whiteboard-light",
+ "style": "whiteboard",
+ "extras": []
+}

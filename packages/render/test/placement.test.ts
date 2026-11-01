@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import { getTheme, specFromBrief, DEFAULT_BRIEF, type Brief } from "@explainlike/core";
-import { compose, loadIconPack, checkPlacement, placementPass, type Film, type FText, type Mark, type Sketch } from "../src/index.js";
+import { compose, loadIconPack, checkPlacement, placementPass, textWidth, type Film, type FText, type Mark, type Sketch } from "../src/index.js";
 
 const fx = new URL("./fixtures/", import.meta.url);
 const plan = JSON.parse(fs.readFileSync(new URL("spotibai.plan.json", fx), "utf8"));
@@ -119,4 +119,37 @@ test("an arrow too long for any readable shot falls back to a wider one and the 
   assert.ok(rep.fixed.some((x) => x.rule === "cropped" && x.fallback));
   assert.ok(rep.warnings.every((w) => w.rule === "text-small"));
   assert.ok(rep.warnings.length > 0);
+});
+
+test("widening a shot to reach one word never slices another lit word at the frame edge", async () => {
+  // rxi/microui at its recorded scene lengths: a new scene once panned across "feed input", and reaching step "5"
+  // widened the walk's shot through "built in controls"
+  const mplan = JSON.parse(fs.readFileSync(new URL("microui.plan.json", fx), "utf8"));
+  const march = JSON.parse(fs.readFileSync(new URL("microui.architecture.json", fx), "utf8"));
+  const secs: Record<string, number> = { "s01-hook": 10.64, "s02-layer": 11.2, "s03-layer": 11.96, "s04-layer": 7.96, "s05-walkthrough": 21.28, "s06-recap": 10.32 };
+  const maudio = mplan.scenes.map((s: any) => {
+    const ws = s.narration.split(/\s+/), st = secs[s.id] / ws.length;
+    return { sceneId: s.id, duration: secs[s.id], words: ws.map((w: string, i: number) => ({ word: w, start: i * st, end: i * st + st * 0.8 })) };
+  });
+  const brief: Brief = JSON.parse(fs.readFileSync(new URL("microui.brief.json", fx), "utf8"));
+  const spec = specFromBrief(brief);
+  const { film } = await compose({ plan: mplan, audio: maudio, theme: getTheme(spec.look), spec, pack: loadIconPack(), sourceLabel: "x", arch: march });
+  const op = (g: string | undefined, t: number) => {
+    const k = g ? film.groups[g] : undefined;
+    if (!k?.length) return 1;
+    let v = k[0][1];
+    for (const [kt, kv] of k) if (kt <= t) v = kv;
+    return v;
+  };
+  const end = film.end?.t0 ?? film.duration;
+  for (const k of film.camera) {
+    const r = k.t + k.move + 0.05;
+    if (r >= end) continue;
+    for (const e of film.elements) {
+      if (e.k !== "text" || e.t0 + e.dur > r || op(e.g, r) < 0.6 || (e as FText).size < 20) continue;
+      const t = e as FText, w = textWidth(t.text, t.size), x = t.anchor === "middle" ? t.x - w / 2 : t.anchor === "end" ? t.x - w : t.x;
+      const inside = x >= k.x && x + w <= k.x + k.w, outside = x + w <= k.x || x >= k.x + k.w;
+      assert.ok(inside || outside, `"${t.text}" sliced by the shot at ${k.t.toFixed(1)}s`);
+    }
+  }
 });
