@@ -61,9 +61,10 @@ export function spokenWords(script: string): string[] {
 /**
  * Proper nouns Aura has said so a listener hears another word, with a spelling it says clearly. Captions
  * keep the script spelling; only the text sent to the voice changes. "silk reached Rome" came out as
- * "reached Gromo" in two takes of four.
+ * "reached Gromo" in two takes of four. "parcel" needs the hyphen: plain and "parsel" are both heard as
+ * another word, while "par-sel" is heard as "parcel".
  */
-export const RESPELL: Record<string, string> = { rome: "Rohm", parcel: "parsel", courier: "coorier", couriers: "cooriers" };
+export const RESPELL: Record<string, string> = { rome: "Rohm", parcel: "par-sel", courier: "coorier", couriers: "cooriers" };
 
 /**
  * The names in a script a listener would notice said wrong: capitalised words (not acronyms) after a

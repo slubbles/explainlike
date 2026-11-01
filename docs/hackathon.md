@@ -54,8 +54,9 @@ commit, and every run prints its spend against a guard.
 - Follow-ups are repo-video-only by tool contract, which explains the article
   what-if rendering a full video. No code change; scope note stands.
 - microui pacing accepted at 7.48 cuts/min for that sample. No code change.
-- New respellings (parsel, cooriers) await one real-audio check on a live
-  render. Retake logic is unit-tested.
+- Respellings checked on real audio (Nov 2): "par-sel" is heard as "parcel"
+  where plain "parcel" and "parsel" were heard as other words, and "Couriers"
+  comes back clean. One Aura take plus the recogniser, about half a cent.
 
 ## X drafts (do not post)
 

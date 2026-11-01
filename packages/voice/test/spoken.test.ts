@@ -35,15 +35,16 @@ test("names are capitalised words after a sentence's first word, plus names with
   assert.deepEqual(namesIn("Rome pays gold. No courier runs from China to Rome. The SDL window paints."), ["rome", "courier", "china"]);
   assert.deepEqual(namesIn("A parcel relay moves silk."), ["parcel"]);
   assert.deepEqual(namesIn("Couriers guard the road."), ["couriers"]);
+});
 
-// Silk Road retake: Aura heard "parcel relay" as "personal relay" and "Couriers" as "Curriers"
+// Silk Road retake: Aura heard "parcel relay" as "personal relay" and "Couriers" as "Curriers".
+// Re-checked on real audio: "par-sel" is heard as "parcel", plain "parcel" and "parsel" are not.
 test("risky common words are caught and respelled for the retake", () => {
   const script = "A parcel relay moves silk while Couriers guard the road.";
   assert.deepEqual(misheard(script, "A personal relay moves silk while Curriers guard the road."), ["parcel", "couriers"]);
   const sayAs = spokenWords(script);
   const hint = hinted(sayAs, ["parcel", "couriers"]);
   assert.equal(hint.length, sayAs.length);
-  assert.ok(hint.join(" ").toLowerCase().includes("parsel"), "parcel is respelled");
+  assert.ok(hint.join(" ").toLowerCase().includes("par-sel"), "parcel is respelled");
   assert.ok(hint.join(" ").toLowerCase().includes("cooriers"), "couriers is respelled");
-});
 });
