@@ -184,7 +184,10 @@ export async function runExplainLike(o: RunOptions) {
       let v = check(a);
       P({ stage: "review", message: "second pass: checking every box against the code", pct: 20 });
       // the review sees what the file check could not fix (action names, arrows against the code) and fixes it in the same call
-      const rev = await reviewArchitecture({ ledger, arch: v.arch, evidence: evidencePack(v.arch, r.digest.read), digest: r.digest.text, name, found: [...v.issues, ...v.open], spec, icons: iconCatalog(pack), hints, progress: P });
+      // a review that times out twice keeps the file-checked map rather than failing the whole run
+      const kept = { verdict: "ok" as const, issues: [] as { target: string; problem: string; fix: string }[], changes: { upsert: 0, removed: 0, walkthrough: false, scale: false }, architecture: v.arch };
+      const rev = await reviewArchitecture({ ledger, arch: v.arch, evidence: evidencePack(v.arch, r.digest.read), digest: r.digest.text, name, found: [...v.issues, ...v.open], spec, icons: iconCatalog(pack), hints, progress: P })
+        .catch((e: Error) => (notes.push(`review skipped (${e.message.slice(0, 120)}); the file-checked map is kept`), kept));
       notes.push(`review verdict: ${rev.verdict}; ${rev.issues.length} issues; ${rev.changes.upsert} item(s) changed or added, ${rev.changes.removed} dropped${rev.changes.walkthrough ? ", walkthrough redone" : ""}${rev.changes.scale ? ", scale redone" : ""}; validator: ${v.issues.length} fixes, ${v.open.length} open`);
       const first = [...v.issues, ...v.open];
       if (rev.verdict === "revise" || first.length) v = check(rev.architecture);
@@ -192,8 +195,9 @@ export async function runExplainLike(o: RunOptions) {
       let fixed: Awaited<ReturnType<typeof fixArchitecture>> | undefined;
       if (v.open.length) {
         const open = v.open;
-        fixed = await fixArchitecture({ ledger, arch: v.arch, open, read: r.digest.read, spec, icons: iconCatalog(pack), hints, progress: P });
-        v = check(fixed.architecture);
+        fixed = await fixArchitecture({ ledger, arch: v.arch, open, read: r.digest.read, spec, icons: iconCatalog(pack), hints, progress: P })
+          .catch((e: Error) => (notes.push(`map fix skipped (${e.message.slice(0, 120)})`), undefined));
+        if (fixed) v = check(fixed.architecture);
         notes.push(`map fix: ${open.length} problem(s) sent, ${v.open.length} left${v.open.length ? `: ${v.open.map((i) => i.problem).join("; ")}` : ""}`);
       }
       v.issues.unshift(...first);
