@@ -5,7 +5,7 @@ import { CostLedger, museTranscribe } from "@explainlike/models";
 import { ingestRepo } from "@explainlike/ingest";
 import { planBrief, extractArchitecture, validateArchitecture, evidencePack, reviewArchitecture, reviseArchitecture, planRepoScenes, planFocus, planWhatIf, kindColor } from "@explainlike/planner";
 import { pickVoice, wordOverlap, DeepgramVoice, type VoiceProvider } from "@explainlike/voice";
-import { captionMismatches, loadIconPack, mergePacks, builtinPackIds, detectComponents, packHints, type DetectedComponent, iconCatalog, resolveIcon, compose, captureFrames, mixNarration, mp4Encoder, contactSheet, frameCheck, checkTldr, checkExcalidraw, toExcalidraw, toTldraw, type IconPack, type SourceShot } from "@explainlike/render";
+import { captionMismatches, loadIconPack, mergePacks, builtinPackIds, detectComponents, packHints, type DetectedComponent, iconCatalog, resolveIcon, compose, captureFrames, mixNarration, mp4Encoder, sfxCues, contactSheet, frameCheck, checkTldr, checkExcalidraw, toExcalidraw, toTldraw, type IconPack, type SourceShot } from "@explainlike/render";
 
 export interface RunOptions {
   input: string;
@@ -23,6 +23,8 @@ export interface RunOptions {
   ask?: Ask;
   /** false: no music bed under the voice */
   music?: boolean;
+  /** false: no sound effects (soft pops as parts are drawn, whooshes as the dot moves) */
+  sfx?: boolean;
   progress?: Progress;
   /** follow-up clips reuse an earlier repo run's architecture.json from this folder */
   from?: string;
@@ -256,7 +258,7 @@ export async function runExplainLike(o: RunOptions) {
   }) : Promise.resolve(undefined);
   // ffmpeg encodes each frame as soon as it is drawn, instead of waiting for all of them
   const mp4 = path.join(out, `${base}.mp4`);
-  const encoder = mp4Encoder(film.fps, mp4, { duration: film.duration, workDir: frames, audio: narration, music: o.music });
+  const encoder = mp4Encoder(film.fps, mp4, { duration: film.duration, workDir: frames, audio: narration, music: o.music, cues: o.sfx === false ? [] : sfxCues(film) });
   P({ stage: "render", message: "drawing frames", pct: 48 });
   let cap: Awaited<ReturnType<typeof captureFrames>>;
   try {

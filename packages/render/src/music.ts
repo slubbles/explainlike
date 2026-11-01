@@ -51,10 +51,70 @@ export function makeBed(duration: number, out: string) {
   }
   let peak = 1e-9;
   for (let i = 0; i < n; i++) peak = Math.max(peak, Math.abs(L[i]), Math.abs(R[i]));
-  const pcm = Buffer.alloc(n * 4), q = new Int16Array(pcm.buffer, pcm.byteOffset, n * 2); // little-endian, like the WAV
+  writeWav(L, R, SR, out, 0.5 / peak);
+}
+
+export interface SfxCue { t: number; kind: "pop" | "whoosh" }
+
+/** The sound cues a film asks for, in time order, at most one every 0.35 s so a burst of parts is one pop. */
+export function sfxCues(film: { elements: { t0: number; cue?: "pop" | "whoosh" }[]; duration: number }): SfxCue[] {
+  const all = film.elements.flatMap((e) => (e.cue && e.t0 >= 0 && e.t0 < film.duration ? [{ t: e.t0, kind: e.cue }] : [])).sort((a, b) => a.t - b.t);
+  const out: SfxCue[] = [];
+  for (const c of all) if (!out.length || c.t - out[out.length - 1].t >= 0.35) out.push(c);
+  return out;
+}
+
+/** Peak level of each effect, far under the voice (which peaks near -1.5 dBFS): about -25 dBFS for a pop, -28 for a whoosh. */
+export const SFX_PEAK = { pop: 0.056, whoosh: 0.04 };
+
+/**
+ * Soft sound effects, synthesised here from sine waves and seeded noise (no samples, no third-party audio):
+ * a pop is a 70 ms sine blip falling from 880 to 520 Hz, like a marker tapping the board; a whoosh is
+ * 0.4 s of noise through a band-pass sweeping up from 300 Hz to 2.4 kHz, faded in and out.
+ * Written at fixed levels (see SFX_PEAK), stereo 44.1 kHz.
+ */
+export function makeSfx(duration: number, cues: SfxCue[], out: string) {
+  const SR = 44100, n = Math.ceil(SR * duration);
+  const L = new Float32Array(n), R = new Float32Array(n);
+  let seed = 11;
+  const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647) * 2 - 1;
+  cues.forEach((c, k) => {
+    const i0 = Math.round(c.t * SR), pan = ((k % 5) - 2) * 0.08;
+    if (c.kind === "pop") {
+      const m = Math.round(0.07 * SR);
+      let ph = 0;
+      for (let i = 0; i < m && i0 + i < n; i++) {
+        const t = i / SR, f = 520 + 360 * Math.exp(-t / 0.012);
+        ph += (2 * Math.PI * f) / SR;
+        const v = Math.sin(ph) * Math.min(1, t / 0.002) * Math.exp(-t / 0.018) * SFX_PEAK.pop;
+        L[i0 + i] += v * (1 - pan); R[i0 + i] += v * (1 + pan);
+      }
+    } else {
+      const m = Math.round(0.4 * SR);
+      // a state-variable band-pass whose centre slides up, so the noise rises like air past the dot
+      let lo = 0, bp = 0, peak = 0;
+      const buf = new Float32Array(m);
+      for (let i = 0; i < m; i++) {
+        const t = i / 0.4 / SR, fc = 300 * 8 ** t, F = 2 * Math.sin((Math.PI * fc) / SR), Q = 1.4;
+        const hi = rnd() - lo - bp / Q;
+        bp += F * hi; lo += F * bp;
+        buf[i] = bp * Math.sin(Math.PI * t) ** 2;
+        peak = Math.max(peak, Math.abs(buf[i]));
+      }
+      for (let i = 0; i < m && i0 + i < n; i++) {
+        const v = (buf[i] / (peak || 1)) * SFX_PEAK.whoosh;
+        L[i0 + i] += v * (1 - pan * (1 - (2 * i) / m)); R[i0 + i] += v * (1 + pan * (1 - (2 * i) / m));
+      }
+    }
+  });
+  writeWav(L, R, SR, out, 1);
+}
+
+function writeWav(L: Float32Array, R: Float32Array, SR: number, out: string, scale: number) {
+  const n = L.length, pcm = Buffer.alloc(n * 4), q = new Int16Array(pcm.buffer, pcm.byteOffset, n * 2);
   for (let i = 0; i < n; i++) {
-    q[i * 2] = Math.round((L[i] / peak) * 0.5 * 32767);
-    q[i * 2 + 1] = Math.round((R[i] / peak) * 0.5 * 32767);
+    q[i * 2] = Math.max(-32767, Math.min(32767, Math.round(L[i] * scale * 32767)));
+    q[i * 2 + 1] = Math.max(-32767, Math.min(32767, Math.round(R[i] * scale * 32767)));
   }
   const h = Buffer.alloc(44);
   h.write("RIFF", 0); h.writeUInt32LE(36 + pcm.length, 4); h.write("WAVE", 8); h.write("fmt ", 12);
@@ -71,8 +131,14 @@ export const VOICE_LUFS = -16, BED_UNDER_DB = 22;
  * (or none), by index. The voice is levelled to VOICE_LUFS; the bed fades in and out, sits BED_UNDER_DB
  * under the voice and ducks further while it speaks, through a sidechain.
  */
-export function mixGraph(voice: number | undefined, music: number | undefined, duration: number): string {
+export function mixGraph(voice: number | undefined, music: number | undefined, duration: number, sfx?: number): string {
   const AF = "aresample=48000,aformat=channel_layouts=stereo", d = duration.toFixed(3);
+  // the effects are short and already quiet, so they go in at their written level, after the ducking
+  if (sfx !== undefined && voice === undefined && music === undefined) return `[${sfx}:a]${AF},apad=whole_dur=${d},atrim=0:${d}[aout]`;
+  if (sfx !== undefined) {
+    const rest = mixGraph(voice, music, duration).replace(/\[aout\]$/, "[pre]").replace(/,alimiter=limit=0\.95\[pre\]$/, "[pre]");
+    return `${rest};[${sfx}:a]${AF},apad=whole_dur=${d},atrim=0:${d}[fx];[pre][fx]amix=inputs=2:normalize=0,alimiter=limit=0.95[aout]`;
+  }
   const v = voice === undefined ? "" : `[${voice}:a]${AF},apad=whole_dur=${d},atrim=0:${d},loudnorm=I=${VOICE_LUFS}:TP=-1.5:LRA=11,${AF}`;
   if (music === undefined) return `${v}[aout]`;
   const bed = `[${music}:a]${AF},atrim=0:${d},loudnorm=I=${VOICE_LUFS - BED_UNDER_DB}:TP=-9:LRA=7,${AF},afade=t=in:d=2,afade=t=out:st=${Math.max(0, duration - 2.5).toFixed(2)}:d=2.5`;
