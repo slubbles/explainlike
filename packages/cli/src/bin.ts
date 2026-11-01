@@ -77,8 +77,10 @@ runExplainLike({
   if (json) process.stdout.write(JSON.stringify({ type: "done", manifest: m }) + "\n");
   else process.stdout.write(`\nvideo      ${m.outputs.mp4}\ntldraw     ${m.outputs.tldr}\nexcalidraw ${m.outputs.excalidraw}\nsheet      ${m.outputs.contactSheet}\nmeta spend $${m.cost.metaUsd.toFixed(3)}  voice $${m.cost.voiceUsd.toFixed(3)}  (${m.seconds}s)\n`);
 }).catch((e) => {
-  if (json) process.stdout.write(JSON.stringify({ type: "error", message: String(e?.message ?? e) }) + "\n");
-  else process.stderr.write(`explainlike failed: ${e?.stack ?? e}\n`);
+  // a service failure already reads as a sentence a person can act on; the raw detail is for logs only
+  const plain = e?.name === "ServiceError";
+  if (json) process.stdout.write(JSON.stringify({ type: "error", message: String(e?.message ?? e), service: plain ? e.service : undefined }) + "\n");
+  else process.stderr.write(plain ? `explainlike failed: ${e.message}\n  (${e.detail ?? "no detail"})\n` : `explainlike failed: ${e?.stack ?? e}\n`);
   process.exit(1);
 });
 
