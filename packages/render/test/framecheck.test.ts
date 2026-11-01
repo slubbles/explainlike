@@ -49,6 +49,9 @@ test("judgeFrames flags a cut-off word, overlapping words, a caption over a word
   assert.equal(rep.ok, false);
   assert.equal(judgeFrames(film, [{ ...frame, els: [word("fine", 600, 300)], hud: [] }]).ok, true, "a clean frame passes");
   assert.equal(judgeFrames(film, [{ ...frame, end: true }]).atRest, 0, "the end card is not judged");
+  const faded = { ...film, fades: [{ t: t + 0.05, dur: 0.35 }] };
+  assert.equal(judgeFrames(faded, [frame]).atRest, 0, "a frame under the scene-change wash is not judged");
+  assert.equal(judgeFrames({ ...film, fades: [{ t: t + 0.3, dur: 0.35 }] }, [frame]).atRest, 1, "the light edge of the wash still is");
 });
 
 const chrome = (() => { try { return findChrome(); } catch { return ""; } })();

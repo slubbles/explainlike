@@ -41,6 +41,11 @@ export function sampleTimes(film: Film, every = 2): number[] {
   return out;
 }
 
+/** The scene-change wash (stage.js) is heavy enough near its middle that nothing under it reads, cut or not. */
+export function washed(film: Film, t: number) {
+  return film.fades.some((f) => Math.abs(t - f.t) < f.dur * 0.6);
+}
+
 export function moving(film: Film, t: number) {
   return film.camera.slice(1).some((k) => k.move > 0 && t >= k.t - 0.02 && t <= k.t + k.move + 0.02);
 }
@@ -75,7 +80,7 @@ export function judgeFrames(film: Film, frames: FrameBoxes[]): FrameReport {
   const raw: { rule: FrameRule; t: number; ids: string[]; detail: string; warn?: boolean }[] = [];
   let atRest = 0;
   for (const f of frames) {
-    if (f.end || moving(film, f.t)) continue;
+    if (f.end || moving(film, f.t) || washed(film, f.t)) continue;
     atRest++;
     const texts = f.els.filter((e) => lit(e));
     for (const e of f.els) {
