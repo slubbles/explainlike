@@ -201,8 +201,10 @@ export async function runExplainLike(o: RunOptions) {
   P({ stage: "compose", message: `pacing: ${pace.cutsPerMin} cuts a minute, shortest hold ${pace.shortestHold} s (${pace.tempo})`, pct: 46 });
   // nothing is drawn until every ring, arrow and label sits where it should
   fs.writeFileSync(path.join(out, "placement.json"), JSON.stringify(placement, null, 1));
-  P({ stage: "compose", message: `placement: ${placement.fixed.length} fixed in ${placement.passes} pass(es), ${placement.issues.length} left`, pct: 47 });
-  if (!placement.ok) throw new Error(`placement check failed after ${placement.passes} fix passes (see placement.json): ${placement.issues.slice(0, 6).map((i) => `${i.t}s ${i.what}`).join("; ")}${placement.issues.length > 6 ? `; and ${placement.issues.length - 6} more` : ""}`);
+  P({ stage: "compose", message: `placement: ${placement.fixed.length} fixed in ${placement.passes} pass(es), ${placement.warnings.length} warning(s), ${placement.issues.length} left`, pct: 47 });
+  // small slips (text a little under the minimum, a sliver past the edge) are noted; only a broken layout stops the video
+  if (placement.warnings.length) notes.push(`placement warnings: ${placement.warnings.slice(0, 6).map((i) => `${i.t}s ${i.what}`).join("; ")}${placement.warnings.length > 6 ? `; and ${placement.warnings.length - 6} more` : ""}`);
+  if (!placement.ok) throw new Error(`placement check failed after ${placement.passes} fix passes and the fallback (see placement.json): ${placement.issues.slice(0, 6).map((i) => `${i.t}s ${i.what}`).join("; ")}${placement.issues.length > 6 ? `; and ${placement.issues.length - 6} more` : ""}`);
   // captions must spell out exactly what the voice says
   const bad = captionMismatches(film, plan.scenes);
   if (bad.length) throw new Error(`captions do not match the narration in ${bad.map((b) => `${b.scene}: said "${b.said}" but shown "${b.shown}"`).join("; ")}`);
