@@ -26,17 +26,39 @@ export function checkout(urlOrPath: string): { dir: string; url: string; commit:
     return { dir, url: dir, commit, name: path.basename(dir) };
   }
   const g = parseGithubUrl(urlOrPath);
-  if (!g) throw new Error(`not a GitHub URL or directory: ${urlOrPath}`);
+  if (!g) throw new Error(`That is not a GitHub repository link or a folder: ${urlOrPath}. Use a link like https://github.com/owner/repo.`);
   const dir = path.join(REPO_CACHE, `${g.owner}__${g.repo}`);
   const url = `https://github.com/${g.owner}/${g.repo}`;
   if (!fs.existsSync(path.join(dir, ".git"))) {
     fs.mkdirSync(REPO_CACHE, { recursive: true });
     const args = ["clone", "--depth", "1", "--filter=blob:limit=2m"];
     if (g.ref) args.push("--branch", g.ref);
-    execFileSync("git", [...args, url + ".git", dir], { stdio: "pipe" });
+    // clone beside the cache and move it in, so a killed or failed clone never leaves a half repo to reuse
+    const tmp = `${dir}.tmp-${process.pid}`;
+    fs.rmSync(tmp, { recursive: true, force: true });
+    try {
+      execFileSync("git", [...args, url + ".git", tmp], { stdio: "pipe", timeout: CLONE_TIMEOUT_MS, env: { ...process.env, GIT_TERMINAL_PROMPT: "0", GIT_ASKPASS: "echo" } });
+    } catch (e) {
+      fs.rmSync(tmp, { recursive: true, force: true });
+      throw new Error(cloneError(e as Error & { stderr?: Buffer; signal?: string }, `${g.owner}/${g.repo}`, g.ref));
+    }
+    fs.rmSync(dir, { recursive: true, force: true });
+    fs.renameSync(tmp, dir);
   }
   const commit = execFileSync("git", ["-C", dir, "rev-parse", "HEAD"], { encoding: "utf8" }).trim();
   return { dir, url, commit, name: `${g.owner}/${g.repo}` };
+}
+
+const CLONE_TIMEOUT_MS = Number(process.env.EXPLAINLIKE_CLONE_TIMEOUT_S ?? 180) * 1000;
+
+/** A failed clone as a sentence a person can act on: missing or private, unknown branch, too big, or offline. */
+export function cloneError(e: { stderr?: Buffer | string; signal?: string | null; message?: string }, name: string, ref?: string): string {
+  const err = String(e.stderr ?? e.message ?? "");
+  if (e.signal === "SIGTERM" || /ETIMEDOUT/.test(err)) return `github.com/${name} took more than ${CLONE_TIMEOUT_MS / 1000} s to download. It is probably too big; try a smaller repository.`;
+  if (/Remote branch .* not found|couldn't find remote ref/i.test(err)) return `github.com/${name} has no branch called "${ref}". Check the link.`;
+  if (/Repository not found|could not read Username|Authentication failed|terminal prompts disabled|403/i.test(err)) return `github.com/${name} was not found. It may be private or misspelled; only public repositories work.`;
+  if (/Could not resolve host|unable to access|Connection (timed out|refused)/i.test(err)) return `Could not reach GitHub to download ${name}. Check the internet connection and try again.`;
+  return `Could not download github.com/${name}: ${err.trim().split("\n").pop()?.slice(0, 200) ?? "git clone failed"}`;
 }
 
 function listFiles(dir: string): string[] {
