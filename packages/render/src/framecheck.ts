@@ -87,6 +87,8 @@ export function judgeFrames(film: Film, frames: FrameBoxes[]): FrameReport {
       if (!e.done || e.op < 0.6 || !(e.k === "text" ? lit(e) : true)) continue;
       // a wire (group "e:from>to") may lead off screen to a node out of shot; rings, arrows and words may not
       if (e.g?.startsWith("e:")) continue;
+      // a source page is seen through the frame like a document on a desk: it runs on below the shot by design
+      if (e.k === "img" && e.g?.startsWith("src:")) continue;
       const r = e.k === "text" ? glyph(e.rect) : e.rect;
       const onScreen = inter(r, { x: 0, y: 0, w: W, h: H }) > 0;
       const inside = r.x >= -EDGE && r.y >= -EDGE && r.x + r.w <= W + EDGE && r.y + r.h <= H + EDGE;
