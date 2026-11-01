@@ -183,6 +183,7 @@ footer { text-align: center; color: var(--muted); font-size: 13px; padding: 56px
   .main:not(.solo) { row-gap: 0; }
   .main:not(.solo) .col { display: contents; }
   .main:not(.solo) .side { order: 1; margin-top: 24px; }
+  .main:not(.solo) .col > :not(.player) { order: 2; }
   .gallery, .how { max-width: 720px; }
 }
 @media (max-width: 600px) {
