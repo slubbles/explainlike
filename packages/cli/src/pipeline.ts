@@ -6,7 +6,7 @@ import { fileURLToPath } from "node:url";
 import { getTheme, looksLikeTopic, specFromBrief, DEFAULT_BRIEF, type Ask, type Brief, type ExplainSpec, type Architecture, type Progress, type SceneAudio, type ScenePlan, type SourceDoc, type SourceKind } from "@explainlike/core";
 import { CostLedger, museTranscribe } from "@explainlike/models";
 import { ingestRepo } from "@explainlike/ingest";
-import { planBrief, extractArchitecture, validateArchitecture, evidencePack, reviewArchitecture, fixArchitecture, planRepoScenes, planFocus, planWhatIf, kindColor } from "@explainlike/planner";
+import { planBrief, extractArchitecture, validateArchitecture, evidencePack, reviewArchitecture, fixArchitecture, planRepoScenes, respeak, planFocus, planWhatIf, kindColor } from "@explainlike/planner";
 import { pickVoice, wordOverlap, DeepgramVoice, type VoiceProvider } from "@explainlike/voice";
 import { captionMismatches, loadIconPack, mergePacks, builtinPackIds, detectComponents, packHints, type DetectedComponent, iconCatalog, resolveIcon, compose, captureFrames, mixNarration, mp4Encoder, sfxCues, contactSheet, frameCheck, checkTldr, checkExcalidraw, toExcalidraw, toTldraw, type IconPack, type SourceShot } from "@explainlike/render";
 
@@ -96,6 +96,12 @@ export async function runExplainLike(o: RunOptions) {
   let detected: DetectedComponent[] = [];
   const kind = detectKind(o.input);
   let shared: string | undefined;
+  // a cached plan gets the newest speech check too; only a scene it rewrites is voiced again
+  const recheckSpeech = async (a?: Architecture) => {
+    const r = await respeak({ ledger, plan: plan!, arch: a, audience: spec.audience });
+    if (r.note) notes.push(r.note);
+    if (r.changed.length) { plan = r.plan; writeAtomic(path.join(out, "plan.json"), JSON.stringify(plan, null, 1)); }
+  };
   const cacheJson = <T>(file: string, make: () => Promise<T>): Promise<T> => {
     // a crashed run restarted with the same --out picks up every paid step it already finished,
     // and a new folder for a repo commit that was planned before picks up the shared plan
@@ -213,6 +219,7 @@ export async function runExplainLike(o: RunOptions) {
       P({ stage: "plan", message: "writing the scene plan", pct: 32 });
       return planRepoScenes({ ledger, arch: arch!, spec, progress: P });
     }));
+    await recheckSpeech(arch);
     const chk = (plan as { check?: { first: string[]; final: string[]; revised: boolean } }).check;
     // plain part names chosen by the narration polish are what the board shows and the voice says
     const pol = plan as { renames?: { id: string; keyword: string }[]; polish?: { rewritten: number; kept: string[]; issues: string[] } };
@@ -241,6 +248,7 @@ export async function runExplainLike(o: RunOptions) {
       P({ stage: "plan", message: "Muse Spark is planning the explainer", pct: 15 });
       return planConceptScenes({ ledger, doc, spec, icons: iconCatalog(pack), progress: P });
     });
+    await recheckSpeech();
     P({ stage: "plan", message: "finding the quoted lines on the page", pct: 30 });
     const quotes = plan.scenes.flatMap((s) => s.highlights.map((h) => h.quote));
     shot = await c.locate(quotes, path.join(out, "source.png"));

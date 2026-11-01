@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { strictJsonSchema, type Architecture, type NoteItem, type Scene } from "@explainlike/core";
-import { validateNotes, validateArchitecture, repairRepoPlan, checkStory, journeyOrder, speechIssues, keepsSync, syncPhrases, fillerIn, hookLine, validateCutIn, cutInRules, applyReviewPatch, actionName, archWire, reviewWire, undrawnLinks, retellCutIn, validateConcept, structural, pictureWords, conceptSlips, namesPlace } from "@explainlike/planner";
+import { validateNotes, validateArchitecture, repairRepoPlan, checkStory, journeyOrder, speechIssues, keepsSync, syncPhrases, fillerIn, hookLine, validateCutIn, cutInRules, applyReviewPatch, actionName, archWire, reviewWire, undrawnLinks, retellCutIn, validateConcept, structural, pictureWords, conceptSlips, namesPlace, respeak } from "@explainlike/planner";
 
 const item = (text: string, extra: Partial<NoteItem> = {}): NoteItem => ({ text, color: "white", icon: "", target: "", estimate: false, evidence: "", ...extra });
 const ids = new Set(["d1-db", "edge"]);
@@ -496,6 +496,15 @@ test("a topic plan's broken sentences are listed by scene for the narration fix"
     { ...sc("map", "Rome pays gold here as the end market."), id: "s06-map" },
   ] } as any;
   assert.deepEqual(conceptSlips(plan), ['s05-board: noun stack "Bandits harsh deserts": two things run together with no "and" or verb between them']);
+});
+
+test("a cached plan with clean speech is kept as is, with no model call", async () => {
+  const plan = { title: "t", subtitle: "", scenes: [{ ...sc("hook", "Names find pages for you."), id: "s01-hook" }] } as any;
+  const ledger = new Proxy({}, { get: () => { throw new Error("no model call expected"); } }) as any;
+  const r = await respeak({ ledger, plan, audience: "a newcomer" });
+  assert.equal(r.plan, plan);
+  assert.deepEqual(r.changed, []);
+  assert.equal(r.note, undefined);
 });
 
 test("a board node a topic scene draws is a phrase its rewrite must keep", () => {
