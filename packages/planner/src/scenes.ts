@@ -706,6 +706,19 @@ export async function planConceptScenes(o: { ledger: CostLedger; doc: SourceDoc;
   return { ...fixed, repairs: [...dropped.map((d) => `dropped unquoted: ${d}`), ...retold] };
 }
 
+/**
+ * A plan cached before a speech check existed can still carry the slip that check now catches: one small
+ * rewrite of just the flagged scenes, so a re-render from cache fixes it and re-voices only those scenes.
+ * A clean plan costs nothing.
+ */
+export async function respeak(o: { ledger: CostLedger; plan: ScenePlan; arch?: Architecture; audience: string }): Promise<{ plan: ScenePlan; changed: string[]; note?: string }> {
+  const slips = conceptSlips(o.plan);
+  if (!slips.length) return { plan: o.plan, changed: [] };
+  const f = await fixNarration({ ledger: o.ledger, plan: o.plan, arch: o.arch ?? NO_ARCH, issues: slips, audience: o.audience });
+  const left = conceptSlips(f.plan);
+  return { ...f, note: `speech recheck: ${slips.length} problem(s), ${f.changed.length ? `${f.changed.join(", ")} rewritten` : "nothing rewritten"}, ${left.length} left${left.length ? `: ${left.join("; ")}` : ""}` };
+}
+
 const NO_ARCH: Architecture = { product: "", one_liner: "", components: [], connections: [], walkthrough: { name: "", steps: [] }, scale: [] };
 /** What a topic or article video's narration trips on: missing articles and broken sentences, per scene. */
 export function conceptSlips(plan: ScenePlan): string[] {
