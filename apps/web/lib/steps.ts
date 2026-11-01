@@ -28,7 +28,7 @@ export function stepsFor(job: { kind: string; input: string; voice: string; focu
     ...TAIL(job.voice), ...qa,
   ];
   return [
-    { stage: "ingest", label: sourceKind(job.input) === "X post" ? "reading the post" : "reading the article" },
+    { stage: "ingest", label: { "X post": "reading the post", topic: "finding reputable sources on the topic" }[sourceKind(job.input) as string] ?? "reading the article" },
     { stage: "plan", label: "Muse Spark is planning the explainer" },
     ...TAIL(job.voice), ...qa,
   ];

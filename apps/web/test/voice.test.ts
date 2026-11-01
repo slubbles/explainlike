@@ -52,3 +52,11 @@ test("a misheard repo name finds the real one among the owner's repos", async ()
   assert.deepEqual(closest("openmousebot", ["umami", "OpenMausBot", "spotibai", "open-mouse"]).slice(0, 1), ["OpenMausBot"]);
   assert.deepEqual(closest("explainlike", ["umami", "spotibai"]), []);
 });
+
+test("a spoken topic with no link starts a topic video, a spoken link still becomes a URL", async () => {
+  const { validInput } = await import("../lib/validate.ts");
+  const t = readStart({ link: "how DNS works", goal: "", audience: "", depth: "overview", also: "", confirm: "" }, validInput);
+  assert.ok(t.ok && t.req.input === "how DNS works");
+  const l = readStart({ link: "github dot com slash a slash b" }, validInput);
+  assert.ok(l.ok && l.req.input === "https://github.com/a/b");
+});

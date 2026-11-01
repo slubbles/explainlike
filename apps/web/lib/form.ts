@@ -16,7 +16,8 @@ export function formFromJob(job: { input?: unknown; voice?: unknown }): Form {
 export const voiceLabel = (id?: string) => VOICES.find((v) => v.id === id)?.label ?? id ?? "";
 
 /** What kind of source a link is, in the words the gallery uses. */
-export function sourceKind(input: string): "repo" | "X post" | "article" {
+export function sourceKind(input: string): "repo" | "X post" | "article" | "topic" {
+  if (!/^https?:\/\//i.test(input) && !input.startsWith("/")) return "topic";
   if (/^https?:\/\/(www\.)?github\.com\//i.test(input) || input.startsWith("/")) return "repo";
   if (/^https?:\/\/(www\.)?(x|twitter)\.com\//i.test(input)) return "X post";
   return "article";

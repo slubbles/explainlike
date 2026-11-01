@@ -62,11 +62,11 @@ test("a specific question is handed to the engine as the viewer's goal", async (
   assert.equal(argv[argv.indexOf("--depth") + 1], "deep");
 });
 
-test("a bare topic and a failed render come back as tool errors, not crashes", async () => {
+test("a missing folder and a failed render come back as tool errors, not crashes", async () => {
   const { client } = await connect();
-  const t = await client.callTool({ name: "explain", arguments: { source: "how do vector databases work" } });
+  const t = await client.callTool({ name: "explain", arguments: { source: "./no-such-folder-here" } });
   assert.equal(t.isError, true);
-  assert.match(text(t), /plain topic/);
+  assert.match(text(t), /no folder/);
   const f = await client.callTool({ name: "explain", arguments: { source: "https://example.com/fail" } });
   assert.equal(f.isError, true);
   assert.match(text(f), /could not read the repository/);

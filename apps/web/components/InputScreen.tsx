@@ -5,7 +5,7 @@ import { Arrow, Mic } from "./Icons";
 import VoiceMode from "./VoiceMode";
 import type { StartedJob } from "../lib/voiceClient";
 
-const EXAMPLES = ["https://github.com/umami-software/umami", "https://x.com/karpathy/status/1977755427569111362", "https://blog.vllm.ai/2023/06/20/vllm.html"];
+const EXAMPLES = ["https://github.com/umami-software/umami", "https://x.com/karpathy/status/1977755427569111362", "https://blog.vllm.ai/2023/06/20/vllm.html", "how DNS works"];
 
 type Props = { form: Form; set: (f: Partial<Form>) => void; go: () => void; busy: boolean; err: string; gallery: Listed[]; talking: boolean; talk: (on: boolean) => void; onVoiceJob: (job: StartedJob) => void };
 
@@ -14,11 +14,11 @@ export default function InputScreen({ form, set, go, busy, err, gallery, talking
   return (
     <>
       <section className="hero">
-        <h1>Any repo, post or article,{" "}<br />explained on a <em>whiteboard</em>.</h1>
-        <p className="lede">Paste a link. Explain Like reads the code or the text, draws the system piece by piece, walks one real request through it, and narrates it, choosing the analogy, depth and pace that fit the topic. You get an mp4 plus editable .tldr and .excalidraw boards.</p>
+        <h1>Any repo, post, article or topic,{" "}<br />explained on a <em>whiteboard</em>.</h1>
+        <p className="lede">Paste a link, or just name a topic. Explain Like reads the code, the text or a few cited reputable sources, draws the system piece by piece, walks one real request through it, and narrates it, choosing the analogy, depth and pace that fit the topic. You get an mp4 plus editable .tldr and .excalidraw boards.</p>
         {talking ? <VoiceMode typed={form.input.trim() || undefined} voice={form.voice} onJob={onVoiceJob} onEnd={() => talk(false)} /> : (
         <form className="prompt" onSubmit={(e) => { e.preventDefault(); if (ready) go(); }}>
-          <input className="field" type="text" inputMode="url" maxLength={2048} aria-label="Link to explain" aria-invalid={!!err} aria-describedby={err ? "input-err" : undefined} placeholder="github.com/owner/repo, an X post, or an article URL"
+          <input className="field" type="text" maxLength={2048} aria-label="Link or topic to explain" aria-invalid={!!err} aria-describedby={err ? "input-err" : undefined} placeholder="github.com/owner/repo, an X post, an article URL, or a topic like how DNS works"
             value={form.input} onChange={(e) => set({ input: e.target.value })} autoComplete="off" spellCheck={false} />
           <div className="pbar">
             <div className="group" role="radiogroup" aria-label="Voice">

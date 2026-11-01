@@ -5,10 +5,11 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { looksLikeTopic } from "@explainlike/core";
 
 /** What to explain and how. Only `input` is required: the engine picks the approach, depth, pace and look itself. */
 export interface JobRequest {
-  /** a GitHub repo URL, an x.com post URL, an article URL, or a local repo folder */
+  /** a GitHub repo URL, an x.com post URL, an article URL, a local repo folder, or a topic in words ("how DNS works") */
   input: string;
   /** output folder; default: <outRoot>/<name from the input> */
   out?: string;
@@ -83,6 +84,7 @@ const slug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(
 
 /** A folder name a person recognises: owner-repo for GitHub, host-path for anything else. */
 export function nameFor(input: string): string {
+  if (looksLikeTopic(input)) return slug(input).slice(0, 60) || "explainlike";
   if (!/^https?:\/\//i.test(input)) return slug(path.basename(path.resolve(input))) || "explainlike";
   const u = new URL(input);
   const host = u.hostname.replace(/^www\./, "");
@@ -92,16 +94,21 @@ export function nameFor(input: string): string {
   return slug(`${host}-${parts.join("-")}`) || "explainlike";
 }
 
-/** Links and local repo folders are fine; a plain topic has no source to read yet. */
+/** Links, local repo folders and plain topics ("how DNS works", read from reputable sources) are fine. */
 export function checkInput(input: string): string {
   const s = input.trim();
   if (/^https?:\/\/\S+$/i.test(s)) {
     try { new URL(s); return s; } catch { throw new JobError(`not a valid link: ${s}`); }
   }
-  if (/^(www\.)?(github\.com|x\.com|twitter\.com)\//i.test(s)) return `https://${s}`;
   const p = path.resolve(s.replace(/^~(?=\/|$)/, os.homedir()));
-  if (fs.existsSync(p) && fs.statSync(p).isDirectory()) return p;
-  throw new JobError("pass a link (a GitHub repo, an X post or an article) or a local repo folder; a plain topic with no source is not supported yet");
+  if (/^[~./]/.test(s) || fs.existsSync(p)) {
+    if (fs.existsSync(p) && fs.statSync(p).isDirectory()) return p;
+    throw new JobError(`no folder at ${s}; pass a link (a GitHub repo, an X post or an article), a local repo folder, or a topic in words`);
+  }
+  if (/^[\w-]+(\.[\w-]+)+(\/\S*)?$/.test(s)) return `https://${s}`;
+  if (s.length > 300) throw new JobError("that topic is too long; ask in one sentence (under 300 characters)");
+  if (looksLikeTopic(s)) return s.replace(/\s+/g, " ");
+  throw new JobError("pass a link (a GitHub repo, an X post or an article), a local repo folder, or a topic in words");
 }
 
 /**
