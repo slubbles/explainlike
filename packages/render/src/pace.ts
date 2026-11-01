@@ -278,15 +278,15 @@ export function applyTempo(film: Film, scenes: Span[], tempo: TempoLimits = DEFA
   }
 
   // 2c. a long hold is split in two: the camera moves in on what is drawn (or was just drawn) in its
-  // second half, so the video lands between MIN_CUTS_PER_MIN and the tempo's maximum
-  const target = 60 / ((MIN_CUTS_PER_MIN + tempo.maxCutsPerMin) / 2);
+  // second half, so the video lands between MIN_CUTS_PER_MIN and the tempo's maximum; any hold with
+  // room for two full beats and a move can be split
   for (const s of scenes) {
     // a chart or timeline is one full-frame graphic: pushing in on its last row would crop the first
     if (s.kind === "hook" || s.kind === "walkthrough" || CUT_IN_KINDS.has(s.kind)) continue;
     for (let n = 0; n < 3; n++) {
       sortCam();
       const pts = [s.start, ...shotStarts(film).filter((t) => t > s.start + 0.01 && t < s.end - 0.01), s.end];
-      const seg = pts.slice(1).map((b, i) => [pts[i], b]).find(([a, b]) => b - a >= target * 1.6 && b - a >= 2 * tempo.minBeat + tempo.move);
+      const seg = pts.slice(1).map((b, i) => [pts[i], b]).find(([a, b]) => b - a >= 2 * tempo.minBeat + 0.3);
       if (!seg) break;
       const [a, b] = seg, cur = cameraAt(film, a + tempo.move + 0.05);
       const marks = markSpans(film), lo = a + tempo.minBeat, hi = b - tempo.minBeat;
