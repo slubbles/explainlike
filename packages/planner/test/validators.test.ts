@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import type { Architecture, NoteItem, Scene } from "@explainlike/core";
-import { validateNotes, validateArchitecture, repairRepoPlan, checkStory, journeyOrder, speechIssues, keepsSync, syncPhrases, fillerIn, hookLine, validateCutIn, cutInRules, applyReviewPatch, actionName } from "@explainlike/planner";
+import { validateNotes, validateArchitecture, repairRepoPlan, checkStory, journeyOrder, speechIssues, keepsSync, syncPhrases, fillerIn, hookLine, validateCutIn, cutInRules, applyReviewPatch, actionName, undrawnLinks } from "@explainlike/planner";
 
 const item = (text: string, extra: Partial<NoteItem> = {}): NoteItem => ({ text, color: "white", icon: "", target: "", estimate: false, evidence: "", ...extra });
 const ids = new Set(["d1-db", "edge"]);
@@ -138,6 +138,14 @@ test("validateArchitecture: an arrow against the code's includes is dropped or s
   assert.ok(open.some((i) => i.target === "gfx>app" && /points the wrong way/.test(i.problem)));
   assert.ok(open.some((i) => i.target === "walkthrough" && /step 2 core>app "emit commands"/.test(i.problem)));
   assert.ok(!open.some((i) => /return result/.test(i.problem)), "an answer worded as an answer is fine");
+});
+
+test("undrawnLinks: two parts said back to back need an arrow between them", () => {
+  const plan = { title: "x", subtitle: "", scenes: [
+    sc("walkthrough", "The team chat sends a message to the front door. The front door hands it to the agent drivers."),
+    sc("recap", "You go from the team chat to the front door to the bot harness. The team chat and the login worker sit side by side."),
+  ] };
+  assert.deepEqual(undrawnLinks(plan, storyArch), ["walkthrough: says the front door and the agent drivers talk directly, but the board draws no arrow between them; tell the hop through the part that really sits between them"]);
 });
 
 // ---------------------------------------------------------------------------
@@ -358,3 +366,21 @@ test("the walkthrough heading the prompt asks for ('follow one click') is not re
   const plan = { title: "x", subtitle: "", scenes: [{ ...sc("walkthrough", "Now follow one click from your mouse all the way to the screen."), id: "s05-walkthrough", heading: "follow one click" }] };
   assert.ok(!speechIssues(plan, storyArch, "a hotel front desk").some((i) => /heading "follow one click"/.test(i)));
 });
+
+test("undrawnLinks: a push told against an arrow that pulls is flagged", () => {
+  const arch = { ...storyArch, components: [...storyArch.components, part("list", "command list"), part("draw", "frame renderer")],
+    connections: [...storyArch.connections, { from: "draw", to: "list", label: "read commands", evidence: "a.ts" }] } as unknown as Architecture;
+  const back = { title: "x", subtitle: "", scenes: [sc("recap", "The command list hands slips to the frame renderer.")] };
+  assert.deepEqual(undrawnLinks(back, arch), ["recap: says the command list hands to the frame renderer, but the frame renderer read commands from the command list; tell it in the board's direction"]);
+  const right = { title: "x", subtitle: "", scenes: [sc("recap", "The frame renderer reads commands from the command list.")] };
+  assert.deepEqual(undrawnLinks(right, arch), []);
+});
+
+test("the speech check does not take a chain of parts for an explanation", () => {
+  const plan = { title: "x", subtitle: "", scenes: [
+    { ...sc("layer", "Your words land in the team chat, a window where you type.", ["ui"]), id: "s02-layer", heading: "the back office" },
+    { ...sc("recap", "You type in the team chat, the team chat sends to the front door, the front door forwards it."), id: "s09-recap", heading: "the whole trip" },
+  ] };
+  assert.deepEqual(speechIssues(plan, storyArch, "a hotel front desk").filter((i) => /explained again/.test(i)), []);
+});
+
