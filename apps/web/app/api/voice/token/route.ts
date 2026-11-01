@@ -1,4 +1,5 @@
 import { localOnly } from "../../../../lib/local";
+import { budgetNow } from "../../../../lib/jobs";
 
 export const runtime = "nodejs";
 
@@ -7,6 +8,8 @@ export async function POST(req: Request) {
   const no = localOnly(req);
   if (no) return no;
   const key = process.env.DEEPGRAM_API_KEY;
+  const b = budgetNow();
+  if (!b.ok) return Response.json({ error: b.error }, { status: 429 });
   if (!key) return Response.json({ error: "DEEPGRAM_API_KEY is not set on the server" }, { status: 500 });
   const r = await fetch("https://api.deepgram.com/v1/auth/grant", {
     method: "POST", headers: { Authorization: `Token ${key}`, "content-type": "application/json" }, body: JSON.stringify({ ttl_seconds: 30 }),

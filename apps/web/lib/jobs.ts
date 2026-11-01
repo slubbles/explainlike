@@ -3,6 +3,7 @@ import fs from "node:fs";
 import path from "node:path";
 import crypto from "node:crypto";
 import { validInput } from "./validate";
+import { budget, recordSpend, spent, type Budget } from "./guard";
 export { validInput };
 
 export type JobState = "running" | "done" | "error";
@@ -77,12 +78,19 @@ const recent = new Map<string, number[]>();
 export function admit(client: string): string | undefined {
   if (process.env.EXPLAINLIKE_DEMO_ONLY === "1") return "This demo only plays example videos. Run Explain Like locally with your own keys to make new ones.";
   if ([...jobs.values()].some((j) => j.state === "running")) return "Another video is drawing right now. Try again in a minute.";
+  const b = budgetNow();
+  if (!b.ok) return b.error;
   const cap = Number(process.env.EXPLAINLIKE_JOBS_PER_HOUR ?? 20);
   const now = Date.now(), hits = (recent.get(client) ?? []).filter((t) => now - t < 3600_000);
   if (hits.length >= cap) return "Hourly limit reached for this client.";
   recent.set(client, [...hits, now]);
   return undefined;
 }
+
+/** Room left under the Meta and Deepgram caps, counting every job's meter and the side-call ledger. */
+export const budgetNow = (): Budget => budget(spent(JOBS_DIR, [...jobs.values()]));
+/** Note a paid call made outside a job (voice-mode chat), so the spend guard sees it. */
+export const noteSpend = (s: { meta?: number; voice?: number }, what: string) => recordSpend(JOBS_DIR, s, what);
 
 const CLI = () => path.join(ROOT, "packages/cli/bin/explainlike.mjs");
 
@@ -102,6 +110,7 @@ function run(job: Job, args: string[]) {
           const m = e.manifest;
           Object.assign(job, { state: "done", pct: 100, message: "done", title: m.title, approach: m.brief?.approach, durationSec: m.durationSec, finished: Date.now(),
             costUsd: (m.cost?.metaUsd ?? 0) + (m.cost?.voiceUsd ?? 0),
+            usd: { meta: m.cost?.metaUsd ?? 0, voice: m.cost?.voiceUsd ?? 0, total: (m.cost?.metaUsd ?? 0) + (m.cost?.voiceUsd ?? 0) },
             interactive: fs.existsSync(path.join(JOBS_DIR, job.id, "interactive.json")),
             outputs: Object.fromEntries(Object.entries(m.outputs ?? {}).filter(([, v]) => v).map(([k, v]) => [k, path.basename(String(v))])) });
           save(job);
@@ -163,7 +172,7 @@ export function explain(jobId: string, component: string): Promise<unknown> {
     child.on("close", () => {
       try {
         const r = JSON.parse(out.trim().split("\n").pop() ?? "{}");
-        if (r.type === "explain") fs.writeFileSync(cache, JSON.stringify(r));
+        if (r.type === "explain") { fs.writeFileSync(cache, JSON.stringify(r)); noteSpend({ meta: Number(r.usd) || 0 }, `explain ${j.id} ${component}`); }
         resolve(r);
       } catch { resolve({ type: "error", message: "no answer" }); }
     });
