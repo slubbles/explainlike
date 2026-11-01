@@ -12,6 +12,11 @@ const blank = (id: string, kind: Scene["kind"], heading: string, narration: stri
 const neighbours = (arch: Architecture, id: string) =>
   new Set([id, ...arch.connections.flatMap((c) => (c.from === id ? [c.to] : c.to === id ? [c.from] : []))]);
 
+/** A point that only says the files don't show something tells the viewer nothing and cites a file that doesn't back it. */
+export function emptyPoint(text: string) {
+  return /\b(?:do(?:es)?\s+not|don'?t|doesn'?t|never)\s+(?:show|reveal|include|contain|say)\b|\bnot\s+(?:shown|visible|included|in the (?:provided |given )?files)\b/i.test(text);
+}
+
 /** Text answer for the interactive player: what this box does, grounded in its evidence files. */
 export async function explainComponent(o: { ledger: CostLedger; arch: Architecture; id: string; evidence: string; audience: string; question?: string }) {
   const c = o.arch.components.find((x) => x.id === o.id);
@@ -26,12 +31,12 @@ export async function explainComponent(o: { ledger: CostLedger; arch: Architectu
     messages: [
       { role: "system", content: [
         `You explain one box of a system design diagram of the product "${o.arch.product}" to a viewer who tapped it while watching. Audience: ${o.audience}.`,
-        "Use only the evidence files given. Every point cites one of those file paths. If the files do not show something, say so; never guess traffic, latency or cost numbers.",
+        "Use only the evidence files given. Every point is a fact the cited file shows. If the files do not show something, say so once in the summary, never as a point; never guess traffic, latency or cost numbers.",
         "2 to 4 points, each one short sentence.",
       ].join("\n") },
       { role: "user", content: JSON.stringify({ component: { id: c.id, name: c.name, kind: c.kind, what: c.what }, connections: links, question: o.question ?? "what does this do and how does it connect?" }) + "\n\nEVIDENCE FILES:\n" + o.evidence },
     ],
-  }).then((r) => ({ ...r, points: r.points.filter((p) => c.evidence.includes(p.file) || o.evidence.includes(`### ${p.file}\n`)) }));
+  }).then((r) => ({ ...r, points: r.points.filter((p) => !emptyPoint(p.text) && (c.evidence.includes(p.file) || o.evidence.includes(`### ${p.file}\n`))) }));
 }
 
 /** A 15 to 20 second clip: the whole system for a beat, then pinned notes on one component and its neighbours. */
