@@ -12,6 +12,9 @@ const STYLE = [
   "Each part gets its why: what it is for, or what would go wrong without it.",
   "Headings are 2 to 4 lowercase words that the narration of that scene actually says (the viewer reads the heading while hearing it). Keywords 1 to 3 lowercase words.",
   "One new thing per sentence, and each sentence long enough to watch it being drawn (no two-word sentences).",
+  "Every sentence moves the story. Never announce what comes next instead of saying it: 'you'll meet', 'you'll see', 'you'll find', 'then you've got', 'let's take a look', 'basically', 'it's special' and 'it's important' are banned.",
+  "Keep the one everyday analogy from the hook to the recap; never switch to a second one.",
+  "One or two short, dry asides are welcome where they fit, the kind a friendly engineer makes at the whiteboard ('which, to be fair, is most of programming'). Never a joke about people, never more than one sentence.",
 ].join("\n");
 
 /** Components in the order one request meets them, then the parts the request never touches. */
@@ -37,7 +40,7 @@ function repoSystem(arch: Architecture, L: ExplainSpec, lo: number, hi: number):
     L.voice,
     `Everyday analogy for the whole system: ${analogy}.`,
     "Scene order and rules:",
-    "1. one 'hook' scene, 2 or 3 sentences: what the product is in plain words (no part names, no jargon), why someone would care (what it lets them do), the everyday analogy, and the promise of the story, e.g. 'Let's follow one message through it.' add_components empty.",
+    "1. one 'hook' scene, 3 or 4 sentences. Sentence one is the hook, shown big on screen as it is spoken: a question the viewer would ask, or one surprising, concrete claim about the problem this project solves, at most 14 words, no product name needed (good: 'How does a computer learn from its own mistakes?' or 'Every app you use forgets you the moment you close it.'; bad: 'This is X, a tool for Y.'). Then what the product is in plain words (no part names, no jargon) and what goes wrong without it or what it lets you do (the stakes), the everyday analogy, and the promise of the story, e.g. 'Let's follow one message through it.' add_components empty.",
     `2. 'layer' scenes along the journey: add exactly these components, in this order, at most ${L.perScene} per scene: ${path.map(kw).join(", ")}. Tell it as the request moving forward ('First...', 'Next it reaches...'). For each added component say its keyword out loud (in add_components order), what it does in plain words, its role in the analogy, and why it is there.`,
     `3. one 'walkthrough' scene right after them: the core flow told once, end to end, as one short story. Say these step labels in order, each as the action of a natural sentence about who does what (the analogy role first), adding articles and verb endings as speech needs ('send message' becomes 'sends the message'): ${steps}. Good: 'You type a question, and the counter sends the message to the manager.' Bad: 'Step one is send message.' Never number the steps out loud. End with the concrete thing the user gets back (e.g. 'a working fix in your chat'), not 'an answer'. Heading like 'one message, start to end'. About ${Math.round(L.wordsPerScene * 1.6)} words. add_components empty.`,
     side.length
@@ -47,7 +50,7 @@ function repoSystem(arch: Architecture, L: ExplainSpec, lo: number, hi: number):
       ? `5. ${arch.scale.length} short 'scale' scene(s), one per scale risk, in the given order: what breaks at that traffic level and why (problem keyword), then the fix (fix keyword), in 2 short plain sentences ('The fix is ...'). callouts: [{target: component id, text: problem keyword, color: red}, {target: component id, text: fix keyword, color: green}].`
       : "5. no 'scale' scenes.",
     ...notesRules(L.notes),
-    "6. one 'recap' scene: retell the flow in one breath, from the user to what they get back, saying the journey keywords in order, then one line on why it matters. Heading like 'the whole trip'.",
+    "6. one 'recap' scene: retell the flow in one breath, from the user to what they get back, saying the journey keywords in order, then one line that answers the hook's question or pays off its claim (a callback). Heading like 'the whole trip'.",
     `Each scene's narration is about ${L.wordsPerScene} words (hook and recap can be shorter). Whole video ${lo} to ${hi} seconds at ${L.tempo.wps} words per second: long enough to tell the story, no padding.`,
     "Leave add_connections, board_nodes, board_edges, highlights empty (the renderer derives them). callouts empty except in scale scenes. items empty except in notes scenes.",
     "Never state a traffic, user, latency or cost number as a fact about this app: the repo does not tell you its real load. Numbers only appear as clearly labelled assumptions.",
@@ -89,6 +92,13 @@ export function checkStory(plan: ScenePlan, arch: Architecture, analogy = ""): s
   const hook = sc.find((s) => s.kind === "hook");
   if (!hook || sc[0] !== hook) issues.push("the video must open with a 'hook' scene saying what this is and why you'd care");
   const parts = arch.components.filter((c) => hook && norm(hook.narration).includes(norm(c.keyword)));
+  if (hook) {
+    const line = hookLine(hook.narration);
+    const n = wordCount(line);
+    if (n > 16) issues.push(`the hook's first sentence has ${n} words; make it a question or one surprising claim of at most 14 words`);
+    if (/^(hi|hello|welcome|today|in this video|this is|meet|let'?s)\b/i.test(line)) issues.push(`the hook opens with "${line.split(/\s+/).slice(0, 3).join(" ")}"; open on a question or a surprising claim instead`);
+    if (n === wordCount(hook.narration)) issues.push("the hook is a single sentence; after the hook line, say what this is, the stakes and the analogy");
+  }
   if (hook && parts.length > 1) issues.push(`the hook names parts (${parts.map((c) => c.keyword).join(", ")}) before the story starts; say what it is in plain words instead`);
   if (analogy) {
     const aw = words4(analogy);
@@ -124,6 +134,17 @@ export function checkStory(plan: ScenePlan, arch: Architecture, analogy = ""): s
   return [...issues, ...speechIssues(plan, arch, analogy)];
 }
 
+// phrases that announce instead of explain (docs/explaining-playbook.md, "No filler")
+const FILLER = /\b(you'?ll (meet|see|find|notice)|then you'?ve got|let'?s (take a look|dive in|get into it)|in this video|basically|it'?s (special|important|worth noting)|without further ado|as you can see)\b/gi;
+export function fillerIn(text: string): string[] {
+  return [...new Set([...text.replace(/[’‘]/g, "'").matchAll(FILLER)].map((m) => m[0].toLowerCase()))];
+}
+
+/** The hook's first sentence, which the board shows as big kinetic type while it is spoken. */
+export function hookLine(narration: string): string {
+  return narration.trim().split(/(?<=[.!?])\s+/)[0] ?? "";
+}
+
 /**
  * Lines that would not sound like a person talking: a missing article ("will run agent"), the same
  * sentence opener over and over, or a scene heading read out as if it were a part ("next it reaches
@@ -134,6 +155,8 @@ export function speechIssues(plan: ScenePlan, arch: Architecture, analogy = ""):
   for (const s of plan.scenes) {
     const miss = missingArticles(s.narration);
     if (miss.length) issues.push(`${s.id}: missing article in ${miss.map((m) => `"${m}"`).join(", ")}; say "the" or "a" before the noun`);
+    const filler = fillerIn(s.narration);
+    if (filler.length) issues.push(`${s.id}: filler ${filler.map((f) => `"${f}"`).join(", ")}; say the thing itself instead`);
   }
   // the same sentence opener three times over reads like a template, not a person talking
   const openers = new Map<string, number>();
@@ -216,6 +239,8 @@ export async function polishNarration(o: { ledger: CostLedger; plan: ScenePlan; 
     "- Any technical word left ('api', 'driver', 'harness', a database or framework name) gets a few plain words saying what it is, the first time it's said.",
     "- The viewer is 'you' all the way through; never 'the guest', 'the user' or 'the customer'.",
     "- No two scenes, and no two sentences in a row, open with the same words.",
+    "- No filler that announces instead of explains: never 'you'll meet', 'you'll see', 'you'll find', 'then you've got', 'let's take a look', 'basically', 'it's special'.",
+    "- The hook scene's first sentence is shown on screen word by word: keep it a question or one surprising claim of at most 14 words, and keep it the first sentence.",
     "Part names: 'parts' lists every part's spoken name. If a name sounds awkward when spoken as a thing (for example 'computer use', a verb phrase, or an internal code name), give it a plain 1 to 3 word lowercase name in 'renames' (for example 'browser robot'), and use the new name in every scene instead of the old one. Rename only names that are genuinely awkward; most need none.",
     "Return every scene id with its rewritten narration.",
   ].join("\n");
