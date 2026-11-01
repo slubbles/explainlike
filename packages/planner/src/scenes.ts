@@ -51,7 +51,7 @@ function repoSystem(arch: Architecture, L: ExplainSpec, lo: number, hi: number):
       : "5. no 'scale' scenes.",
     ...notesRules(L.notes),
     "6. one 'recap' scene: retell the flow in one breath, from the user to what they get back, saying the journey keywords in order, then one line that answers the hook's question or pays off its claim (a callback). Heading like 'the whole trip'.",
-    `Each scene's narration is about ${L.wordsPerScene} words (hook and recap can be shorter). Whole video ${lo} to ${hi} seconds at ${L.tempo.wps} words per second: long enough to tell the story, no padding.`,
+    `Each scene's narration is about ${L.wordsPerScene} words (hook and recap can be shorter). There is no set length. At ${L.tempo.wps} words per second this repo's parts come to roughly ${lo} to ${hi} seconds; shorter is right if the story is told, never pad.`,
     "Leave add_connections, board_nodes, board_edges, highlights empty (the renderer derives them). callouts empty except in scale scenes. items empty except in notes scenes.",
     "Never state a traffic, user, latency or cost number as a fact about this app: the repo does not tell you its real load. Numbers only appear as clearly labelled assumptions.",
     "Proofread every sentence aloud: a/an and singular/plural agree with the noun, no half-finished phrases. Headings are plain 2 to 4 word names for a place in the analogy (like 'the front desk' or 'the back office'); they are on screen, never spoken as if they were a part.",
@@ -503,7 +503,8 @@ export function repairRepoPlan(plan: ScenePlan, arch: Architecture, L: { perScen
 // ---------------------------------------------------------------------------
 export async function planConceptScenes(o: { ledger: CostLedger; doc: SourceDoc; spec: ExplainSpec; icons: string; progress?: Progress }): Promise<ScenePlan & { repairs: string[] }> {
   const L = o.spec;
-  const [lo, hi] = coverageSeconds(L, { components: 0, steps: 0, scale: 0, boards: 4 });
+  // no set length: as many boards as the core needs, with six boards as the ceiling
+  const [, hi] = coverageSeconds(L, { components: 0, steps: 0, scale: 0, boards: 6 });
   o.progress?.({ stage: "plan", message: "breaking the source into concepts" });
   const sys = [
     o.doc.kind === "topic"
@@ -514,10 +515,10 @@ export async function planConceptScenes(o: { ledger: CostLedger; doc: SourceDoc;
     "Scenes:",
     o.doc.kind === "topic" ? "1. 'hook': the viewer's question, in plain words, and why the answer is surprising or useful." : "1. 'hook': the one question this source answers, in plain words.",
     `2. 'source' scene(s): the reader sees ${o.doc.kind === "topic" ? "a card with the sources' text (say where it comes from, e.g. 'the encyclopedia says', 'the standard says')" : "the real post/article screenshot"}. highlights: 2 to 4 phrases (2 to 10 words) copied VERBATIM from the source text, each with a 1 to 3 word note and a color (red = problem/claim to question, orange = key idea, green = result/fix, blue = actor/entity). Narration explains why those phrases matter.`,
-    `3. 3 to 5 'board' scenes: each is a fresh mini diagram of one idea with 2 to ${Math.max(3, L.perScene + 1)} board_nodes and edges between them, drawn left to right in reading order. Every board node's evidence is an exact quote (3 to 12 words) from the source that justifies it (it is printed under the node, so pick the most telling words). count is 1, or 3 to 9 when the node means 'many of these' (8 GPUs, many workers, lots of docs): it becomes an icon grid. callouts: at most 1 per board, circling the node that matters most (target = board node id, text 1 to 3 words). Use colors semantically. icon from: ${o.icons}`,
+    `3. as many 'board' scenes as the core idea needs, usually 2 to 5 and never more than 6: each is a fresh mini diagram of one idea with 2 to ${Math.max(3, L.perScene + 1)} board_nodes and edges between them, drawn left to right in reading order. Every board node's evidence is an exact quote (3 to 12 words) from the source that justifies it (it is printed under the node, so pick the most telling words). count is 1, or 3 to 9 when the node means 'many of these' (8 GPUs, many workers, lots of docs): it becomes an icon grid. callouts: at most 1 per board, circling the node that matters most (target = board node id, text 1 to 3 words). Use colors semantically. icon from: ${o.icons}`,
     "Optionally one 'notes' scene (after the source scene) when the source lists concrete things (features, steps, numbers, stack): 3 to 6 items, text 2 to 7 words, evidence an exact quote, target empty, estimate false (a number the author states is their claim, not our estimate). icon from the same list.",
     "4. 'recap': the whole idea in two sentences, what to remember.",
-    `Each narration about ${L.wordsPerScene} words; total ${lo}-${hi} seconds at ${L.tempo.wps} words/sec. Do not claim anything the source does not say; ${o.doc.kind === "topic" ? "every fact must come from the sources (no outside facts)." : "say 'the author claims' when it is a claim."}`,
+    `Each narration about ${L.wordsPerScene} words at ${L.tempo.wps} words/sec. There is no set length: stop once the core of ${o.doc.kind === "topic" ? "what was asked" : "the source"} is covered, never pad, and stay under ${hi} seconds. Leave out side details that do not help answer the hook. Do not claim anything the source does not say; ${o.doc.kind === "topic" ? "every fact must come from the sources (no outside facts)." : "say 'the author claims' when it is a claim."}`,
     "Leave add_components, add_connections empty. callouts only on boards. items only in notes scenes.",
     o.doc.kind === "topic" ? "title: under 6 lowercase words. subtitle: the source sites, lowercase." : "title: under 6 lowercase words. subtitle: who wrote it, lowercase.",
   ].join("\n");
