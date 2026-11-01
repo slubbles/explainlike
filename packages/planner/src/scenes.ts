@@ -70,7 +70,7 @@ export type Critique = z.infer<typeof Critique>;
 async function critiquePlan(ledger: CostLedger, plan: ScenePlan, audience: string): Promise<Critique> {
   const script = plan.scenes.map((s) => `[${s.id}] ${s.narration}`).join("\n");
   return sparkJson({
-    ledger, step: "plan-check", schema: Critique, name: "critique", effort: "low", maxTokens: 2000,
+    ledger, step: "plan-check", schema: Critique, name: "critique", effort: "low", maxTokens: 6000,
     messages: [
       { role: "system", content: `You are ${audience}, hearing this explainer narration once, in order. List every term you would not know (an acronym, product, protocol or internal name) that is used without a plain-words explanation at or before its first use. Words every developer knows (server, database, browser, app, API, model) do not count; a part the narration explains in plain words counts as explained. Then say whether you could now retell how one request goes from the user to the result, and if not, what is missing. Be strict but fair; at most 8 terms.` },
       { role: "user", content: script },
@@ -249,7 +249,7 @@ export async function polishNarration(o: { ledger: CostLedger; plan: ScenePlan; 
     parts: o.arch.components.map((c) => ({ id: c.id, name: c.keyword, what: c.what })),
     scenes: p.scenes.map((s) => ({ id: s.id, kind: s.kind, heading: s.heading, words: wordCount(s.narration), must_say: syncPhrases(s, o.arch), narration: s.narration })),
   });
-  const ask = (msgs: { role: "system" | "user" | "assistant"; content: string }[], step: string) => sparkJson({ ledger: o.ledger, step, schema: Polish, name: "narration_polish", effort: "low", maxTokens: 12000, messages: msgs });
+  const ask = (msgs: { role: "system" | "user" | "assistant"; content: string }[], step: string) => sparkJson({ ledger: o.ledger, step, schema: Polish, name: "narration_polish", effort: "minimal", maxTokens: 8000, messages: msgs });
   const apply = (base: ScenePlan, out: z.infer<typeof Polish>, renames: Map<string, string>) => {
     const kept: string[] = [];
     let rewritten = 0;
@@ -338,14 +338,14 @@ export async function planRepoScenes(o: { ledger: CostLedger; arch: Architecture
   early.catch(() => {});
   const first = await review(plan);
   let final = first, revised = false, pol: Awaited<ReturnType<typeof polishNarration>> | undefined;
-  if (!first.length) pol = await early;
-  else {
+  if (first.length) {
     o.progress?.({ stage: "plan", message: `self-check: ${first.length} issue(s), revising once` });
     plan = repairRepoPlan(await ask([{ role: "assistant", content: JSON.stringify(raw) }, { role: "user", content: `A newcomer test of this plan found these problems. Return the full corrected plan, keeping what works:\n${first.map((x, i) => `${i + 1}. ${x}`).join("\n")}` }]), o.arch, L);
-    final = await review(plan);
     revised = true;
+    // the second check only reports what is left, so it runs alongside the polish of the revised plan
+    [final, pol] = await Promise.all([review(plan), polish(plan)]);
   }
-  pol ??= await polish(plan);
+  pol ??= await early;
   return { ...plan, scenes: pol.plan.scenes, check: { first, final, revised }, renames: pol.renames, polish: { rewritten: pol.rewritten, kept: pol.kept, issues: pol.issues } };
 }
 
