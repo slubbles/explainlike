@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { strictJsonSchema, type Architecture, type NoteItem, type Scene } from "@explanimate/core";
-import { validateNotes, validateArchitecture, repairRepoPlan, checkStory, journeyOrder, speechIssues, keepsSync, syncPhrases, fillerIn, hookLine, validateCutIn, cutInRules, applyReviewPatch, actionName, archWire, reviewWire, undrawnLinks, retellCutIn, validateConcept, structural, pictureWords, conceptSlips, namesPlace, respeak, emptyPoint, groundedSummary } from "@explanimate/planner";
+import { validateNotes, validateArchitecture, repairRepoPlan, checkStory, journeyOrder, speechIssues, keepsSync, syncPhrases, fillerIn, hookLine, validateCutIn, cutInRules, applyReviewPatch, actionName, archWire, reviewWire, undrawnLinks, retellCutIn, validateConcept, structural, pictureWords, conceptSlips, namesPlace, respeak, emptyPoint, groundedSummary, labelEchoes, practitionerTerm } from "@explanimate/planner";
 
 const item = (text: string, extra: Partial<NoteItem> = {}): NoteItem => ({ text, color: "white", icon: "", target: "", estimate: false, evidence: "", ...extra });
 const ids = new Set(["d1-db", "edge"]);
@@ -226,7 +226,7 @@ test("the self-check flags a flow that is not narrated hop by hop, a jargon-heav
   ] }, storyArch, { perScene: 2 });
   const issues = checkStory(plan, storyArch, "a restaurant kitchen");
   assert.ok(issues.some((i) => /hook names parts/.test(i)));
-  assert.ok(issues.some((i) => /"send message", "forward", "run bot"/.test(i)));
+  assert.ok(issues.some((i) => /missing or out of order: team chat to front door \(send message\), front door to bot harness \(forward\), bot harness to agent drivers \(run bot\)/.test(i)), issues.join("; "));
   assert.ok(issues.some((i) => /analogy/.test(i)));
   assert.ok(issues.some((i) => /recap must retell/.test(i)));
 });
@@ -527,4 +527,50 @@ test("a tapped box's summary drops rendering-mode claims the evidence does not s
   assert.ok(!groundedSummary("It is a retained mode gui.", ev).toLowerCase().includes("retained"));
   assert.ok(groundedSummary("It is an immediate mode gui.", ev).toLowerCase().includes("immediate"));
   assert.ok(groundedSummary("It is a retained mode gui.", "### src/x.c\nretained widgets").toLowerCase().includes("retained"));
+});
+
+test("the walkthrough may tell its steps in plain words: no step label has to be recited", () => {
+  const plan = repairRepoPlan({ title: "x", subtitle: "", scenes: [
+    sc("hook", "What if every contact in your chat were a bot? This chat app works like a hotel front desk."),
+    sc("layer", "The team chat is the front desk. The front door is the doorman.", ["ui", "edge"]),
+    sc("layer", "The bot harness is the manager. The agent drivers are the concierges.", ["srv", "bot"]),
+    sc("walkthrough", "You type a note in the team chat, and it goes to the front door. The door passes it to the bot harness, which wakes the agent drivers to answer."),
+    sc("layer", "Off to the side, the login worker checks who you are.", ["auth"]),
+    sc("recap", "Team chat to front door to bot harness to agent drivers."),
+  ] }, storyArch, { perScene: 2 });
+  const issues = checkStory(plan, storyArch, "a hotel front desk");
+  assert.ok(!issues.some((i) => /walkthrough must tell|label turned into a noun/.test(i)), issues.join("; "));
+});
+
+test("the self-check flags step labels recited as nouns", () => {
+  const n = "The team chat performs the send message step, the front door completes the forward step, and then the run bot instruction goes to the agent drivers.";
+  assert.deepEqual(labelEchoes(n, storyArch), ["performs the send message", "completes the forward", "the run bot instruction"]);
+  const plan = repairRepoPlan({ title: "x", subtitle: "", scenes: [sc("hook", "Why? It is a chat."), sc("layer", "The team chat and the front door.", ["ui", "edge"]), sc("layer", "The bot harness and the agent drivers.", ["srv", "bot"]), sc("walkthrough", n)] }, storyArch, { perScene: 2 });
+  assert.ok(checkStory(plan, storyArch).some((i) => /says "performs the send message", a step label turned into a noun/.test(i)));
+  assert.deepEqual(labelEchoes("You send a message, the door will forward it, and the harness runs the bot.", storyArch), []);
+});
+
+test("a walkthrough's sync phrases are what it says, not its step labels", () => {
+  const s = sc("walkthrough", "You type a note in the team chat, and it goes to the front door. The door passes it to the bot harness, which wakes the agent drivers.");
+  const p = syncPhrases(s, storyArch);
+  assert.ok(!p.some((x) => ["send message", "forward", "run bot"].includes(x)), p.join(", "));
+  assert.deepEqual(p.filter((x, i) => p.indexOf(x) === i), ["team chat", "front door", "bot harness", "agent drivers"]);
+});
+
+test("the stand-in walkthrough passes the story check", () => {
+  const plan = repairRepoPlan({ title: "x", subtitle: "", scenes: [sc("hook", "Why talk to a bot? It is a chat."), sc("layer", "The team chat and the front door.", ["ui", "edge"]), sc("layer", "The bot harness and the agent drivers.", ["srv", "bot"])] }, storyArch, { perScene: 2 });
+  const w = plan.scenes.find((s) => s.kind === "walkthrough")!;
+  assert.ok(w, "a walkthrough was added");
+  assert.ok(!checkStory(plan, storyArch).some((i) => /walkthrough must tell|label turned into a noun/.test(i)), w.narration);
+});
+
+test("box names and step labels with practitioner words go back for plain ones", () => {
+  assert.equal(practitionerTerm("cdp client"), "cdp");
+  assert.equal(practitionerTerm("rust cli"), "rust");
+  assert.equal(practitionerTerm("browser driver"), "");
+  assert.equal(practitionerTerm("command line tool"), "");
+  const arch = { ...storyArch, components: storyArch.components.map((c) => (c.id === "srv" ? { ...c, keyword: "rust cli" } : c)), walkthrough: { ...storyArch.walkthrough, steps: storyArch.walkthrough.steps.map((s, i) => (i === 1 ? { ...s, label: "send cdp command" } : s)) } } as Architecture;
+  const { open } = validateArchitecture(arch, ["a.ts"], (n) => n, () => "box");
+  assert.ok(open.some((i) => i.target === "srv" && /"rust cli" uses "rust"/.test(i.problem)), open.map((i) => i.problem).join("; "));
+  assert.ok(open.some((i) => i.target === "walkthrough" && /"send cdp command" uses "cdp"/.test(i.problem)));
 });
