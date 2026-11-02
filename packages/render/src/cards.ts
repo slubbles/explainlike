@@ -37,9 +37,13 @@ const norm = (w: string) => w.toLowerCase().replace(/[^a-z0-9]/g, "");
 
 /** Index of the first word of `phrase` as said at or after `from`, exact words only; -1 when it is not said. */
 export function saidAt(words: WordTiming[], phrase: string, from = 0): number {
-  const toks = phrase.split(/[\s\-_/]+/).map(norm).filter(Boolean);
+  const split = (t: string) => t.split(/[\s\-_/]+/).map(norm).filter(Boolean);
+  const toks = split(phrase);
   if (!toks.length) return -1;
-  for (let i = Math.max(0, from); i + toks.length <= words.length; i++) if (toks.every((t, j) => norm(words[i + j].word) === t)) return i;
+  // "agent-browser" may come back as one timed word or two; match on sub-tokens either way
+  const flat: { tok: string; i: number }[] = [];
+  words.forEach((w, i) => { if (i >= from) for (const tok of split(w.word)) flat.push({ tok, i }); });
+  for (let k = 0; k + toks.length <= flat.length; k++) if (toks.every((t, j) => flat[k + j].tok === t)) return flat[k].i;
   return -1;
 }
 
@@ -147,7 +151,7 @@ export function drawCard(P: Pen, gen: any, slot: CardSlot, box: Box, g: string) 
       while ((rows.length > 2 || rows.some((r) => r.w > 1560)) && size > 72) { size -= 6; rows = rowsOf(toks, size, 1560); }
       const lh = size * 1.3, y0 = cy + size * 0.35 - ((rows.length - 1) * lh) / 2;
       const key = keyIndex(toks);
-      let from = Math.max(0, saidAt(words, b.anchor) - 2), fb = t0 + 0.05;
+      let from = Math.max(0, words.findIndex((w) => w.start >= t0 - 0.3)), fb = t0 + 0.05;
       rows.forEach((r, ri) => {
         let x = cx - r.w / 2;
         for (const i of r.idx) {
