@@ -34,7 +34,7 @@ in an in-memory first-in, first-out line and their page shows the first step in 
 | `packages/voice` | 0.6k | Per-scene speech through Deepgram Aura, word timings, the respelling table for words Aura mispronounces, and the silent fallback when there is no key. |
 | `packages/render` | 3.9k | The picture: layout, drawing, camera, captions, music and sound effects, `.tldr`/`.excalidraw` writers, the placement and frame checks, and the Chrome → ffmpeg capture. |
 | `packages/models` | 0.4k | One client for Meta Muse (Spark, image, SAM, Transcribe) and Deepgram, with the cost ledger and retries. |
-| `apps/web` | 1.9k | The UI, six job routes, the voice loop, the spend guard, rate limits, health. |
+| `apps/web` | 1.9k | The UI, six job routes, the example gallery (`lib/gallery.ts`, read from `EXPLANIMATE_GALLERY_DIR`), the voice loop, the spend guard, rate limits, health. |
 
 Two other packages carry the packs and the API/MCP surface; they are not on the demo path.
 
@@ -116,8 +116,8 @@ redrawn, because the frames folder is deleted at the start of each run (`package
 
 **2. A result opens paused on a still.**
 Browsers block unmuted autoplay without a gesture. `Player` catches the rejection, seeks to 55% and
-leaves it paused (`apps/web/components/Player.tsx:30-32`), so a link opened cold — `/?job=<id>` or a
-gallery card — looks like a frozen frame with no narration. Enter through the form or the mic so a
+leaves it paused (`apps/web/components/Player.tsx:30-32`), so a link opened cold — `/?job=<id>` —
+looks like a frozen frame with no narration. Enter through the form or the mic so a
 click has happened, or click play once before the reveal.
 
 **3. Voice mode has three doors, and all must be open.**
