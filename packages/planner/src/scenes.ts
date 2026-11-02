@@ -48,7 +48,7 @@ function repoSystem(arch: Architecture, L: ExplainSpec, lo: number, hi: number):
     L.voice,
     analogyRule(shape, analogy),
     "Scene order and rules:",
-    `1. one 'hook' scene, 3 or 4 sentences, shown big on screen as it is spoken. ${S.hook} add_components empty.`,
+    `1. one 'hook' scene, 3 or 4 sentences, shown big on screen as it is spoken. ${S.hook} Whatever the shape, the sentence right after the hook line says what this project is and why someone would use it, in one plain sentence with no jargon, like '${arch.one_liner}'; a newcomer who hears only that sentence knows what the thing is for. add_components empty.`,
     `2. 'layer' scenes, one part or a few at a time, adding exactly these components in this order, at most ${L.perScene} per scene: ${path.map(kw).join(", ")}. ${S.spine} Say each added component's keyword out loud, in add_components order.`,
     `3. one 'walkthrough' scene right after them: the core flow told once, end to end, as one short story. Say these step labels in order, each as the action of a natural sentence about who does what. Call each part by its keyword, the name on screen that the layer scenes already said; its analogy role may ride along ('the demo app, your front desk, sends the message') but never stands in for it, since a viewer cannot map a new role name to a box, adding articles and verb endings as speech needs ('send message' becomes 'sends the message'): ${steps}. Good: 'You type a question, and the counter sends the message to the manager.' Bad: 'Step one is send message.' Never number the steps out loud. Follow one concrete example from the repo the whole way (a real input like the words 'hello world', a real message, a real file) and say what it looks like after each step, the way Caleb follows one 2 TB model from disk to GPU. End with the concrete thing the user gets back (e.g. 'a working fix in your chat'), not 'an answer'. Give it a heading of 2 to 4 lowercase words that the narration actually says, naming this moment rather than labelling it. About ${Math.round(L.wordsPerScene * 1.6)} words. add_components empty.`,
     side.length
@@ -72,6 +72,7 @@ function repoSystem(arch: Architecture, L: ExplainSpec, lo: number, hi: number):
 const Critique = z.object({
   undefined_terms: z.array(z.object({ term: z.string(), scene: z.string() })).describe("terms a newcomer would not know, used without a plain-words explanation at their first use"),
   odd_phrases: z.array(z.object({ phrase: z.string(), scene: z.string() })).describe("figures of speech or squeezed made-up phrases that stand in for a real thing and would puzzle a newcomer, quoted exactly"),
+  purpose: z.string().describe("what this project is and why someone would use it, in one sentence, as you understood it from the opening; empty if the opening never told you"),
   flow_clear: z.boolean().describe("true if a newcomer could retell how one request goes from the user to the result"),
   flow_problem: z.string().describe("what is missing from the flow, or empty"),
 });
@@ -83,7 +84,7 @@ async function critiquePlan(ledger: CostLedger, plan: ScenePlan, audience: strin
   return sparkJson({
     ledger, step: "plan-check", schema: Critique, name: "critique", effort: "low", maxTokens: 6000,
     messages: [
-      { role: "system", content: `You are ${audience}, hearing this explainer narration once, in order. List every term you would not know (an acronym, product, protocol or internal name) that is used without a plain-words explanation at or before its first use. Words every developer knows (server, database, browser, app, API, model) do not count; a part the narration explains in plain words counts as explained. Also quote, as odd phrases, any figure of speech or squeezed made-up phrase that stands in for a real thing and would make you stop and wonder what it literally means (a model called 'a brain', saved weights called 'memory', 'fast focus math'). Then say whether you could now retell how one request goes from the user to the result, and if not, what is missing. Be strict but fair; at most 8 terms.` },
+      { role: "system", content: `You are ${audience}, hearing this explainer narration once, in order. List every term you would not know (an acronym, product, protocol or internal name) that is used without a plain-words explanation at or before its first use. Words every developer knows (server, database, browser, app, API, model) do not count; a part the narration explains in plain words counts as explained. Also quote, as odd phrases, any figure of speech or squeezed made-up phrase that stands in for a real thing and would make you stop and wonder what it literally means (a model called 'a brain', saved weights called 'memory', 'fast focus math'). Say in one sentence what this project is and why someone would use it, from the opening alone; leave it empty if the opening never told you. Then say whether you could now retell how one request goes from the user to the result, and if not, what is missing. Be strict but fair; at most 8 terms.` },
       { role: "user", content: script },
     ],
   });
@@ -460,6 +461,7 @@ export async function planRepoScenes(o: { ledger: CostLedger; arch: Architecture
     ...checkStory(p, arch, L.brief.analogy),
     ...(c?.undefined_terms ?? []).filter((t) => said(p, t.term)).map((t) => termIssue(t)),
     ...(c?.odd_phrases ?? []).filter((t) => said(p, t.phrase)).map((t) => oddIssue(t)),
+    ...(c && !c.purpose.trim() ? ["a newcomer could not tell what this project is or why they would use it; right after the hook line, say it in one plain sentence with no jargon"] : []),
     ...(c && !c.flow_clear ? [`a newcomer could not retell the flow: ${c.flow_problem}`] : []),
   ];
   let [pol, crit] = await Promise.all([polish(plan), critique(plan)]);
