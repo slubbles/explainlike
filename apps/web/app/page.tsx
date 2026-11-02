@@ -7,7 +7,7 @@ import JobBar from "../components/JobBar";
 import Steps from "../components/Steps";
 import ResultView from "../components/ResultView";
 import { DEFAULT_FORM, formFromJob, type Form } from "../lib/form";
-import { fileUrl, postJson, useJob, useJobs, type Explain } from "../lib/client";
+import { fileUrl, postJson, useGallery, useJob, useJobs, type Explain } from "../lib/client";
 
 const urlJob = () => new URLSearchParams(location.search).get("job") ?? undefined;
 
@@ -27,6 +27,7 @@ export default function Home() {
   const [notes, setNotes] = useState<string[]>([]);
   const job = useJob(jobId);
   const listed = useJobs(bump);
+  const examples = useGallery();
 
   // ?job=<id> reopens a saved job (jobs are kept on disk); back and forward move between jobs and the start page
   useEffect(() => {
@@ -87,14 +88,13 @@ export default function Home() {
     setStarted((f) => [r.data.id, ...f]);
   }
 
-  const gallery = listed.filter((j) => j.kind === "video" && j.state === "done" && j.mp4).slice(0, 6);
   const clips = job ? [...new Set([...started, ...listed.filter((j) => j.parent === job.id).map((j) => j.id)])] : [];
 
   return (
     <>
       <Nav />
       <main className="page">
-        {!jobId && <InputScreen form={form} set={set} go={go} busy={posting} err={err} gallery={gallery} talking={talking} talk={setTalking} onVoiceJob={voiceJob} />}
+        {!jobId && <InputScreen form={form} set={set} go={go} busy={posting} err={err} examples={examples} talking={talking} talk={setTalking} onVoiceJob={voiceJob} />}
         {jobId && (
           <>
             <JobBar form={form} set={set} go={go} busy={busy || posting} fold={job?.state === "done"} quiet={job?.state === "done" && form.input.trim() === job.input && form.voice === job.voice} />

@@ -1,15 +1,18 @@
 "use client";
-import { VOICES, type Form, shortLink, sourceKind } from "../lib/form";
-import { fileUrl, secs, type Listed } from "../lib/client";
+import { VOICES, type Form, shortLink } from "../lib/form";
+import type { GalleryItem } from "../lib/gallery";
+import GalleryGrid from "./GalleryGrid";
 import { Arrow, Mic } from "./Icons";
 import VoiceMode from "./VoiceMode";
 import type { StartedJob } from "../lib/voiceClient";
 
+/** one row of the grid on the home page; the rest are at /gallery */
+const HOME_EXAMPLES = 3;
 const EXAMPLES = ["https://github.com/umami-software/umami", "https://x.com/karpathy/status/1977755427569111362", "https://blog.vllm.ai/2023/06/20/vllm.html", "how DNS works"];
 
-type Props = { form: Form; set: (f: Partial<Form>) => void; go: () => void; busy: boolean; err: string; gallery: Listed[]; talking: boolean; talk: (on: boolean) => void; onVoiceJob: (job: StartedJob) => void };
+type Props = { form: Form; set: (f: Partial<Form>) => void; go: () => void; busy: boolean; err: string; examples: GalleryItem[]; talking: boolean; talk: (on: boolean) => void; onVoiceJob: (job: StartedJob) => void };
 
-export default function InputScreen({ form, set, go, busy, err, gallery, talking, talk, onVoiceJob }: Props) {
+export default function InputScreen({ form, set, go, busy, err, examples, talking, talk, onVoiceJob }: Props) {
   const ready = !!form.input.trim() && !busy;
   return (
     <>
@@ -36,18 +39,13 @@ export default function InputScreen({ form, set, go, busy, err, gallery, talking
         <div className="try"><span className="label">Try:</span>{EXAMPLES.map((x) => <button type="button" key={x} className="chip" onClick={() => set({ input: x })}>{shortLink(x)}</button>)}</div>
       </section>
 
-      {gallery.length > 0 && (
-        <section className="gallery">
-          <h2>Examples</h2>
-          <div className="grid">
-            {gallery.map((j) => (
-              <a className="card" key={j.id} href={`/?job=${j.id}`}>
-                <div className="screen"><video src={`${fileUrl(j.id, j.mp4)}#t=${((j.durationSec ?? 30) * 0.55).toFixed(1)}`} preload="metadata" muted playsInline tabIndex={-1} /></div>
-                <div className="t">{j.title ?? shortLink(j.input)}</div>
-                <div className="m">{j.approach ? `${j.approach} · ` : ""}{secs(j.durationSec)} · {sourceKind(j.input)}</div>
-              </a>
-            ))}
+      {examples.length > 0 && (
+        <section className="gallery home">
+          <div className="ghead">
+            <h2>Examples</h2>
+            {examples.length > HOME_EXAMPLES && <a className="more" href="/gallery">See all {examples.length}</a>}
           </div>
+          <GalleryGrid videos={examples.slice(0, HOME_EXAMPLES)} />
         </section>
       )}
 
