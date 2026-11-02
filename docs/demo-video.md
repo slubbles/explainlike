@@ -35,7 +35,7 @@ Facts to use, all true as of Nov 2:
 | Time | On screen | Voice |
 | --- | --- | --- |
 | 0:00–0:10 | PowerShell: `git log --reverse --date=short --pretty=format:"%h %ad %s" \| Select-Object -First 3` shows the Oct 31 first commit. | "This repo's first commit is October 31st. Everything you're about to see was built in the last three days, during this hackathon." |
-| 0:10–0:25 | Web app, paste `https://github.com/milind-soni/OpenMausBot`, press Explain. | "Explain Like turns anything hard to learn into a narrated whiteboard video. Give it a repo." |
+| 0:10–0:25 | Web app, paste `https://github.com/milind-soni/OpenMausBot`, press Explain. | "Explain Like turns anything hard to learn into a narrated whiteboard video. Give it a repo, and two and a half minutes later you hand someone the tour instead of the codebase." |
 | 0:25–0:35 | Progress line: fetching, reading the source, planning, drawing. Cut at the first frame. | "It reads the code first, decides how to explain it, then draws it by hand." |
 | 0:35–1:20 | The finished OpenMausBot video: architecture builds, one request walks the system, 10x traffic is circled, the fix is drawn. Let the narration carry this; do not talk over it. | (video audio only, two or three seconds of it, then duck) |
 | 1:20–1:40 | tldraw: the `.tldr` board. Drag one box; open its note showing the file and line the box came from. Then Excalidraw tab. | "The same drawing comes back as an editable board. Every box is tied to the file it came from, and tapping it answers from that file only." |
