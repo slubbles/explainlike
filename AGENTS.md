@@ -22,7 +22,7 @@ Explanimate turns a GitHub repo, an X post, an article or a plain topic into a n
 
 ## Rules
 - Never print, commit or send API keys to a model. Don't read `.env` files into prompts.
-- Spend caps: $25 on Meta and $3 on Deepgram. The app's spend guard warns at 80%. Reuse cached plans and voice when re-rendering.
+- Spend caps: $25 on Meta and $10 on Deepgram. The app's spend guard warns at 80%. Reuse cached plans and voice when re-rendering.
 - Don't run Muse Code on client repos (for example ACC). Test with public repos or topics.
 - Push straight to main with small, meaningful commits. Each commit has a subject in the form `type(scope): plain-language subject`, then a blank line, one plain sentence on what was wrong or why, and plain bullets of what changed.
 - Keep quality high. Don't trade quality for speed. Keep the UI clean, light and restrained, with Inter and brand colors only.

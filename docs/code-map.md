@@ -101,7 +101,7 @@ Frames draw at roughly 20 per second with the default worker count, so the wall 
 the video length. Planning is the cheap part; the drawing is the cost in time. Model spend on a fresh
 run of this size is a few cents of Spark plus a few cents of Aura.
 
-The spend guard caps Meta at `$25` and Deepgram at `$3`, warns at 80%, and pauses new work rather than
+The spend guard caps Meta at `$25` and Deepgram at `$10`, warns at 80%, and pauses new work rather than
 overspending. Cached re-runs are genuinely free: `$0.000` on the run above.
 
 ## Where it can still bite you
