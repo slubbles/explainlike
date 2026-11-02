@@ -857,7 +857,10 @@ export async function compose(inp: ComposeInput): Promise<Composed> {
       for (const kk of drawnEdges) B.setOp(kk, T, 1);
       // the red scale ring has made its point; the recap shows the fixed system without it
       for (let j = 0; j < fixIds.length; j++) B.setOp(`s:${j}`, T, 0, 0.5);
-      const comps = (inp.arch?.components ?? []).filter((c) => present.has(c.id));
+      // parts light in the order the recap retells them: the walkthrough's order, then the parts off it
+      const walk = [...new Set((inp.arch?.walkthrough.steps ?? []).flatMap((x) => [x.from, x.to]))];
+      const rank = (id: string) => (walk.includes(id) ? walk.indexOf(id) : walk.length);
+      const comps = (inp.arch?.components ?? []).filter((c) => present.has(c.id)).map((c, i) => ({ c, i })).sort((x, y) => rank(x.c.id) - rank(y.c.id) || x.i - y.i).map((x) => x.c);
       for (const id of all) B.setOp(nodeGroup(id), T, dim);
       const times = eventTimes(words, comps.map((c) => [c.keyword]), t0 + 0.3, tEnd - 1.2, 0.5);
       // a fix lights up together with the component it fixes, so the recap never shows the answers greyed out
