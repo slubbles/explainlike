@@ -2,6 +2,7 @@ import { findPlace } from "@explainlike/core/places";
 import { z } from "zod";
 import { ScenePlan, coverageSeconds, parseFigure, parseDated, figureInQuote, lower, norm, tidySpeech, wordCount, quoteInSource, phraseAt, spokenWords, missingArticles, grammarSlips, soundsLikeKeywords, shortHeading, type Architecture, type ExplainSpec, type Progress, type NoteItem, type Scene, type SourceDoc } from "@explainlike/core";
 import { sparkJson, type CostLedger } from "@explainlike/models";
+import { SHAPES, analogyRule, shapeFor } from "./shapes.js";
 
 const STYLE = [
   "Style of the video: a friendly engineer drawing on a whiteboard while talking to a smart newcomer (docs/explaining-playbook.md).",
@@ -14,7 +15,7 @@ const STYLE = [
   "Headings are 2 to 4 lowercase words that the narration of that scene actually says (the viewer reads the heading while hearing it). Keywords 1 to 3 lowercase words.",
   "One new thing per sentence, and each sentence long enough to watch it being drawn (no two-word sentences).",
   "Every sentence moves the story. Never announce what comes next instead of saying it: 'you'll meet', 'you'll see', 'you'll find', 'then you've got', 'let's take a look', 'basically', 'it's special' and 'it's important' are banned.",
-  "Keep the one everyday analogy from the hook to the recap; never switch to a second one.",
+  "If the video uses an everyday analogy, keep that one analogy from the hook to the end; never switch to a second one.",
   "One or two short, dry asides are welcome where they fit, the kind a friendly engineer makes at the whiteboard ('which, to be fair, is most of programming'). Never a joke about people, never more than one sentence.",
 ].join("\n");
 
@@ -30,6 +31,8 @@ export function journeyOrder(arch: Architecture): { path: string[]; side: string
 // Repo: tell one request's journey on one evolving canvas (docs/explaining-playbook.md).
 // ---------------------------------------------------------------------------
 function repoSystem(arch: Architecture, L: ExplainSpec, lo: number, hi: number): string {
+  const shape = shapeFor(L.brief.approach);
+  const S = SHAPES[shape];
   const { path, side } = journeyOrder(arch);
   const kw = (id: string) => `${id} ("${arch.components.find((c) => c.id === id)?.keyword}")`;
   const steps = arch.walkthrough.steps.map((s) => `"${s.label}"`).join(", ");
@@ -39,11 +42,11 @@ function repoSystem(arch: Architecture, L: ExplainSpec, lo: number, hi: number):
     "Goal: a newcomer finishes the video able to say what this project is and how one request flows through it. That flow is the video.",
     STYLE,
     L.voice,
-    `Everyday analogy for the whole system: ${analogy}.`,
+    analogyRule(shape, analogy),
     "Scene order and rules:",
-    "1. one 'hook' scene, 3 or 4 sentences. Sentence one is the hook, shown big on screen as it is spoken: a question the viewer would ask, or one surprising, concrete claim about the problem this project solves, at most 14 words, no product name needed (good: 'How does a computer learn from its own mistakes?' or 'Every app you use forgets you the moment you close it.'; bad: 'This is X, a tool for Y.'). Then what the product is in plain words (no part names, no jargon) and what goes wrong without it or what it lets you do (the stakes), the everyday analogy, and the promise of the story, e.g. 'Let's follow one message through it.' add_components empty.",
-    `2. 'layer' scenes along the journey: add exactly these components, in this order, at most ${L.perScene} per scene: ${path.map(kw).join(", ")}. Tell it as the request moving forward ('First...', 'Next it reaches...'). For each added component say its keyword out loud (in add_components order), what it does in plain words, its role in the analogy, and why it is there.`,
-    `3. one 'walkthrough' scene right after them: the core flow told once, end to end, as one short story. Say these step labels in order, each as the action of a natural sentence about who does what. Call each part by its keyword, the name on screen that the layer scenes already said; its analogy role may ride along ('the demo app, your front desk, sends the message') but never stands in for it, since a viewer cannot map a new role name to a box, adding articles and verb endings as speech needs ('send message' becomes 'sends the message'): ${steps}. Good: 'You type a question, and the counter sends the message to the manager.' Bad: 'Step one is send message.' Never number the steps out loud. Follow one concrete example from the repo the whole way (a real input like the words 'hello world', a real message, a real file) and say what it looks like after each step, the way Caleb follows one 2 TB model from disk to GPU. End with the concrete thing the user gets back (e.g. 'a working fix in your chat'), not 'an answer'. Heading like 'follow one message'. About ${Math.round(L.wordsPerScene * 1.6)} words. add_components empty.`,
+    `1. one 'hook' scene, 3 or 4 sentences, shown big on screen as it is spoken. ${S.hook} add_components empty.`,
+    `2. 'layer' scenes, one part or a few at a time, adding exactly these components in this order, at most ${L.perScene} per scene: ${path.map(kw).join(", ")}. ${S.spine} Say each added component's keyword out loud, in add_components order.`,
+    `3. one 'walkthrough' scene right after them: the core flow told once, end to end, as one short story. Say these step labels in order, each as the action of a natural sentence about who does what. Call each part by its keyword, the name on screen that the layer scenes already said; its analogy role may ride along ('the demo app, your front desk, sends the message') but never stands in for it, since a viewer cannot map a new role name to a box, adding articles and verb endings as speech needs ('send message' becomes 'sends the message'): ${steps}. Good: 'You type a question, and the counter sends the message to the manager.' Bad: 'Step one is send message.' Never number the steps out loud. Follow one concrete example from the repo the whole way (a real input like the words 'hello world', a real message, a real file) and say what it looks like after each step, the way Caleb follows one 2 TB model from disk to GPU. End with the concrete thing the user gets back (e.g. 'a working fix in your chat'), not 'an answer'. Give it a heading of 2 to 4 lowercase words that the narration actually says, naming this moment rather than labelling it. About ${Math.round(L.wordsPerScene * 1.6)} words. add_components empty.`,
     side.length
       ? `4. then 'layer' scene(s) for the side parts the request does not pass through: ${side.map(kw).join(", ")}. Keep them short: as few scenes as fit (at most ${L.perScene} parts per scene), one short clause per part (its keyword and plain job), opening with one tie-back to the journey such as 'Around the manager sit a few helpers:'. Do not repeat the same opener for each part.`
       : "4. (no side parts)",
@@ -51,7 +54,10 @@ function repoSystem(arch: Architecture, L: ExplainSpec, lo: number, hi: number):
       ? `5. ${arch.scale.length} short 'scale' scene(s), one per scale risk, in the given order: what breaks at that traffic level and why (problem keyword), then the fix (fix keyword), in 2 short plain sentences ('The fix is ...'). callouts: [{target: component id, text: problem keyword, color: red}, {target: component id, text: fix keyword, color: green}].`
       : "5. no 'scale' scenes.",
     ...notesRules(L.notes),
-    "6. one 'recap' scene: retell the flow in one breath, from the user to what they get back, saying the journey keywords in order (when the flow comes back through a part, say that part again, so each pair you name back to back has an arrow between them), then one line that answers the hook's question or pays off its claim (a callback). Heading like 'the whole trip'.",
+    S.recap
+      ? `6. one closing scene of kind 'recap': ${S.close} When the flow comes back through a part, say that part again, so each pair you name back to back has an arrow between them.`
+      : `6. no 'recap' scene and no summary of the parts. ${S.close}`,
+    `Headings: ${S.headings}`,
     `Keep the hook and the layer scenes brief enough that the walkthrough starts before the halfway mark of the whole narration, counted in words. Each scene's narration is about ${L.wordsPerScene} words (hook and recap can be shorter). There is no set length. At ${L.tempo.wps} words per second this repo's parts come to roughly ${lo} to ${hi} seconds; shorter is right if the story is told, never pad.`,
     "Only say two parts talk to each other ('the poll input feeds the ui core') when the connections list joins them; otherwise tell the hop through the part between them.",
     "Leave add_connections, board_nodes, board_edges, highlights empty (the renderer derives them). callouts empty except in scale scenes. items empty except in notes scenes.",

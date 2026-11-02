@@ -9,7 +9,7 @@ import { z } from "zod";
  * examples, analogy-led teaching): pick one spine and keep it for the whole video.
  */
 export const APPROACHES = {
-  "analogy": "one everyday analogy (post office, restaurant kitchen, library) carried through the whole video; name the real part right after its analogy",
+  "analogy": "one everyday analogy carried through the whole video, drawn from the world the project serves; name the real part right after its analogy",
   "story": "follow one character or one piece of data on its journey; each scene is the next thing that happens to it",
   "step-by-step": "a worked example: one concrete input traced step by step, each step named before it is shown",
   "build-up": "start from the smallest thing that works and add one part per scene, saying what problem each new part solves",
@@ -50,7 +50,7 @@ export const Brief = z.object({
   audience: z.string().describe("who will get the most from this video, e.g. 'a developer new to agent frameworks'"),
   depth: z.enum(["overview", "working", "deep"]).describe("overview: the big idea only; working: enough to start contributing; deep: internals and trade-offs"),
   approach: z.enum(APPROACH_IDS),
-  analogy: z.string().describe("one everyday analogy for the whole system (a restaurant kitchen, a post office, a front desk), used in the hook and on the journey; never empty"),
+  analogy: z.string().describe("one everyday analogy for the whole system, drawn from the world this project serves, used in the hook and on the journey; empty only when the approach does not use one (problem-solution, compare)"),
   why: z.string().describe("one sentence: why this approach and depth fit this source"),
   look: z.enum(LOOK_IDS),
   style: z.enum(Object.keys(STYLES) as [Style, ...Style[]]),
