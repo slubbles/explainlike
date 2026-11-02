@@ -102,6 +102,13 @@ test("phraseAt finds a step label as people say it", async () => {
   assert.equal(phraseAt(spokenWords("send it to the very busy server"), "send server"), -1, "only two small words may sit between");
 });
 
+test("phraseAt finds a hyphenated label said as one hyphenated word, and still as separate words", async () => {
+  const { phraseAt, spokenWords } = await import("@explanimate/core");
+  assert.equal(phraseAt(spokenWords("The harness will load follow-ups from your past chat."), "load follow-ups"), 3);
+  assert.equal(phraseAt(spokenWords("It will load the follow ups next."), "load follow-ups"), 2);
+  assert.equal(phraseAt(spokenWords("It will load the follow-ups next."), "load follow ups"), -1, "only the label's own hyphen joins words");
+});
+
 test("missing articles before common nouns are caught", async () => {
   const { missingArticles } = await import("@explanimate/core");
   assert.deepEqual(missingArticles("The guest will send message to manager, then we run agent."), ["send message", "run agent", "to manager"]);
