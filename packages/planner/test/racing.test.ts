@@ -4,6 +4,9 @@ import { DEFAULT_BRIEF, specFromBrief, type Architecture } from "@explanimate/co
 import { CostLedger } from "@explanimate/models";
 import { planBrief, reviewArchitecture, fixArchitecture, polishNarration } from "@explanimate/planner";
 
+// these tests fake the Meta API, so they pin the provider instead of following whichever key the machine has
+process.env.EXPLANIMATE_LLM_PROVIDER = "meta";
+
 // a fake API that answers every request with JSON no schema accepts, and counts the requests by schema name
 async function requestsFor(run: () => Promise<unknown>): Promise<Record<string, number>> {
   const sent: Record<string, number> = {};
