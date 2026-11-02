@@ -1,0 +1,58 @@
+0.0	5.9	Hello, in this video I am going to explain Apache Kafka for you within 10 minutes with a simple
+5.9	11.6	analogy. In my hand is an envelope and I want to ship this envelope or send this envelope
+11.6	17.6	to my dear friend, Enburley and I am in UAE and I need to ship this information. How do I do that?
+18.2	24.6	Well, you already know you use physical post offices to send this information to a particular
+24.6	31.2	destination. How does this flow work like? Let's take a look. Let's start with the envelope itself.
+31.2	36.3	So, this is a physical envelope that I had and I need to ship this information or ship this envelope
+36.3	44.0	to my friend, Enburley. What is the starting point? The starting point is UAE and I am the
+44.0	50.3	producer of this information and I need to send this information to my friend, Enburley, that is in
+50.3	56.5	Germany. How does this whole flow look like and how is it related to Apache Kafka? Let me explain
+56.5	61.3	that. This information, of course, you might ask, hey, why don't you just send a digital copy? Let's
+61.3	68.3	assume that I don't and I have to send a physical copy. So, the first entry point for me is the post
+68.3	73.8	office here and I give some information related to where I need to send this information.
+74.6	81.5	Based on that, these people are going to route it to a right section within the post office.
+81.5	89.4	For example, this section is going to Germany and this section probably is going to,
+90.9	98.6	let's say, Britain or UK. And there is another section which is giving or sending all the
+98.6	106.4	information or the post, so let's say Japan. So, the moment my information is collected by
+106.4	112.2	the person sitting in the post office, they shall route the package itself to the right
+112.2	118.0	subsection. So, my envelope lands here. So, the first step is connecting to the post office and
+118.0	123.3	second step is landing it at the right queue. Of course, if you dump this data or if they put it
+123.3	130.8	in a wrong place like UK, it shall never reach my friend at all. This is the segregation of the
+130.8	138.3	incoming data and that is a key in Apache Kafka 2. Now, let me continue with this process itself
+138.3	145.0	for now. Once you have this information, it sits there until somebody collects this or it gets shipped
+145.5	153.7	in any kind or form to the final destination that would be a post office, a PO box in Germany.
+154.7	160.0	Now, within Germany, again, there would be multiple places where it gets sorted and it would end up
+160.0	165.6	in the Berlin section and then it would be reaching my friend in Berlin and he would be consuming
+165.6	172.6	his information. This simple process, we are all aware of it. In fact, we use this day in and day
+172.6	178.2	out, but you know that this itself is a backbone of Apache Kafka. Well, what do I mean by it?
+178.8	185.8	This by this example, you understood four key terminologies in Apache Kafka. What are they?
+185.8	191.9	Well, the person producing this envelope that is me in this case is what we call as a producer.
+191.9	200.0	Then, we have the whole post office network is Apache Kafka. The backbone of our service,
+200.0	206.5	it has sorting systems, it has information of every other post offices, it knows which message
+206.5	212.1	came first, that is which envelope came first, who sent it, where should it go, have it kept it
+212.1	217.1	properly, is there a guarantee for this or an insurance for this package, what happens if I
+217.1	223.0	miss this package, everything is within the post office. Also, not just that, when you give this
+223.0	228.5	envelope to the post office, they always give you an acknowledgement saying that, we have received
+228.8	233.9	envelope, we are going to make sure it is going to reach the final destination. Even Apache Kafka
+233.9	239.5	does that, it is called as acknowledgement services in Apache Kafka. Well, this post office itself,
+239.5	245.3	whatever I explained, is a very similar way in which Apache Kafka functions. Then, we have the
+245.3	251.4	end person who consume this information, which we call as consumer. So, just like how the post
+251.4	257.2	office work, we have three or four important pieces, that is the producer, the Kafka as a service,
+257.2	262.6	which has internal services, and then you have the consumer. Within the Kafka itself,
+262.6	271.5	the segregation part that you see here is what we call as topics. Topics are basically a way in which
+271.5	278.4	you segregate the incoming messages based on the application needs. And all of these topics are
+278.4	286.2	present in the post box, let us say here in UAE, let us say it is in Dubai, this is a broker. A broker
+286.2	292.4	is a physical server where Apache Kafka has been installed and topics can actually span
+292.4	299.8	across different brokers too. Well, this is how with an analogy, you can remember how Kafka works
+299.8	306.1	in a technological space too. Just like this, an event is fired by an application. So, the producer
+306.1	312.5	is the application that is firing the event. It reaches a topic because all of these events
+312.6	317.9	needs to be stored or segregated properly. So, they land in a topic. Where is this topic?
+317.9	323.2	Is the topic having any kind of replication, guarantees, etcetera. But all of this is defined
+323.2	329.9	in Apache Kafka and the Apache Kafka is installed on multiple broker set up, which are physical servers.
+329.9	335.4	And then comes the consumer. In this case, the post office case, somebody went and delivered
+335.4	341.0	the data to the final consumer, but in Kafka, the consumer reads this information by themselves,
+341.0	346.9	and they do the processing. I hope this analogy was helpful for you to understand
+346.9	353.2	how to relate Kafka to a real world example. Well, what are the four important terminologies
+353.2	358.3	in Apache Kafka? Can you take a guess? Well, let me know in the comment box and I'll be creating a
+358.3	364.5	new video for you if you guess that's right. Well, do check out Apache Kafka course in detail
+364.5	373.8	with hands on lab in core cloud.com. Thank you.
