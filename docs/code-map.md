@@ -33,7 +33,7 @@ in an in-memory first-in, first-out line and their page shows the first step in 
 | `packages/planner` | 1.9k | Four Muse calls that decide how to explain: `brief` picks analogy, depth, tempo, look; `architecture` finds the components and one request path; `scenes` writes the narration and the boards; `followups` makes the 15 s deep-dive and the what-if-10x clip. |
 | `packages/voice` | 0.6k | Per-scene speech through Deepgram Aura, word timings, the respelling table for words Aura mispronounces, and the silent fallback when there is no key. |
 | `packages/render` | 3.9k | The picture: layout, drawing, camera, captions, music and sound effects, `.tldr`/`.excalidraw` writers, the placement and frame checks, and the Chrome → ffmpeg capture. |
-| `packages/models` | 0.4k | One client for Meta Muse (Spark, image, SAM, Transcribe) and Deepgram, with the cost ledger and retries. |
+| `packages/models` | 0.4k | One client for Muse Spark (on OpenRouter or Meta, picked by `llmProvider` in `packages/core/src/llm.ts`), Meta Muse image, SAM and Transcribe, and Deepgram, with the cost ledger and retries. |
 | `apps/web` | 1.9k | The UI, six job routes, the example gallery (`lib/gallery.ts`, read from `EXPLANIMATE_GALLERY_DIR`), the voice loop, the spend guard, rate limits, health. |
 
 Two other packages carry the packs and the API/MCP surface; they are not on the demo path.

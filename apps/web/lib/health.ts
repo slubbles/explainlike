@@ -2,6 +2,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
+import { llmProvider, type LlmProvider } from "@explanimate/core/llm";
 
 /** What a load balancer or uptime check needs to know. Keys are reported present or missing, never their values. */
 export interface Health {
@@ -49,19 +50,21 @@ export const realProbe: Probe = {
   },
 };
 
-/** Healthy means a video can be made: ffmpeg, Chrome, the Meta key and a writable jobs folder. Voice is optional. */
+/** Healthy means a video can be made: ffmpeg, Chrome, the key for the Muse Spark provider (OpenRouter or Meta) and a writable jobs folder. Voice is optional. */
 export function checkHealth(jobsDir: string, budgetOk: boolean, p: Probe = realProbe): Health {
+  let llm: LlmProvider | undefined, badProvider = "";
+  try { llm = llmProvider(p.env); } catch (e) { badProvider = (e as Error).message; }
   const checks = {
     ffmpeg: p.runs("ffmpeg"),
     chrome: [p.env.EXPLANIMATE_CHROME, ...CHROME, ...windowsChrome(p.env)].some((f) => !!f && p.has(f)),
-    modelKey: !!p.env.MODEL_API_KEY,
+    modelKey: !!llm && !!p.env[llm.keyVar],
     voiceKey: !!p.env.DEEPGRAM_API_KEY,
     jobsDir: p.writable(jobsDir),
   };
   const problems: string[] = [];
   if (!checks.ffmpeg) problems.push("ffmpeg is not on the PATH.");
   if (!checks.chrome) problems.push("Chrome or Chromium was not found. Set EXPLANIMATE_CHROME.");
-  if (!checks.modelKey) problems.push("MODEL_API_KEY is not set.");
+  if (!checks.modelKey) problems.push(badProvider || `${llm!.keyVar} is not set.`);
   if (!checks.jobsDir) problems.push("The jobs folder is not writable. Check EXPLANIMATE_JOBS_DIR and the volume.");
   const paused = p.env.EXPLANIMATE_DEMO_ONLY === "1" || !budgetOk;
   return { ok: problems.length === 0, checks, paused, problems };

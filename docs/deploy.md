@@ -20,13 +20,13 @@ The [`Dockerfile`](../Dockerfile) at the repo root builds one image with Node 22
 docker build -t explanimate .
 docker run -d --name explanimate --restart unless-stopped -p 127.0.0.1:3000:3000 \
   -v explanimate-data:/data \
-  -e MODEL_API_KEY -e DEEPGRAM_API_KEY \
+  -e OPENROUTER_API_KEY -e MODEL_API_KEY -e DEEPGRAM_API_KEY \
   -e EXPLANIMATE_TRUST_PROXY=1 \
   explanimate
 curl -s localhost:3000/api/health
 ```
 
-`-e MODEL_API_KEY` with no value passes the key from your shell, so it never lands in your shell history.
+`-e MODEL_API_KEY` with no value passes the key from your shell, so it never lands in your shell history. With `OPENROUTER_API_KEY` set, Muse Spark runs through OpenRouter; `MODEL_API_KEY` is still used for doodle icons and the voiceover check.
 
 ### Health check
 
@@ -37,6 +37,7 @@ curl -s localhost:3000/api/health
 ```
 
 - Keys appear only as `true` or `false`, never their values.
+- `modelKey` is the key for the Muse Spark provider in use: `OPENROUTER_API_KEY` on OpenRouter, `MODEL_API_KEY` on Meta.
 - `voiceKey: false` is not a failure. Videos then render silent with captions.
 - `paused: true` means demo-only mode is on or a spend cap is reached. The server is still healthy.
 - The image runs this check every 30 seconds. Point your host's health check at the same path.
@@ -100,7 +101,7 @@ A render needs about 2 CPU cores, 2 GB of memory and 3 to 6 minutes. Pick a plan
 
 1. Create a project from the GitHub repo. Railway finds the `Dockerfile`.
 2. Add a volume and mount it at `/data`.
-3. Under Variables, add `MODEL_API_KEY`, `DEEPGRAM_API_KEY` and `EXPLANIMATE_TRUST_PROXY=1`. Railway sets `PORT` itself.
+3. Under Variables, add `OPENROUTER_API_KEY`, `MODEL_API_KEY`, `DEEPGRAM_API_KEY` and `EXPLANIMATE_TRUST_PROXY=1`. Railway sets `PORT` itself.
 4. Under Settings, set the health check path to `/api/health`.
 5. Keep replicas at 1.
 
@@ -141,7 +142,7 @@ primary_region = "sin"
 
 ```bash
 fly volumes create explanimate_data --size 10
-fly secrets set MODEL_API_KEY=... DEEPGRAM_API_KEY=...
+fly secrets set OPENROUTER_API_KEY=... MODEL_API_KEY=... DEEPGRAM_API_KEY=...
 fly deploy
 ```
 
@@ -196,9 +197,11 @@ The project used to be called Explain Like. Settings with the old `EXPLAINLIKE_`
 
 | Variable | Default | What it does |
 | --- | --- | --- |
-| `MODEL_API_KEY` | (required) | Meta Muse key. Read only on the server. |
+| `OPENROUTER_API_KEY` | (optional) | OpenRouter key. When set, planning and voice mode use Muse Spark 1.3 through OpenRouter. Read only on the server. |
+| `MODEL_API_KEY` | (required without an OpenRouter key) | Meta Muse key: Muse Spark when there is no OpenRouter key, and always doodle icons and the voiceover check. Read only on the server. |
+| `EXPLANIMATE_LLM_PROVIDER` | `openrouter` if its key is set, else `meta` | Which service runs Muse Spark. The health check asks for that service's key. |
 | `DEEPGRAM_API_KEY` | (optional) | Voiceover and voice mode. Read only on the server. |
-| `EXPLANIMATE_META_CAP_USD` | 25 | New work pauses before Meta spend could pass this amount. |
+| `EXPLANIMATE_META_CAP_USD` | 25 | New work pauses before Muse spend (OpenRouter or Meta) could pass this amount. |
 | `EXPLANIMATE_VOICE_CAP_USD` | 3 | New work pauses before Deepgram spend could pass this amount. |
 | `EXPLANIMATE_REQ_PER_MIN` | 12 | Per-IP limit on the routes that start work or cost money. |
 | `EXPLANIMATE_JOBS_PER_HOUR` | 20 | Videos per hour across everyone. |

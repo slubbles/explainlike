@@ -36,3 +36,11 @@ test("EXPLANIMATE_CHROME points at a Chrome in an unusual place", () => {
   const h = checkHealth("/j", true, probe({ env: { MODEL_API_KEY: "k", EXPLANIMATE_CHROME: "/opt/chrome/chrome" }, has: (f) => f === "/opt/chrome/chrome" }));
   assert.equal(h.checks.chrome, true);
 });
+
+test("with an OpenRouter key the OpenRouter key is the one that counts, and a bad provider name is a plain problem", () => {
+  assert.equal(checkHealth("/j", true, probe({ env: { OPENROUTER_API_KEY: "secret-or" } })).checks.modelKey, true);
+  const want = checkHealth("/j", true, probe({ env: { MODEL_API_KEY: "k", EXPLANIMATE_LLM_PROVIDER: "openrouter" } }));
+  assert.match(want.problems.join(" "), /OPENROUTER_API_KEY is not set/);
+  const bad = checkHealth("/j", true, probe({ env: { MODEL_API_KEY: "k", EXPLANIMATE_LLM_PROVIDER: "acme" } }));
+  assert.match(bad.problems.join(" "), /must be "openrouter" or "meta"/);
+});
