@@ -655,6 +655,14 @@ export async function planConceptScenes(o: { ledger: CostLedger; doc: SourceDoc;
   // no set length: as many boards as the core needs, with six boards as the ceiling
   const [, hi] = coverageSeconds(L, { components: 0, steps: 0, scale: 0, boards: 6 });
   o.progress?.({ stage: "plan", message: "breaking the source into concepts" });
+  // a topic is not always best told as "here are four boxes": the shape decides how the boards are framed
+  const shape = shapeFor(L.brief.approach);
+  const S = SHAPES[shape];
+  const frame = {
+    journey: "Tell the boards as a process: each board is the next thing that happens, in the order it happens.",
+    build: "Build the mechanism up: the first board is the smallest piece that already works, and each board after it adds the part that the last one needed.",
+    fault: "Each board is one thing that goes wrong in the viewer's own experience, then what actually happens instead.",
+  }[shape];
   const sys = [
     o.doc.kind === "topic"
       ? `You explain the topic "${o.doc.title}" in a whiteboard explainer video, using only the numbered sources below (an encyclopedia article and the references it cites). Cover the core of what the viewer asked, not every detail in the sources.`
@@ -662,12 +670,12 @@ export async function planConceptScenes(o: { ledger: CostLedger; doc: SourceDoc;
     STYLE,
     L.voice,
     "Scenes:",
-    o.doc.kind === "topic" ? "1. 'hook': the viewer's question, in plain words, and why the answer is surprising or useful." : "1. 'hook': the one question this source answers, in plain words.",
-    `2. 'source' scene(s): the reader sees ${o.doc.kind === "topic" ? "a card with the sources' text (say where it comes from, e.g. 'the encyclopedia says', 'the standard says')" : "the real post/article screenshot"}. highlights: 2 to 4 phrases (2 to 10 words) copied VERBATIM from the source text, each with a 1 to 3 word note and a color (red = problem/claim to question, orange = key idea, green = result/fix, blue = actor/entity). Narration explains why those phrases matter.`,
-    `3. as many 'board' scenes as the core idea needs, usually 2 to 5 and never more than 6: each is a fresh mini diagram of one idea with 2 to ${Math.max(3, L.perScene + 1)} board_nodes and edges between them, drawn left to right in reading order. Every board node's evidence is an exact quote (3 to 12 words) from the source that justifies it (it is printed under the node, so pick the most telling words). count is 1, or 3 to 9 when the node means 'many of these' (8 GPUs, many workers, lots of docs): it becomes an icon grid. callouts: at most 1 per board, circling the node that matters most (target = board node id, text 1 to 3 words). Use colors semantically. icon from: ${o.icons}`,
+    o.doc.kind === "topic" ? `1. 'hook': ${S.hook}` : `1. 'hook': the one question this source answers, in plain words. ${S.hook}`,
+    `${o.doc.kind === "topic" ? "2. optionally one 'source' scene, and only when the source's own words carry weight (a standard, a study, a spec): the reader sees a card with the sources' text (say where it comes from, e.g. 'the standard says'). When the viewer just wants to see how the thing works, skip it and start the boards." : "2. 'source' scene(s): the reader sees the real post/article screenshot"}. highlights: 2 to 4 phrases (2 to 10 words) copied VERBATIM from the source text, each with a 1 to 3 word note and a color (red = problem/claim to question, orange = key idea, green = result/fix, blue = actor/entity). Narration explains why those phrases matter.`,
+    `3. as many 'board' scenes as the core idea needs, usually 2 to 5 and never more than 6. ${frame} Each is a fresh mini diagram of one idea with 2 to ${Math.max(3, L.perScene + 1)} board_nodes and edges between them, drawn left to right in reading order. Every board node's evidence is an exact quote (3 to 12 words) from the source that justifies it (it is printed under the node, so pick the most telling words). count is 1, or 3 to 9 when the node means 'many of these' (8 GPUs, many workers, lots of docs): it becomes an icon grid. callouts: at most 1 per board, circling the node that matters most (target = board node id, text 1 to 3 words). Use colors semantically. icon from: ${o.icons}`,
     "Optionally one 'notes' scene (after the source scene) when the source lists concrete things (features, steps, numbers, stack): 3 to 6 items, text 2 to 7 words, evidence an exact quote, target empty, estimate false (a number the author states is their claim, not our estimate). icon from the same list.",
     ...cutInRules(L.style, o.icons),
-    "4. 'recap': the whole idea in two sentences, what to remember.",
+    S.recap ? "4. 'recap': the whole idea in two sentences, what to remember." : `4. no 'recap' scene. ${S.close}`,`Headings: ${S.headings}`,
     `Each narration about ${L.wordsPerScene} words at ${L.tempo.wps} words/sec. There is no set length: stop once the core of ${o.doc.kind === "topic" ? "what was asked" : "the source"} is covered, never pad, and stay under ${hi} seconds. Leave out side details that do not help answer the hook. Do not claim anything the source does not say; ${o.doc.kind === "topic" ? "every fact must come from the sources (no outside facts)." : "say 'the author claims' when it is a claim."}`,
     "Leave add_components, add_connections empty. callouts only on boards. items only in notes, chart, timeline and map scenes.",
     o.doc.kind === "topic" ? "title: under 6 lowercase words. subtitle: the source sites, lowercase." : "title: under 6 lowercase words. subtitle: who wrote it, lowercase.",
