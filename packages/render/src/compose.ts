@@ -15,7 +15,7 @@ import { resolveIcon } from "./icons.js";
 import { ringOf, scaleArrow, placeFix, placeRingLabel, polyBox } from "./annotate.js";
 import path from "node:path";
 import { clearShots, type Backdrop, type Hidden } from "./clear.js";
-import { cardSlots, cardBox, drawCard, spliceCards, type CardSlot } from "./cards.js";
+import { buildRow, cardSlots, cardBox, drawCard, spliceCards, type CardSlot } from "./cards.js";
 
 // 24 fps is the film standard: a fifth fewer frames to draw than 30, and nothing downstream counts frames
 export const W = 1920, H = 1080, FPS = 24;
@@ -695,22 +695,22 @@ export async function compose(inp: ComposeInput): Promise<Composed> {
         let rows = wordRows(line.map((w) => w.word), size, maxW);
         while (rows.length > 2 && size > 72) { size -= 8; rows = wordRows(line.map((w) => w.word), size, maxW); }
         const lh = size * 1.3, y0 = hookCy + 120 - ((rows.length - 1) * lh) / 2;
-        const sp = textWidth(" ", size);
+        const lineSeed = B.seed++;
+        const staged: string[] = [];
         rows.forEach((row, r) => {
-          const rw = row.reduce((a, i) => a + textWidth(line[i].word, size), 0) + sp * (row.length - 1);
-          let x = hookCx - rw / 2;
-          for (const i of row) {
-            const w = line[i], ww = textWidth(w.word, size), at = T + LEAD + w.start - 0.04;
-            B.text({ text: w.word, x, y: y0 + r * lh, size, color: i === key ? C("orange") : theme.ink, t0: at, dur: 0.22, g: "hookline", anim: "fade", sketch: false });
-            const uw = textWidth(w.word.replace(/[^\p{L}\p{N}]+$/u, ""), size);
-            if (i === key) B.cueNext("pop");
-            if (i === key) B.rough(gen.line(x, y0 + r * lh + size * 0.2, x + uw, y0 + r * lh + size * 0.24, { seed: B.seed++, stroke: C("orange"), strokeWidth: 6, roughness: 1.3 }), T + LEAD + w.end, 0.4, "hookline");
-            x += ww + sp;
-          }
+          const y = y0 + r * lh;
+          const ws = row.map((i) => ({ text: line[i].word, t: T + LEAD + line[i].start - 0.04, color: i === key ? C("orange") : theme.ink }));
+          const ki = row.indexOf(key);
+          // the key word's underline lands as the word ends, with its pop, on the stage the word arrives in
+          staged.push(...buildRow(B, { words: ws, cx: hookCx, y, size, g: `hookline/r${r}`, key: ki, underline: (x0, x1, t, dur, gs) => {
+            const fresh = dur > 0.05;
+            if (fresh) B.cueNext("pop");
+            B.rough(gen.line(x0, y + size * 0.2, x1, y + size * 0.24, { seed: lineSeed, stroke: C("orange"), strokeWidth: 6, roughness: 1.3 }), fresh ? T + LEAD + line[key].end : t, fresh ? 0.4 : 0.01, gs);
+          } }));
         });
         const lineEnd = T + LEAD + line[kin - 1].end;
         // when the title gets its own shot the line stays up until the push-in starts, and the title is drawn as it lands
-        B.setOp("hookline", reveal ? Math.max(lineEnd + 0.45, tTitle) : lineEnd + 0.45, 0, 0.4);
+        for (const gs of ["hookline", ...staged]) B.setOp(gs, reveal ? Math.max(lineEnd + 0.45, tTitle) : lineEnd + 0.45, 0, 0.4);
         Th = reveal ? tTitle + 0.05 : lineEnd + 0.6;
       }
       B.text({ text: title, x: hookCx, y: hookCy - 40, size: ts, color: theme.ink, anchor: "middle", t0: Th + 0.3, dur: 1.0, g: "hook" });

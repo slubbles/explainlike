@@ -34,6 +34,12 @@ export function shownIsSaid(shown: string, line: string): boolean {
   const ws = contentWords(shown);
   return ws.length > 0 && ws.every((w) => spokenIn(w, line));
 }
+/** Content words of one side of a pair that the other side does not share. */
+const PAIR_STOP = /^(a|an|the|and|or|of|to|for|in|on|with|it|is|are)$/;
+const pairWords = (s: string) => tokens(s).filter((w) => !PAIR_STOP.test(w));
+const distinctWords = (a: string, other: string) => { const o = new Set(pairWords(other).map(stem)); return pairWords(a).filter((w) => !o.has(stem(w))); };
+/** Where in the line the first of these words is said, or -1. */
+const firstSaid = (ws: string[], line: string) => tokens(line).findIndex((t) => ws.some((w) => t === w || stem(t) === stem(w)));
 const someSaid = (shown: string, line: string) => contentWords(shown).some((w) => w.length >= 3 && spokenIn(w, line));
 
 const NUM_WORDS = ["zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten", "eleven", "twelve", "thirteen", "fourteen", "fifteen", "sixteen", "seventeen", "eighteen", "nineteen", "twenty"];
@@ -78,7 +84,7 @@ export function kineticFrom(line: string, anchor = ""): string {
  * runs to the sentence before the next one's. A beat whose anchor is no longer said is dropped (the
  * visual before it holds on), and lines are always copied from the narration, never kept stale.
  */
-export function alignBeats(s: Scene): { beats: Beat[]; dropped: string[] } {
+export function alignBeats(s: Scene, parts: { id: string; keyword: string }[] = []): { beats: Beat[]; dropped: string[] } {
   const beats = s.beats ?? [];
   if (!beats.length) return { beats: [], dropped: [] };
   const sents = sentencesOf(s.narration);
@@ -100,6 +106,29 @@ export function alignBeats(s: Scene): { beats: Beat[]; dropped: string[] } {
     if (k < 0) { dropped.push(`${s.id}: the ${b.visual} beat on "${b.anchor}" lost its line in a rewrite`); continue; }
     kept.push({ b: { ...b, anchor }, k });
     at = k + 1;
+  }
+  // two beats starting in one sentence would say it twice: the card keeps the sentence, the board line goes
+  for (let i = kept.length - 1; i > 0; i--) {
+    if (sentOf[kept[i].k] !== sentOf[kept[i - 1].k]) continue;
+    const drop = kept[i].b.visual === "board" || kept[i - 1].b.visual === "title" ? i : i - 1;
+    dropped.push(`${s.id}: two beats started in one sentence; the ${kept[drop].b.visual} beat on "${kept[drop].b.anchor}" was merged`);
+    kept.splice(drop, 1);
+  }
+  // a sentence that names a part but got no beat of its own points the board at that part, so the picture moves with it
+  if (parts.length && s.kind !== "hook") {
+    const starts = new Set(kept.map((x) => sentOf[x.k]));
+    let w = 0;
+    sents.forEach((t, si) => {
+      const first = w;
+      w += spokenWords(t).length;
+      if (starts.has(si) || si === 0 && !kept.length) return;
+      const low = ` ${spokenWords(t).join(" ").toLowerCase()} `;
+      const part = parts.map((c) => ({ c, at: low.indexOf(` ${spokenWords(c.keyword).join(" ").toLowerCase()} `) })).filter((x) => x.at >= 0).sort((a, b) => a.at - b.at)[0];
+      if (!part) return;
+      const anchor = ws.slice(first, first + Math.min(3, ws.length - first)).join(" ").replace(/[,.;:!?"]+/g, "");
+      kept.push({ b: { line: t, visual: "board", anchor, text: "", items: [], focus: part.c.id }, k: first });
+    });
+    kept.sort((a, b) => a.k - b.k);
   }
   const out = kept.map(({ b, k }, i) => {
     const s0 = sentOf[k] ?? 0;
@@ -125,9 +154,15 @@ export function checkBeats(plan: ScenePlan, o: { arch: Architecture; source?: st
     repairs.push(`${s.id}: ${b.visual} beat on "${b.anchor}" ${why}; shown as words from the line instead`);
     return { ...b, visual: "kinetic", text: kineticFrom(b.line, b.anchor), items: [], focus: "" };
   };
-  const scenes = plan.scenes.map((s) => {
-    if (!s.beats?.length) return s;
-    const a = alignBeats(s);
+  let promised = !PROMISE.test(o.source ?? "") || plan.scenes.some((s) => (s.beats ?? []).some((b) => b.visual === "contrast" && PROMISE.test(b.line)));
+  const scenes = plan.scenes.map((s0) => {
+    if (!s0.beats?.length) return s0;
+    let s = s0;
+    if (!promised && s.kind !== "hook") {
+      const add = promiseBeat(s.narration);
+      if (add) { s = { ...s, beats: [...s.beats!, add].sort((a, b) => s.narration.indexOf(a.line) - s.narration.indexOf(b.line)) }; promised = true; repairs.push(`${s.id}: the README's safety promise is said, so it shows as a ${add.visual} card`); }
+    }
+    const a = alignBeats(s, o.arch.components);
     repairs.push(...a.dropped);
     const beats = a.beats.map((b0, i): Beat => {
       const b: Beat = { ...b0, text: b0.text.trim(), items: b0.items.map((x) => x.trim()).filter(Boolean), focus: b0.focus.trim() };
@@ -153,7 +188,8 @@ export function checkBeats(plan: ScenePlan, o: { arch: Architecture; source?: st
           const cmd = b.text.replace(/^\$\s*/, "").replace(/\s+/g, " ").trim();
           const head = cmd.split(" ").slice(0, 2).join(" ").toLowerCase();
           if (!cmd || !src.includes(` ${head}`) && !src.includes(head)) return kinetic(s, b, `types a command ("${cmd}") the source never shows`);
-          if (!someSaid(cmd, line)) return kinetic(s, b, `types "${cmd}" but the line never says any of it`);
+          const need = commandWords(cmd);
+          if (!need.every((w) => spokenIn(w, line))) return kinetic(s, b, `types "${cmd}" but the line never says ${need.filter((w) => !spokenIn(w, line)).map((w) => `"${w}"`).join(", ")}`);
           return { ...b, text: cmd, items: b.items.slice(0, 4), focus: "" };
         }
         case "output": {
@@ -177,6 +213,11 @@ export function checkBeats(plan: ScenePlan, o: { arch: Architecture; source?: st
         case "contrast": {
           const [x, y] = b.items;
           if (b.items.length !== 2 || !someSaid(x, line) || !someSaid(y, line)) return kinetic(s, b, "needs a before and an after that the line both says");
+          // what tells the two sides apart has to be heard ('ten' in 'ten browsers' against 'one browser')
+          if ([[x, y], [y, x]].some(([a, o]) => { const d = distinctWords(a, o); return d.length > 0 && !d.some((w) => spokenIn(w, line)); })) return kinetic(s, b, "shows a before or after the line does not say");
+          // the problem is said first: an after said before its before is the pair the wrong way round
+          const at = (a: string, o: string) => firstSaid(distinctWords(a, o), line);
+          if (at(y, x) >= 0 && at(x, y) > at(y, x)) { repairs.push(`${s.id}: the contrast was the wrong way round; swapped to [${y}, ${x}]`); return { ...b, items: [y, x], text: "", focus: "" }; }
           return { ...b, text: "", focus: "" };
         }
         case "doodle":
@@ -187,6 +228,22 @@ export function checkBeats(plan: ScenePlan, o: { arch: Architecture; source?: st
     });
     return { ...s, beats };
   });
+  // a line that says an element's ref ('click e2') shows the README's element list with that row circled
+  const refRows = [...(o.source ?? "").matchAll(/^[#\s-]*(\w+ "[^"\n]{1,30}" \[ref=(e\d+)\])/gm)].map((m) => ({ row: m[1], ref: m[2] }));
+  if (refRows.length >= 2) {
+    let shown = scenes.some((s) => (s.beats ?? []).some((b) => b.visual === "output"));
+    for (const s of scenes) {
+      if (shown || s.kind === "hook" || s.kind === "recap" || s.kind === "outro") continue;
+      const i = (s.beats ?? []).findIndex((b) => (b.visual === "board" || b.visual === "kinetic") && refRows.some((r) => new RegExp(`\\b${r.ref}\\b`, "i").test(b.line)));
+      if (i < 0) continue;
+      const b = s.beats![i];
+      const hit = refRows.find((r) => new RegExp(`\\b${r.ref}\\b`, "i").test(b.line))!;
+      const rows = [...new Set([...refRows.slice(0, 3).map((r) => r.row), hit.row])].slice(0, 4).map((r) => r.slice(0, 48));
+      s.beats![i] = { ...b, visual: "output", text: "snapshot", items: rows, focus: hit.row.slice(0, 48) };
+      repairs.push(`${s.id}: the line says ${hit.ref}, so it shows the README's element list with that row circled`);
+      shown = true;
+    }
+  }
   // never the same visual three lines running (the board, which keeps building, excepted)
   const flat = scenes.flatMap((s, si) => (s.beats ?? []).map((b, bi) => ({ si, bi, b })));
   for (let i = 2; i < flat.length; i++) {
@@ -197,6 +254,17 @@ export function checkBeats(plan: ScenePlan, o: { arch: Architecture; source?: st
     repairs.push(`${s.id}: a third ${v} line in a row became ${next.visual}`);
     s.beats![flat[i].bi] = next;
     flat[i].b = next;
+  }
+  // big words are the seasoning, not the meal: past about a third of the cards, kinetic lines go back to the board
+  const shown = scenes.filter((s) => s.kind !== "recap" && s.kind !== "outro").flatMap((s) => (s.beats ?? []).map((b, bi) => ({ s, bi, b })));
+  const cards = shown.filter((x) => isCard(x.b.visual));
+  const cap = Math.max(2, Math.round(cards.length / 3));
+  const spare = cards.filter((x) => x.b.visual === "kinetic" && x.s.kind !== "hook");
+  for (let over = cards.filter((x) => x.b.visual === "kinetic").length - cap; over > 0 && spare.length; over--) {
+    // the longest run of kinetic first: drop the one whose neighbours are kinetic too, else the last
+    const x = spare.splice(spare.length - 1, 1)[0];
+    x.s.beats![x.bi] = { ...x.b, visual: "board", text: "", items: [], focus: "" };
+    repairs.push(`${x.s.id}: kinetic line "${x.b.anchor}" went back to the board (kinetic is capped at about a third of the cards)`);
   }
   // a part is anchored to tools people know, early: "an AI agent, like Claude Code or Cursor"
   const early = scenes.slice(0, 3).flatMap((s) => s.beats ?? []);
@@ -212,6 +280,18 @@ export function checkBeats(plan: ScenePlan, o: { arch: Architecture; source?: st
   return { plan: { ...plan, scenes }, report: { beats: all.length, cards: all.filter((b) => isCard(b.visual)).length, perMinute: minutes ? Math.round((changes / minutes) * 10) / 10 : 0, types, repairs, issues } };
 }
 
+/**
+ * What a terminal card's line has to say for the command to count as spoken: the words after the
+ * program name, without flags or quoted values, refs read as said ("@e3" is "e3") and a file or site
+ * by its name ("page.png" is "page"). A bare program ("agent-browser") needs its own name said.
+ */
+export function commandWords(cmd: string): string[] {
+  const parts = cmd.replace(/"[^"]*"|'[^']*'/g, " ").trim().split(/\s+/).filter(Boolean);
+  const rest = parts.slice(1).filter((w) => !w.startsWith("-") && !/^[#|>&;]/.test(w)).map((w) => w.replace(/^@/, "").split(".")[0]);
+  const ws = rest.flatMap((w) => contentWords(w));
+  return ws.length ? ws : contentWords(parts[0] ?? "");
+}
+
 /** Anchors the narration rewrites must keep, so each line's visual still lands on its words. */
 export const beatAnchors = (s: Scene) => (s.beats ?? []).map((b) => b.anchor).filter((a) => a.trim());
 
@@ -219,14 +299,55 @@ export const beatAnchors = (s: Scene) => (s.beats ?? []).map((b) => b.anchor).fi
  * The part of a README a plan copies commands and output rows from: its opening sections, plus the first
  * example output further down (a snapshot, a response), with images, badges and HTML stripped.
  */
+const PROMISE = /\b(?:never|no longer|without)\b[^.]{0,40}\b(?:passwords?|credentials?|secrets?|keys?|tokens?)\b/i;
+
+/** A card for the line that says a safety promise: the risk sentence before it against the promise ('types your password' / 'never sees passwords'). */
+export function promiseBeat(narration: string): Beat | undefined {
+  const sents = sentencesOf(narration);
+  const i = sents.findIndex((t) => PROMISE.test(t));
+  if (i < 0) return undefined;
+  const m = PROMISE.exec(sents[i])!;
+  const after = spokenWords(m[0]).slice(0, 5).join(" ");
+  const noun = spokenWords(m[0]).at(-1)!.toLowerCase().replace(/s$/, "");
+  const prev = i > 0 ? spokenWords(sents[i - 1]) : [];
+  const at = prev.findIndex((w) => w.toLowerCase().replace(/[^a-z]/g, "").replace(/s$/, "") === noun);
+  const lead = (ws: string[]) => ws.slice(0, 3).join(" ").replace(/[,.;:!?"]+/g, "");
+  if (at >= 1) {
+    const before = prev.slice(Math.max(0, at - 2), at + 1).join(" ").replace(/[,.;:!?"]+/g, "");
+    return { line: `${sents[i - 1]} ${sents[i]}`, visual: "contrast", anchor: lead(prev), text: "", items: [before, after.replace(/[,.;:!?"]+/g, "")], focus: "" };
+  }
+  return { line: sents[i], visual: "kinetic", anchor: lead(spokenWords(sents[i])), text: after.replace(/[,.;:!?"]+/g, ""), items: [], focus: "" };
+}
+
+/** The README's safety promises ("Authentication Vault: The LLM never sees passwords"), as "feature: sentence". */
+export function readmePromises(excerpt: string): { feature: string; sentence: string }[] {
+  const out: { feature: string; sentence: string }[] = [];
+  for (const m of excerpt.matchAll(/^- ([^:\n]{2,40}): ([^\n]+)$/gm)) {
+    const hit = m[2].split(/(?<=[.!?])\s+/).find((t) => PROMISE.test(t));
+    if (hit) out.push({ feature: m[1].trim(), sentence: hit.trim() });
+  }
+  return out.slice(0, 2);
+}
+
 export function readmeExcerpt(text: string, max = 6000): string {
   const clean = text.replace(/<[^>]+>/g, "").replace(/!\[[^\]]*\]\([^)]*\)/g, "").replace(/\n{3,}/g, "\n\n").trim();
   const head = clean.slice(0, max);
   const rest = clean.slice(max);
   // an element list (what an AI reads back) is the most telling example, then any printed output
+  // the README's feature bullets ("- **Authentication Vault**: ... The LLM never sees passwords.") are where a video's best why-lines live
+  const bullets = [...rest.matchAll(/^\s*[-*] \*\*([^*\n]{2,40})\*\*\s*[:\u2013-]\s*([^\n]{10,})$/gm)].map((x) => {
+    // the claim, not the flags: whole sentences up to about 160 characters, stopping before inline code
+    const said = x[2].split(/(?<=[.!?])\s+/).reduce((acc, t) => (acc.length + t.length < 160 && !t.includes("`") ? `${acc} ${t}` : acc), "").trim();
+    return said ? `- ${x[1].trim()}: ${said}` : "";
+  }).filter(Boolean);
+  // a safety promise ("The LLM never sees passwords.") goes first, so the cap never cuts it
+  bullets.sort((a, b) => Number(PROMISE.test(b)) - Number(PROMISE.test(a)));
+  let feat = "";
+  for (const b of bullets) { if (feat.length + b.length > 1500) break; feat += `${b}\n`; }
+  const tail = feat ? `\n...\nFeatures:\n${feat.trim()}` : "";
   const m = [/\[ref=/, /^\s*#\s*-\s/m, /^#?\s*output:/im, /returns:/i].map((r) => r.exec(rest)).find(Boolean);
-  if (!m) return head;
+  if (!m) return head + tail;
   // a little context before the example (its heading and the command that printed it)
   const at = Math.max(0, m.index - 400, rest.lastIndexOf("\n", Math.max(0, m.index - 300)));
-  return `${head}\n...\n${rest.slice(at, at + 1200).trim()}`;
+  return `${head}\n...\n${rest.slice(at, at + 1200).trim()}${tail}`;
 }
