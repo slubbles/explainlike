@@ -4,11 +4,15 @@ import { ScenePlan, coverageSeconds, parseFigure, parseDated, figureInQuote, low
 import { sparkJson, type CostLedger } from "@explanimate/models";
 import { SHAPES, analogyRule, shapeFor } from "./shapes.js";
 
+/** Plain words are literal words: the newcomer test kept passing narration that swapped jargon for a riddle. */
+const PLAIN = "Plain words mean the literal thing in everyday words, not a figure of speech: never call a model 'a brain', its saved weights 'memory', or a step 'magic', and never squeeze a term into a made-up phrase ('fast focus math'); say what it is ('the saved model weights', 'attention, the math that decides which earlier words matter').";
+
 const STYLE = [
   "Style of the video: a friendly engineer drawing on a whiteboard while talking to a smart newcomer (docs/explaining-playbook.md).",
   "Narration is spoken; write it for the ear: short sentences, concrete, no filler ('in this video', 'let's dive in', 'robust', 'seamless', 'leverage' are banned).",
   "Every narration sentence is complete and grammatical: each verb agrees with its subject, and articles (a, an, the) are not dropped.",
   "Plain words first. Name each part by its plain keyword. A code name (a library, framework, database or file name such as React, SQLite or Node) is said only when it helps the viewer, after the plain name, with what it is: 'the chat transcripts, saved in SQLite, a small database file on your disk'. Never 'called X'. Every other technical term (an acronym, a protocol, 'api', 'driver', 'harness') is explained in a few plain words the first time it is said, in the same sentence; a term the newcomer does not need is left out.",
+  PLAIN,
   "The viewer is always 'you', from the first line to the last. Never call them 'the guest', 'the user' or 'the customer', even inside the analogy ('you walk up to the counter', not 'the guest walks up').",
   "No two scenes or two sentences in a row open with the same words.",
   "Each part gets its why: what it is for, or what would go wrong without it.",
@@ -69,6 +73,7 @@ function repoSystem(arch: Architecture, L: ExplainSpec, lo: number, hi: number):
 
 const Critique = z.object({
   undefined_terms: z.array(z.object({ term: z.string(), scene: z.string() })).describe("terms a newcomer would not know, used without a plain-words explanation at their first use"),
+  odd_phrases: z.array(z.object({ phrase: z.string(), scene: z.string() })).describe("figures of speech or squeezed made-up phrases that stand in for a real thing and would puzzle a newcomer, quoted exactly"),
   flow_clear: z.boolean().describe("true if a newcomer could retell how one request goes from the user to the result"),
   flow_problem: z.string().describe("what is missing from the flow, or empty"),
 });
@@ -80,7 +85,7 @@ async function critiquePlan(ledger: CostLedger, plan: ScenePlan, audience: strin
   return sparkJson({
     ledger, step: "plan-check", schema: Critique, name: "critique", effort: "low", maxTokens: 6000,
     messages: [
-      { role: "system", content: `You are ${audience}, hearing this explainer narration once, in order. List every term you would not know (an acronym, product, protocol or internal name) that is used without a plain-words explanation at or before its first use. Words every developer knows (server, database, browser, app, API, model) do not count; a part the narration explains in plain words counts as explained. Then say whether you could now retell how one request goes from the user to the result, and if not, what is missing. Be strict but fair; at most 8 terms.` },
+      { role: "system", content: `You are ${audience}, hearing this explainer narration once, in order. List every term you would not know (an acronym, product, protocol or internal name) that is used without a plain-words explanation at or before its first use. Words every developer knows (server, database, browser, app, API, model) do not count; a part the narration explains in plain words counts as explained. Also quote, as odd phrases, any figure of speech or squeezed made-up phrase that stands in for a real thing and would make you stop and wonder what it literally means (a model called 'a brain', saved weights called 'memory', 'fast focus math'). Then say whether you could now retell how one request goes from the user to the result, and if not, what is missing. Be strict but fair; at most 8 terms.` },
       { role: "user", content: script },
     ],
   });
@@ -323,6 +328,7 @@ export async function polishNarration(o: { ledger: CostLedger; plan: ScenePlan; 
     "- A step's verb is the sentence's only verb for that action; never pair it with a synonym ('files and saves', 'presents and shows').",
     "- Plain names before code names: drop 'called React Web' and similar unless the code name truly helps; if it stays, put it after the plain name with a few words on what it is.",
     "- Any technical word left ('api', 'driver', 'harness', a database or framework name) gets a few plain words saying what it is, the first time it's said.",
+    `- ${PLAIN}`,
     "- The viewer is 'you' all the way through; never 'the guest', 'the user' or 'the customer'.",
     "- No two scenes, and no two sentences in a row, open with the same words.",
     "- Every sentence is a whole sentence with its own subject and verb; no fragments like 'It's incremental counts that update tallies.' 'a' and 'an' go only before one thing ('a load of pieces', never 'a ready loads of').",
@@ -418,6 +424,7 @@ export async function planRepoScenes(o: { ledger: CostLedger; arch: Architecture
   const found = (p: ScenePlan, arch: Architecture, c: Critique | undefined) => [
     ...checkStory(p, arch, L.brief.analogy),
     ...(c?.undefined_terms ?? []).filter((t) => said(p, t.term)).map((t) => termIssue(t)),
+    ...(c?.odd_phrases ?? []).filter((t) => said(p, t.phrase)).map((t) => oddIssue(t)),
     ...(c && !c.flow_clear ? [`a newcomer could not retell the flow: ${c.flow_problem}`] : []),
   ];
   let [pol, crit] = await Promise.all([polish(plan), critique(plan)]);
@@ -467,6 +474,7 @@ export async function fixWording(o: { ledger: CostLedger; plan: ScenePlan; arch:
 const FIX_ROUNDS = 2;
 const termOf = (issue: string) => /^"(.+?)" \(/.exec(issue)?.[1] ?? "";
 const termIssue = (t: { term: string; scene: string }) => `"${t.term}" (${t.scene}) is used without a plain-words explanation; explain it in the same sentence or drop it`;
+const oddIssue = (t: { phrase: string; scene: string }) => `"${t.phrase}" (${t.scene}) is a figure of speech a newcomer would stumble on; say the literal thing in plain words`;
 const said = (p: ScenePlan, term: string) => p.scenes.some((s) => ` ${norm(s.narration)} `.includes(` ${norm(term)} `));
 
 /** Self-check problems only a new plan fixes: what the scenes draw, or in what order. The rest are wording. */
@@ -489,6 +497,7 @@ export async function fixNarration(o: { ledger: CostLedger; plan: ScenePlan; arc
         "- Change only what the problems need; keep everything else word for word, including facts and their order.",
         "- Each scene lists 'must_say': phrases the board syncs to. Keep each one, in that order, with its words in that order ('the', 'a' or 'your' may go between its words, verb endings may change).",
         "- Keep each scene between 80% and 125% of its word count.",
+        `- ${PLAIN}`,
         "- A term explained in plain words: a few words right where it's first said ('the font atlas, one image holding every letter').",
         "- When explaining every flagged term would make the scene too long, drop the ones a newcomer can do without: a product, service or library name ('D1', 'better-auth', 'Worker') becomes what it does ('a small cloud database', 'the sign-in code'). A must_say phrase is never dropped; explain it instead.",
         "- Only say two parts talk to each other when the connections list joins them; otherwise tell the hop through the part between them.",
