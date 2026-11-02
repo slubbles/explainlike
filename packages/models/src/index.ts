@@ -1,22 +1,22 @@
 /**
- * Thin client for the Meta Model API (https://api.meta.ai/v1).
+ * Thin client for the Meta Model API (https://api.meta.ai/v1), and for Muse Spark through OpenRouter.
  * Models used by Explanimate:
- *  - muse-spark-1.3        planning, architecture extraction, review passes (structured JSON)
+ *  - muse-spark-1.3        planning, architecture extraction, review passes (structured JSON), on the
+ *                          provider llmProvider() picks (OpenRouter when its key is set, else Meta)
  *  - muse-image-1.0        doodle icons for the whiteboard
  *  - sam-3.1               finds the drawn object so icons are cropped cleanly
  *  - muse-voice-transcribe-1.0  checks the voiceover says what the script says
  */
 import { z } from "zod";
-import { strictJsonSchema, fetchRetry, ServiceError, type CostEntry } from "@explanimate/core";
+import { strictJsonSchema, fetchRetry, ServiceError, llmProvider, chatUsd, type CostEntry, type LlmProvider } from "@explanimate/core";
 
 const BASE = process.env.META_API_BASE ?? "https://api.meta.ai/v1";
-export const SPARK = process.env.EXPLANIMATE_SPARK_MODEL ?? "muse-spark-1.3-contributor";
 export const IMAGE = "muse-image-1.0";
 export const SAM = "sam-3.1";
 export const TRANSCRIBE = "muse-voice-transcribe-1.0";
 
-// USD per token / call. Spark: $1.25 / 1M input, $4.25 / 1M output.
-const PRICE = { sparkIn: 1.25e-6, sparkOut: 4.25e-6, image: 0.01, sam: 0.0025, transcribePerMin: 0.006 };
+// USD per call. Muse Spark's price lives with the provider choice in @explanimate/core (chatUsd).
+const PRICE = { image: 0.01, sam: 0.0025, transcribePerMin: 0.006 };
 
 export class CostLedger {
   entries: CostEntry[] = [];
@@ -43,10 +43,16 @@ function key() {
 const MUSE = { service: "Meta Muse", keyVar: "MODEL_API_KEY", baseMs: 1500 };
 
 async function post(path: string, body: unknown, timeoutMs = 300_000, retryTimeouts = true): Promise<any> {
-  const json = JSON.stringify(body), k = key();
-  const r = await fetchRetry(BASE + path, () => ({ method: "POST", headers: { Authorization: `Bearer ${k}`, "Content-Type": "application/json" }, body: json }), { ...MUSE, timeoutMs, attempts: 4, retryTimeouts });
+  return postTo({ id: "meta", service: MUSE.service, base: BASE, keyVar: "MODEL_API_KEY", model: "" }, path, body, timeoutMs, retryTimeouts);
+}
+
+async function postTo(p: LlmProvider, path: string, body: unknown, timeoutMs: number, retryTimeouts: boolean): Promise<any> {
+  const k = process.env[p.keyVar];
+  if (!k) throw new Error(p.keyVar === "MODEL_API_KEY" ? "MODEL_API_KEY is not set. Get one at https://dev.meta.ai and put it in .env" : `${p.keyVar} is not set. Put your ${p.service} key in .env, or set EXPLANIMATE_LLM_PROVIDER=meta`);
+  const json = JSON.stringify(body);
+  const r = await fetchRetry(p.base + path, () => ({ method: "POST", headers: { Authorization: `Bearer ${k}`, "Content-Type": "application/json" }, body: json }), { service: p.service, keyVar: p.keyVar, baseMs: MUSE.baseMs, timeoutMs, attempts: 4, retryTimeouts });
   const text = await r.text();
-  try { return JSON.parse(text); } catch { throw new ServiceError("Meta Muse sent back an answer that was not JSON. Try again.", "Meta Muse", r.status, text.slice(0, 200)); }
+  try { return JSON.parse(text); } catch { throw new ServiceError(`${p.service} sent back an answer that was not JSON. Try again.`, p.service, r.status, text.slice(0, 200)); }
 }
 
 export type ChatMessage = { role: "system" | "user" | "assistant"; content: string | unknown[] };
@@ -66,6 +72,7 @@ export async function sparkJson<T extends z.ZodType>(opts: {
   effort?: "minimal" | "low" | "medium" | "high"; maxTokens?: number; timeoutMs?: number; wire?: z.ZodType; hedge?: boolean;
 }): Promise<z.infer<T>> {
   const copies = opts.hedge ? hedgeCopies() : 1;
+  const llm = llmProvider(), SPARK = llm.model;
   let won: number | undefined;
   // a copy that answers after another copy already won is still paid for, so it is logged under its own step name
   const stepOf = (i: number) => (won !== undefined && won !== i ? `${opts.step}-hedge` : opts.step);
@@ -84,7 +91,7 @@ export async function sparkJson<T extends z.ZodType>(opts: {
       };
       let out;
       try {
-        out = opts.timeoutMs ? await post("/chat/completions", body, opts.timeoutMs, false) : await post("/chat/completions", body);
+        out = await postTo(llm, "/chat/completions", body, opts.timeoutMs ?? 300_000, !opts.timeoutMs);
       } catch (e) {
         if (!(e instanceof ServiceError && e.timedOut) || attempt >= 1) throw e;
         // what a dropped try cost is not reported back, so it is logged at zero with the time it took
@@ -93,7 +100,7 @@ export async function sparkJson<T extends z.ZodType>(opts: {
         continue;
       }
       const u = out.usage ?? {};
-      const usd = (u.prompt_tokens ?? 0) * PRICE.sparkIn + (u.completion_tokens ?? 0) * PRICE.sparkOut;
+      const usd = chatUsd(u);
       const content = out.choices?.[0]?.message?.content;
       const cutOff = out.choices?.[0]?.finish_reason === "length";
       let parsed: { ok: true; value: z.infer<T> } | { ok: false; error: unknown } | undefined;

@@ -1,5 +1,6 @@
 // first, so the old EXPLAINLIKE_* settings are copied over before any module reads a setting
 export * from "./env.js";
+export * from "./llm.js";
 export * from "./schemas.js";
 export * from "./jsonschema.js";
 export * from "./brief.js";

@@ -3,6 +3,9 @@ import assert from "node:assert/strict";
 import { z } from "zod";
 import { CostLedger, firstOf, hedgeCopies, sparkJson } from "../src/index.ts";
 
+// these tests fake the Meta API, so they pin the provider instead of following whichever key the machine has
+process.env.EXPLANIMATE_LLM_PROVIDER = "meta";
+
 // a fake Meta API: answers in turn, and records each request body
 function fakeApi(replies: { content?: string; finish?: string; slow?: boolean }[]) {
   const bodies: any[] = [];
@@ -141,4 +144,27 @@ test("EXPLANIMATE_HEDGE=1 sends a hedged call once", async () => {
     assert.deepEqual(await hedged(new CostLedger()), { a: 4 });
     assert.equal(api.bodies.length, 1);
   } finally { api.restore(); }
+});
+
+test("on OpenRouter the call goes to OpenRouter with its key and model, and the ledger keeps the cost it reports", async () => {
+  const saved = { fetch: globalThis.fetch, p: process.env.EXPLANIMATE_LLM_PROVIDER, k: process.env.OPENROUTER_API_KEY };
+  const seen: { url: string; auth: string; body: any }[] = [];
+  process.env.EXPLANIMATE_LLM_PROVIDER = "openrouter";
+  process.env.OPENROUTER_API_KEY = "or-test-key";
+  globalThis.fetch = (async (u: string, init: RequestInit) => {
+    seen.push({ url: String(u), auth: String((init.headers as Record<string, string>).Authorization), body: JSON.parse(String(init.body)) });
+    return new Response(JSON.stringify({ choices: [{ message: { content: '{"a":5}' }, finish_reason: "stop" }], usage: { prompt_tokens: 10, completion_tokens: 5, cost: 0.0123, completion_tokens_details: { reasoning_tokens: 3 } } }), { status: 200 });
+  }) as typeof fetch;
+  try {
+    const ledger = new CostLedger();
+    assert.deepEqual(await sparkJson({ ledger, step: "scene-plan", schema: z.object({ a: z.number() }), name: "t", messages: [{ role: "user", content: "x" }], effort: "minimal" }), { a: 5 });
+    assert.equal(seen[0]!.url, "https://openrouter.ai/api/v1/chat/completions");
+    assert.equal(seen[0]!.auth, "Bearer or-test-key");
+    assert.equal(seen[0]!.body.model, "meta/muse-spark-1.3");
+    assert.equal(seen[0]!.body.reasoning_effort, "minimal", "the effort setting goes along");
+    assert.deepEqual([ledger.entries[0]!.model, ledger.entries[0]!.usd, ledger.entries[0]!.detail?.reasoning], ["meta/muse-spark-1.3", 0.0123, 3]);
+  } finally {
+    globalThis.fetch = saved.fetch;
+    for (const [k, v] of [["EXPLANIMATE_LLM_PROVIDER", saved.p], ["OPENROUTER_API_KEY", saved.k]] as const) if (v === undefined) delete process.env[k]; else process.env[k] = v;
+  }
 });
