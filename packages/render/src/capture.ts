@@ -137,7 +137,12 @@ export function mixNarration(parts: { file: string; at: number }[], duration: nu
 }
 
 /** ffmpeg arguments for the mp4 after the video input: narration, the music bed (unless `music` is false), codecs. */
-function mp4Args(fps: number, duration: number, out: string, bedDir: string, audio: string | undefined, music: boolean | undefined, cues: SfxCue[] = []) {
+/** The software H.264 settings every mp4 has used so far. */
+export const X264_ARGS = ["-c:v", "libx264", "-preset", "veryfast", "-crf", "20"];
+/** NVIDIA's hardware H.264 at about the same quality as X264_ARGS (constant quality 20, high-quality tuning). */
+export const NVENC_ARGS = ["-c:v", "h264_nvenc", "-preset", "p5", "-tune", "hq", "-rc", "vbr", "-cq", "20", "-b:v", "0"];
+
+function mp4Args(fps: number, duration: number, out: string, bedDir: string, audio: string | undefined, music: boolean | undefined, cues: SfxCue[] = [], video: string[] = X264_ARGS) {
   const args: string[] = [];
   let bed: string | undefined, fx: string | undefined;
   if (music !== false) {
@@ -152,7 +157,7 @@ function mp4Args(fps: number, duration: number, out: string, bedDir: string, aud
   for (const f of ins) args.push("-i", f);
   const at = (f?: string) => (f ? ins.indexOf(f) + 1 : undefined);
   if (ins.length) args.push("-filter_complex", mixGraph(at(audio), at(bed), duration, at(fx)), "-map", "0:v", "-map", "[aout]");
-  args.push("-c:v", "libx264", "-preset", "veryfast", "-crf", "20", "-pix_fmt", "yuv420p", "-movflags", "+faststart");
+  args.push(...video, "-pix_fmt", "yuv420p", "-movflags", "+faststart");
   if (ins.length) args.push("-c:a", "aac", "-b:a", "160k", "-t", duration.toFixed(3));
   args.push(out);
   return args;
@@ -170,11 +175,15 @@ export async function encodeMp4(frameDir: string, fps: number, out: string, audi
 
 /**
  * The same mp4 as encodeMp4, encoded while the frames are still being drawn: hand each JPEG to `frame`
- * in any order (it is fed to ffmpeg in frame order), then await `done`.
+ * in any order (it is fed to ffmpeg in frame order), then await `done`. With `raw`, frames are raw RGBA
+ * pixels of that size instead of JPEGs (the Skia renderer). `video` swaps the H.264 encoder settings.
  */
-export function mp4Encoder(fps: number, out: string, opts: { duration: number; workDir: string; audio?: string; music?: boolean; cues?: SfxCue[] }) {
+export function mp4Encoder(fps: number, out: string, opts: { duration: number; workDir: string; audio?: string; music?: boolean; cues?: SfxCue[]; raw?: { width: number; height: number }; video?: string[] }) {
   fs.mkdirSync(opts.workDir, { recursive: true });
-  const args = ["-y", "-loglevel", "error", "-f", "image2pipe", "-c:v", "mjpeg", "-framerate", String(fps), "-i", "pipe:0", ...mp4Args(fps, opts.duration, out, opts.workDir, opts.audio, opts.music, opts.cues)];
+  const input = opts.raw
+    ? ["-f", "rawvideo", "-pix_fmt", "rgba", "-s", `${opts.raw.width}x${opts.raw.height}`]
+    : ["-f", "image2pipe", "-c:v", "mjpeg"];
+  const args = ["-y", "-loglevel", "error", ...input, "-framerate", String(fps), "-i", "pipe:0", ...mp4Args(fps, opts.duration, out, opts.workDir, opts.audio, opts.music, opts.cues, opts.video)];
   const p = spawn("ffmpeg", args, { stdio: ["pipe", "ignore", "pipe"] });
   let err = "", failure: Error | undefined;
   p.stderr.on("data", (d) => (err = (err + d).slice(-4000)));
@@ -187,9 +196,9 @@ export function mp4Encoder(fps: number, out: string, opts: { duration: number; w
   const waiting = new Map<number, Buffer>();
   let nextFrame = 0;
   return {
-    async frame(f: number, jpeg: Buffer) {
+    async frame(f: number, data: Buffer) {
       if (failure) throw failure;
-      waiting.set(f, jpeg);
+      waiting.set(f, data);
       while (waiting.has(nextFrame)) {
         const buf = waiting.get(nextFrame)!;
         waiting.delete(nextFrame++);
