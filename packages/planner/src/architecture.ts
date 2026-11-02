@@ -62,7 +62,7 @@ function wireParts(L: Pick<ExplainSpec, "maxComponents" | "scaleItems">) {
 export async function extractArchitecture(o: { ledger: CostLedger; digest: string; name: string; spec: ExplainSpec; icons: string; hints?: string; progress?: Progress; effort?: "low" | "medium"; timeoutMs?: number }): Promise<Architecture> {
   o.progress?.({ stage: "architecture", message: "mapping the architecture with Muse Spark" });
   const a = await sparkJson({
-    ledger: o.ledger, step: "architecture", schema: Architecture, wire: archWire(o.spec), name: "architecture", effort: o.effort ?? "low", maxTokens: 10000, timeoutMs: o.timeoutMs ?? 90_000, hedge: true,
+    ledger: o.ledger, step: "architecture", schema: Architecture, wire: archWire(o.spec), name: "architecture", effort: o.effort ?? "low", maxTokens: 10000, timeoutMs: o.timeoutMs ?? 90_000,
     messages: [
       { role: "system", content: archSystem(o.spec, o.icons, o.hints) },
       { role: "user", content: `Repository: ${o.name}\n\nDIGEST (secrets stripped):\n${o.digest}` },
@@ -290,7 +290,7 @@ export async function reviewArchitecture(o: { ledger: CostLedger; arch: Architec
   const found = o.found?.length ? `\n\nA file check already found:\n${o.found.map((i, n) => `${n + 1}. [${i.target}] ${i.problem}`).join("\n")}` : "";
   const r = await sparkJson({
     // the time limit bounds a run of long reasoning (microui: 38 s at 4.2k reasoning tokens); a stuck call gets one quicker try
-    ledger: o.ledger, step: "architecture-review", schema: ReviewPatch, wire: reviewWire(o.spec), name: "review", effort: o.effort ?? "low", maxTokens: 14000, timeoutMs: o.timeoutMs ?? 75_000, hedge: true,
+    ledger: o.ledger, step: "architecture-review", schema: ReviewPatch, wire: reviewWire(o.spec), name: "review", effort: o.effort ?? "low", maxTokens: 14000, timeoutMs: o.timeoutMs ?? 75_000,
     messages: [
       { role: "system", content: `${REVIEWER}\nWrite the issues first, as full sentences that quote the code. Then return only the changes that fix them: each changed or new component or connection whole, the ids of ones to drop, and the full walkthrough steps or scale list only if they change. Leave everything that was right out of the changes. Every issue you list has a matching change. Changed and new items follow the same rules as the original map, and the result keeps its component count and number of scale risks:\n${archSystem(o.spec, o.icons, o.hints)}` },
       { role: "user", content: `Repository: ${o.name}\n\nARCHITECTURE JSON:\n${JSON.stringify(o.arch)}${found}\n\nCITED FILE EXCERPTS:\n${o.evidence}\n\nDIGEST (secrets stripped):\n${o.digest}` },
@@ -308,7 +308,7 @@ export async function fixArchitecture(o: { ledger: CostLedger; arch: Architectur
   const ids = new Set(o.open.flatMap((i) => (i.target === "walkthrough" ? o.arch.walkthrough.steps.flatMap((s) => [s.from, s.to]) : i.target.split(">"))));
   const evidence = evidencePack({ ...o.arch, components: o.arch.components.filter((c) => ids.has(c.id)), connections: [], scale: [] }, o.read, 12000);
   const r = await sparkJson({
-    ledger: o.ledger, step: "architecture-fix", schema: ReviewPatch, wire: reviewWire(o.spec), name: "review", effort: "low", maxTokens: 8000, timeoutMs: 60_000, hedge: true,
+    ledger: o.ledger, step: "architecture-fix", schema: ReviewPatch, wire: reviewWire(o.spec), name: "review", effort: "low", maxTokens: 8000, timeoutMs: 60_000,
     messages: [
       { role: "system", content: `You fix specific problems in an architecture map for a whiteboard explainer. Fix exactly the listed problems and nothing else: return each changed component or connection whole, ids to drop, and the full walkthrough steps only if a step changes. Keep every id and the component count. verdict is 'revise'; list one issue per problem you fixed.\n${archSystem(o.spec, o.icons, o.hints)}` },
       { role: "user", content: `ARCHITECTURE JSON:\n${JSON.stringify(o.arch)}\n\nPROBLEMS:\n${o.open.map((i, n) => `${n + 1}. [${i.target}] ${i.problem}`).join("\n")}\n\nCITED FILE EXCERPTS:\n${evidence}` },
