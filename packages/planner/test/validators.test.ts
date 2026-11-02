@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { strictJsonSchema, type Architecture, type NoteItem, type Scene } from "@explanimate/core";
-import { validateNotes, validateArchitecture, repairRepoPlan, checkStory, journeyOrder, speechIssues, keepsSync, syncPhrases, fillerIn, hookLine, validateCutIn, cutInRules, applyReviewPatch, actionName, archWire, reviewWire, undrawnLinks, retellCutIn, validateConcept, structural, pictureWords, conceptSlips, namesPlace, respeak, emptyPoint, groundedSummary, labelEchoes, practitionerTerm } from "@explanimate/planner";
+import { strictJsonSchema, practitionerTerm, type Architecture, type NoteItem, type Scene } from "@explanimate/core";
+import { validateNotes, validateArchitecture, repairRepoPlan, checkStory, journeyOrder, speechIssues, keepsSync, syncPhrases, fillerIn, hookLine, validateCutIn, cutInRules, applyReviewPatch, actionName, archWire, reviewWire, undrawnLinks, retellCutIn, validateConcept, structural, pictureWords, conceptSlips, namesPlace, respeak, emptyPoint, groundedSummary, labelEchoes } from "@explanimate/planner";
 
 const item = (text: string, extra: Partial<NoteItem> = {}): NoteItem => ({ text, color: "white", icon: "", target: "", estimate: false, evidence: "", ...extra });
 const ids = new Set(["d1-db", "edge"]);
@@ -205,7 +205,7 @@ test("repo plans are put in story order: journey parts, the walk, side parts, th
     sc("layer", "The login worker checks who you are.", ["auth"]),
     sc("layer", "The bot harness and the agent drivers.", ["srv", "bot"]),
     sc("layer", "The team chat and the front door.", ["ui", "edge"]),
-    sc("recap", "Team chat, front door, bot harness, agent drivers."),
+    sc("recap", "Your message goes from the team chat to the front door, the bot harness and the agent drivers."),
     sc("walkthrough", "You send a message, the door will forward it, and the harness runs the bot."),
   ] }, storyArch, { perScene: 2 });
   assert.deepEqual(plan.scenes.map((s) => s.kind), ["hook", "layer", "layer", "walkthrough", "layer", "recap"]);
@@ -573,4 +573,20 @@ test("box names and step labels with practitioner words go back for plain ones",
   const { open } = validateArchitecture(arch, ["a.ts"], (n) => n, () => "box");
   assert.ok(open.some((i) => i.target === "srv" && /"rust cli" uses "rust"/.test(i.problem)), open.map((i) => i.problem).join("; "));
   assert.ok(open.some((i) => i.target === "walkthrough" && /"send cdp command" uses "cdp"/.test(i.problem)));
+});
+
+test("the self-check holds every line and heading to the plain-language bar", () => {
+  const plan = repairRepoPlan({ title: "x", subtitle: "", scenes: [
+    sc("hook", "Can your chat run little bots? Your team chat hands each message to a bot that does the job for you."),
+    sc("layer", "The front door parses the json payload over a websocket.", ["ui", "edge"]),
+    { ...sc("layer", "The bot harness is the manager, and it runs your bots for you.", ["srv", "bot"]), heading: "the rpc daemon" },
+    sc("walkthrough", "You send a message, the door forwards it, and the harness runs the bot."),
+    sc("recap", "So your team chat gets real jobs done. Your message goes from the team chat to the front door, the bot harness and the agent drivers."),
+  ] }, storyArch, { perScene: 2 });
+  const issues = speechIssues(plan, storyArch);
+  assert.ok(issues.some((i) => /"The front door parses the json payload over a websocket\." uses "(json|payload|websocket|parses?)"/.test(i)), issues.join("; "));
+  assert.ok(issues.some((i) => /heading "the rpc daemon" uses "(rpc|daemon)"/.test(i)), issues.join("; "));
+  assert.ok(!issues.some((i) => /recap/.test(i) && /uses "|never talks/.test(i)), issues.join("; "));
+  const cold = repairRepoPlan({ title: "x", subtitle: "", scenes: [sc("hook", "Can a chat run bots? It can."), sc("walkthrough", "The door forwards it, and the harness runs the bot."), sc("recap", "Team chat to front door to bot harness to agent drivers.")] }, storyArch, { perScene: 2 });
+  assert.ok(speechIssues(cold, storyArch).some((i) => /walkthrough: never talks to the viewer/.test(i)));
 });

@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { Architecture, Component, Connection, ScaleRisk, COLOR_MEANING, lower, type ExplainSpec, type Progress } from "@explanimate/core";
+import { Architecture, Component, Connection, ScaleRisk, COLOR_MEANING, lower, type ExplainSpec, type Progress, practitionerTerm, PLAIN_LABELS } from "@explanimate/core";
 import { sparkJson, type CostLedger } from "@explanimate/models";
 
 export interface ArchIssue { target: string; problem: string }
@@ -14,8 +14,8 @@ function archSystem(L: ExplainSpec, icons: string, hints = "") {
     "- Use the real technology names found in the code (e.g. 'ClickHouse', 'Postgres via Prisma', 'Redis', 'Kafka'), not generic ones.",
     `- ${L.minComponents} to ${L.maxComponents} components. Merge minor helpers into the component they serve. Always include who/what starts requests (users, a browser, a tracker script, a CLI) as a client component.`,
     "- Optional infrastructure (enabled by an env var or config flag) is fine to include; say 'optional' in `what`.",
-    "- one_liner: what this project is and why someone would use it, in one plain sentence a newcomer to the field follows, with no jargon ('a small kit that lets you train your own chat assistant from scratch on one rented computer').",
-    "- Keywords and step labels use everyday words the newcomer already knows ('chat window', 'saved model', 'text library', 'send question'); a term only practitioners know (a shard, an inference engine, a forward pass, a daemon) goes in `name` or `what`, never in a keyword or a step label.",
+    "- one_liner: what this project is, who it is for and why they would use it, in one plain sentence a smart person who does not write code follows, with no jargon ('a small kit that lets you train your own chat assistant from scratch on one rented computer').",
+    `- ${PLAIN_LABELS} Step labels are plain verbs in the same everyday words ('send question', 'click the button'). A term only practitioners know (a shard, an inference engine, a protocol, a daemon, a language name) goes in \`name\` or \`what\`, never in a keyword or a step label.`,
     "- A component's keyword names what the part IS, as a noun a teacher would point at ('ui core', 'command list', 'sdl window'), never what it does ('rebuild widgets', 'poll input'); the doing goes on the arrows.",
     "- When the core flow hands a named data structure from one part to another (a command list, a job queue, a render buffer, an event log) and the code gives it its own type, draw it as its own component; it is often what the design is known for.",
     "- connections follow the direction requests/data flow (from caller to callee). Each one cites one file where that call happens. If A's code includes or imports B and B never calls A, the arrow is A>B, even when data comes back: say 'read commands' from A's side, not 'emit commands' from B's.",
@@ -142,7 +142,7 @@ export function validateArchitecture(arch: Architecture, files: string[], resolv
     } else open.push({ target: c.id, problem: `part name "${c.keyword}" says what it does, not what it is; give it a 1 to 3 word noun name (what the part is, like "ui core" or "command list")` });
   }
   // box names and step labels are read by newcomers: a practitioner term there ("cdp client", "rust cli") needs a plain word
-  for (const c of comps) { const j = practitionerTerm(c.keyword); if (j) open.push({ target: c.id, problem: `part name "${c.keyword}" uses "${j}", a word only practitioners know; give it an everyday 1 to 3 word name a newcomer knows (like "browser driver" or "command line tool") and keep "${j}" in name` }); }
+  for (const c of comps) { const j = practitionerTerm(c.keyword); if (j) open.push({ target: c.id, problem: `part name "${c.keyword}" uses "${j}", a word only practitioners know; give it a plain everyday 1 to 3 word noun a non-programmer knows (like "ai assistant", "browser tool", "chrome" or "web page") and keep "${j}" in name` }); }
   steps.forEach((st, i) => { const j = practitionerTerm(st.label); if (j) open.push({ target: "walkthrough", problem: `step ${i + 1} label "${st.label}" uses "${j}", a word only practitioners know; say what happens in everyday words` }); });
   // arrows follow the code: an arrow from A to B where B's files import A's (and not the other way) is backwards
   let out = conns;
@@ -169,10 +169,6 @@ export function validateArchitecture(arch: Architecture, files: string[], resolv
   return { arch: { ...arch, components: comps, connections: out, walkthrough: { name: arch.walkthrough.name, steps }, scale }, issues, open };
 }
 
-// words a newcomer does not know, which belong in a part's `name` or `what` but not on its box
-const PRACTITIONER = /\b(cdp|rpc|grpc|ipc|ffi|daemon|shards?|inference|wasm|orm|rust|golang|cli|stdio|jsonl|kv|dom|ast|repl|tty|pty|cgo|jni)\b/;
-/** The first practitioner-only word in a box name or step label, or "" when it reads plainly. */
-export function practitionerTerm(text: string): string { return PRACTITIONER.exec(text.toLowerCase())?.[1] ?? ""; }
 const PUSH = /^(emit|emits|send|sends|push|pushes|notify|notifies|dispatch|dispatches|post|posts|fire|fires|trigger|triggers|call|calls|tell|tells)\b/;
 // verbs a part name starts with when the model named it by what it does; nouns that double as verbs (queue, cache, store, map) are left out
 const ACTION = /^(rebuild|build|draw|poll|emit|send|render|handle|process|fetch|save|parse|run|read|write|make|create|update|get|show|display|feed|push|pull|sync|serve|route|manage|compute|generate|validate|scan|watch|listen|dispatch|convert|transform|compile|encode|decode|collect|gather|forward|deliver|paint|present|receive|call|execute|evaluate|merge|split|tokenize|train|predict|answer|reply|notify|lookup|look|find|pick|choose|check|track|queue|store|load|cache)\b/;
@@ -245,7 +241,7 @@ export function evidencePack(arch: Architecture, read: (p: string, max?: number)
   return out;
 }
 
-const REVIEWER = "You are a strict staff engineer reviewing an architecture map that will be shown to thousands of developers. Compare every component, connection, walkthrough step and scale risk against the cited file excerpts. Flag: components whose cited files do not support them, wrong technology names, wrong direction of data flow, missing major components that the files clearly show (e.g. a database client that is imported but not drawn), walkthrough steps that the code does not do, scale risks that are generic or not grounded in this code, and box keywords or step labels a newcomer would not know (a protocol or language name like 'cdp' or 'rust', 'cli', 'daemon', 'shards', 'inference'): rename them in everyday words ('browser driver', 'command line tool') and keep the real term in name. Return verdict 'ok' only if a skeptical maintainer of this repo would sign off. Max 10 issues, most important first.";
+const REVIEWER = "You are a strict staff engineer reviewing an architecture map that will be shown to thousands of developers. Compare every component, connection, walkthrough step and scale risk against the cited file excerpts. Flag: components whose cited files do not support them, wrong technology names, wrong direction of data flow, missing major components that the files clearly show (e.g. a database client that is imported but not drawn), walkthrough steps that the code does not do, scale risks that are generic or not grounded in this code, and box keywords or step labels a non-programmer would not know (a package, module, protocol or language name like 'cdp client' or 'rust cli', 'daemon', 'shards', 'inference'): rename them as plain everyday nouns ('ai assistant', 'browser tool', 'chrome', 'web page') and keep the real term in name. Return verdict 'ok' only if a skeptical maintainer of this repo would sign off. Max 10 issues, most important first.";
 
 const ReviewPatch = Review.extend({
   upsert_components: z.array(Component).describe("components to add, or to replace whole when an id already exists; empty when no component changes"),
