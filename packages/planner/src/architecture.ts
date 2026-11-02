@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { nicknames } from "./beats.js";
 import { Architecture, Component, Connection, ScaleRisk, COLOR_MEANING, lower, type ExplainSpec, type Progress, practitionerTerm, PLAIN_LABELS, PLAIN_SUBTITLE, subtitleSlip } from "@explanimate/core";
 import { sparkJson, type CostLedger } from "@explanimate/models";
 
@@ -15,9 +16,9 @@ function archSystem(L: ExplainSpec, icons: string, hints = "") {
     `- ${L.minComponents} to ${L.maxComponents} components. Merge minor helpers into the component they serve. Always include who/what starts requests (users, a browser, a tracker script, a CLI) as a client component.`,
     "- Optional infrastructure (enabled by an env var or config flag) is fine to include; say 'optional' in `what`.",
     "- one_liner: what this project is, who it is for and why they would use it, in one plain sentence a smart person who does not write code follows, with no jargon ('a small kit that lets you train your own chat assistant from scratch on one rented computer').",
-    `- ${PLAIN_LABELS} Step labels are plain verbs in the same everyday words ('send question', 'click the button'). A term only practitioners know (a shard, an inference engine, a protocol, a daemon, a language name) goes in \`name\` or \`what\`, never in a keyword or a step label.`,
+    `- ${PLAIN_LABELS} Step labels are plain verbs in everyday words ('send command', 'click the button'). The viewer learns each real name with one plain clause from the narration, so never swap a real name for a made-up one.`,
     `- ${PLAIN_SUBTITLE}`,
-    "- No two keywords share a word: 'browser link' and 'web browser' blur together when said in one sentence, so call them 'browser tool' and 'chrome'.",
+    "- No two keywords share a word other than the product's own name: 'agent-browser cli' and 'daemon' are fine, but 'browser link' and 'web browser' blur together when said in one sentence.",
     "- A component's keyword names what the part IS, as a noun a teacher would point at ('ui core', 'command list', 'sdl window'), never what it does ('rebuild widgets', 'poll input'); the doing goes on the arrows.",
     "- When the core flow hands a named data structure from one part to another (a command list, a job queue, a render buffer, an event log) and the code gives it its own type, draw it as its own component; it is often what the design is known for.",
     "- connections follow the direction requests/data flow (from caller to callee). Each one cites one file where that call happens. If A's code includes or imports B and B never calls A, the arrow is A>B, even when data comes back: say 'read commands' from A's side, not 'emit commands' from B's.",
@@ -143,10 +144,10 @@ export function validateArchitecture(arch: Architecture, files: string[], resolv
       taken.delete(c.keyword); taken.add(plain); c.keyword = plain;
     } else open.push({ target: c.id, problem: `part name "${c.keyword}" says what it does, not what it is; give it a 1 to 3 word noun name (what the part is, like "ui core" or "command list")` });
   }
-  // box names and step labels are read by newcomers: a practitioner term there ("cdp client", "rust cli") needs a plain word
-  for (const c of comps) { const j = practitionerTerm(c.keyword); if (j) open.push({ target: c.id, problem: `part name "${c.keyword}" uses "${j}", a word only practitioners know; give it a plain everyday 1 to 3 word noun a non-programmer knows (like "ai assistant", "browser tool", "chrome" or "web page") and keep "${j}" in name` }); }
+  // box names are the parts' real names: a made-up one ("browser link") cannot be looked up and disagrees with the README
+  for (const c of comps) { const why = madeUpName(c); if (why) open.push({ target: c.id, problem: `part name "${c.keyword}" ${why}; use the real name from the code or README, shortened (like "${realName(c)}")` }); }
   for (const c of comps) { if (c.does === undefined) continue; const slip = subtitleSlip(c.does, c.keyword); if (slip) open.push({ target: c.id, problem: `the line under "${c.keyword}" ("${c.does}") ${slip}, like "clicks and types for your AI"` }); }
-  for (const [a, b] of sharedWords(comps)) open.push({ target: b.id, problem: `part names "${a.keyword}" and "${b.keyword}" share a word, so they blur together when said in one sentence; rename "${b.keyword}" to a different everyday noun` });
+  for (const [a, b] of sharedWords(comps, productWords(arch.product))) open.push({ target: b.id, problem: `part names "${a.keyword}" and "${b.keyword}" share a word, so they blur together when said in one sentence; rename "${b.keyword}" to a different everyday noun` });
   steps.forEach((st, i) => { const j = practitionerTerm(st.label); if (j) open.push({ target: "walkthrough", problem: `step ${i + 1} label "${st.label}" uses "${j}", a word only practitioners know; say what happens in everyday words` }); });
   // arrows follow the code: an arrow from A to B where B's files import A's (and not the other way) is backwards
   let out = conns;
@@ -248,14 +249,27 @@ export function evidencePack(arch: Architecture, read: (p: string, max?: number)
 // words a box name may share with another without the two sounding alike
 const SHARE_OK = new Set(["the", "a", "an", "of", "and", "app", "data", "user", "users"]);
 /** Pairs of boxes whose names share a word ("browser link", "web browser"): said together they sound circular. */
-export function sharedWords(comps: { id: string; keyword: string }[]): [{ id: string; keyword: string }, { id: string; keyword: string }][] {
+/** Words of the product's own name ("agent-browser"), which several real part names may share. */
+export const productWords = (product: string) => product.toLowerCase().split(/[^a-z0-9]+/).filter((w) => w.length > 2);
+
+/** The part's real name, shortened to a keyword: its name without the bracketed tech. */
+export const realName = (c: { name: string }) => c.name.replace(/\(.*?\)/g, " ").replace(/\s+(via|with|using|on|in|for)\s.*$/i, "").toLowerCase().replace(/[^a-z0-9 -]+/g, " ").replace(/\s+/g, " ").trim().split(" ").slice(0, 3).join(" ");
+
+/** Why a box keyword looks invented rather than the part's real name; "" when it is real. */
+export function madeUpName(c: { keyword: string; name: string }): string {
+  const nick = nicknames(c.keyword, [c.name]);
+  if (nick.length) return `is a made-up nickname ("${nick[0]}")`;
+  return "";
+}
+
+export function sharedWords(comps: { id: string; keyword: string }[], ok: string[] = []): [{ id: string; keyword: string }, { id: string; keyword: string }][] {
   const out: [{ id: string; keyword: string }, { id: string; keyword: string }][] = [];
-  const words = (k: string) => new Set(k.toLowerCase().split(/[^a-z0-9]+/).filter((w) => w.length > 2 && !SHARE_OK.has(w)));
+  const words = (k: string) => new Set(k.toLowerCase().split(/[^a-z0-9]+/).filter((w) => w.length > 2 && !SHARE_OK.has(w) && !ok.includes(w)));
   comps.forEach((a, i) => comps.slice(i + 1).forEach((b) => { const wa = words(a.keyword); if ([...words(b.keyword)].some((w) => wa.has(w))) out.push([a, b]); }));
   return out;
 }
 
-const REVIEWER = "You are a strict staff engineer reviewing an architecture map that will be shown to thousands of developers. Compare every component, connection, walkthrough step and scale risk against the cited file excerpts. Flag: components whose cited files do not support them, wrong technology names, wrong direction of data flow, missing major components that the files clearly show (e.g. a database client that is imported but not drawn), walkthrough steps that the code does not do, scale risks that are generic or not grounded in this code, and box keywords or step labels a non-programmer would not know (a package, module, protocol or language name like 'cdp client' or 'rust cli', 'daemon', 'shards', 'inference'): rename them as plain everyday nouns ('ai assistant', 'browser tool', 'chrome', 'web page') and keep the real term in name. Also flag a box's `does` line that uses such words or just repeats the keyword (it must be 2 to 6 everyday words saying what the part does for the viewer, like 'clicks and types for your AI'), and two box keywords that share a word ('browser link' and 'web browser'). Every upserted component carries a plain `does`. Return verdict 'ok' only if a skeptical maintainer of this repo would sign off. Max 10 issues, most important first.";
+const REVIEWER = "You are a strict staff engineer reviewing an architecture map that will be shown to thousands of developers. Compare every component, connection, walkthrough step and scale risk against the cited file excerpts. Flag: components whose cited files do not support them, wrong technology names, wrong direction of data flow, missing major components that the files clearly show (e.g. a database client that is imported but not drawn), walkthrough steps that the code does not do, scale risks that are generic or not grounded in this code, box keywords that are made-up nicknames instead of the part's real name ('browser link', 'terminal tool', 'little command tool'): rename them to the real name the README or code uses, shortened ('agent-browser cli', 'daemon', 'chrome', 'ai agent'), and step labels a non-programmer would not follow (say what happens in everyday words). Also flag a box's `does` line that uses jargon or just repeats the keyword (it must be 2 to 6 everyday words saying what the part does for the viewer, like 'clicks and types for your AI'), and two box keywords that share a word other than the product's name ('browser link' and 'web browser'). Every upserted component carries a plain `does`. Return verdict 'ok' only if a skeptical maintainer of this repo would sign off. Max 10 issues, most important first.";
 
 const ReviewPatch = Review.extend({
   upsert_components: z.array(Component).describe("components to add, or to replace whole when an id already exists; empty when no component changes"),

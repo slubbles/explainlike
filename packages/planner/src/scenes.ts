@@ -1,8 +1,9 @@
 import { findPlace } from "@explanimate/core/places";
 import { z } from "zod";
-import { ScenePlan, PLAIN_LANGUAGE, PLAIN_HEADINGS, plainSlips, practitionerTerm, figurative, coverageSeconds, parseFigure, parseDated, figureInQuote, lower, norm, tidySpeech, wordCount, quoteInSource, phraseAt, spokenWords, walkCues, missingArticles, grammarSlips, soundsLikeKeywords, shortHeading, type Architecture, type ExplainSpec, type Progress, type NoteItem, type Scene, type SourceDoc } from "@explanimate/core";
+import { ScenePlan, RepoPlanWire, ConceptPlanWire, PLAIN_LANGUAGE, PLAIN_HEADINGS, plainSlips, stiffLines, practitionerTerm, figurative, coverageSeconds, parseFigure, parseDated, figureInQuote, lower, norm, tidySpeech, wordCount, quoteInSource, phraseAt, spokenWords, walkCues, missingArticles, grammarSlips, soundsLikeKeywords, shortHeading, type Architecture, type ExplainSpec, type Progress, type NoteItem, type Scene, type SourceDoc } from "@explanimate/core";
 import { sparkJson, type CostLedger } from "@explanimate/models";
 import { SHAPES, analogyRule, shapeFor } from "./shapes.js";
+import { checkBeats, beatAnchors, type BeatReport } from "./beats.js";
 
 /** Plain words are literal words: the newcomer test kept passing narration that swapped jargon for a riddle. */
 const PLAIN = "Plain words mean the literal thing in everyday words, not a figure of speech: never call a model 'a brain', its saved weights 'memory', or a step 'magic', and never squeeze a term into a made-up phrase ('fast focus math'); say what it is ('the saved model weights', 'attention, the math that decides which earlier words matter').";
@@ -12,16 +13,17 @@ const STYLE = [
   PLAIN_LANGUAGE,
   "Narration is spoken; write it for the ear: short sentences, concrete, no filler ('in this video', 'let's dive in', 'robust', 'seamless', 'leverage' are banned).",
   "Every narration sentence is complete and grammatical: each verb agrees with its subject, and articles (a, an, the) are not dropped.",
-  "Plain words first. Name each part by its plain keyword. A code name (a library, framework, database or file name such as React, SQLite or Node) is said only when it helps the viewer, after the plain name, with what it is: 'the chat transcripts, saved in SQLite, a small database file on your disk'. Never 'called X'. Every other technical term (an acronym, a protocol, 'api', 'driver', 'harness') is explained in a few plain words the first time it is said, in the same sentence; a term the newcomer does not need is left out.",
+  "Real names, explained. Call each part by its keyword, which is its real name (agent-browser CLI, the daemon, Chrome DevTools Protocol), and the first time it is said, say what it is in one plain clause in the same sentence: 'the daemon, a program that keeps running in the background'. Never invent a nickname for a part and never swap its name for an analogy. Name the familiar tools people already use next to it: 'an AI agent, like Claude Code or Cursor'. A code name that is not a part (a library or file name such as SQLite) is said only when it helps, with what it is. Any other technical term (an acronym, 'api', 'driver', 'harness') gets the same one-clause explanation, and a term the newcomer does not need is left out. Never 'called X'.",
+  "Problem before fix: before a part or a feature, say in one line what is hard or annoying without it.",
   PLAIN,
-  "The viewer is 'you' where it's natural; the parts are 'the browser tool', 'the command line', not 'your browser tool', 'your command line'. Never call them 'the guest', 'the user' or 'the customer', even inside the analogy ('you walk up to the counter', not 'the guest walks up').",
+  "The viewer is 'you' where it's natural; the parts are 'the daemon', 'the command line', not 'your daemon', 'your command line'. Never call them 'the guest', 'the user' or 'the customer', even inside the analogy ('you walk up to the counter', not 'the guest walks up').",
   "No two scenes or two sentences in a row open with the same words.",
   "Each part gets its why: what it is for, or what would go wrong without it.",
   `${PLAIN_HEADINGS} Headings are lowercase and the narration of that scene says their words (the viewer reads the heading while hearing it).`, "Keywords 1 to 3 lowercase words.",
   "One new thing per sentence, and each sentence long enough to watch it being drawn (no two-word sentences).",
   "Every sentence moves the story. Never announce what comes next instead of saying it: 'you'll meet', 'you'll see', 'you'll find', 'then you've got', 'let's take a look', 'basically', 'it's special' and 'it's important' are banned.",
   "If the video uses an everyday analogy, keep that one analogy from the hook to the end; never switch to a second one.",
-  "One or two short, dry asides are welcome where they fit, the kind a friendly engineer makes at the whiteboard ('which, to be fair, is most of programming'). Never a joke about people, never more than one sentence.",
+  "At most one short, dry aside in the whole video, the kind a friendly engineer makes at the whiteboard ('which, to be fair, is most of programming'). Never a joke about people, never more than one sentence.",
 ].join("\n");
 
 /** Components in the order one request meets them, then the parts the request never touches. */
@@ -53,7 +55,7 @@ function repoSystem(arch: Architecture, L: ExplainSpec, lo: number, hi: number):
     "Scene order and rules:",
     `1. one 'hook' scene, 3 or 4 sentences, shown big on screen as it is spoken. ${S.hook} Whatever the shape, right after the hook line say what this project is, who it's for and why they'd care, in plain everyday words with no jargon, like '${arch.one_liner}'; someone who doesn't write code and hears only that knows what the thing is for and whether it's for them. add_components empty.`,
     `2. 'layer' scenes, one part or a few at a time, adding exactly these components in this order, at most ${L.perScene} per scene: ${path.map(kw).join(", ")}. ${S.spine} Say each added component's keyword out loud, in add_components order.`,
-    `3. one 'walkthrough' scene right after them: the core flow told once, end to end, as one short story. Tell these steps in order, each as a natural sentence about who does what to the example, in everyday words, and name the part each step reaches by its keyword: the board moves to that part when you say it. The words in brackets only say what happens; they are not words to recite, so say the action the way a person would ('the chat window loads the saved model') and never turn a bracket into a noun ('the send cdp instruction', 'the drive page move', 'the return result step'). Call each part by its keyword, the name on screen that the layer scenes already said; its analogy role may ride along ('the demo app, your front desk, sends the message') but never stands in for it, since a viewer cannot map a new role name to a box, with articles and verb endings as speech needs: ${steps}. Say what happens and why it matters, the way you'd tell a friend. Good: 'Your AI says click the login button, and the browser tool clicks it in chrome, a real browser.' Good: 'You type a question, and the counter sends the message to the manager.' Bad: 'The cli sends a cdp command to the client.' Bad: 'Step one is send message.' Never number the steps out loud. Follow one concrete example from the repo the whole way (a real input like the words 'hello world', a real message, a real file) and say what it looks like after each step, the way Caleb follows one 2 TB model from disk to GPU. End with the concrete thing the user gets back (e.g. 'a working fix in your chat'), not 'an answer'. Give it a heading of 2 to 4 lowercase words that the narration actually says, naming this moment rather than labelling it. About ${Math.round(L.wordsPerScene * 1.6)} words. add_components empty.`,
+    `3. one 'walkthrough' scene right after them: the core flow told once, end to end, as one short story. Tell these steps in order, each as a natural sentence about who does what to the example, in everyday words, and name the part each step reaches by its keyword: the board moves to that part when you say it. The words in brackets only say what happens; they are not words to recite, so say the action the way a person would ('the chat window loads the saved model') and never turn a bracket into a noun ('the send cdp instruction', 'the drive page move', 'the return result step'). Call each part by its keyword, the name on screen that the layer scenes already said; its analogy role may ride along ('the demo app, your front desk, sends the message') but never stands in for it, since a viewer cannot map a new role name to a box, with articles and verb endings as speech needs: ${steps}. Say what happens and why it matters, the way you'd tell a friend. Good: 'Your AI agent says click the login button, and the daemon clicks it in Chrome.' Good: 'You type a question, and the counter sends the message to the manager.' Bad: 'The cli sends a cdp command to the client.' Bad: 'Step one is send message.' Never number the steps out loud. Follow one concrete example from the repo the whole way (a real input like the words 'hello world', a real message, a real file) and say what it looks like after each step, the way Caleb follows one 2 TB model from disk to GPU. End with the concrete thing the user gets back (e.g. 'a working fix in your chat'), not 'an answer'. Give it a heading of 2 to 4 lowercase words that the narration actually says, naming this moment rather than labelling it. About ${Math.round(L.wordsPerScene * 1.6)} words. add_components empty.`,
     side.length
       ? `4. then 'layer' scene(s) for the side parts the request does not pass through: ${side.map(kw).join(", ")}. Keep them short: as few scenes as fit (at most ${L.perScene} parts per scene), one short clause per part (its keyword and plain job), opening with one tie-back to the journey such as 'Around the manager sit a few helpers:'. Do not repeat the same opener for each part.`
       : "4. (no side parts)",
@@ -69,8 +71,28 @@ function repoSystem(arch: Architecture, L: ExplainSpec, lo: number, hi: number):
     "Never state a traffic, user, latency or cost number as a fact about this app: the repo does not tell you its real load. Numbers only appear as clearly labelled assumptions.",
     "Proofread every sentence aloud: a/an and singular/plural agree with the noun, no half-finished phrases. Headings are on screen, never spoken as if they were a part.",
     "title: the product name in lowercase. subtitle: under 8 lowercase words, plain.",
+    ...BEAT_RULES,
   ].join("\n");
 }
+
+/** How a repo plan pairs every narration line with what the screen shows (docs/explaining-playbook.md, "Visuals"). */
+export const BEAT_RULES = [
+  "Per-line visuals. Every scene has 'beats', one per narration line (a line is one or two short sentences). The beats' lines joined with spaces are the scene's narration, word for word: write the beats, then copy their lines into narration.",
+  "Each beat picks the visual that best shows that line, and puts on screen only words the line says, so the viewer reads them as they hear them:",
+  "- board: stay on the diagram while the line draws or points at a part (focus: that component id, or empty). Use it on the line that names each new part in a layer scene; the walkthrough is mostly board lines.",
+  "- kinetic: 2 to 8 words of the line in big hand lettering (text), for a claim, a problem or a punchline.",
+  "- chips: 2 to 4 names said in the line as labelled chips (items), like ['Claude Code', 'Cursor', 'Codex'], to tie a part to tools people already use. Never a logo.",
+  "- terminal: the exact command (text) copied from the README, like 'agent-browser open example.com'; items: up to 3 output lines copied from the README, or empty. The line says the command or a word of it.",
+  "- output: what a command hands back (text: what it is, like 'snapshot'; items: 2 to 5 rows as the README shows them, like 'button \"Submit\" [ref=e2]'); focus: the row to circle.",
+  "- browser: a page being driven (text: the address; items: 2 to 4 page elements, like 'email box', 'button submit'; focus: the element clicked).",
+  "- number: one figure the line says, made concrete (text: '1 command', '7 steps'); only numbers the source states, or 'one'.",
+  "- contrast: before and after, or problem and fix (items: exactly [before, after], each 2 to 5 words the line says).",
+  "- doodle: one labelled sketch (text: the label, words the line says; focus: a plain noun for the picture, like 'robot' or 'browser').",
+  "- title: only the hook's first beat, the title card while the hook line is said.",
+  "anchor: 1 to 4 consecutive words of the line, copied exactly, where the visual appears (usually the first word it shows).",
+  "Mix them the way a good YouTube explainer does: never the same visual three lines running (board excepted), a new visual every 3 to 5 seconds, and at least four different card types across the video. The hook: title, then 2 or 3 card lines (a contrast or kinetic for the problem, chips naming the AI agents people use, a terminal with the one command). Scale and notes lines may use number or contrast. The recap ends on one payoff sentence, shown as kinetic.",
+  "Never invent a command, an output row or a number: copy them from the README excerpt. Leave a beat's unused fields empty.",
+];
 
 const Critique = z.object({
   undefined_terms: z.array(z.object({ term: z.string(), scene: z.string() })).describe("terms a newcomer would not know, used without a plain-words explanation at their first use"),
@@ -281,6 +303,7 @@ export function speechIssues(plan: ScenePlan, arch: Architecture, analogy = ""):
     if (filler.length) issues.push(`${s.id}: filler ${filler.map((f) => `"${f}"`).join(", ")}; say the thing itself instead`);
     // the plain-language bar a program can check: box names are judged on the map, so they pass here
     for (const p of plainSlips(s.narration, known)) issues.push(`${s.id}: ${p}`);
+    for (const x of stiffLines(s.narration)) issues.push(`${s.id}: ${x}`);
     const hj = practitionerTerm(s.heading.toLowerCase().split(/\s+/).filter((w) => !known.some((k) => k.split(" ").includes(w))).join(" "));
     if (hj) issues.push(`${s.id}: the heading "${s.heading}" uses "${hj}"; give it 2 to 4 everyday words the narration says`);
     if ((s.kind === "walkthrough" || s.kind === "recap") && /\b(that|this) step\b/i.test(s.narration)) issues.push(`${s.id}: says "${/\b(that|this) step\b/i.exec(s.narration)![0]}"; name what actually happened instead`);
@@ -361,7 +384,7 @@ export function pictureWords(analogy: string, arch: Architecture): string[] {
 /** The phrases a scene's narration must keep, in the order it says them, so the board stays in sync. */
 export function syncPhrases(s: Scene, arch: Architecture): string[] {
   const ws = spokenWords(s.narration);
-  const cands = [...arch.components.map((c) => c.keyword), ...(s.items ?? []).map((i) => i.text), ...(s.board_nodes ?? []).map((n) => n.keyword)];
+  const cands = [...arch.components.map((c) => c.keyword), ...(s.items ?? []).map((i) => i.text), ...(s.board_nodes ?? []).map((n) => n.keyword), ...beatAnchors(s)];
   const hits = cands.map((p) => ({ p, at: phraseAt(ws, p) })).filter((x) => x.at >= 0);
   // the walkthrough also keeps whatever told each step (a part named a second time on the way back counts too)
   if (s.kind === "walkthrough") {
@@ -390,6 +413,7 @@ export function syncProblem(orig: string, next: string, phrases: string[], room 
   return undefined;
 }
 
+const NO_RENAMES = true;
 const okKeyword = (k: string) => /^[a-z][a-z ]{1,30}$/.test(k) && k.trim().split(/\s+/).length <= 3;
 
 /**
@@ -412,7 +436,7 @@ export async function polishNarration(o: { ledger: CostLedger; plan: ScenePlan; 
     "- Each scene lists 'must_say': phrases the board syncs to. Say each one, in that order, with its words in that order. You may put 'the', 'a' or 'your' between its words and change verb endings ('send message' -> 'sends the message'), nothing else.",
     "- Never read a scene heading aloud as if it were a part of the system.",
     "- A step's verb is the sentence's only verb for that action; never pair it with a synonym ('files and saves', 'presents and shows').",
-    "- Plain names before code names: drop 'called React Web' and similar unless the code name truly helps; if it stays, put it after the plain name with a few words on what it is.",
+    "- Keep every part's real name exactly as given in 'parts' (agent-browser CLI, the daemon): never swap it for a nickname or an analogy. Drop 'called X'.",
     "- Any technical word left ('api', 'driver', 'harness', a database or framework name) gets a few plain words saying what it is, the first time it's said.",
     `- ${PLAIN}`,
     "- The viewer is 'you' all the way through; never 'the guest', 'the user' or 'the customer'.",
@@ -421,7 +445,7 @@ export async function polishNarration(o: { ledger: CostLedger; plan: ScenePlan; 
     "- Say what a part is only the first time it's named; after that, just its name. The recap never re-explains a part.",
     "- No filler that announces instead of explains: never 'you'll meet', 'you'll see', 'you'll find', 'then you've got', 'let's take a look', 'basically', 'it's special'.",
     "- The hook scene's first sentence is shown on screen word by word: keep it a question or one surprising claim of at most 14 words, and keep it the first sentence.",
-    "Part names: 'parts' lists every part's spoken name. If a name sounds awkward when spoken as a thing (for example 'computer use', a verb phrase, or an internal code name), give it a plain 1 to 3 word lowercase name in 'renames' (for example 'browser robot'), and use the new name in every scene instead of the old one. Rename only names that are genuinely awkward; most need none.",
+    "Part names: 'parts' lists every part's real name. Keep them all; 'renames' is always an empty list.",
     "Return every scene id with its rewritten narration.",
   ].join("\n");
   const payload = (p: ScenePlan) => JSON.stringify({
@@ -451,7 +475,8 @@ export async function polishNarration(o: { ledger: CostLedger; plan: ScenePlan; 
   if (out instanceof Error) return { plan: o.plan, renames: [], rewritten: 0, kept: o.plan.scenes.map((x) => x.id), issues: [`narration polish skipped: ${out.message}`, ...speechIssues(o.plan, o.arch, o.analogy)] };
   const taken = new Set(o.arch.components.map((c) => c.keyword));
   const renames = new Map<string, string>();
-  for (const r of out.renames) {
+  // real names stay (docs/explaining-playbook.md): a rename the model sends anyway is ignored
+  for (const r of NO_RENAMES ? [] : out.renames) {
     const k = r.keyword.trim().toLowerCase();
     const c = o.arch.components.find((x) => x.id === r.id);
     if (c && okKeyword(k) && !taken.has(k) && k !== c.keyword) { renames.set(c.id, k); taken.add(k); }
@@ -483,7 +508,7 @@ export async function polishNarration(o: { ledger: CostLedger; plan: ScenePlan; 
   return { plan: res.plan, renames: [...renames].map(([id, keyword]) => ({ id, keyword })), rewritten: res.rewritten, kept: res.kept, issues };
 }
 
-export async function planRepoScenes(o: { ledger: CostLedger; arch: Architecture; spec: ExplainSpec; progress?: Progress }): Promise<ScenePlan & { repairs: string[]; check: { first: string[]; final: string[]; revised: boolean }; renames: { id: string; keyword: string }[]; polish: { rewritten: number; kept: string[]; issues: string[] } }> {
+export async function planRepoScenes(o: { ledger: CostLedger; arch: Architecture; spec: ExplainSpec; readme?: string; source?: string; progress?: Progress }): Promise<ScenePlan & { repairs: string[]; check: { first: string[]; final: string[]; revised: boolean }; renames: { id: string; keyword: string }[]; polish: { rewritten: number; kept: string[]; issues: string[] }; beats: BeatReport }> {
   const L = o.spec;
   const [lo, hi] = coverageSeconds(L, { components: o.arch.components.length, steps: o.arch.walkthrough.steps.length, scale: o.arch.scale.length });
   o.progress?.({ stage: "plan", message: "writing the scene plan" });
@@ -495,9 +520,9 @@ export async function planRepoScenes(o: { ledger: CostLedger; arch: Architecture
     scale: o.arch.scale.map((s) => ({ component: s.component, at: s.at, problem: s.problem, why: s.why, fix: s.fix, fix_detail: s.fix_detail })),
   };
   const sys = repoSystem(o.arch, L, lo, hi);
-  const user = JSON.stringify(compact);
+  const user = `${JSON.stringify(compact)}${o.readme ? `\n\nREADME excerpt (copy commands, output rows and numbers from here only):\n${o.readme}` : ""}`;
   const ask = (extra: { role: "assistant" | "user"; content: string }[] = []) => sparkJson({
-    ledger: o.ledger, step: extra.length ? "scene-plan-revise" : "scene-plan", schema: ScenePlan, name: "scene_plan", effort: "low", maxTokens: 9000, hedge: true,
+    ledger: o.ledger, step: extra.length ? "scene-plan-revise" : "scene-plan", schema: ScenePlan, wire: RepoPlanWire, name: "scene_plan", effort: "low", maxTokens: 14000, hedge: true,
     messages: [{ role: "system", content: sys }, { role: "user", content: user }, ...extra],
   });
   const raw = await ask();
@@ -507,8 +532,11 @@ export async function planRepoScenes(o: { ledger: CostLedger; arch: Architecture
   const polish = (p: ScenePlan & { repairs: string[] }) => polishNarration({ ledger: o.ledger, plan: p, arch: o.arch, analogy: L.brief.analogy, audience: L.audience, progress: o.progress });
   const critique = (p: ScenePlan) => critiquePlan(o.ledger, p, L.audience).catch(() => undefined);
   const renamedArch = (r: { id: string; keyword: string }[]): Architecture => ({ ...o.arch, components: o.arch.components.map((c) => ({ ...c, keyword: r.find((x) => x.id === c.id)?.keyword ?? c.keyword })) });
+  const source = `${o.source ?? ""}\n${o.readme ?? ""}`;
+  const beatsOf = (p: ScenePlan) => checkBeats(p, { arch: o.arch, source, wps: L.tempo.wps });
   const found = (p: ScenePlan, arch: Architecture, c: Critique | undefined) => [
     ...checkStory(p, arch, L.brief.analogy),
+    ...beatsOf(p).report.issues,
     ...(c?.undefined_terms ?? []).filter((t) => said(p, t.term)).map((t) => termIssue(t)),
     ...(c?.odd_phrases ?? []).filter((t) => said(p, t.phrase)).map((t) => oddIssue(t)),
     ...(c && !c.purpose.trim() ? ["a newcomer could not tell what this project is or why they would use it; right after the hook line, say it in one plain sentence with no jargon"] : []),
@@ -534,7 +562,9 @@ export async function planRepoScenes(o: { ledger: CostLedger; arch: Architecture
   story = fixed.plan;
   final = fixed.issues;
   revised = revised || fixed.changed;
-  return { ...plan, scenes: story.scenes, check: { first, final, revised }, renames: pol.renames, polish: { rewritten: pol.rewritten, kept: pol.kept, issues: pol.issues } };
+  // every rewrite above may have moved a line: the beats are cut again from the final narration and checked
+  const b = beatsOf(story);
+  return { ...plan, scenes: b.plan.scenes, check: { first, final, revised }, renames: pol.renames, polish: { rewritten: pol.rewritten, kept: pol.kept, issues: pol.issues }, beats: b.report };
 }
 
 /**
@@ -568,7 +598,7 @@ const oddIssue = (t: { phrase: string; scene: string }) => `"${t.phrase}" (${t.s
 const said = (p: ScenePlan, term: string) => p.scenes.some((s) => ` ${norm(s.narration)} `.includes(` ${norm(term)} `));
 
 /** Self-check problems only a new plan fixes: what the scenes draw, or in what order. The rest are wording. */
-export const structural = (issue: string) => /^(the video must open with a 'hook' scene|there is no 'walkthrough' scene|parts on the journey are drawn after|scale or list scenes come before|the core flow starts )/.test(issue);
+export const structural = (issue: string) => /^(the video must open with a 'hook' scene|there is no 'walkthrough' scene|parts on the journey are drawn after|scale or list scenes come before|the core flow starts |no chips line in the first scenes)/.test(issue);
 
 /**
  * One small Muse Spark rewrite of just the scenes the self-check flagged. A scene keeps its rewrite only
@@ -799,14 +829,14 @@ export async function planConceptScenes(o: { ledger: CostLedger; doc: SourceDoc;
     o.doc.kind === "topic" ? "title: under 6 lowercase words. subtitle: the source sites, lowercase." : "title: under 6 lowercase words. subtitle: who wrote it, lowercase.",
   ].join("\n");
   const user = `SOURCE (${o.doc.kind}) by ${o.doc.author ?? "unknown"}: ${o.doc.title}\nURL: ${o.doc.url}\n\nTEXT:\n${o.doc.text.slice(0, 30000)}`;
-  let plan = await sparkJson({ ledger: o.ledger, step: "concept-plan", schema: ScenePlan, name: "scene_plan", effort: "low", maxTokens: 9000, hedge: true, messages: [{ role: "system", content: sys }, { role: "user", content: user }] });
+  let plan = await sparkJson({ ledger: o.ledger, step: "concept-plan", schema: ScenePlan, wire: ConceptPlanWire, name: "scene_plan", effort: "low", maxTokens: 9000, hedge: true, messages: [{ role: "system", content: sys }, { role: "user", content: user }] });
   let { plan: fixed, dropped, unsaid } = validateConcept(plan, o.doc.text);
   // a cut-in that lost too many rows to stand is dropped whole, so even one bad row is worth a re-plan then
   const cutIns = (p: ScenePlan) => p.scenes.filter((s) => s.kind === "chart" || s.kind === "timeline" || s.kind === "map").length;
   if (dropped.length > 2 || cutIns(fixed) < cutIns(plan)) {
     o.progress?.({ stage: "plan", message: `re-planning: ${dropped.length} quotes were not in the source` });
     plan = await sparkJson({
-      ledger: o.ledger, step: "concept-plan-revise", schema: ScenePlan, name: "scene_plan", effort: "low", maxTokens: 9000, hedge: true,
+      ledger: o.ledger, step: "concept-plan-revise", schema: ScenePlan, wire: ConceptPlanWire, name: "scene_plan", effort: "low", maxTokens: 9000, hedge: true,
       messages: [{ role: "system", content: sys }, { role: "user", content: user }, { role: "assistant", content: JSON.stringify(plan) },
         { role: "user", content: `These rows failed the source check (a quote not copied verbatim, a chart or timeline quote that does not state its number or date, or a map place that is not a real country or city named in its quote). Replace each with an exact copied phrase that does, or remove it:\n${dropped.join("\n")}\nReturn the full corrected plan.` }],
     });
