@@ -345,6 +345,10 @@ export async function runExplainLike(o: RunOptions) {
     encoded.catch(() => {});
     // look at the picture itself: where every word, ring and caption actually landed, frame by frame
     P({ stage: "render", message: "checking the rendered frames", pct: 91 });
+    // the contact sheet reads the finished mp4, so it is made while the frame check looks at the frames
+    const sheet = path.join(out, `${base}.contact.jpg`);
+    const sheetRun = encoded.then(() => timed("contact sheet", () => contactSheet(mp4, sheet, Math.max(2, Math.ceil(film.duration / 40)))));
+    sheetRun.catch(() => {});
     const fc = await timed("frame check", () => frameCheck(film, { workDir: path.join(out, "frame-check"), frameDir: frames, visionFrames: o.visionReview ? 8 : 0, ledger }));
     fs.rmSync(path.join(out, "frame-check"), { recursive: true, force: true });
     fs.writeFileSync(path.join(out, "frame-check.json"), JSON.stringify(fc, null, 1));
@@ -352,8 +356,7 @@ export async function runExplainLike(o: RunOptions) {
     if (fc.vision) notes.push(`vision review: ${fc.vision.reduce((n, f) => n + f.problems.length, 0)} problem(s) across ${fc.vision.length} frames`);
     P({ stage: "encode", message: "encoding the mp4", pct: 92 });
     await timed("encode tail", () => encoded);
-    const sheet = path.join(out, `${base}.contact.jpg`);
-    await timed("contact sheet", () => contactSheet(mp4, sheet, Math.max(2, Math.ceil(film.duration / 40))));
+    await sheetRun;
     fs.copyFileSync(cap.html, path.join(out, "stage.html"));
     const qa = await qaRun;
 

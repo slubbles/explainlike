@@ -58,7 +58,7 @@ export async function captureFrames(film: Film, dir: string, opts: { workers?: n
   let next = 0, done = 0, failed = false;
   let captions: CaptionSpot[] = [];
   await Promise.all([...Array(workers).keys()].map(async (w) => {
-    const browser = await chromium.launch({ executablePath: findChrome(), args: ["--disable-gpu", "--disable-dev-shm-usage", "--font-render-hinting=none", "--hide-scrollbars"] });
+    const browser = await chromium.launch({ executablePath: findChrome(), args: chromiumArgs() });
     try {
       const page = await browser.newPage({ viewport: { width: film.width, height: film.height }, deviceScaleFactor: 1 });
       await page.goto("file://" + html);
@@ -81,6 +81,30 @@ export async function captureFrames(film: Film, dir: string, opts: { workers?: n
     }
   }));
   return { html, total, captions };
+}
+
+/** How much shared memory Chrome may use for its frame buffers. */
+function shmBytes(): number {
+  try {
+    const s = fs.statfsSync("/dev/shm");
+    return s.bavail * s.bsize;
+  } catch {
+    return 0;
+  }
+}
+
+/**
+ * Chrome flags for the capture. --disable-dev-shm-usage keeps Chrome off a small /dev/shm (Docker's 64 MB
+ * default, where it would crash on full-size frames) but it makes every screenshot take a disk-sized copy,
+ * which costs about a tenth of the render. So it is only passed where the space is actually short.
+ */
+export function chromiumArgs(): string[] {
+  return [
+    "--disable-gpu",
+    "--font-render-hinting=none",
+    "--hide-scrollbars",
+    ...(shmBytes() < 512 * 1024 * 1024 ? ["--disable-dev-shm-usage"] : []),
+  ];
 }
 
 /** One Chrome per spare core, at most 6: each holds a full-size page in memory. */
