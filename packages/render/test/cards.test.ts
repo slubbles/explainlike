@@ -5,7 +5,7 @@ import os from "node:os";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { getTheme, specFromBrief, DEFAULT_BRIEF } from "@explanimate/core";
-import { compose, loadIconPack, captureFrames, cameraAt, textWidth, cardSlots, CARD } from "../src/index.js";
+import { compose, loadIconPack, captureFrames, cameraAt, textWidth, cardSlots, saidAt, CARD } from "../src/index.js";
 import { captureFramesSkia } from "../src/skia.js";
 
 const fx = new URL("./fixtures/", import.meta.url);
@@ -96,4 +96,14 @@ test("skia draws every card the way chrome does", { timeout: 240_000 }, async ()
     if (process.env.KEEP_CARD_FRAMES) fs.cpSync(dir, path.join(process.env.KEEP_CARD_FRAMES, theme), { recursive: true });
     fs.rmSync(dir, { recursive: true, force: true });
   }
+});
+
+test("saidAt matches hyphenated names however the voice split them", () => {
+  const w = (word: string, start: number) => ({ word, start, end: start + 0.2 });
+  const one = [w("The", 0), w("agent-browser", 0.3), w("CLI,", 0.8), w("runs", 1)];
+  const two = [w("The", 0), w("agent", 0.3), w("browser", 0.5), w("CLI", 0.8)];
+  assert.equal(saidAt(one, "agent-browser CLI"), 1);
+  assert.equal(saidAt(two, "agent-browser CLI"), 1);
+  assert.equal(saidAt(one, "The agent-browser CLI,"), 0);
+  assert.equal(saidAt(one, "agent-browser", 2), -1);
 });
