@@ -9,12 +9,12 @@ This file is the single entry point for any AI or human picking up the project. 
 - **Repo:** github.com/slubbles/explanimate (renamed from metual, then explainlike). Laptop copy: `C:\Users\idder\explainlike`. Only one branch exists: `main`.
 - **Name history:** Metual, then Explain Like, now Explanimate (ex-PLAN-ih-mate). Old `EXPLAINLIKE_*` env names and `explainlike-*` default folders still work on purpose; don't treat them as stale.
 
-## 2. Current state (Nov 3, 2026, 6:30 AM Manila)
-- `main` has PRs #1-#10 merged, CI green, about 309 tests passing.
-- Latest sample: `agent-browser-v4.mp4` in the Google Drive folder "Explain Like samples" (folder id `15F_jFp0e1AAlowNfRg4N870naIOBoSdm`). Other samples there: microui v8, Silk Road v3, DNS, how the internet grew, minbpe, OpenMausBot, nanochat.
-- **Unmerged v5 work** is saved as [`docs/handoff/v5-wip.patch`](docs/handoff/v5-wip.patch); what it does is in [`docs/handoff/README.md`](docs/handoff/README.md). It passed typecheck and 315 tests but has not been rendered end to end from that exact tree. **Applying, finishing and merging it is task #1.**
+## 2. Current state (Nov 3, 2026, 7:15 AM Manila)
+- `main` has PRs #1-#11 merged, CI green, 317 tests passing. v5 (PR #11) is merged; `docs/handoff/v5-wip.patch` is gone.
+- Latest sample: `agent-browser-v5.mp4` (144 s) in the Google Drive folder "Explain Like samples" (folder id `15F_jFp0e1AAlowNfRg4N870naIOBoSdm`).
+- The gallery was re-rendered from cached plans and voice with today's main (Skia, "Explanimate" watermark) into the Drive subfolder "Explanimate gallery" (id `1BeHDP_NDLzTGUydmkKo3ZW9FPwzvedIC`): mp4s, posters and `gallery.json` for openmausbot, karpathy-minbpe, rxi-microui, how-the-internet-grew, silk-road, pallets-itsdangerous. **how-dns-works failed** on its cached plan: placement check, "wire book>machine is cut off by the frame edge at 46.6s".
 - Production is an old build (see section 8). Today's main is not deployed.
-- Spend so far: about **$11.2 of $25 Meta** and **$2.4 of $10 Deepgram** (it was $10.4 / $2.3 before two v5 trial renders).
+- Spend so far: about **$11.85 of $25 Meta** and **$2.60 of $10 Deepgram**.
 
 ## 3. How to run (Windows laptop)
 ```powershell
@@ -151,34 +151,12 @@ Plans (per repo commit), voice, repos and icons are cached. See [`docs/code-map.
 - Kinetic rows were built off to the left.
 
 ## 11. Next tasks, in priority order
-1. **Finish v5** (the user's task list, Nov 3, 5:52 AM):
-   1. **Narration quality, fixed at the root:**
-      - Use the sample plus Crayon and Fireship excerpts as few-shot examples.
-      - Restore the hook: the tagline, then "What if your AI could…".
-      - Ban subjectless and garbled lines, "your X" on parts, and repeated full names.
-      - Add a grammar and speech check that rejects and rewrites.
-      - Make each line say WHY a part exists, problem before fix.
-      - Keep grounding strict: no dashboard unless the README's core supports it.
-   2. **Cards earn their place:**
-      - A terminal card only when its command is spoken.
-      - Output, browser and contrast cards when a line describes them (snapshot refs `textbox "Email" [ref=e3]` / `fill @e3`; the auth vault: "the LLM never sees passwords").
-      - Kinetic at most about a third of cards.
-   3. **Kinetic rows** centered as they build.
-   4. **Topic runs** get line cards too, if that's cheap and safe.
-   - **Steps:**
-     1. Apply `docs/handoff/v5-wip.patch` on a branch, then run the tests and the web build.
-     2. Render agent-browser-v5 fresh (timed), check the frames against the lines and fix what's left.
-     3. Open the PRs, wait for green CI, rebase-merge, and delete the branch.
-     4. Upload `agent-browser-v5.mp4` to the Drive folder.
-     5. Report the full narration with each line's visual, plus an honest gap list.
-   - **Left after the second trial render:**
-     - The walkthrough still reads like a handoff chain.
-     - "That helper is an AI agent." survived (the nickname check was broadened after that run).
-     - About 9.9 visual changes a minute, under the 12 target.
-     - No auth-vault contrast line.
-     - Tiny-text frame warnings on the zoomed-out board at about 78 s.
-     - `planConceptBeats` is untested live; a DNS topic run costs about $0.06 Meta + $0.03 Deepgram.
-2. **Re-render the gallery samples** (laptop folder `C:\Users\idder\explanimate-gallery`) with the line cards once v5 is merged.
+1. **v5 gaps left** (the shipped v5 is render attempt 1; attempt 2 used the merged code):
+   - Attempt 1: about 10.6 visual changes a minute, under 12; the walkthrough repeats the daemon line; the password promise is said but has no contrast card, and "Chrome fills the saved password" is looser than the README (credentials are stored encrypted locally, `auth login` logs in by name).
+   - Attempt 2 (merged code: every sentence naming a part points the board): about 18.5 changes a minute, but the promise came out as "so it stays hidden", and the walkthrough has a handoff line ("the devtools protocol passes it on").
+   - Both: the self-check is left open on "the daemon and the chrome talk directly" with no arrow.
+   - Next: make the promise check a hard fail before polish rewrites it; keep the walkthrough why-first through polish.
+2. **Fix the DNS gallery sample** (placement failure above), then re-render it from cache.
 3. **Hosting decision:** ask the user whether to redeploy on the Tokyo VPS or move to Contabo VPS 6, then deploy only with his OK. DNS stays on hold until he says.
 4. **Ask the user:** whether to run the contributor-model test (`muse-spark-1.3-contributor` vs OpenRouter Muse Spark).
 5. **Later:** the hackathon write-up and X post drafts ([`docs/hackathon.md`](docs/hackathon.md); don't post), the demo video plan ([`docs/demo-video.md`](docs/demo-video.md)), and voice cloning.
