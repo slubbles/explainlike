@@ -26,7 +26,8 @@ test("a sentence too long to follow by ear is flagged", () => {
 test("the standard every prompt carries names the bar and its examples", () => {
   assert.match(PLAIN_LANGUAGE, /doesn't write code|non-programmer/);
   assert.match(PLAIN_LANGUAGE, /same breath/);
-  assert.match(PLAIN_LABELS, /web page/);
+  assert.match(PLAIN_LABELS, /real name/);
+  assert.match(PLAIN_LANGUAGE, /Claude Code or Cursor/);
   assert.equal(practitionerTerm("web page"), "");
   assert.equal(practitionerTerm("dashboard ui"), "");
 });
@@ -47,4 +48,12 @@ test("a box subtitle must say what the part does, in a few everyday words", () =
   assert.match(PLAIN_SUBTITLE, /clicks and types/);
   assert.match(PLAIN_HEADINGS, /where it starts/);
   assert.match(PLAIN_LANGUAGE, /No running metaphor/);
+});
+
+test("stiff lines and proper names: a repeated word is flagged, product names are capitalised", async () => {
+  const { stiffLines } = await import("../src/plain.ts");
+  const { tidySpeech } = await import("../src/text.ts");
+  assert.ok(stiffLines("Chrome opens Chrome tabs for you.").length > 0);
+  assert.deepEqual(stiffLines("Your AI agent says click, and the daemon clicks it in Chrome."), []);
+  assert.equal(tidySpeech("it opens chrome from github."), "It opens Chrome from GitHub.");
 });

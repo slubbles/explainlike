@@ -74,7 +74,7 @@ test("subject-verb agreement: 'a pasted link become' is a slip, but 'how does a 
   assert.deepEqual(agreementSlips("a pasted link become").map((s) => s.phrase), ["a pasted link become"]);
   assert.equal(tidySpeech("A pasted link become a watchable video."), "A pasted link becomes a watchable video.");
   assert.equal(tidySpeech("Each worker fetch the repo."), "Each worker fetches the repo.");
-  assert.equal(tidySpeech("An api call return data."), "An api call returns data.");
+  assert.equal(tidySpeech("An api call return data."), "An API call returns data.");
   // a helper verb carries the agreement, and two singular subjects make a plural one
   for (const ok of ["The question: how does a pasted link become a watchable video?", "Let a worker run it.", "A user and a bot send links.", "Why can a single room become hot?", "Paste a repo, an X post, or an article."])
     assert.equal(tidySpeech(ok), ok);

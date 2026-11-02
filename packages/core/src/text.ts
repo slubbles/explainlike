@@ -30,6 +30,21 @@ export function quoteInSource(quote: string, source: string): boolean {
  * single spaces, no space before punctuation, no word said twice in a row,
  * each sentence starting with a capital and the whole ending with a full stop.
  */
+// product and acronym names a viewer reads in captions; lowercase they look like typos ("the ai agent", "chrome loads")
+const PROPER: Record<string, string> = {
+  ai: "AI", ais: "AIs", chrome: "Chrome", firefox: "Firefox", safari: "Safari", github: "GitHub", google: "Google", gmail: "Gmail",
+  youtube: "YouTube", slack: "Slack", discord: "Discord", openai: "OpenAI", chatgpt: "ChatGPT", iphone: "iPhone", android: "Android",
+  linux: "Linux", macos: "macOS", python: "Python", javascript: "JavaScript", typescript: "TypeScript", url: "URL", urls: "URLs",
+  pdf: "PDF", pdfs: "PDFs", api: "API", apis: "APIs", llm: "LLM", llms: "LLMs",
+};
+/**
+ * Product and acronym names in their real casing ("AI agent", "Chrome"), for narration and captions only;
+ * box labels keep their lowercase style. A name already cased by the writer is left alone.
+ */
+export function properNames(s: string): string {
+  return s.replace(/(^|[^\w'.\/-])([a-z]+)(?=$|[^\w'\/-]|'s\b)/g, (m, pre: string, w: string) => (PROPER[w] ? pre + PROPER[w] : m));
+}
+
 export function tidySpeech(s: string): string {
   let t = s.replace(/\s+/g, " ").trim()
     .replace(/\s+([,.;:!?])/g, "$1")
@@ -37,6 +52,7 @@ export function tidySpeech(s: string): string {
     .replace(/\.{2,}(?!\.)/g, ".")
     .replace(/\b(\w+) \1\b/gi, (m, w: string) => (/^(that|had|is)$/i.test(w) ? m : w));
   t = fixAgreement(t);
+  t = properNames(t);
   // a new sentence starts with a capital; "e.g." or "vs." do not end one
   t = t.replace(/(^|(\S*)[.!?] )([a-z])/g, (m, a: string, w: string | undefined, c: string) =>
     /^(e\.g|i\.e|vs|etc|approx)$/i.test(w ?? "") ? m : a + c.toUpperCase());
@@ -255,7 +271,10 @@ const DANGLING = /^(the|a|an|and|or|of|to|in|on|for|at|by|with|from|into|start|t
  * becomes "one message", never "one message start to".
  */
 export function shortHeading(s: string, max = 4): string {
-  const all = lower(s).replace(/[,;:.!?]+/g, " ").split(/\s+/).filter(Boolean);
+  // a clause break ends the heading when what comes before it already names something
+  const head = lower(s).split(/[,;:]/)[0]!.trim();
+  const src = head.split(/\s+/).length >= 2 ? head : lower(s);
+  const all = src.replace(/[,;:.!?]+/g, " ").split(/\s+/).filter(Boolean);
   // a heading that already fits can still end mid-phrase ("one message start to")
   const ws = all.slice(0, max);
   while (ws.length > 2 && DANGLING.test(ws[ws.length - 1]!)) ws.pop();

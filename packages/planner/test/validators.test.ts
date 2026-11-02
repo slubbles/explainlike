@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { strictJsonSchema, practitionerTerm, type Architecture, type NoteItem, type Scene } from "@explanimate/core";
-import { validateNotes, validateArchitecture, repairRepoPlan, checkStory, journeyOrder, speechIssues, keepsSync, syncPhrases, fillerIn, hookLine, validateCutIn, cutInRules, applyReviewPatch, actionName, archWire, reviewWire, undrawnLinks, retellCutIn, validateConcept, structural, pictureWords, conceptSlips, namesPlace, respeak, emptyPoint, groundedSummary, labelEchoes, sharedWords } from "@explanimate/planner";
+import { realName, productWords, validateNotes, validateArchitecture, repairRepoPlan, checkStory, journeyOrder, speechIssues, keepsSync, syncPhrases, fillerIn, hookLine, validateCutIn, cutInRules, applyReviewPatch, actionName, archWire, reviewWire, undrawnLinks, retellCutIn, validateConcept, structural, pictureWords, conceptSlips, namesPlace, respeak, emptyPoint, groundedSummary, labelEchoes, sharedWords } from "@explanimate/planner";
 
 const item = (text: string, extra: Partial<NoteItem> = {}): NoteItem => ({ text, color: "white", icon: "", target: "", estimate: false, evidence: "", ...extra });
 const ids = new Set(["d1-db", "edge"]);
@@ -564,15 +564,16 @@ test("the stand-in walkthrough passes the story check", () => {
   assert.ok(!checkStory(plan, storyArch).some((i) => /walkthrough must tell|label turned into a noun/.test(i)), w.narration);
 });
 
-test("box names and step labels with practitioner words go back for plain ones", () => {
+test("box names keep real names: a made-up nickname goes back, a practitioner step label still gets plain words", () => {
   assert.equal(practitionerTerm("cdp client"), "cdp");
-  assert.equal(practitionerTerm("rust cli"), "rust");
   assert.equal(practitionerTerm("browser driver"), "");
-  assert.equal(practitionerTerm("command line tool"), "");
-  const arch = { ...storyArch, components: storyArch.components.map((c) => (c.id === "srv" ? { ...c, keyword: "rust cli" } : c)), walkthrough: { ...storyArch.walkthrough, steps: storyArch.walkthrough.steps.map((s, i) => (i === 1 ? { ...s, label: "send cdp command" } : s)) } } as Architecture;
+  const arch = { ...storyArch, components: storyArch.components.map((c) => (c.id === "srv" ? { ...c, keyword: "browser link" } : c.id === "bot" ? { ...c, keyword: "daemon", name: "agent-browser daemon" } : c)), walkthrough: { ...storyArch.walkthrough, steps: storyArch.walkthrough.steps.map((s, i) => (i === 1 ? { ...s, label: "send cdp command" } : s)) } } as Architecture;
   const { open } = validateArchitecture(arch, ["a.ts"], (n) => n, () => "box");
-  assert.ok(open.some((i) => i.target === "srv" && /"rust cli" uses "rust"/.test(i.problem)), open.map((i) => i.problem).join("; "));
+  assert.ok(open.some((i) => i.target === "srv" && /"browser link" is a made-up nickname/.test(i.problem)), open.map((i) => i.problem).join("; "));
+  assert.ok(!open.some((i) => i.target === "bot"), "a real name like daemon is kept");
   assert.ok(open.some((i) => i.target === "walkthrough" && /"send cdp command" uses "cdp"/.test(i.problem)));
+  assert.equal(realName({ name: "agent-browser daemon (Rust) via unix socket" }), "agent-browser daemon");
+  assert.deepEqual(sharedWords([{ id: "a", keyword: "agent-browser cli" }, { id: "b", keyword: "agent-browser daemon" }], productWords("agent-browser")), []);
 });
 
 test("the self-check holds every line and heading to the plain-language bar", () => {

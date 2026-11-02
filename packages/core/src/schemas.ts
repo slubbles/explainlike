@@ -121,7 +121,26 @@ export const NoteItem = z.object({
 });
 export type NoteItem = z.infer<typeof NoteItem>;
 
-export const Scene = z.object({
+/**
+ * What the screen shows while one narration line is spoken. 'board' stays on the evolving diagram (it
+ * builds or highlights there); 'title' is the hook's title card; the rest are full-frame cut-aways drawn
+ * in the same hand-drawn look, appearing on the words they show (docs/explaining-playbook.md).
+ */
+export const VisualType = z.enum(["title", "board", "kinetic", "chips", "terminal", "output", "browser", "number", "contrast", "doodle"]);
+export type VisualType = z.infer<typeof VisualType>;
+
+/** One narration line and the visual that goes with it. One flat shape for every type, so structured output stays simple. */
+export const Beat = z.object({
+  line: z.string().describe("one narration line, one or two short sentences, copied word for word from the narration"),
+  visual: VisualType,
+  anchor: z.string().describe("1 to 4 consecutive words from this line, copied exactly: the visual appears as they are said"),
+  text: z.string().describe("kinetic: the 2 to 8 spoken words to show; terminal: the exact command; number: the figure with its unit as said ('1 command'); browser: the page address; output: the output's title; chips: a short label over the chips or empty; doodle: the label; contrast: empty; board/title: empty"),
+  items: z.array(z.string()).describe("chips: 2 to 4 product or part names said in the line; output: 2 to 5 short output rows; browser: 2 to 4 page elements ('email box', 'password box', 'button log in'); contrast: exactly [before, after], each 2 to 5 spoken words; otherwise empty"),
+  focus: z.string().describe("board: the component id to highlight, or empty; output: the row text to circle; browser: the element clicked; doodle: an icon name; otherwise empty"),
+});
+export type Beat = z.infer<typeof Beat>;
+
+const SceneShape = z.object({
   id: z.string(),
   kind: SceneKind,
   heading: z.string().describe("2 to 4 lowercase words"),
@@ -139,6 +158,8 @@ export const Scene = z.object({
   /** notes scenes: list rows, or annotations on the canvas when they target components; chart and timeline scenes: one row per bar or date; map scenes: one row per place, its name in target */
   items: z.array(NoteItem),
 });
+/** A scene; repo scenes also carry `beats`, one visual per narration line. */
+export const Scene = SceneShape.extend({ beats: z.array(Beat).optional() });
 export type Scene = z.infer<typeof Scene>;
 
 export const ScenePlan = z.object({
@@ -147,6 +168,10 @@ export const ScenePlan = z.object({
   scenes: z.array(Scene),
 });
 export type ScenePlan = z.infer<typeof ScenePlan>;
+/** The plan as a topic planner is asked for it: the same scenes, without per-line beats (strict output makes every field required). */
+export const ConceptPlanWire = z.object({ title: z.string(), subtitle: z.string(), scenes: z.array(SceneShape) });
+/** The plan as the repo planner is asked for it: every scene with its beats. */
+export const RepoPlanWire = z.object({ title: z.string(), subtitle: z.string(), scenes: z.array(SceneShape.extend({ beats: z.array(Beat) })) });
 
 // ---------------------------------------------------------------------------
 // Ingested source.
