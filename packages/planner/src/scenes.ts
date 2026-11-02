@@ -286,13 +286,18 @@ export function syncPhrases(s: Scene, arch: Architecture): string[] {
 }
 
 /** True when a rewrite still says every sync phrase in order and stays close to the original length. */
-export function keepsSync(orig: string, next: string, phrases: string[]): boolean {
-  const r = wordCount(next) / Math.max(1, wordCount(orig));
-  if (r < 0.8 || r > 1.25 || soundsLikeKeywords(next)) return false;
+export const keepsSync = (orig: string, next: string, phrases: string[]): boolean => !syncProblem(orig, next, phrases);
+
+/** Why a rewrite would cost the board its cues, in words the rewriter can act on; undefined when it is fine. */
+export function syncProblem(orig: string, next: string, phrases: string[]): string | undefined {
+  const a = wordCount(orig), b = wordCount(next);
+  if (b > a * 1.25) return `it had ${b} words, over the ${Math.floor(a * 1.25)} allowed; drop names a newcomer can do without instead of explaining them all`;
+  if (b < a * 0.8) return `it had ${b} words, under the ${Math.ceil(a * 0.8)} needed`;
+  if (soundsLikeKeywords(next)) return "it read like a list of names, not sentences";
   const ws = spokenWords(next);
   let at = 0;
-  for (const p of phrases) { const k = phraseAt(ws, p, at); if (k < 0) return false; at = k + 1; }
-  return true;
+  for (const p of phrases) { const k = phraseAt(ws, p, at); if (k < 0) return `it lost "${p}" or moved it out of order; keep the must_say phrases`; at = k + 1; }
+  return undefined;
 }
 
 const okKeyword = (k: string) => /^[a-z][a-z ]{1,30}$/.test(k) && k.trim().split(/\s+/).length <= 3;
@@ -429,19 +434,38 @@ export async function planRepoScenes(o: { ledger: CostLedger; arch: Architecture
     story = pol.plan;
     final = found(story, arch, crit);
   }
-  if (final.length && !final.some(structural)) {
-    // only the words are off: one small rewrite of the scenes involved, then the same checks again
-    o.progress?.({ stage: "plan", message: `self-check: ${final.length} issue(s), fixing the narration` });
-    const fix = await fixNarration({ ledger: o.ledger, plan: story, arch, issues: final, audience: L.audience });
-    revised = revised || fix.changed.length > 0;
-    story = fix.plan;
-    const asked = final.filter((x) => x.startsWith("\"") || x.startsWith("a newcomer"));
-    const left = asked.length ? await recheckTerms(o.ledger, story, asked, L.audience) : [];
-    final = [...checkStory(story, arch, L.brief.analogy), ...left];
-  }
+  const fixed = await fixWording({ ledger: o.ledger, plan: story, arch, issues: final, audience: L.audience, analogy: L.brief.analogy, progress: o.progress });
+  story = fixed.plan;
+  final = fixed.issues;
+  revised = revised || fixed.changed;
   return { ...plan, scenes: story.scenes, check: { first, final, revised }, renames: pol.renames, polish: { rewritten: pol.rewritten, kept: pol.kept, issues: pol.issues } };
 }
 
+/**
+ * Wording problems get small rewrites of the scenes involved, even when a structural one is left, and
+ * whatever the second look still finds gets one more round. A rewrite the board could not use is sent
+ * back with the reason, and a flagged term the narration no longer says is settled without asking.
+ */
+export async function fixWording(o: { ledger: CostLedger; plan: ScenePlan; arch: Architecture; issues: string[]; audience: string; analogy?: string; progress?: Progress }): Promise<{ plan: ScenePlan; issues: string[]; changed: boolean }> {
+  let story = o.plan, final = o.issues, changed = false, notUsed: string[] = [];
+  for (let round = 1; round <= FIX_ROUNDS; round++) {
+    const todo = final.filter((x) => !structural(x));
+    if (!todo.length) break;
+    o.progress?.({ stage: "plan", message: `self-check: ${todo.length} issue(s), fixing the narration${round > 1 ? " again" : ""}` });
+    const fix = await fixNarration({ ledger: o.ledger, plan: story, arch: o.arch, issues: [...todo, ...notUsed], audience: o.audience, step: round > 1 ? `narration-fix-${round}` : undefined });
+    changed = changed || fix.changed.length > 0;
+    story = fix.plan;
+    notUsed = fix.rejected.map((r) => `[${r.id}] your last rewrite of this scene was not used: ${r.why}`);
+    const asked = todo.filter((x) => x.startsWith("a newcomer") || (x.startsWith("\"") && said(story, termOf(x))));
+    const left = asked.length ? await recheckTerms(o.ledger, story, asked, o.audience, round > 1 ? `plan-recheck-${round}` : undefined) : [];
+    final = [...checkStory(story, o.arch, o.analogy), ...left];
+  }
+  return { plan: story, issues: final, changed };
+}
+
+/** Rounds of narration fix and second look after the newcomer check: each is two small calls. */
+const FIX_ROUNDS = 2;
+const termOf = (issue: string) => /^"(.+?)" \(/.exec(issue)?.[1] ?? "";
 const termIssue = (t: { term: string; scene: string }) => `"${t.term}" (${t.scene}) is used without a plain-words explanation; explain it in the same sentence or drop it`;
 const said = (p: ScenePlan, term: string) => p.scenes.some((s) => ` ${norm(s.narration)} `.includes(` ${norm(term)} `));
 
@@ -452,20 +476,21 @@ export const structural = (issue: string) => /^(the video must open with a 'hook
  * One small Muse Spark rewrite of just the scenes the self-check flagged. A scene keeps its rewrite only
  * when the board can still sync to it, so a fix never costs the drawing its cues.
  */
-export async function fixNarration(o: { ledger: CostLedger; plan: ScenePlan; arch: Architecture; issues: string[]; audience: string }): Promise<{ plan: ScenePlan; changed: string[] }> {
+export async function fixNarration(o: { ledger: CostLedger; plan: ScenePlan; arch: Architecture; issues: string[]; audience: string; step?: string }): Promise<{ plan: ScenePlan; changed: string[]; rejected: { id: string; why: string }[] }> {
   const named = o.plan.scenes.filter((s) => o.issues.some((x) => x.includes(s.id)));
   // a problem that names no scene (the same opener three times, the flow as a whole) may need any of them
   const scope = o.issues.some((x) => !o.plan.scenes.some((s) => x.includes(s.id))) ? o.plan.scenes : named;
   const out = await sparkJson({
-    ledger: o.ledger, step: "narration-fix", schema: Polish, name: "narration_fix", effort: "minimal", maxTokens: 5000,
+    ledger: o.ledger, step: o.step ?? "narration-fix", schema: Polish, name: "narration_fix", effort: "minimal", maxTokens: 5000,
     messages: [
       { role: "system", content: [
         "You fix specific problems in a whiteboard explainer's narration. The viewer hears every scene once, in order.",
         `Audience: ${o.audience}.`,
         "- Change only what the problems need; keep everything else word for word, including facts and their order.",
         "- Each scene lists 'must_say': phrases the board syncs to. Keep each one, in that order, with its words in that order ('the', 'a' or 'your' may go between its words, verb endings may change).",
-        "- Keep each scene within 15% of its word count.",
+        "- Keep each scene between 80% and 125% of its word count.",
         "- A term explained in plain words: a few words right where it's first said ('the font atlas, one image holding every letter').",
+        "- When explaining every flagged term would make the scene too long, drop the ones a newcomer can do without: a product, service or library name ('D1', 'better-auth', 'Worker') becomes what it does ('a small cloud database', 'the sign-in code'). A must_say phrase is never dropped; explain it instead.",
         "- Only say two parts talk to each other when the connections list joins them; otherwise tell the hop through the part between them.",
         "- Return only the scenes you changed, by id, with their full narration; renames stays empty.",
       ].join("\n") },
@@ -478,23 +503,25 @@ export async function fixNarration(o: { ledger: CostLedger; plan: ScenePlan; arc
       }) },
     ],
   }).catch(() => undefined);
-  const changed: string[] = [];
+  const changed: string[] = [], rejected: { id: string; why: string }[] = [];
   const scenes = o.plan.scenes.map((s) => {
     const next = out?.scenes.find((x) => x.id === s.id)?.narration?.trim();
-    if (!next || next === s.narration || !scope.includes(s) || !keepsSync(s.narration, next, syncPhrases(s, o.arch))) return s;
+    if (!next || next === s.narration || !scope.includes(s)) return s;
+    const why = syncProblem(s.narration, next, syncPhrases(s, o.arch));
+    if (why) { rejected.push({ id: s.id, why }); return s; }
     changed.push(s.id);
     return { ...s, narration: tidySpeech(next) };
   });
-  return { plan: { ...o.plan, scenes }, changed };
+  return { plan: { ...o.plan, scenes }, changed, rejected };
 }
 
 const Recheck = z.object({
   open: z.array(z.string()).describe("the numbers of the problems still there, as written"),
 });
 /** A quick second look at the terms and flow the newcomer check flagged: which are still unexplained. */
-async function recheckTerms(ledger: CostLedger, plan: ScenePlan, issues: string[], audience: string): Promise<string[]> {
+async function recheckTerms(ledger: CostLedger, plan: ScenePlan, issues: string[], audience: string, step = "plan-recheck"): Promise<string[]> {
   const r = await sparkJson({
-    ledger, step: "plan-recheck", schema: Recheck, name: "recheck", effort: "minimal", maxTokens: 1500,
+    ledger, step, schema: Recheck, name: "recheck", effort: "minimal", maxTokens: 1500,
     messages: [
       { role: "system", content: `You are ${audience}, hearing this explainer narration once, in order. For each numbered problem, decide whether it is still there in the narration below: a term counts as explained when plain words say what it is at or before its first use. Return the numbers still there.` },
       { role: "user", content: `${issues.map((x, i) => `${i + 1}. ${x}`).join("\n")}\n\nNarration:\n${plan.scenes.map((s) => `[${s.id}] ${s.narration}`).join("\n")}` },
