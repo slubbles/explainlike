@@ -31,7 +31,10 @@ const HELP = `explanimate <github-url | local-repo-dir | x.com post url | articl
   --no-packs                               only the base doodle icons
   --fresh                                  ignore cached architecture/plan in the output folder
   --json                                   progress as JSON lines (for the web app)
-  --workers <n>                            Chrome processes drawing frames (default: cores - 1, at most 6)
+  --workers <n>                            processes or threads drawing frames (default: Chrome cores - 1, at most 6;
+                                           Skia 2-4, or cores - 1 with an NVIDIA encoder)
+                                           EXPLANIMATE_RENDERER=skia|chrome picks the renderer (default skia),
+                                           EXPLANIMATE_ENCODER=nvenc|x264 forces the H.264 encoder
   --no-qa                                  skip the Muse Transcribe voiceover check
   --no-music                               no music bed (by default a quiet original bed sits 22 dB under the voice)
   --no-sfx                                 no sound effects (by default soft, locally made pops and whooshes mark what is drawn)

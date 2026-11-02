@@ -78,7 +78,7 @@ pnpm explanimate <github url | local repo folder | article url | x.com post url 
   --goal <text>               what you want to understand
   --audience <text>           who it is for
   --depth <overview|working|deep>
-  --workers <n>               Chrome processes drawing frames (default: cores - 1, at most 6)
+  --workers <n>               threads (Skia) or Chrome processes drawing frames
   --no-music, --no-qa         skip the music bed, skip the voiceover check
   --json                      progress as JSON lines
 
@@ -153,7 +153,7 @@ Want to call it from your own code instead? `packages/api` runs the same jobs ov
 1. **Read.** It takes a digest of the repo (file tree, manifests, entry points, configs; secret files are never opened) or the article's text. A plain topic is looked up on Wikipedia, and the article plus up to two reputable pages it cites (standards bodies, universities, governments, major outlets) are read; every quote on screen comes from them, and the sources are named in the video, `sources.md` and the manifest.
 2. **Plan.** Muse Spark maps the architecture, checks every box against real files, picks an approach and writes the scenes and narration.
 3. **Voice.** Deepgram Aura reads the script, and word timestamps let each box draw in on the word that names it.
-4. **Draw.** The scenes become one hand-drawn SVG canvas with a moving camera. Chrome draws the frames in parallel and ffmpeg encodes them as they arrive.
+4. **Draw.** The scenes become one hand-drawn SVG canvas with a moving camera. Skia draws the frames on a few threads and streams them into ffmpeg (NVENC when a GPU is there, else libx264). Set `EXPLANIMATE_RENDERER=chrome` to draw them in headless Chrome instead; Skia falls back to Chrome on its own if it cannot load.
 5. **Check.** The frames and both boards are checked, and the voiceover is transcribed back and compared with the script.
 
 The code is a pnpm workspace: `packages/` holds `core`, `models`, `ingest`, `planner`, `voice`, `render`, `cli`, `api` and `mcp`, and `apps/web` is the Next.js app. Icon packs are a plugin point; see [docs/plugins.md](docs/plugins.md). Run the tests with `pnpm test` and `pnpm typecheck`.
