@@ -14,6 +14,7 @@ import type { IconPack } from "./icons.js";
 import { resolveIcon } from "./icons.js";
 import { ringOf, scaleArrow, placeFix, placeRingLabel, polyBox } from "./annotate.js";
 import path from "node:path";
+import { clearShots, type Backdrop, type Hidden } from "./clear.js";
 
 // 24 fps is the film standard: a fifth fewer frames to draw than 30, and nothing downstream counts frames
 export const W = 1920, H = 1080, FPS = 24;
@@ -86,6 +87,8 @@ class Builder {
   sketch: Sketch = { nodes: [], edges: [], ellipses: [], polygons: [], texts: [], images: [] };
   /** every ring, arrow and wire with what it points at, for the placement check */
   marks: Mark[] = [];
+  /** boxes, boards and arrow labels, for keeping the dimmed background of each shot clear */
+  backdrops: Backdrop[] = [];
   seed = 7;
   n = 0;
   icons = new Map<string, string>();
@@ -131,6 +134,7 @@ class Builder {
     this.text({ text: n.keyword, x: n.x + n.w / 2, y: n.y + 160, size: NODE.kwSize, color: this.theme.ink, anchor: "middle", t0: t0 + 0.5, dur: 0.45, g, sketch: false });
     if (n.sub) this.text({ text: n.sub, x: n.x + n.w / 2, y: n.y + 194, size: NODE.subSize, color: this.theme.edgeLabel, anchor: "middle", t0: t0 + 0.9, dur: 0.4, g, anim: "fade", sketch: false });
     this.sketch.nodes.push({ id: n.id, box: { x: n.x, y: n.y, w: n.w, h: n.h }, color: c, keyword: n.keyword, sub: n.sub, icon: ic.file, t0 });
+    this.backdrops.push({ g, t0, box: { x: n.x - 6, y: n.y - 6, w: n.w + 12, h: n.h + 12 } });
     return t0 + 1.0;
   }
   img(o: { href?: string; x: number; y: number; w: number; h: number; t0: number; dur: number; g?: string; anim?: "pop" | "fade" }) {
@@ -157,6 +161,8 @@ class Builder {
     this.text({ text: n.keyword, x: cx, y: n.y + bh - 40, size: BOARD.kw, color: this.theme.ink, anchor: "middle", t0: t0 + 0.55, dur: 0.5, g, sketch: false });
     (n.quote ?? []).forEach((l, i) => this.text({ text: l, x: cx, y: n.y + bh + 22 + (i + 0.8) * BOARD.qLine, size: BOARD.quote, color: this.theme.colors.gray, anchor: "middle", t0: t0 + 0.9 + i * 0.15, dur: 0.5, g, anim: "fade" }));
     this.sketch.nodes.push({ id: n.id, box: { x: n.x, y: n.y, w: n.w, h: bh }, color: c, keyword: n.keyword, icon: ic.file, iconSize: (n.count ?? 1) > 1 ? 120 : BOARD.icon, kwY: bh - 40, kwSize: BOARD.kw, t0, board: true });
+    const qs = n.quote ?? [], qw = Math.max(n.w, ...qs.map((l) => textWidth(l, BOARD.quote)));
+    this.backdrops.push({ g, t0, box: { x: cx - qw / 2 - 6, y: n.y - 6, w: qw + 12, h: bh + 12 + (qs.length ? 22 + (qs.length + 0.3) * BOARD.qLine : 0) } });
     return t0 + 1.0;
   }
   /** A tag like "estimate" so assumed numbers can never pass as facts. */
@@ -184,6 +190,7 @@ class Builder {
     if (e.label && e.labelBox) {
       const lb = e.labelBox;
       this.text({ text: e.label, x: lb.x + lb.w / 2, y: lb.y + lb.h * 0.72, size: labelSize, color: this.theme.edgeLabel, anchor: "middle", t0: t0 + dur * 0.6, dur: 0.4, g, bg: true, sketch: false });
+      this.backdrops.push({ g, t0: t0 + dur * 0.6, box: lb });
     }
     this.sketch.edges.push({ points: e.points, label: e.label, labelBox: e.labelBox, both: e.both, color, from: e.from, to: e.to, labelSize });
     this.marks.push({ kind: "wire", g, t0, dur, points: e.points, from: e.from, to: e.to });
@@ -517,7 +524,7 @@ function along(pts: [number, number][], f: number): [number, number, number, num
   return [pts[0][0], pts[0][1], 1, 0];
 }
 
-export interface Composed { film: Film; sketch: Sketch; marks: Mark[]; timeline: { id: string; kind: string; start: number; end: number }[]; pace: PaceReport; placement: PlacementReport }
+export interface Composed { film: Film; sketch: Sketch; marks: Mark[]; timeline: { id: string; kind: string; start: number; end: number }[]; pace: PaceReport; placement: PlacementReport; backdrops: Backdrop[]; cleared: Hidden[] }
 
 export async function compose(inp: ComposeInput): Promise<Composed> {
   const { plan, theme } = inp;
@@ -1201,5 +1208,7 @@ export async function compose(inp: ComposeInput): Promise<Composed> {
   const pace = applyTempo(film, timeline, tempo);
   // every ring, arrow and label checked against the final camera, with a few fix passes
   const placement = placementPass({ film, sketch: B.sketch, marks: B.marks });
-  return { film, sketch: B.sketch, marks: B.marks, timeline, pace, placement };
+  // on the final camera: the dimmed rest of the board is never sliced by the frame or drawn under the heading
+  const cleared = clearShots(film, B.backdrops);
+  return { film, sketch: B.sketch, marks: B.marks, timeline, pace, placement, backdrops: B.backdrops, cleared };
 }

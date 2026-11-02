@@ -1,0 +1,162 @@
+{
+ "title": "karpathy/nanochat",
+ "subtitle": "train a tiny chatbot yourself",
+ "scenes": [
+  {
+   "id": "s01-hook",
+   "kind": "hook",
+   "heading": "one script chats",
+   "narration": "Can one script chat from a single graphics card? It stalls once its little training text runs out. You'd need steady text, a brain, and saved memory to keep chatting.",
+   "add_components": [],
+   "add_connections": [],
+   "board_nodes": [],
+   "board_edges": [],
+   "highlights": [],
+   "callouts": [],
+   "items": []
+  },
+  {
+   "id": "s02-layer",
+   "kind": "layer",
+   "heading": "hungry for text",
+   "narration": "You still crave more text after one tiny file. For pretraining, the training scripts repeat the tuning loops for you. On demand, the token shards stream thousands of packed pieces.",
+   "add_components": [
+    "train-pipeline",
+    "data-shards"
+   ],
+   "add_connections": [
+    "train-pipeline>data-shards"
+   ],
+   "board_nodes": [],
+   "board_edges": [],
+   "highlights": [],
+   "callouts": [],
+   "items": []
+  },
+  {
+   "id": "s03-layer",
+   "kind": "layer",
+   "heading": "it forgets everything",
+   "narration": "Your chat forgets everything without a lasting brain. The gpt transformer learns word patterns with fast focus math. The checkpoint store saves versioned weights so you resume anytime.",
+   "add_components": [
+    "gpt-model",
+    "checkpoint-store"
+   ],
+   "add_connections": [
+    "train-pipeline>gpt-model",
+    "train-pipeline>checkpoint-store"
+   ],
+   "board_nodes": [],
+   "board_edges": [],
+   "highlights": [],
+   "callouts": [],
+   "items": []
+  },
+  {
+   "id": "s04-layer",
+   "kind": "layer",
+   "heading": "you want replies",
+   "narration": "You want answers, not just weights sitting on disk. The cli chat prompts you and prints sampled words back. That inference engine turns number sequences into replies with a small calculator.",
+   "add_components": [
+    "chat-cli",
+    "inference-engine"
+   ],
+   "add_connections": [
+    "chat-cli>checkpoint-store",
+    "chat-cli>inference-engine",
+    "inference-engine>gpt-model"
+   ],
+   "board_nodes": [],
+   "board_edges": [],
+   "highlights": [],
+   "callouts": [],
+   "items": []
+  },
+  {
+   "id": "s05-walkthrough",
+   "kind": "walkthrough",
+   "heading": "hello predicts world",
+   "narration": "You stream the shards of climbmix, a big mix of text pieces, to study greetings. For learning, the training scripts train the transformer guesses until hello leads to world. Afterward they save the checkpoint weights to disk. When you start, the cli chat loads the checkpoint memory. It sends the tokens of your hello onward. Finally the inference engine runs the forward math and returns hello world to you.",
+   "add_components": [],
+   "add_connections": [],
+   "board_nodes": [],
+   "board_edges": [],
+   "highlights": [],
+   "callouts": [],
+   "items": []
+  },
+  {
+   "id": "s06-layer",
+   "kind": "layer",
+   "heading": "extra credit checks",
+   "narration": "Helpers sit around your chat to build trust. Extra checks grade you on quizzes and code. The eval tasks score math, facts, and small programs for you.",
+   "add_components": [
+    "eval-suite"
+   ],
+   "add_connections": [
+    "eval-suite>inference-engine"
+   ],
+   "board_nodes": [],
+   "board_edges": [],
+   "highlights": [],
+   "callouts": [],
+   "items": []
+  },
+  {
+   "id": "s07-scale",
+   "kind": "scale",
+   "heading": "slow shared downloads",
+   "narration": "The token shards hit downloads that are slow and shared when workers miss together. Caching them on fast disk fixes the stall. Then you train longer and still chat from memory.",
+   "add_components": [],
+   "add_connections": [],
+   "board_nodes": [],
+   "board_edges": [],
+   "highlights": [],
+   "callouts": [
+    {
+     "target": "data-shards",
+     "text": "download contention",
+     "color": "red"
+    },
+    {
+     "target": "data-shards",
+     "text": "cache shards",
+     "color": "green"
+    }
+   ],
+   "items": []
+  },
+  {
+   "id": "s08-recap",
+   "kind": "recap",
+   "heading": "the big picture",
+   "narration": "You streamed text to train a brain, saved memory, chatted for answers, then graded trust.",
+   "add_components": [],
+   "add_connections": [],
+   "board_nodes": [],
+   "board_edges": [],
+   "highlights": [],
+   "callouts": [],
+   "items": []
+  }
+ ],
+ "repairs": [
+  "recap added"
+ ],
+ "check": {
+  "first": [
+   "the recap must retell the trip, saying the journey parts in order",
+   "\"climbmix\" (s05-walkthrough) is used without a plain-words explanation; explain it in the same sentence or drop it"
+  ],
+  "final": [
+   "the recap must retell the trip, saying the journey parts in order"
+  ],
+  "revised": true
+ },
+ "renames": [],
+ "polish": {
+  "rewritten": 8,
+  "kept": [],
+  "issues": []
+ }
+}
