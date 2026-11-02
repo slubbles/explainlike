@@ -38,7 +38,7 @@ export function stepsFor(job: { kind: string; input: string; voice: string; focu
 }
 
 /** Where each step stands, given the stage the job last reported. Steps before it are done; a failed job marks its stage as failed. */
-export function stepStates(steps: Step[], stage: string, state: "running" | "done" | "error"): StepState[] {
+export function stepStates(steps: Step[], stage: string, state: "queued" | "running" | "done" | "error"): StepState[] {
   if (state === "done") return steps.map(() => "ok");
   const at = Math.max(0, steps.findIndex((s) => s.stage === stage));
   return steps.map((_, i) => (i < at ? "ok" : i > at ? "todo" : state === "error" ? "fail" : "now"));
