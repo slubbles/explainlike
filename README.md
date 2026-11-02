@@ -4,6 +4,10 @@ Give it a GitHub repo, an article, an X post, or just a topic ("how DNS works").
 
 ![Explain Like drawing the OpenMausBot repo](docs/media/openmausbot.gif)
 
+Live demo: **https://explainlike.YOUR_SERVER_IP.sslip.io** — one video renders at a time, and a
+fresh render takes about five minutes.
+
+
 *Above: 12 seconds from a 2-minute video about [milind-soni/OpenMausBot](https://github.com/milind-soni/OpenMausBot). A run like this costs well under $0.20 in models and voice.*
 
 ## What it does
