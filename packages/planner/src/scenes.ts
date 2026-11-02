@@ -403,15 +403,6 @@ export async function planRepoScenes(o: { ledger: CostLedger; arch: Architecture
     ledger: o.ledger, step: extra.length ? "scene-plan-revise" : "scene-plan", schema: ScenePlan, name: "scene_plan", effort: "low", maxTokens: 9000, hedge: true,
     messages: [{ role: "system", content: sys }, { role: "user", content: user }, ...extra],
   });
-  // plan-stage self-check: the flow is told, early and hop by hop, and no term reaches the viewer undefined; one revision if not
-  const review = async (p: ScenePlan) => {
-    const c = await critiquePlan(o.ledger, p, L.audience).catch(() => undefined);
-    return [
-      ...checkStory(p, o.arch, L.brief.analogy),
-      ...(c?.undefined_terms ?? []).map((t) => `"${t.term}" (${t.scene}) is used without a plain-words explanation; explain it in the same sentence or drop it`),
-      ...(c && !c.flow_clear ? [`a newcomer could not retell the flow: ${c.flow_problem}`] : []),
-    ];
-  };
   const raw = await ask();
   let plan = repairRepoPlan(raw, o.arch, L);
   // the newcomer check and the narration polish both read the same draft, so they run side by side;
