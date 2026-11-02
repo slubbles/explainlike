@@ -78,7 +78,7 @@ export type Critique = z.infer<typeof Critique>;
 async function critiquePlan(ledger: CostLedger, plan: ScenePlan, audience: string): Promise<Critique> {
   const script = plan.scenes.map((s) => `[${s.id}] ${s.narration}`).join("\n");
   return sparkJson({
-    ledger, step: "plan-check", schema: Critique, name: "critique", effort: "low", maxTokens: 6000,
+    ledger, step: "plan-check", schema: Critique, name: "critique", effort: "low", maxTokens: 6000, hedge: true,
     messages: [
       { role: "system", content: `You are ${audience}, hearing this explainer narration once, in order. List every term you would not know (an acronym, product, protocol or internal name) that is used without a plain-words explanation at or before its first use. Words every developer knows (server, database, browser, app, API, model) do not count; a part the narration explains in plain words counts as explained. Then say whether you could now retell how one request goes from the user to the result, and if not, what is missing. Be strict but fair; at most 8 terms.` },
       { role: "user", content: script },
@@ -332,7 +332,7 @@ export async function polishNarration(o: { ledger: CostLedger; plan: ScenePlan; 
     parts: o.arch.components.map((c) => ({ id: c.id, name: c.keyword, what: c.what })),
     scenes: p.scenes.map((s) => ({ id: s.id, kind: s.kind, heading: s.heading, words: wordCount(s.narration), must_say: syncPhrases(s, o.arch), narration: s.narration })),
   });
-  const ask = (msgs: { role: "system" | "user" | "assistant"; content: string }[], step: string) => sparkJson({ ledger: o.ledger, step, schema: Polish, name: "narration_polish", effort: "minimal", maxTokens: 8000, messages: msgs });
+  const ask = (msgs: { role: "system" | "user" | "assistant"; content: string }[], step: string) => sparkJson({ ledger: o.ledger, step, schema: Polish, name: "narration_polish", effort: "minimal", maxTokens: 8000, hedge: true, messages: msgs });
   const apply = (base: ScenePlan, out: z.infer<typeof Polish>, renames: Map<string, string>) => {
     const kept: string[] = [];
     let rewritten = 0;
@@ -400,7 +400,7 @@ export async function planRepoScenes(o: { ledger: CostLedger; arch: Architecture
   const sys = repoSystem(o.arch, L, lo, hi);
   const user = JSON.stringify(compact);
   const ask = (extra: { role: "assistant" | "user"; content: string }[] = []) => sparkJson({
-    ledger: o.ledger, step: extra.length ? "scene-plan-revise" : "scene-plan", schema: ScenePlan, name: "scene_plan", effort: "low", maxTokens: 9000,
+    ledger: o.ledger, step: extra.length ? "scene-plan-revise" : "scene-plan", schema: ScenePlan, name: "scene_plan", effort: "low", maxTokens: 9000, hedge: true,
     messages: [{ role: "system", content: sys }, { role: "user", content: user }, ...extra],
   });
   // plan-stage self-check: the flow is told, early and hop by hop, and no term reaches the viewer undefined; one revision if not
@@ -681,14 +681,14 @@ export async function planConceptScenes(o: { ledger: CostLedger; doc: SourceDoc;
     o.doc.kind === "topic" ? "title: under 6 lowercase words. subtitle: the source sites, lowercase." : "title: under 6 lowercase words. subtitle: who wrote it, lowercase.",
   ].join("\n");
   const user = `SOURCE (${o.doc.kind}) by ${o.doc.author ?? "unknown"}: ${o.doc.title}\nURL: ${o.doc.url}\n\nTEXT:\n${o.doc.text.slice(0, 30000)}`;
-  let plan = await sparkJson({ ledger: o.ledger, step: "concept-plan", schema: ScenePlan, name: "scene_plan", effort: "low", maxTokens: 9000, messages: [{ role: "system", content: sys }, { role: "user", content: user }] });
+  let plan = await sparkJson({ ledger: o.ledger, step: "concept-plan", schema: ScenePlan, name: "scene_plan", effort: "low", maxTokens: 9000, hedge: true, messages: [{ role: "system", content: sys }, { role: "user", content: user }] });
   let { plan: fixed, dropped, unsaid } = validateConcept(plan, o.doc.text);
   // a cut-in that lost too many rows to stand is dropped whole, so even one bad row is worth a re-plan then
   const cutIns = (p: ScenePlan) => p.scenes.filter((s) => s.kind === "chart" || s.kind === "timeline" || s.kind === "map").length;
   if (dropped.length > 2 || cutIns(fixed) < cutIns(plan)) {
     o.progress?.({ stage: "plan", message: `re-planning: ${dropped.length} quotes were not in the source` });
     plan = await sparkJson({
-      ledger: o.ledger, step: "concept-plan-revise", schema: ScenePlan, name: "scene_plan", effort: "low", maxTokens: 9000,
+      ledger: o.ledger, step: "concept-plan-revise", schema: ScenePlan, name: "scene_plan", effort: "low", maxTokens: 9000, hedge: true,
       messages: [{ role: "system", content: sys }, { role: "user", content: user }, { role: "assistant", content: JSON.stringify(plan) },
         { role: "user", content: `These rows failed the source check (a quote not copied verbatim, a chart or timeline quote that does not state its number or date, or a map place that is not a real country or city named in its quote). Replace each with an exact copied phrase that does, or remove it:\n${dropped.join("\n")}\nReturn the full corrected plan.` }],
     });
