@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 export type Usd = { meta: number; voice: number; total: number };
 export type Job = {
   id: string; kind: "video" | "focus" | "what-if"; input: string; voice: string; approach?: string;
-  state: "queued" | "running" | "done" | "error"; stage: string; message: string; pct: number; error?: string; title?: string;
+  state: "running" | "done" | "error"; stage: string; message: string; pct: number; error?: string; title?: string;
   durationSec?: number; costUsd?: number; usd?: Usd; interactive?: boolean; focus?: string; whatIf?: string; parent?: string;
   ask?: { goal?: string; audience?: string; depth?: "overview" | "working" | "deep"; also?: string }; via?: "voice";
   outputs?: { mp4?: string; tldr?: string; excalidraw?: string; contactSheet?: string };

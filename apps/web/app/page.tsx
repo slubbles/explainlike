@@ -104,7 +104,7 @@ export default function Home() {
             {job && job.state !== "done" && job.stage !== "missing" && (
               <div className="main">
                 <div className="col">
-                  <div className="screen wait" aria-busy={job.state === "running"}>{job.state === "error" ? "No video: this run stopped before the end." : job.state === "queued" ? `In line: ${job.message ?? "waiting for the render slot"}. This page keeps your place.` : "The video shows up here when it is ready."}</div>
+                  <div className="screen wait" aria-busy={job.state === "running"}>{job.state === "error" ? "No video: this run stopped before the end." : "The video shows up here when it is ready."}</div>
                   {err && <div className="err" role="alert">{err}</div>}
                 </div>
                 <Steps job={job} />

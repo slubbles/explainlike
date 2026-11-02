@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { cap, stepsFor, stepStates } from "../lib/steps.ts";
+import { asSeen, cap, stepsFor, stepStates } from "../lib/steps.ts";
 
 const repo = { kind: "video", input: "https://github.com/slubbles/spotibai", voice: "deepgram" };
 
@@ -29,4 +29,16 @@ test("step labels show with a capital first letter", () => {
   assert.equal(cap("reading the repository"), "Reading the repository");
   assert.equal(cap("Muse Spark is mapping the architecture"), "Muse Spark is mapping the architecture");
   assert.equal(cap(""), "");
+});
+
+test("a job waiting for a render slot looks like one at its first step: no queue, no position, no fake progress", () => {
+  const waiting = { ...repo, id: "abc", state: "queued", stage: "start", message: "starting", pct: 0 };
+  const seen = asSeen(waiting);
+  assert.equal(seen.state, "running");
+  assert.equal(seen.pct, 0);
+  assert.doesNotMatch(JSON.stringify(seen), /queued|in line|ahead/i);
+  assert.deepEqual(stepStates(stepsFor(seen), seen.stage, seen.state as "running"), ["now", ...Array(9).fill("todo")]);
+  // a running job passes through untouched, so the steps keep tracking the real pipeline
+  const live = { ...waiting, state: "running", stage: "plan", message: "writing the scene plan", pct: 40 };
+  assert.equal(asSeen(live), live);
 });
