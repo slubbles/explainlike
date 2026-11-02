@@ -123,9 +123,16 @@ test("the hook's first line is drawn word by word as it is said, and the subtitl
     return { sceneId: s.id, duration: ws.length * 0.38, words: ws.map((w: string, i: number) => ({ word: w, start: i * 0.38, end: i * 0.38 + 0.3 })) };
   });
   const { film } = await compose({ plan: p2, audio: a2, theme: getTheme("pen-light"), spec: specFromBrief(DEFAULT_BRIEF), pack: loadIconPack(), sourceLabel: "x", arch });
-  const line = film.elements.filter((e) => e.g === "hookline" && e.k === "text").map((e: any) => e.text);
+  // each row is built in stages, centred on the words said so far; the last stage of each row is the finished line
+  const texts = film.elements.filter((e) => e.k === "text" && /^hookline\/r\d+\/s\d+$/.test(e.g ?? "")) as any[];
+  const stage = (e: any) => e.g.split("/").slice(1).map((x: string) => Number(x.slice(1)));
+  const rows = [...new Set(texts.map((e) => stage(e)[0]))].sort();
+  const last = (r: number) => Math.max(...texts.filter((e) => stage(e)[0] === r).map((e) => stage(e)[1]));
+  const line = rows.flatMap((r) => texts.filter((e) => stage(e)[0] === r && stage(e)[1] === last(r)).map((e) => e.text));
   assert.deepEqual(line, "What if every song came from a robot?".split(" "));
-  assert.ok(film.elements.some((e) => e.g === "hookline" && e.k === "text" && e.t0 < 5), "the hook line starts within five seconds");
+  const first = (r: number, s: number) => texts.find((e) => stage(e)[0] === r && stage(e)[1] === s)!.x;
+  assert.ok(first(rows[0], 1) > first(rows[0], last(rows[0])), "the first word starts centred and moves left as the row fills");
+  assert.ok(texts.some((e) => e.t0 < 5), "the hook line starts within five seconds");
   const caps = film.captions.filter((c) => c.scene === hook.id);
   assert.equal(caps.filter((c) => c.hidden).map((c) => c.words.map((w) => w.w).join(" ")).join(" "), line.join(" "));
   // every spoken word is still in the captions, so the caption check still sees the whole narration

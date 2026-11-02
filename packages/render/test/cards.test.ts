@@ -107,3 +107,21 @@ test("saidAt matches hyphenated names however the voice split them", () => {
   assert.equal(saidAt(one, "The agent-browser CLI,"), 0);
   assert.equal(saidAt(one, "agent-browser", 2), -1);
 });
+
+test("a kinetic row stays centred while it builds: each stage is laid out on the words said so far and leaves as the next word lands", async () => {
+  const { buildRow } = await import("../src/cards.js");
+  const els: any[] = [], ops: Record<string, [number, number][]> = {};
+  const P: any = { text: (o: any) => els.push({ ...o }), setOp: (g: string, t: number, v: number) => (ops[g] ??= []).push([t, v]), rough: () => {}, cueNext: () => {} };
+  const words = ["agents", "click", "real", "pages"].map((text, i) => ({ text, t: i * 0.5, color: "#000" }));
+  const lines: number[] = [];
+  const groups = buildRow(P, { words, cx: 960, y: 500, size: 100, g: "card:0/r0", key: 2, underline: (_a, _b, _t, dur) => lines.push(dur) });
+  assert.deepEqual(groups, ["card:0/r0/s1", "card:0/r0/s2", "card:0/r0/s3", "card:0/r0/s4"]);
+  for (const g of groups) {
+    const row = els.filter((e) => e.g === g);
+    const left = row[0].x, right = row[row.length - 1].x + textWidth(row[row.length - 1].text, 100);
+    assert.ok(Math.abs((left + right) / 2 - 960) < 1, `${g} is centred`);
+  }
+  assert.deepEqual(Object.keys(ops), groups.slice(0, 3), "every stage but the last leaves");
+  assert.deepEqual(groups.slice(0, 3).map((g) => ops[g][0][0]), [0.5, 1, 1.5]);
+  assert.ok(lines[0] > 0.1 && lines[1] < 0.05, "the underline draws once, then is already there");
+});
