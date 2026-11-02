@@ -6,7 +6,7 @@ import { fileURLToPath } from "node:url";
 import { getTheme, looksLikeTopic, specFromBrief, DEFAULT_BRIEF, type Ask, type Brief, type ExplainSpec, type Architecture, type Progress, type SceneAudio, type ScenePlan, type SourceDoc, type SourceKind } from "@explanimate/core";
 import { CostLedger, museTranscribe } from "@explanimate/models";
 import { ingestRepo } from "@explanimate/ingest";
-import { planBrief, extractArchitecture, validateArchitecture, evidencePack, reviewArchitecture, fixArchitecture, planRepoScenes, respeak, planFocus, planWhatIf, kindColor } from "@explanimate/planner";
+import { planBrief, extractArchitecture, validateArchitecture, evidencePack, reviewArchitecture, fixArchitecture, planRepoScenes, respeak, planFocus, planWhatIf, kindColor, checkBeats, readmeExcerpt } from "@explanimate/planner";
 import { pickVoice, wordOverlap, DeepgramVoice, type VoiceProvider } from "@explanimate/voice";
 import { captionMismatches, loadIconPack, mergePacks, builtinPackIds, detectComponents, packHints, type DetectedComponent, iconCatalog, resolveIcon, compose, renderFilm, mixNarration, sfxCues, contactSheet, frameCheck, checkTldr, checkExcalidraw, toExcalidraw, toTldraw, type IconPack, type SourceShot } from "@explanimate/render";
 
@@ -151,6 +151,8 @@ export async function runExplanimate(o: RunOptions) {
     detected = detectComponents(extra, r.digest.files, (f) => r.digest.read(f, 60_000));
     if (detected.length) notes.push(`packs detected: ${detected.map((d) => `${d.pack}/${d.component.id}`).join(", ")}`);
     const hints = packHints(detected);
+    const readmeFile = r.digest.files.find((f) => /^readme(\.md|\.markdown|\.txt)?$/i.test(f));
+    const readme = () => (readmeFile ? readmeExcerpt(r.digest.read(readmeFile, 200_000)) : "");
     const resolve = (n: string) => resolveIcon(pack, n);
     const fb = (k: string) => FALLBACK_ICON[k] ?? "box";
     if (o.focus || o.whatIf) {
@@ -217,9 +219,13 @@ export async function runExplanimate(o: RunOptions) {
     }));
     plan = await timed("scene plan", () => cacheJson(path.join(out, "plan.json"), () => {
       P({ stage: "plan", message: "writing the scene plan", pct: 32 });
-      return planRepoScenes({ ledger, arch: arch!, spec, progress: P });
+      return planRepoScenes({ ledger, arch: arch!, spec, readme: readme(), source: r.digest.text, progress: P });
     }));
     await recheckSpeech(arch);
+    // the speech check may have reworded a line: each line's visual is cut and checked again against what is said
+    const beats = checkBeats(plan, { arch: arch!, source: `${r.digest.text}\n${readme()}`, wps: spec.tempo.wps });
+    plan = { ...plan, scenes: beats.plan.scenes };
+    if (beats.report.beats) notes.push(`line visuals: ${beats.report.beats} lines, ${beats.report.cards} cards, about ${beats.report.perMinute} changes a minute (${Object.entries(beats.report.types).map(([k, n]) => `${k} ${n}`).join(", ")})${beats.report.repairs.length ? `; fixed: ${beats.report.repairs.join("; ")}` : ""}${beats.report.issues.length ? `; open: ${beats.report.issues.join("; ")}` : ""}`);
     const chk = (plan as { check?: { first: string[]; final: string[]; revised: boolean } }).check;
     // plain part names chosen by the narration polish are what the board shows and the voice says
     const pol = plan as { renames?: { id: string; keyword: string }[]; polish?: { rewritten: number; kept: string[]; issues: string[] } };
