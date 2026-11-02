@@ -1,3 +1,4 @@
+import { chatUsd, llmProvider } from "@explanimate/core/llm";
 import { localOnly } from "../../../../lib/local";
 import { admit, budgetNow, noteSpend, startJob, validInput } from "../../../../lib/jobs";
 import { limitRequest, readBody } from "../../../../lib/guard";
@@ -6,9 +7,6 @@ import { START_TOOL, readStart, takeSentences, voiceSystem, type Turn } from "..
 
 export const runtime = "nodejs";
 
-const BASE = process.env.META_API_BASE ?? "https://api.meta.ai/v1";
-const MODEL = process.env.EXPLANIMATE_SPARK_MODEL ?? "muse-spark-1.3-contributor";
-const PRICE = { in: 1.25e-6, out: 4.25e-6 };
 
 type Msg = { role: string; content: string | null; tool_calls?: unknown[]; tool_call_id?: string };
 
@@ -83,12 +81,13 @@ export async function POST(req: Request) {
 
 /** Muse Spark, streamed: the reply split into sentences to voice one by one, or a start_video call collected whole. */
 async function spark(messages: Msg[], signal: AbortSignal) {
-  const r = await fetch(`${BASE}/chat/completions`, {
+  const llm = llmProvider();
+  const r = await fetch(`${llm.base}/chat/completions`, {
     method: "POST", signal,
-    headers: { Authorization: `Bearer ${process.env.MODEL_API_KEY}`, "content-type": "application/json" },
-    body: JSON.stringify({ model: MODEL, messages, tools: [START_TOOL], stream: true, stream_options: { include_usage: true }, reasoning_effort: "minimal", max_tokens: 1500 }),
+    headers: { Authorization: `Bearer ${process.env[llm.keyVar]}`, "content-type": "application/json" },
+    body: JSON.stringify({ model: llm.model, messages, tools: [START_TOOL], stream: true, stream_options: { include_usage: true }, reasoning_effort: "minimal", max_tokens: 1500 }),
   });
-  if (!r.ok || !r.body) throw new Error(`Muse Spark HTTP ${r.status}`);
+  if (!r.ok || !r.body) throw new Error(`Muse Spark (${llm.service}) HTTP ${r.status}`);
   let text = "", pending = "", sse = "", usd = 0;
   const sentences: string[] = [];
   let call: { id: string; name: string; args: string } | undefined;
@@ -110,7 +109,7 @@ async function spark(messages: Msg[], signal: AbortSignal) {
       if (!line.startsWith("data:") || line === "data: [DONE]") continue;
       let c: any;
       try { c = JSON.parse(line.slice(5)); } catch { continue; }
-      if (c.usage) usd = (c.usage.prompt_tokens ?? 0) * PRICE.in + (c.usage.completion_tokens ?? 0) * PRICE.out;
+      if (c.usage) usd = chatUsd(c.usage);
       const d = c.choices?.[0]?.delta;
       if (d?.content) { text += d.content; pending += d.content; flush(false); }
       for (const t of d?.tool_calls ?? []) {
