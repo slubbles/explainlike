@@ -50,9 +50,9 @@ test("a rewrite too long for the board is sent back with the reason, and the nex
   assert.deepEqual(out.issues, []);
 });
 
-test("terms the second look still finds are fixed again, at most twice", async () => {
-  const { asks, out } = await scripted({ recheck: [{ open: ["1", "2"] }, { open: ["1"] }] }, run);
-  assert.deepEqual(asks.map((a) => a.name), ["narration_fix", "recheck", "narration_fix", "recheck"]);
+test("terms the second look still finds are fixed again, at most three rounds", async () => {
+  const { asks, out } = await scripted({ recheck: [{ open: ["1", "2"] }, { open: ["1"] }, { open: ["1"] }] }, run);
+  assert.deepEqual(asks.map((a) => a.name), ["narration_fix", "recheck", "narration_fix", "recheck", "narration_fix", "recheck"]);
   assert.deepEqual(out.issues, [issues[0]]);
 });
 

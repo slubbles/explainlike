@@ -31,7 +31,7 @@ export const SHAPES: Record<Shape, ShapeSpec> = {
     spine:
       "Tell it as the request moving forward ('First...', 'Next it reaches...'): each scene is the next thing that happens to it, and the part it meets is the part that does that thing. For each added part say its keyword out loud, what it does in plain words, its role in the analogy, and why it is there.",
     close:
-      "End with one recap scene: retell the trip in one breath, from the viewer to what they get back, naming the journey keywords in order, then one line that answers the hook's question. Give it a heading that says what came back to the viewer, not 'the whole trip'.",
+      "End with one recap scene of two or three short plain sentences. First answer 'so what does it do for me?' for the viewer, in everyday words ('So your AI can log in, fill a form or grab a screenshot for you, in a real browser.'). Then retrace the trip in one short story sentence, naming the journey keywords in order the way you'd tell a friend, not as a list of steps, and if it fits, one line that answers the hook's question. Give it a heading that says what came back to the viewer, not 'the whole trip'.",
     headings:
       "Name the hop, in the words the narration says: 'a click arrives', 'the queue holds it', 'the ledger keeps it'. Never a generic summary heading.",
     recap: true,
