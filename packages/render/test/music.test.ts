@@ -7,7 +7,7 @@ import { spawnSync } from "node:child_process";
 import { encodeMp4, loudness, BED_UNDER_DB, VOICE_LUFS, sfxCues, makeSfx, SFX_PEAK } from "../src/index.js";
 
 test("the music bed sits at least 20 dB under the voice, and --no-music leaves only the voice", { timeout: 120_000 }, async () => {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "explainlike-music-"));
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "explanimate-music-"));
   const T = 14, frames = path.join(dir, "frames");
   fs.mkdirSync(frames);
   spawnSync("ffmpeg", ["-v", "error", "-f", "lavfi", "-i", `color=c=white:s=320x180:r=10:d=${T}`, path.join(frames, "f%06d.jpg")]);
@@ -30,7 +30,7 @@ test("sound effects are cued by what is drawn, at most one every 0.35 s, and nev
   const film = { duration: 10, elements: [{ t0: 1, cue: "pop" as const }, { t0: 1.1, cue: "pop" as const }, { t0: 2, cue: "whoosh" as const }, { t0: 3 }, { t0: 12, cue: "pop" as const }] };
   assert.deepEqual(sfxCues(film), [{ t: 1, kind: "pop" }, { t: 2, kind: "whoosh" }]);
 
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "explainlike-sfx-"));
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "explanimate-sfx-"));
   const T = 10, frames = path.join(dir, "frames");
   fs.mkdirSync(frames);
   spawnSync("ffmpeg", ["-v", "error", "-f", "lavfi", "-i", `color=c=white:s=320x180:r=10:d=${T}`, path.join(frames, "f%06d.jpg")]);

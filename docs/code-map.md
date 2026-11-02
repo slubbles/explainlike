@@ -8,7 +8,7 @@ which checks can stop a video, and where it still breaks.
 ```mermaid
 flowchart LR
   U["you: repo / article / X post / topic"] --> W["apps/web<br/>Next.js UI, job store, voice chat"]
-  W -->|spawns the CLI as a child| C["packages/cli<br/>runExplainLike"]
+  W -->|spawns the CLI as a child| C["packages/cli<br/>runExplanimate"]
   U -->|terminal| C
   C --> I["core/ingest<br/>clone, fetch, digest"]
   I --> P["planner<br/>brief, architecture, scenes"]
@@ -19,7 +19,7 @@ flowchart LR
   O --> W
 ```
 
-The web app is a thin shell: it stores one JSON file per job on disk, spawns `node packages/cli/bin/explainlike.mjs`
+The web app is a thin shell: it stores one JSON file per job on disk, spawns `node packages/cli/bin/explanimate.mjs`
 as a child process, and polls that JSON. All the work is in the CLI and the four packages under it.
 There is no database and no queue.
 
@@ -127,7 +127,7 @@ cold compile, which reads as "Thinking…" hanging. Pre-warm it, or run `next bu
 ## Running it
 
 - **Web:** `pnpm web`, keys in `apps/web/.env.local`; Next loads that file itself.
-- **CLI:** `pnpm explainlike <url>`, keys in a `.env` or `.env.local` in the working directory
+- **CLI:** `pnpm explanimate <url>`, keys in a `.env` or `.env.local` in the working directory
   (`packages/cli/src/bin.ts:7-13`). The CLI does not read `apps/web/.env.local`, so a fresh clone needs
   its own file at the root.
 - **Tests:** `pnpm test` (220 tests, node:test, includes a synthetic Chrome+ffmpeg render).
@@ -135,7 +135,7 @@ cold compile, which reads as "Thinking…" hanging. Pre-warm it, or run `next bu
 ## Two warts worth knowing
 
 - The private-address guard is on for the web app (`apps/web/lib/jobs.ts` passes
-  `EXPLAINLIKE_ALLOW_PRIVATE_URLS=0`) but the CLI defaults it *off* (`packages/cli/src/bin.ts:55`), and the
+  `EXPLANIMATE_ALLOW_PRIVATE_URLS=0`) but the CLI defaults it *off* (`packages/cli/src/bin.ts:55`), and the
   API and MCP server spawn that CLI — so a URL sent through those entry points is not guarded. Keep the
   flag at `0` in anything that takes links from strangers.
 - Chrome is looked for in three places (`packages/render/src/capture.ts`, `packages/ingest/src/concept.ts`,

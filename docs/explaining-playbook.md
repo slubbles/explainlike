@@ -1,6 +1,6 @@
 # Explaining playbook
 
-How two channels that explain hard tech well actually do it, and what Explain Like takes from them.
+How two channels that explain hard tech well actually do it, and what Explanimate takes from them.
 These notes come from the auto-captions of 10 videos. Each quote is short and backs one pattern.
 
 Sources:
@@ -49,7 +49,7 @@ Sources:
    - Caleb is denser at 182–188 wpm but still makes one claim per sentence.
    - Details (internals, edge cases) come after the main path is clear, never before.
 
-## How Explain Like applies it to a repo
+## How Explanimate applies it to a repo
 
 - **Hook (≤3 sentences).** Say what the project is, in plain words anyone can follow. Say what it lets you do and why you'd care. Introduce the one everyday analogy, then promise the story: "let's follow one message".
 - **The journey.** Draw the boxes in the order one request meets them. For each stop, give the plain job of the box and its analogy role, and say why it's there. Define each technical term when it first comes up, or use the plain word instead.
@@ -130,7 +130,7 @@ Sources:
   | Sean | 1 |
   | Alux | 0–1 |
 
-  The channels that draw or build a diagram (KodeKloud, Caleb, Sean, Alux) barely cut. Instead they **add to one canvas** and move attention with an arrow, a marker stroke or a highlight. That is the family Explain Like belongs to. Motion comes from things being drawn and the camera moving, not from cuts.
+  The channels that draw or build a diagram (KodeKloud, Caleb, Sean, Alux) barely cut. Instead they **add to one canvas** and move attention with an arrow, a marker stroke or a highlight. That is the family Explanimate belongs to. Motion comes from things being drawn and the camera moving, not from cuts.
 - **Kinetic and title type.**
   - Alux uses full-screen chapter cards ("STAGE 1 · ENOUGH TO LEAVE YOUR JOB") in the brand colour.
   - KodeKloud uses a full-screen title card.
@@ -158,7 +158,7 @@ From the spectrograms and listening:
 - **Silence used as punctuation.** Crayon drops nearly everything to silence for about a second before a chapter card. A riser or a sweep runs into it, then the music comes back in.
 - **Diagram channels are dry.** KodeKloud and Sean have long stretches with no music bed at all (22–28 s of near-silence per 2 minutes for KodeKloud). The voice carries the video, and that works because the drawing keeps changing.
 
-### What Explain Like takes from this
+### What Explanimate takes from this
 
 Everything below fits a hand-drawn whiteboard. None of it adds fast cuts, stock footage or photos.
 

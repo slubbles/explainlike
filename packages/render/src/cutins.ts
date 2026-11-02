@@ -1,5 +1,5 @@
-import { parseFigure, parseDated, type NoteItem } from "@explainlike/core";
-import { countries, findPlace, MAP_CREDIT, type Place } from "@explainlike/core/places";
+import { parseFigure, parseDated, type NoteItem } from "@explanimate/core";
+import { countries, findPlace, MAP_CREDIT, type Place } from "@explanimate/core/places";
 import { wrapText, type Box } from "./layout.js";
 import { textWidth } from "./measure.js";
 

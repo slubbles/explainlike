@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { isSecretPath, redact } from "@explainlike/ingest";
+import { isSecretPath, redact } from "@explanimate/ingest";
 
 test("credential-looking files are never opened", () => {
   for (const p of [".env", "apps/web/.env.local", ".dev.vars", "certs/server.pem", "home/.ssh/id_ed25519", "config/service-account.json", ".npmrc", "old/backup/db.sql"]) assert.ok(isSecretPath(p), p);

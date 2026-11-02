@@ -28,7 +28,7 @@ test("box descriptions keep code names as the code writes them and lower-case th
 });
 
 test("box sublabels are big and dark enough to read in a wide shot, and still fit inside their box", { timeout: 60_000 }, async () => {
-  const { getTheme, specFromBrief, DEFAULT_BRIEF } = await import("@explainlike/core");
+  const { getTheme, specFromBrief, DEFAULT_BRIEF } = await import("@explanimate/core");
   const { compose, loadIconPack } = await import("../src/index.js");
   const fs = await import("node:fs");
   const fx = new URL("./fixtures/", import.meta.url);

@@ -1,16 +1,16 @@
 /**
  * Thin client for the Meta Model API (https://api.meta.ai/v1).
- * Models used by Explain Like:
+ * Models used by Explanimate:
  *  - muse-spark-1.3        planning, architecture extraction, review passes (structured JSON)
  *  - muse-image-1.0        doodle icons for the whiteboard
  *  - sam-3.1               finds the drawn object so icons are cropped cleanly
  *  - muse-voice-transcribe-1.0  checks the voiceover says what the script says
  */
 import { z } from "zod";
-import { strictJsonSchema, fetchRetry, ServiceError, type CostEntry } from "@explainlike/core";
+import { strictJsonSchema, fetchRetry, ServiceError, type CostEntry } from "@explanimate/core";
 
 const BASE = process.env.META_API_BASE ?? "https://api.meta.ai/v1";
-export const SPARK = process.env.EXPLAINLIKE_SPARK_MODEL ?? "muse-spark-1.3-contributor";
+export const SPARK = process.env.EXPLANIMATE_SPARK_MODEL ?? "muse-spark-1.3-contributor";
 export const IMAGE = "muse-image-1.0";
 export const SAM = "sam-3.1";
 export const TRANSCRIBE = "muse-voice-transcribe-1.0";

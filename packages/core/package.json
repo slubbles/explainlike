@@ -1,5 +1,5 @@
 {
-  "name": "@explainlike/core",
+  "name": "@explanimate/core",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -7,7 +7,8 @@
   "exports": {
     ".": "./src/index.ts",
     "./topic": "./src/topic.ts",
-    "./places": "./src/places.ts"
+    "./places": "./src/places.ts",
+    "./env": "./src/env.ts"
   },
   "dependencies": {
     "zod": "^4.1.0"

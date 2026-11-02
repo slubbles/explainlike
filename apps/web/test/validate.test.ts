@@ -14,14 +14,14 @@ test("the server never fetches its own network", () => {
   ]) assert.ok(!validInput(u), u);
 });
 
-test("local paths only with EXPLAINLIKE_ALLOW_LOCAL=1, and only absolute existing ones", () => {
-  delete process.env.EXPLAINLIKE_ALLOW_LOCAL;
+test("local paths only with EXPLANIMATE_ALLOW_LOCAL=1, and only absolute existing ones", () => {
+  delete process.env.EXPLANIMATE_ALLOW_LOCAL;
   assert.ok(!validInput("/tmp"));
-  process.env.EXPLAINLIKE_ALLOW_LOCAL = "1";
+  process.env.EXPLANIMATE_ALLOW_LOCAL = "1";
   assert.ok(validInput("/tmp"));
   assert.ok(!validInput("../etc"));
   assert.ok(!validInput("/definitely/not/here"));
-  delete process.env.EXPLAINLIKE_ALLOW_LOCAL;
+  delete process.env.EXPLANIMATE_ALLOW_LOCAL;
 });
 
 test("a topic in words is accepted, but not a path or a bare word list too long to be a question", () => {

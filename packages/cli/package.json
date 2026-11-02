@@ -1,22 +1,22 @@
 {
-  "name": "explainlike",
+  "name": "explanimate",
   "version": "0.1.0",
   "type": "module",
   "license": "MIT",
   "description": "Turn a GitHub repo, X post or article into a whiteboard explainer video + editable board (.tldr, opens in tldraw.com), powered by Meta Muse models.",
   "bin": {
-    "explainlike": "./bin/explainlike.mjs"
+    "explanimate": "./bin/explanimate.mjs"
   },
   "exports": {
     ".": "./src/index.ts"
   },
   "dependencies": {
-    "@explainlike/core": "workspace:*",
-    "@explainlike/models": "workspace:*",
-    "@explainlike/ingest": "workspace:*",
-    "@explainlike/planner": "workspace:*",
-    "@explainlike/voice": "workspace:*",
-    "@explainlike/render": "workspace:*",
+    "@explanimate/core": "workspace:*",
+    "@explanimate/models": "workspace:*",
+    "@explanimate/ingest": "workspace:*",
+    "@explanimate/planner": "workspace:*",
+    "@explanimate/voice": "workspace:*",
+    "@explanimate/render": "workspace:*",
     "tsx": "^4.19.2"
   }
 }

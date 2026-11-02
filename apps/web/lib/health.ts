@@ -14,7 +14,7 @@ export interface Health {
 
 const CHROME = ["/usr/bin/google-chrome", "/usr/bin/google-chrome-stable", "/usr/bin/chromium", "/usr/bin/chromium-browser", "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"];
 
-/** Chrome's usual Windows install folders, so a fresh machine is healthy without EXPLAINLIKE_CHROME. */
+/** Chrome's usual Windows install folders, so a fresh machine is healthy without EXPLANIMATE_CHROME. */
 function windowsChrome(env: NodeJS.ProcessEnv): string[] {
   if (process.platform !== "win32") return [];
   const programFiles = env.PROGRAMFILES ?? "C:\\Program Files";
@@ -53,16 +53,16 @@ export const realProbe: Probe = {
 export function checkHealth(jobsDir: string, budgetOk: boolean, p: Probe = realProbe): Health {
   const checks = {
     ffmpeg: p.runs("ffmpeg"),
-    chrome: [p.env.EXPLAINLIKE_CHROME, ...CHROME, ...windowsChrome(p.env)].some((f) => !!f && p.has(f)),
+    chrome: [p.env.EXPLANIMATE_CHROME, ...CHROME, ...windowsChrome(p.env)].some((f) => !!f && p.has(f)),
     modelKey: !!p.env.MODEL_API_KEY,
     voiceKey: !!p.env.DEEPGRAM_API_KEY,
     jobsDir: p.writable(jobsDir),
   };
   const problems: string[] = [];
   if (!checks.ffmpeg) problems.push("ffmpeg is not on the PATH.");
-  if (!checks.chrome) problems.push("Chrome or Chromium was not found. Set EXPLAINLIKE_CHROME.");
+  if (!checks.chrome) problems.push("Chrome or Chromium was not found. Set EXPLANIMATE_CHROME.");
   if (!checks.modelKey) problems.push("MODEL_API_KEY is not set.");
-  if (!checks.jobsDir) problems.push("The jobs folder is not writable. Check EXPLAINLIKE_JOBS_DIR and the volume.");
-  const paused = p.env.EXPLAINLIKE_DEMO_ONLY === "1" || !budgetOk;
+  if (!checks.jobsDir) problems.push("The jobs folder is not writable. Check EXPLANIMATE_JOBS_DIR and the volume.");
+  const paused = p.env.EXPLANIMATE_DEMO_ONLY === "1" || !budgetOk;
   return { ok: problems.length === 0, checks, paused, problems };
 }

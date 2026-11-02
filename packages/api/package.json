@@ -1,18 +1,18 @@
 {
-  "name": "@explainlike/api",
+  "name": "@explanimate/api",
   "version": "0.1.0",
   "private": true,
   "type": "module",
   "license": "MIT",
-  "description": "Run Explain Like jobs from your own code, or over a small HTTP API on localhost.",
+  "description": "Run Explanimate jobs from your own code, or over a small HTTP API on localhost.",
   "bin": {
-    "explainlike-api": "./bin/explainlike-api.mjs"
+    "explanimate-api": "./bin/explanimate-api.mjs"
   },
   "exports": {
     ".": "./src/index.ts"
   },
   "dependencies": {
-    "@explainlike/core": "workspace:*",
+    "@explanimate/core": "workspace:*",
     "tsx": "^4.19.2"
   }
 }

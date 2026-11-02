@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { Architecture, NoteItem, Brief, DEFAULT_BRIEF, LOOKS, MIN_CUTS_PER_MIN, TEMPOS, coverageSeconds, specFromBrief, getTheme, listThemes, isKeyword, quoteInSource, strictJsonSchema, agreementSlips, tidySpeech, soundsLikeKeywords } from "@explainlike/core";
+import { Architecture, NoteItem, Brief, DEFAULT_BRIEF, LOOKS, MIN_CUTS_PER_MIN, TEMPOS, coverageSeconds, specFromBrief, getTheme, listThemes, isKeyword, quoteInSource, strictJsonSchema, agreementSlips, tidySpeech, soundsLikeKeywords } from "@explanimate/core";
 
 test("the brief sets tempo from complexity and list scenes from depth", () => {
   const tech = specFromBrief({ ...DEFAULT_BRIEF, complexity: "technical", depth: "deep", extras: ["requirements", "trade-offs", "failure modes"] });
@@ -64,7 +64,7 @@ test("keywords are 1-3 lowercase words; quotes match with small edits only", () 
 });
 
 test("narration is tidied mechanically before it is voiced", async () => {
-  const { tidySpeech } = await import("@explainlike/core");
+  const { tidySpeech } = await import("@explanimate/core");
   assert.equal(tidySpeech("  the  the cache holds rows ,then  drops them. at 10x traffic, writes queue up"), "The cache holds rows, then drops them. At 10x traffic, writes queue up.");
   assert.equal(tidySpeech("Use a queue, e.g. a durable one. it said that that was fine!"), "Use a queue, e.g. a durable one. It said that that was fine!");
   assert.equal(tidySpeech("How does a pasted link become a video?"), "How does a pasted link become a video?");
@@ -93,7 +93,7 @@ test("a noun after a singular subject is not read as a verb: 'a write queue that
 });
 
 test("phraseAt finds a step label as people say it", async () => {
-  const { phraseAt, spokenWords } = await import("@explainlike/core");
+  const { phraseAt, spokenWords } = await import("@explanimate/core");
   const w = spokenWords("Then the agent sends the message back, and the app shows you the reply.");
   assert.equal(phraseAt(w, "send message"), 3);
   assert.equal(phraseAt(w, "show reply"), 10);
@@ -103,7 +103,7 @@ test("phraseAt finds a step label as people say it", async () => {
 });
 
 test("missing articles before common nouns are caught", async () => {
-  const { missingArticles } = await import("@explainlike/core");
+  const { missingArticles } = await import("@explanimate/core");
   assert.deepEqual(missingArticles("The guest will send message to manager, then we run agent."), ["send message", "run agent", "to manager"]);
   assert.deepEqual(missingArticles("The guest sends a message to the manager, who saves messages and runs the agent."), []);
   assert.deepEqual(missingArticles("The demo app declares widgets for the open window, then a used file."), []);

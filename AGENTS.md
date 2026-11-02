@@ -1,6 +1,6 @@
-# Working on Explain Like
+# Working on Explanimate
 
-Explain Like turns a GitHub repo, an X post, an article or a plain topic into a narrated, hand-drawn whiteboard explainer video (mp4), plus `.tldr` and `.excalidraw` boards. It's built for the Meta Global AI Developer Hackathon (deadline Thu Nov 5, 10:00 AM Manila) on Meta Muse models.
+Explanimate turns a GitHub repo, an X post, an article or a plain topic into a narrated, hand-drawn whiteboard explainer video (mp4), plus `.tldr` and `.excalidraw` boards. It's built for the Meta Global AI Developer Hackathon (deadline Thu Nov 5, 10:00 AM Manila) on Meta Muse models.
 
 ## Layout
 - `packages/ingest`: fetches repos, articles, X posts and cited sources for plain topics. Has an SSRF guard, size limits and timeouts.
@@ -9,15 +9,15 @@ Explain Like turns a GitHub repo, an X post, an article or a plain topic into a 
 - `packages/voice`: Deepgram Aura text to speech and the voiceover check.
 - `packages/render`: roughjs drawing in headless Chrome, frame streaming into ffmpeg, the placement check, the frame check, cut-ins (charts, timelines, maps from Natural Earth), the music bed and sound effects.
 - `packages/core`: shared types, schemas, pacing rules and figures.
-- `packages/cli`: `pnpm explainlike <link or topic>`.
+- `packages/cli`: `pnpm explanimate <link or topic>`.
 - `packages/api`: local job API on 127.0.0.1:7311 (`/v1/jobs`).
-- `packages/mcp`: the `/explainlike` MCP server (`explain`, `explain_status`, `explain_cancel`).
+- `packages/mcp`: the `/explanimate` MCP server (`explain`, `explain_status`, `explain_cancel`).
 - `apps/web`: Next.js 16 web app with voice mode (Deepgram STT, Muse reply, Aura speech; localhost only).
 - `docs/explaining-playbook.md`: how the engine scripts videos, drawn from the channels the user likes. `docs/deploy.md`: hosting notes.
 
 ## Commands
 - `pnpm install`, `pnpm typecheck`, `pnpm test` (it must end with `# fail 0`), and `pnpm web` (dev server on port 3000).
-- On Windows, Chrome is found in its usual install folders, so a fresh shell works; set `EXPLAINLIKE_CHROME` only for a non-standard path. Keys go in `apps/web/.env.local`, which is gitignored; `.env.example` lists every setting.
+- On Windows, Chrome is found in its usual install folders, so a fresh shell works; set `EXPLANIMATE_CHROME` only for a non-standard path. Keys go in `apps/web/.env.local`, which is gitignored; `.env.example` lists every setting.
 - CI (`.github/workflows/ci.yml`) runs the typecheck, tests and web build on every push to main.
 
 ## Rules
@@ -26,7 +26,7 @@ Explain Like turns a GitHub repo, an X post, an article or a plain topic into a 
 - Don't run Muse Code on client repos (for example ACC). Test with public repos or topics.
 - Push straight to main with small, meaningful commits. Each commit has a subject in the form `type(scope): plain-language subject`, then a blank line, one plain sentence on what was wrong or why, and plain bullets of what changed.
 - Keep quality high. Don't trade quality for speed. Keep the UI clean, light and restrained, with Inter and brand colors only.
-- Don't deploy publicly without the user's OK. The domain explainlike.co isn't bought yet.
+- Don't deploy publicly without the user's OK. The domain explanimate.co is bought but not pointed at anything yet; ask before you point it.
 
 ## Where things stand (Nov 1, 6:30 PM Manila)
 - 220+ commits, 218 tests, CI green.

@@ -1,7 +1,8 @@
 import fs from "node:fs";
 import path from "node:path";
-import { runExplainLike } from "./pipeline.js";
-import { builtinPackIds } from "@explainlike/render";
+import { runExplanimate } from "./pipeline.js";
+import { builtinPackIds } from "@explanimate/render";
+import { adoptLegacyEnv } from "@explanimate/core";
 
 // load .env from the working directory without printing anything
 for (const f of [".env", ".env.local"]) {
@@ -11,8 +12,10 @@ for (const f of [".env", ".env.local"]) {
     if (m && !process.env[m[1]]) process.env[m[1]] = m[2].replace(/^["']|["']$/g, "");
   }
 }
+// a .env written before the rename may still use EXPLAINLIKE_* names
+adoptLegacyEnv();
 
-const HELP = `explainlike <github-url | local-repo-dir | x.com post url | article url | "a topic in words"> [options]
+const HELP = `explanimate <github-url | local-repo-dir | x.com post url | article url | "a topic in words"> [options]
 
   A topic with no link ("how DNS works") is read from Wikipedia and the reputable pages it cites,
   and the video names its sources (listed in sources.md and the manifest).
@@ -45,14 +48,14 @@ follow-ups on an earlier repo run (same input, new --out):
   --focus <component id>                   15-20 s deep dive on one box
   --what-if <10x|100x>                     what breaks if traffic grows (every number labelled as an assumption)
 
-explainlike explain --from <earlier out dir> --component <id> [--json]
+explanimate explain --from <earlier out dir> --component <id> [--json]
                                            text explanation of one box, grounded in its evidence files
 `;
 
 const argv = process.argv.slice(2);
 // the person at this terminal chose the link, so the CLI may read intranet pages; the private-address guard
-// is for links strangers type into the web app. Set EXPLAINLIKE_ALLOW_PRIVATE_URLS=0 to keep it on here too.
-process.env.EXPLAINLIKE_ALLOW_PRIVATE_URLS ??= "1";
+// is for links strangers type into the web app. Set EXPLANIMATE_ALLOW_PRIVATE_URLS=0 to keep it on here too.
+process.env.EXPLANIMATE_ALLOW_PRIVATE_URLS ??= "1";
 if (!argv.length || argv.includes("--help") || argv.includes("-h")) { process.stdout.write(HELP); process.exit(0); }
 const opt = (k: string) => { const i = argv.indexOf(k); return i >= 0 ? argv[i + 1] : undefined; };
 const many = (k: string) => argv.flatMap((a, i) => (a === k ? [argv[i + 1]] : []));
@@ -69,7 +72,7 @@ if (whatIf && whatIf !== "10x" && whatIf !== "100x") { process.stderr.write("--w
 const depth = opt("--depth");
 if (depth && !["overview", "working", "deep"].includes(depth)) { process.stderr.write("--depth takes overview, working or deep\n"); process.exit(1); }
 const ask = { goal: opt("--goal"), audience: opt("--audience"), depth: depth as "overview" | "working" | "deep" | undefined, also: opt("--also") };
-runExplainLike({
+runExplanimate({
   from: opt("--from") && path.resolve(opt("--from")!), focus: opt("--focus"), whatIf: whatIf as "10x" | "100x" | undefined,
   input: fs.existsSync(input) ? path.resolve(input) : input,
   out: opt("--out") && path.resolve(opt("--out")!), name: opt("--name"), voice: opt("--voice"),
@@ -86,14 +89,14 @@ runExplainLike({
   // a service failure already reads as a sentence a person can act on; the raw detail is for logs only
   const plain = e?.name === "ServiceError";
   if (json) process.stdout.write(JSON.stringify({ type: "error", message: String(e?.message ?? e), service: plain ? e.service : undefined }) + "\n");
-  else process.stderr.write(plain ? `explainlike failed: ${e.message}\n  (${e.detail ?? "no detail"})\n` : `explainlike failed: ${e?.stack ?? e}\n`);
+  else process.stderr.write(plain ? `explanimate failed: ${e.message}\n  (${e.detail ?? "no detail"})\n` : `explanimate failed: ${e?.stack ?? e}\n`);
   process.exit(1);
 });
 
 async function explain() {
-  const { CostLedger } = await import("@explainlike/models");
-  const { explainComponent, evidencePack } = await import("@explainlike/planner");
-  const { digestRepo } = await import("@explainlike/ingest");
+  const { CostLedger } = await import("@explanimate/models");
+  const { explainComponent, evidencePack } = await import("@explanimate/planner");
+  const { digestRepo } = await import("@explanimate/ingest");
   const from = opt("--from"), id = opt("--component");
   const out = (o: unknown) => { process.stdout.write(JSON.stringify(o) + "\n"); process.exit(0); };
   try {

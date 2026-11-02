@@ -2,10 +2,10 @@ import fs from "node:fs";
 import path from "node:path";
 import os from "node:os";
 import { execFileSync } from "node:child_process";
-import type { SourceDoc } from "@explainlike/core";
+import type { SourceDoc } from "@explanimate/core";
 import { isSecretPath, redact } from "./secrets.js";
 
-export const REPO_CACHE = process.env.EXPLAINLIKE_REPO_CACHE ?? path.join(os.homedir(), ".cache", "explainlike", "repos");
+export const REPO_CACHE = process.env.EXPLANIMATE_REPO_CACHE ?? path.join(os.homedir(), ".cache", "explainlike", "repos");
 
 const SKIP_DIR = /(^|\/)(node_modules|vendor|dist|build|out|\.next|\.turbo|\.git|coverage|__pycache__|\.venv|venv|target|\.cache|public\/static|third_party)\//;
 const BINARY = /\.(png|jpe?g|gif|webp|ico|svg|mp4|mov|mp3|wav|woff2?|ttf|otf|eot|pdf|zip|gz|tgz|wasm|so|dylib|exe|bin|lock|snap|map|min\.js|min\.css|db|sqlite)$/i;
@@ -49,7 +49,7 @@ export function checkout(urlOrPath: string): { dir: string; url: string; commit:
   return { dir, url, commit, name: `${g.owner}/${g.repo}` };
 }
 
-const CLONE_TIMEOUT_MS = Number(process.env.EXPLAINLIKE_CLONE_TIMEOUT_S ?? 180) * 1000;
+const CLONE_TIMEOUT_MS = Number(process.env.EXPLANIMATE_CLONE_TIMEOUT_S ?? 180) * 1000;
 
 /** A failed clone as a sentence a person can act on: missing or private, unknown branch, too big, or offline. */
 export function cloneError(e: { stderr?: Buffer | string; signal?: string | null; message?: string }, name: string, ref?: string): string {

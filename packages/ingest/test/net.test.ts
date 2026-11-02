@@ -8,7 +8,7 @@ test("private, loopback, link-local and metadata addresses are spotted, public o
 });
 
 test("a link to the server's own network is refused before any request", async () => {
-  delete process.env.EXPLAINLIKE_ALLOW_PRIVATE_URLS;
+  delete process.env.EXPLANIMATE_ALLOW_PRIVATE_URLS;
   for (const u of ["http://127.0.0.1:3000/", "http://localhost/", "http://[::1]/", "http://169.254.169.254/latest/meta-data/"]) {
     await assert.rejects(publicFetch(u), PrivateAddressError, u);
   }

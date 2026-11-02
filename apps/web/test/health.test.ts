@@ -28,11 +28,11 @@ test("each missing piece fails the check with a plain reason; a missing voice ke
 
 test("demo-only mode or a spent cap reads as paused, not unhealthy", () => {
   assert.deepEqual([checkHealth("/j", false, probe()).ok, checkHealth("/j", false, probe()).paused], [true, true]);
-  const demo = checkHealth("/j", true, probe({ env: { MODEL_API_KEY: "k", EXPLAINLIKE_DEMO_ONLY: "1" } }));
+  const demo = checkHealth("/j", true, probe({ env: { MODEL_API_KEY: "k", EXPLANIMATE_DEMO_ONLY: "1" } }));
   assert.equal(demo.paused, true);
 });
 
-test("EXPLAINLIKE_CHROME points at a Chrome in an unusual place", () => {
-  const h = checkHealth("/j", true, probe({ env: { MODEL_API_KEY: "k", EXPLAINLIKE_CHROME: "/opt/chrome/chrome" }, has: (f) => f === "/opt/chrome/chrome" }));
+test("EXPLANIMATE_CHROME points at a Chrome in an unusual place", () => {
+  const h = checkHealth("/j", true, probe({ env: { MODEL_API_KEY: "k", EXPLANIMATE_CHROME: "/opt/chrome/chrome" }, has: (f) => f === "/opt/chrome/chrome" }));
   assert.equal(h.checks.chrome, true);
 });

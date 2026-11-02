@@ -26,16 +26,16 @@ export interface Job {
 }
 export type Ask = { goal?: string; audience?: string; depth?: "overview" | "working" | "deep"; also?: string };
 
-const ROOT = process.env.EXPLAINLIKE_ROOT ?? path.resolve(process.cwd(), "../..");
-export const JOBS_DIR = process.env.EXPLAINLIKE_JOBS_DIR ?? path.join(ROOT, "explainlike-out", "web");
+const ROOT = process.env.EXPLANIMATE_ROOT ?? path.resolve(process.cwd(), "../..");
+export const JOBS_DIR = process.env.EXPLANIMATE_JOBS_DIR ?? path.join(ROOT, "explainlike-out", "web");
 const ID = /^[a-f0-9]{12}$/;
 const INTERRUPTED = "Interrupted by a server restart. Start it again.";
 
 // Jobs live on disk (one job.json per folder) so they survive a server restart.
-const g = globalThis as unknown as { __explainlikeJobs?: Map<string, Job>; __explainlikeLine?: string[]; __explainlikeResumed?: boolean };
-const jobs: Map<string, Job> = (g.__explainlikeJobs ??= loadJobs());
-// first load after a restart: carry on with a job the restart cut off (EXPLAINLIKE_RESUME=0 turns this off)
-if (!g.__explainlikeResumed && process.env.EXPLAINLIKE_RESUME !== "0") { g.__explainlikeResumed = true; setTimeout(() => resumeInterrupted(), 0); }
+const g = globalThis as unknown as { __explanimateJobs?: Map<string, Job>; __explanimateLine?: string[]; __explanimateResumed?: boolean };
+const jobs: Map<string, Job> = (g.__explanimateJobs ??= loadJobs());
+// first load after a restart: carry on with a job the restart cut off (EXPLANIMATE_RESUME=0 turns this off)
+if (!g.__explanimateResumed && process.env.EXPLANIMATE_RESUME !== "0") { g.__explanimateResumed = true; setTimeout(() => resumeInterrupted(), 0); }
 
 function loadJobs(): Map<string, Job> {
   const m = new Map<string, Job>();
@@ -80,13 +80,13 @@ function save(job: Job, soon = false) {
 // ---- guard rails for any shared deployment: one render at a time, a per-client hourly cap, an optional demo-only switch
 const recent = new Map<string, number[]>();
 export function admit(client: string): string | undefined {
-  if (process.env.EXPLAINLIKE_DEMO_ONLY === "1") return "This demo only plays example videos. Run Explain Like locally with your own keys to make new ones.";
+  if (process.env.EXPLANIMATE_DEMO_ONLY === "1") return "This demo only plays example videos. Run Explanimate locally with your own keys to make new ones.";
   const waiting = [...jobs.values()].filter((j) => j.state === "queued").length;
-  const room = Number(process.env.EXPLAINLIKE_QUEUE_MAX ?? 6);
+  const room = Number(process.env.EXPLANIMATE_QUEUE_MAX ?? 6);
   if (waiting >= room) return `The line is full: ${waiting} videos are already waiting. Try again in a few minutes.`;
   const b = budgetNow();
   if (!b.ok) return b.error;
-  const cap = Number(process.env.EXPLAINLIKE_JOBS_PER_HOUR ?? 20);
+  const cap = Number(process.env.EXPLANIMATE_JOBS_PER_HOUR ?? 20);
   const now = Date.now(), hits = (recent.get(client) ?? []).filter((t) => now - t < 3600_000);
   if (hits.length >= cap) return "Hourly limit reached for this client.";
   recent.set(client, [...hits, now]);
@@ -98,11 +98,11 @@ export const budgetNow = (): Budget => budget(spent(JOBS_DIR, [...jobs.values()]
 /** Note a paid call made outside a job (voice-mode chat), so the spend guard sees it. */
 export const noteSpend = (s: { meta?: number; voice?: number }, what: string) => recordSpend(JOBS_DIR, s, what);
 
-const CLI = () => process.env.EXPLAINLIKE_CLI ?? path.join(ROOT, "packages/cli/bin/explainlike.mjs");
+const CLI = () => process.env.EXPLANIMATE_CLI ?? path.join(ROOT, "packages/cli/bin/explanimate.mjs");
 // the CLI reads private-network links by default (its user chose them); links typed into the web app never may
-const CLI_ENV = { ...process.env, EXPLAINLIKE_ALLOW_PRIVATE_URLS: process.env.EXPLAINLIKE_ALLOW_PRIVATE_URLS ?? "0" };
+const CLI_ENV = { ...process.env, EXPLANIMATE_ALLOW_PRIVATE_URLS: process.env.EXPLANIMATE_ALLOW_PRIVATE_URLS ?? "0" };
 
-const line = (): string[] => (g.__explainlikeLine ??= []);
+const line = (): string[] => (g.__explanimateLine ??= []);
 const busy = (except?: string): Job | undefined => [...jobs.values()].find((j) => j.state === "running" && j.id !== except);
 const aheadOf = (id: string): number => line().indexOf(id) + 1;
 

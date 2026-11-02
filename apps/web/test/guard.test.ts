@@ -16,11 +16,11 @@ test("the per-IP limit lets a burst through, then says how long to wait, then fr
 
 test("X-Forwarded-For is only believed behind a trusted proxy", () => {
   const req = new Request("http://x/", { headers: { "x-forwarded-for": "9.9.9.9, 10.0.0.1" } });
-  delete process.env.EXPLAINLIKE_TRUST_PROXY;
+  delete process.env.EXPLANIMATE_TRUST_PROXY;
   assert.equal(clientIp(req), "direct");
-  process.env.EXPLAINLIKE_TRUST_PROXY = "1";
+  process.env.EXPLANIMATE_TRUST_PROXY = "1";
   assert.equal(clientIp(req), "9.9.9.9");
-  delete process.env.EXPLAINLIKE_TRUST_PROXY;
+  delete process.env.EXPLANIMATE_TRUST_PROXY;
 });
 
 test("oversized and broken bodies are refused with a plain message", async () => {
@@ -40,7 +40,7 @@ test("the spend guard warns past 80% of a cap and pauses before a job could cros
   assert.match(warn.warnings[0], /Meta \(Muse\) spend is at \$21\.00 of a \$25\.00 cap/);
   const stop = budget({ meta: 3, voice: 2.9 }, caps, reserve);
   assert.equal(stop.ok, false);
-  assert.match(stop.error!, /Deepgram budget is nearly used up \(\$2\.90 of \$3\.00\).*EXPLAINLIKE_VOICE_CAP_USD/);
+  assert.match(stop.error!, /Deepgram budget is nearly used up \(\$2\.90 of \$3\.00\).*EXPLANIMATE_VOICE_CAP_USD/);
 });
 
 test("spend adds every job's meter to the ledger of side calls", () => {

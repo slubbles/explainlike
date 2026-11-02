@@ -4,7 +4,7 @@ Meta Global AI Developer Hackathon, indie developer track. Theme: Build for Your
 
 ## Write-up
 
-Explain Like turns anything hard to learn into a short whiteboard video. Give it
+Explanimate turns anything hard to learn into a short whiteboard video. Give it
 a GitHub repo, an article, an X post, or just a topic. It reads the source,
 maps the system, writes the story, speaks it, and draws it by hand on one
 canvas. You get an mp4 plus editable boards.

@@ -7,14 +7,14 @@ import fs from "node:fs";
 import path from "node:path";
 import os from "node:os";
 import crypto from "node:crypto";
-import { fetchRetry, type SceneAudio, type WordTiming } from "@explainlike/core";
+import { fetchRetry, type SceneAudio, type WordTiming } from "@explanimate/core";
 
 export interface VoiceProvider {
   id: string;
   synthesize(sceneId: string, text: string, outDir: string): Promise<SceneAudio>;
 }
 
-const CACHE = process.env.EXPLAINLIKE_TTS_CACHE ?? path.join(os.homedir(), ".cache", "explainlike", "tts");
+const CACHE = process.env.EXPLANIMATE_TTS_CACHE ?? path.join(os.homedir(), ".cache", "explainlike", "tts");
 const tokens = (s: string) => s.replace(/\s+/g, " ").trim().split(" ").filter(Boolean);
 const normW = (w: string) => w.toLowerCase().replace(/[^a-z0-9]/g, "");
 
@@ -144,7 +144,7 @@ export class DeepgramVoice implements VoiceProvider {
     const k = o.apiKey ?? process.env.DEEPGRAM_API_KEY;
     if (!k) throw new Error("DEEPGRAM_API_KEY is not set");
     this.key = k;
-    this.model = o.model ?? process.env.EXPLAINLIKE_VOICE ?? "aura-2-arcas-en";
+    this.model = o.model ?? process.env.EXPLANIMATE_VOICE ?? "aura-2-arcas-en";
   }
   get usd() { return (this.usage.ttsChars / 1000) * 0.03 + (this.usage.sttSeconds / 60) * 0.0043; }
 
@@ -157,7 +157,7 @@ export class DeepgramVoice implements VoiceProvider {
     const tts = await this.req(`https://api.deepgram.com/v1/speak?model=${this.model}&encoding=linear16&sample_rate=24000&container=wav`, JSON.stringify({ text: said }), "application/json");
     const wav = Buffer.from(await tts.arrayBuffer());
     this.usage.ttsChars += said.length;
-    const stt = await this.req(`https://api.deepgram.com/v1/listen?model=${process.env.EXPLAINLIKE_STT ?? "nova-3"}&punctuate=true`, new Uint8Array(wav), "audio/wav");
+    const stt = await this.req(`https://api.deepgram.com/v1/listen?model=${process.env.EXPLANIMATE_STT ?? "nova-3"}&punctuate=true`, new Uint8Array(wav), "audio/wav");
     const j: any = await stt.json();
     const words = (j.results?.channels?.[0]?.alternatives?.[0]?.words ?? []).map((w: any) => ({ word: w.punctuated_word ?? w.word, start: w.start, end: w.end }));
     const duration = j.metadata?.duration ?? wavDuration(wav);

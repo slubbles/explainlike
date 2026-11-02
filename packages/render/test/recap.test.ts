@@ -9,7 +9,7 @@ const opAt = (k: [number, number][] | undefined, t: number) => {
 
 test("the recap's whole-wall shot shows no lit words too small to read", async () => {
   const fs = await import("node:fs");
-  const { getTheme, specFromBrief, DEFAULT_BRIEF } = await import("@explainlike/core");
+  const { getTheme, specFromBrief, DEFAULT_BRIEF } = await import("@explanimate/core");
   const { compose, loadIconPack, cameraAt, MIN_TEXT_PX, MIN_SMALL_TEXT_PX } = await import("../src/index.js");
   const plan = JSON.parse(fs.readFileSync(new URL("./fixtures/internet-cutins.plan.json", import.meta.url), "utf8"));
   const audio = plan.scenes.map((s: { id: string; narration: string }) => {

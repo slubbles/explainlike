@@ -5,7 +5,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { looksLikeTopic } from "@explainlike/core";
+import { looksLikeTopic } from "@explanimate/core";
 
 /** What to explain and how. Only `input` is required: the engine picks the approach, depth, pace and look itself. */
 export interface JobRequest {
@@ -65,9 +65,9 @@ export interface Job {
 }
 
 export interface RunnerOptions {
-  /** where outputs go when a request names no folder; default $EXPLAINLIKE_OUT_DIR or ~/explainlike-videos */
+  /** where outputs go when a request names no folder; default $EXPLANIMATE_OUT_DIR or ~/explainlike-videos */
   outRoot?: string;
-  /** the explainlike CLI entry; default the one in this monorepo (tests point it at a stand-in) */
+  /** the explanimate CLI entry; default the one in this monorepo (tests point it at a stand-in) */
   cliPath?: string;
   /** renders allowed at the same time; each one drives a headless Chrome, so the default is 1 */
   maxRunning?: number;
@@ -79,19 +79,19 @@ export class JobError extends Error {
   constructor(message: string, readonly status = 400) { super(message); }
 }
 
-const DEFAULT_CLI = fileURLToPath(new URL("../../cli/bin/explainlike.mjs", import.meta.url));
+const DEFAULT_CLI = fileURLToPath(new URL("../../cli/bin/explanimate.mjs", import.meta.url));
 const slug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 60);
 
 /** A folder name a person recognises: owner-repo for GitHub, host-path for anything else. */
 export function nameFor(input: string): string {
-  if (looksLikeTopic(input)) return slug(input).slice(0, 60) || "explainlike";
-  if (!/^https?:\/\//i.test(input)) return slug(path.basename(path.resolve(input))) || "explainlike";
+  if (looksLikeTopic(input)) return slug(input).slice(0, 60) || "explanimate";
+  if (!/^https?:\/\//i.test(input)) return slug(path.basename(path.resolve(input))) || "explanimate";
   const u = new URL(input);
   const host = u.hostname.replace(/^www\./, "");
   const parts = u.pathname.split("/").filter(Boolean);
-  if (/^github\.com$/i.test(host)) return slug(parts.slice(0, 2).join("-").replace(/\.git$/, "")) || "explainlike";
+  if (/^github\.com$/i.test(host)) return slug(parts.slice(0, 2).join("-").replace(/\.git$/, "")) || "explanimate";
   if (/^(x|twitter)\.com$/i.test(host)) return slug(`x-${parts[0] ?? ""}-${parts.at(-1) ?? ""}`);
-  return slug(`${host}-${parts.join("-")}`) || "explainlike";
+  return slug(`${host}-${parts.join("-")}`) || "explanimate";
 }
 
 /** Links, local repo folders and plain topics ("how DNS works", read from reputable sources) are fine. */
@@ -112,7 +112,7 @@ export function checkInput(input: string): string {
 }
 
 /**
- * Runs Explain Like jobs as child processes of the CLI, so a crash or a stray print in a render never
+ * Runs Explanimate jobs as child processes of the CLI, so a crash or a stray print in a render never
  * reaches the caller (important for the MCP server, whose stdout is the protocol).
  */
 export class JobRunner extends EventEmitter {
@@ -125,7 +125,7 @@ export class JobRunner extends EventEmitter {
 
   constructor(o: RunnerOptions = {}) {
     super();
-    this.outRoot = path.resolve(o.outRoot ?? process.env.EXPLAINLIKE_OUT_DIR ?? path.join(os.homedir(), "explainlike-videos"));
+    this.outRoot = path.resolve(o.outRoot ?? process.env.EXPLANIMATE_OUT_DIR ?? path.join(os.homedir(), "explainlike-videos"));
     this.cli = o.cliPath ?? DEFAULT_CLI;
     this.maxRunning = o.maxRunning ?? 1;
     this.env = { ...process.env, ...o.env };

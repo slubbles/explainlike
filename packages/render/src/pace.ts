@@ -3,9 +3,9 @@ import { NODE, type Box } from "./layout.js";
 import { textWidth } from "./measure.js";
 import { cameraAt } from "./check.js";
 
-import { MIN_CUTS_PER_MIN } from "@explainlike/core";
+import { MIN_CUTS_PER_MIN } from "@explanimate/core";
 
-/** Pacing limits the composer works to; ExplainSpec.tempo in @explainlike/core fills these from the brief. */
+/** Pacing limits the composer works to; ExplainSpec.tempo in @explanimate/core fills these from the brief. */
 export interface TempoLimits { id: string; minBeat: number; maxCutsPerMin: number; move: number; tail: number }
 export const DEFAULT_TEMPO: TempoLimits = { id: "steady", minBeat: 4.0, maxCutsPerMin: 13, move: 1.1, tail: 0.8 };
 

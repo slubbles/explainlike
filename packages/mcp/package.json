@@ -1,17 +1,17 @@
 {
-  "name": "explainlike-mcp",
+  "name": "explanimate-mcp",
   "version": "0.1.0",
   "type": "module",
   "license": "MIT",
-  "description": "MCP server for Explain Like: ask your coding agent to explain a repo, X post or article and get a whiteboard explainer mp4 plus .tldr and .excalidraw boards on your machine.",
+  "description": "MCP server for Explanimate: ask your coding agent to explain a repo, X post or article and get a whiteboard explainer mp4 plus .tldr and .excalidraw boards on your machine.",
   "bin": {
-    "explainlike-mcp": "./bin/explainlike-mcp.mjs"
+    "explanimate-mcp": "./bin/explanimate-mcp.mjs"
   },
   "exports": {
     ".": "./src/index.ts"
   },
   "dependencies": {
-    "@explainlike/api": "workspace:*",
+    "@explanimate/api": "workspace:*",
     "@modelcontextprotocol/sdk": "^1.32.2",
     "tsx": "^4.19.2",
     "zod": "^4.1.0"

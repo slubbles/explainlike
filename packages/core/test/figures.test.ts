@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { parseFigure, parseDated, figureInQuote } from "@explainlike/core";
+import { parseFigure, parseDated, figureInQuote } from "@explanimate/core";
 
 test("a chart row gives back its label, value and the number as written", () => {
   assert.deepEqual(parseFigure("chrome 65%"), { label: "chrome", value: 65, shown: "65%", unit: "%" });

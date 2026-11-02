@@ -1,13 +1,13 @@
-# Running Explain Like on a server
+# Running Explanimate on a server
 
-Explain Like is built to run on your own machine. This page is what to check before you put the web app anywhere other people can reach it. Nothing here deploys anything for you.
+Explanimate is built to run on your own machine. This page is what to check before you put the web app anywhere other people can reach it. Nothing here deploys anything for you.
 
 ## What the server needs
 
 - Node 22 and pnpm 9.
 - `ffmpeg` on the PATH.
-- Chrome or Chromium. Set `EXPLAINLIKE_CHROME` if it is not in a standard place.
-- A persistent disk for jobs (`EXPLAINLIKE_JOBS_DIR`). Each video is about 20 MB plus its boards.
+- Chrome or Chromium. Set `EXPLANIMATE_CHROME` if it is not in a standard place.
+- A persistent disk for jobs (`EXPLANIMATE_JOBS_DIR`). Each video is about 20 MB plus its boards.
 - About 2 CPU cores and 2 GB of memory per render. One video renders at a time.
 
 A video takes 3 to 6 minutes and runs as a child process. That does not fit serverless functions with short time limits. Use a VM or a container with a disk instead.
@@ -17,12 +17,12 @@ A video takes 3 to 6 minutes and runs as a child process. That does not fit serv
 The [`Dockerfile`](../Dockerfile) at the repo root builds one image with Node 22, pnpm, Chromium, ffmpeg and git. Everything the server writes goes to a volume at `/data`: jobs, the spend ledger, and the repo, plan, voice and icon caches. Without that volume, a restart loses every video and resets the spend count, which also resets the spend guard.
 
 ```bash
-docker build -t explainlike .
-docker run -d --name explainlike --restart unless-stopped -p 127.0.0.1:3000:3000 \
-  -v explainlike-data:/data \
+docker build -t explanimate .
+docker run -d --name explanimate --restart unless-stopped -p 127.0.0.1:3000:3000 \
+  -v explanimate-data:/data \
   -e MODEL_API_KEY -e DEEPGRAM_API_KEY \
-  -e EXPLAINLIKE_TRUST_PROXY=1 \
-  explainlike
+  -e EXPLANIMATE_TRUST_PROXY=1 \
+  explanimate
 curl -s localhost:3000/api/health
 ```
 
@@ -47,7 +47,7 @@ If a Caddy instance already owns ports 80 and 443, keep the container on loopbac
 give it a hostname of its own. Caddy gets the certificate itself.
 
 ```caddyfile
-explainlike.example.com {
+explanimate.example.com {
 	encode zstd gzip
 	handle {
 		reverse_proxy 127.0.0.1:3001
@@ -61,12 +61,12 @@ the proxy. Reload with `systemctl reload caddy`, or `caddy reload --config
 
 ### The volume is owned by root the first time
 
-`docker run -v explainlike-data:/data` creates the volume owned by root, so the health
+`docker run -v explanimate-data:/data` creates the volume owned by root, so the health
 check reports `jobsDir: false` and the server refuses to start a render. Once, after the
 first run:
 
 ```bash
-docker run --rm -v explainlike-data:/data --user 0 explainlike \
+docker run --rm -v explanimate-data:/data --user 0 explanimate \
   sh -c 'mkdir -p /data/jobs && chown -R 1000:1000 /data'
 ```
 
@@ -78,7 +78,7 @@ A render needs about 2 CPU cores, 2 GB of memory and 3 to 6 minutes. Pick a plan
 
 1. Create a project from the GitHub repo. Railway finds the `Dockerfile`.
 2. Add a volume and mount it at `/data`.
-3. Under Variables, add `MODEL_API_KEY`, `DEEPGRAM_API_KEY` and `EXPLAINLIKE_TRUST_PROXY=1`. Railway sets `PORT` itself.
+3. Under Variables, add `MODEL_API_KEY`, `DEEPGRAM_API_KEY` and `EXPLANIMATE_TRUST_PROXY=1`. Railway sets `PORT` itself.
 4. Under Settings, set the health check path to `/api/health`.
 5. Keep replicas at 1.
 
@@ -86,17 +86,17 @@ A render needs about 2 CPU cores, 2 GB of memory and 3 to 6 minutes. Pick a plan
 
 ```toml
 # fly.toml
-app = "explainlike"
+app = "explanimate"
 primary_region = "sin"
 
 [build]
   dockerfile = "Dockerfile"
 
 [env]
-  EXPLAINLIKE_TRUST_PROXY = "1"
+  EXPLANIMATE_TRUST_PROXY = "1"
 
 [mounts]
-  source = "explainlike_data"
+  source = "explanimate_data"
   destination = "/data"
 
 [http_service]
@@ -118,7 +118,7 @@ primary_region = "sin"
 ```
 
 ```bash
-fly volumes create explainlike_data --size 10
+fly volumes create explanimate_data --size 10
 fly secrets set MODEL_API_KEY=... DEEPGRAM_API_KEY=...
 fly deploy
 ```
@@ -131,27 +131,27 @@ Run the container as above, and put Caddy in front for TLS:
 
 ```
 # /etc/caddy/Caddyfile
-explainlike.co, www.explainlike.co {
+explanimate.co, www.explanimate.co {
   reverse_proxy 127.0.0.1:3000
 }
 ```
 
-Caddy gets and renews the certificate itself and sets `X-Forwarded-For`, so `EXPLAINLIKE_TRUST_PROXY=1` is right here. The `docker run` above publishes the port on `127.0.0.1` only, so nobody can skip the proxy and fake the header. Keep it that way.
+Caddy gets and renews the certificate itself and sets `X-Forwarded-For`, so `EXPLANIMATE_TRUST_PROXY=1` is right here. The `docker run` above publishes the port on `127.0.0.1` only, so nobody can skip the proxy and fake the header. Keep it that way.
 
-## Point explainlike.co at it
+## Point explanimate.co at it
 
 The domain is not bought yet. Once it is, add these records at the registrar or DNS host:
 
 | Host | Railway | Fly.io | VPS |
 | --- | --- | --- | --- |
-| `explainlike.co` | `ALIAS`/`ANAME` (or `CNAME` with flattening) to the target Railway gives under Settings → Domains | `A` and `AAAA` from `fly ips list` | `A` (and `AAAA`) to the server's IP |
-| `www` | `CNAME` to the same Railway target | `CNAME` to `explainlike.fly.dev` | `CNAME` to `explainlike.co` |
+| `explanimate.co` | `ALIAS`/`ANAME` (or `CNAME` with flattening) to the target Railway gives under Settings → Domains | `A` and `AAAA` from `fly ips list` | `A` (and `AAAA`) to the server's IP |
+| `www` | `CNAME` to the same Railway target | `CNAME` to `explanimate.fly.dev` | `CNAME` to `explanimate.co` |
 
 Then:
 
-1. Add both names on the host: Settings → Domains on Railway, `fly certs add explainlike.co` and `fly certs add www.explainlike.co` on Fly, or the Caddyfile above on a VPS.
-2. Wait for the certificate. `fly certs show explainlike.co` or the Railway domain page shows when it is issued.
-3. Check `https://explainlike.co/api/health` returns `200`.
+1. Add both names on the host: Settings → Domains on Railway, `fly certs add explanimate.co` and `fly certs add www.explanimate.co` on Fly, or the Caddyfile above on a VPS.
+2. Wait for the certificate. `fly certs show explanimate.co` or the Railway domain page shows when it is issued.
+3. Check `https://explanimate.co/api/health` returns `200`.
 
 A plain `CNAME` is not allowed on the bare domain, which is why Railway needs `ALIAS`, `ANAME` or CNAME flattening there. Cloudflare flattens by default. If you use Cloudflare's proxy (orange cloud), set SSL to "Full (strict)".
 
@@ -160,30 +160,32 @@ A plain `CNAME` is not allowed on the bare domain, which is why Railway needs `A
 ```bash
 pnpm install --frozen-lockfile
 pnpm typecheck && pnpm test
-pnpm --filter @explainlike/web build
+pnpm --filter @explanimate/web build
 cd apps/web && pnpm start          # port 3000
 ```
 
-Put it behind a reverse proxy that terminates TLS and sets `X-Forwarded-For`. Then set `EXPLAINLIKE_TRUST_PROXY=1`. Without that setting, the per-IP limit treats every caller as one address. That is safe, but strict.
+Put it behind a reverse proxy that terminates TLS and sets `X-Forwarded-For`. Then set `EXPLANIMATE_TRUST_PROXY=1`. Without that setting, the per-IP limit treats every caller as one address. That is safe, but strict.
 
 ## Settings
 
 Every setting is listed with its default in [`.env.example`](../.env.example). The ones that matter in public are:
 
+The project used to be called Explain Like. Settings with the old `EXPLAINLIKE_` prefix still work: each one is copied to its `EXPLANIMATE_` name at startup, unless the new name is set too (then the new one wins). Rename them when it is convenient.
+
 | Variable | Default | What it does |
 | --- | --- | --- |
 | `MODEL_API_KEY` | (required) | Meta Muse key. Read only on the server. |
 | `DEEPGRAM_API_KEY` | (optional) | Voiceover and voice mode. Read only on the server. |
-| `EXPLAINLIKE_META_CAP_USD` | 25 | New work pauses before Meta spend could pass this amount. |
-| `EXPLAINLIKE_VOICE_CAP_USD` | 3 | New work pauses before Deepgram spend could pass this amount. |
-| `EXPLAINLIKE_REQ_PER_MIN` | 12 | Per-IP limit on the routes that start work or cost money. |
-| `EXPLAINLIKE_JOBS_PER_HOUR` | 20 | Videos per hour across everyone. |
-| `EXPLAINLIKE_TRUST_PROXY` | 0 | Trust `X-Forwarded-For` for the client IP. |
-| `EXPLAINLIKE_DEMO_ONLY` | 0 | Show the finished examples only and refuse new videos. |
-| `EXPLAINLIKE_RESUME` | 1 | After a restart, start the job it cut off once more, if it is under 6 hours old. |
-| `EXPLAINLIKE_JOBS_DIR` | `explainlike-out/web` (`/data/jobs` in Docker) | Where jobs and the spend ledger live. Must be on a persistent disk. |
-| `EXPLAINLIKE_ALLOW_LOCAL` | 0 | Accept folder paths on the server. Leave off in public. |
-| `EXPLAINLIKE_ALLOW_PRIVATE_URLS` | 0 (web), 1 (CLI) | Read links that resolve to private addresses. Leave off in public. A host whose DNS hands out proxy addresses (198.18.0.0/15, as some sandboxes and "fake-IP" proxies do) fails every link with the guard on; give such a host real DNS rather than turning the guard off. |
+| `EXPLANIMATE_META_CAP_USD` | 25 | New work pauses before Meta spend could pass this amount. |
+| `EXPLANIMATE_VOICE_CAP_USD` | 3 | New work pauses before Deepgram spend could pass this amount. |
+| `EXPLANIMATE_REQ_PER_MIN` | 12 | Per-IP limit on the routes that start work or cost money. |
+| `EXPLANIMATE_JOBS_PER_HOUR` | 20 | Videos per hour across everyone. |
+| `EXPLANIMATE_TRUST_PROXY` | 0 | Trust `X-Forwarded-For` for the client IP. |
+| `EXPLANIMATE_DEMO_ONLY` | 0 | Show the finished examples only and refuse new videos. |
+| `EXPLANIMATE_RESUME` | 1 | After a restart, start the job it cut off once more, if it is under 6 hours old. |
+| `EXPLANIMATE_JOBS_DIR` | `explainlike-out/web` (`/data/jobs` in Docker) | Where jobs and the spend ledger live. Must be on a persistent disk. |
+| `EXPLANIMATE_ALLOW_LOCAL` | 0 | Accept folder paths on the server. Leave off in public. |
+| `EXPLANIMATE_ALLOW_PRIVATE_URLS` | 0 (web), 1 (CLI) | Read links that resolve to private addresses. Leave off in public. A host whose DNS hands out proxy addresses (198.18.0.0/15, as some sandboxes and "fake-IP" proxies do) fails every link with the guard on; give such a host real DNS rather than turning the guard off. |
 
 ## What is already guarded
 

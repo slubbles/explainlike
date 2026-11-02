@@ -7,7 +7,7 @@ import { START_TOOL, readStart, takeSentences, voiceSystem, type Turn } from "..
 export const runtime = "nodejs";
 
 const BASE = process.env.META_API_BASE ?? "https://api.meta.ai/v1";
-const MODEL = process.env.EXPLAINLIKE_SPARK_MODEL ?? "muse-spark-1.3-contributor";
+const MODEL = process.env.EXPLANIMATE_SPARK_MODEL ?? "muse-spark-1.3-contributor";
 const PRICE = { in: 1.25e-6, out: 4.25e-6 };
 
 type Msg = { role: string; content: string | null; tool_calls?: unknown[]; tool_call_id?: string };

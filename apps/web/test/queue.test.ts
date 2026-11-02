@@ -7,10 +7,10 @@ import path from "node:path";
 test("a second request waits its turn instead of being told the renderer is busy", async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "el-queue-"));
   Object.assign(process.env, {
-    EXPLAINLIKE_JOBS_DIR: dir,
-    EXPLAINLIKE_RESUME: "0",
-    EXPLAINLIKE_ROOT: path.resolve(import.meta.dirname, "../../.."),
-    EXPLAINLIKE_CLI: path.join(import.meta.dirname, "fake-cli.mjs"),
+    EXPLANIMATE_JOBS_DIR: dir,
+    EXPLANIMATE_RESUME: "0",
+    EXPLANIMATE_ROOT: path.resolve(import.meta.dirname, "../../.."),
+    EXPLANIMATE_CLI: path.join(import.meta.dirname, "fake-cli.mjs"),
     FAKE_DELAY_MS: "400",
   });
   const { startJob, getJob } = await import("../lib/jobs.ts");

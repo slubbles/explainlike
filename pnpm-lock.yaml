@@ -8,13 +8,13 @@ importers:
 
   .:
     devDependencies:
-      '@explainlike/core':
+      '@explanimate/core':
         specifier: workspace:^
         version: link:packages/core
-      '@explainlike/models':
+      '@explanimate/models':
         specifier: workspace:^
         version: link:packages/models
-      '@explainlike/render':
+      '@explanimate/render':
         specifier: workspace:^
         version: link:packages/render
       '@types/node':
@@ -29,7 +29,7 @@ importers:
 
   apps/web:
     dependencies:
-      '@explainlike/core':
+      '@explanimate/core':
         specifier: workspace:*
         version: link:../../packages/core
       next:
@@ -54,7 +54,7 @@ importers:
 
   packages/api:
     dependencies:
-      '@explainlike/core':
+      '@explanimate/core':
         specifier: workspace:*
         version: link:../core
       tsx:
@@ -63,22 +63,22 @@ importers:
 
   packages/cli:
     dependencies:
-      '@explainlike/core':
+      '@explanimate/core':
         specifier: workspace:*
         version: link:../core
-      '@explainlike/ingest':
+      '@explanimate/ingest':
         specifier: workspace:*
         version: link:../ingest
-      '@explainlike/models':
+      '@explanimate/models':
         specifier: workspace:*
         version: link:../models
-      '@explainlike/planner':
+      '@explanimate/planner':
         specifier: workspace:*
         version: link:../planner
-      '@explainlike/render':
+      '@explanimate/render':
         specifier: workspace:*
         version: link:../render
-      '@explainlike/voice':
+      '@explanimate/voice':
         specifier: workspace:*
         version: link:../voice
       tsx:
@@ -93,7 +93,7 @@ importers:
 
   packages/ingest:
     dependencies:
-      '@explainlike/core':
+      '@explanimate/core':
         specifier: workspace:*
         version: link:../core
       '@mozilla/readability':
@@ -108,7 +108,7 @@ importers:
 
   packages/mcp:
     dependencies:
-      '@explainlike/api':
+      '@explanimate/api':
         specifier: workspace:*
         version: link:../api
       '@modelcontextprotocol/sdk':
@@ -123,7 +123,7 @@ importers:
 
   packages/models:
     dependencies:
-      '@explainlike/core':
+      '@explanimate/core':
         specifier: workspace:*
         version: link:../core
       zod:
@@ -132,10 +132,10 @@ importers:
 
   packages/planner:
     dependencies:
-      '@explainlike/core':
+      '@explanimate/core':
         specifier: workspace:*
         version: link:../core
-      '@explainlike/models':
+      '@explanimate/models':
         specifier: workspace:*
         version: link:../models
       zod:
@@ -144,10 +144,10 @@ importers:
 
   packages/render:
     dependencies:
-      '@explainlike/core':
+      '@explanimate/core':
         specifier: workspace:*
         version: link:../core
-      '@explainlike/models':
+      '@explanimate/models':
         specifier: workspace:*
         version: link:../models
       elkjs:
@@ -178,10 +178,10 @@ importers:
 
   packages/voice:
     dependencies:
-      '@explainlike/core':
+      '@explanimate/core':
         specifier: workspace:*
         version: link:../core
-      '@explainlike/models':
+      '@explanimate/models':
         specifier: workspace:*
         version: link:../models
 

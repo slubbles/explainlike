@@ -4,12 +4,12 @@
  * Search is Wikipedia's public API (no key); the other sources are the reputable references the
  * matching Wikipedia article itself cites (standards bodies, universities, governments, major outlets).
  */
-import { type SourceDoc } from "@explainlike/core";
+import { type SourceDoc } from "@explanimate/core";
 import { fetchArticle, withLocate, type Card, type ConceptSource } from "./concept.js";
 import { redact } from "./secrets.js";
 
 const WIKI = "https://en.wikipedia.org/w/api.php";
-const UA = "ExplainLike/0.1 (https://github.com/slubbles/explainlike)";
+const UA = "Explanimate/0.1 (https://github.com/slubbles/explainlike)";
 const PER_SOURCE = 14000;
 
 /** The search words: "explain how DNS works like I'm five" -> "how DNS works". */

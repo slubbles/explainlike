@@ -4,8 +4,8 @@
  */
 import fs from "node:fs";
 import path from "node:path";
-import { CostLedger } from "@explainlike/models";
-import { makeDoodleIcon, BUILTIN_PACK_DIR } from "@explainlike/render";
+import { CostLedger } from "@explanimate/models";
+import { makeDoodleIcon, BUILTIN_PACK_DIR } from "@explanimate/render";
 
 const ICONS: Record<string, { subject: string; aliases: string[]; sam?: string }> = {
   phone: { subject: "a smartphone with a play button on the screen", aliases: ["mobile", "app", "ios", "android"] },
