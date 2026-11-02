@@ -107,7 +107,7 @@ export function stillGaps(film: Film, from: number, to: number): { t0: number; t
   return gaps;
 }
 
-const bigChange = (a: Omit<CamKey, "t" | "move">, b: Omit<CamKey, "t" | "move">) =>
+export const bigChange = (a: Omit<CamKey, "t" | "move">, b: Omit<CamKey, "t" | "move">) =>
   Math.abs(Math.log(b.w / a.w)) > 0.15 || Math.hypot(b.x + b.w / 2 - a.x - a.w / 2, b.y + b.h / 2 - a.y - a.h / 2) / a.w > 0.15;
 
 /** Times a new shot starts: camera moves that change the framing a lot (a slow push is not a new shot). */
