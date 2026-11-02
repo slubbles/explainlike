@@ -1,0 +1,227 @@
+0.0	3.2	Hi everyone, this is Sean. So today let's talk about harness.
+3.2	6.6	It's a real qualms that I come across recently.
+6.6	10.0	They basically claim that we don't do any MCPs.
+10.0	14.9	No subagents, no plano, no to do, no to do, no to do, no to do, no to do, no to do, no to do.
+14.9	19.6	And if you read their official website, and you use the current page,
+19.6	24.0	what we did not build, you will say none of these things.
+24.0	28.0	This got me really interested because I feel like in history,
+28.0	32.3	some of the greatest projects are always built on top of some very simple,
+32.3	37.0	minimalistic building block, which is why I wanted you to walk you,
+37.0	39.7	this system design of this Pi Asian Uncommon..
+39.7	39.7	...
+39.7	42.8	and we're going to go through their public rapo,
+42.8	56.7	and I'm going toAcc
+72.8	78.2	a proper gateway, a working memory, a loop system, and a new VEL system, you can
+78.2	81.6	spawn up your own sub-agents to finish some tasks and your own sub-agent can
+81.6	87.2	call a Pi-agent as the coding agent to finish the task for you. I believe this
+87.2	91.6	is how Open Claw did the coding for themselves too because Pi-agent is sort
+91.6	95.4	of in the background writing the code for Open Claw request on anything
+95.4	98.8	engineering related. I'll show you a very quick example before we go back to the
+98.8	102.7	system design. So I'm testing this prompt saying write me a script that can tell
+102.7	107.4	me the Pokemon data if I input any Pokemon. So what it happened is that it's
+107.4	112.2	now delegating this task to its coding specialist which in our case is Pi-agent
+112.2	118.0	and now it's sort of just spawning up a sub-agent and that sub-agent is calling
+118.0	122.6	the CLI of Pi-agent in the back end to write up this code and later it's going
+122.6	127.2	to return the code back to us after it finished. I believe this is why Pi-agent
+127.2	131.0	is very extensible and people love to build an ecosystem around it because
+131.1	135.5	it can literally just plug in into any of these harnesses. You build yourself. I
+135.5	141.8	found this really fascinating and you can see now that Pi has finished because
+141.8	144.6	we use this tool called delegate taskTuesday. They'll get tasks basically
+144.6	149.8	spawn up this and sub-agent called Pi-agent and then you write up this code for us.
+149.8	153.6	So that was an example of the end goal where when you have another agent
+153.6	158.2	harness system that can write code for you. Now we want to understand how the
+158.3	161.6	building block is actually constructed right because that would be helpful for us
+161.6	167.6	to understand how do we master the best way to use Pi-agent as our coding agent
+167.6	172.0	by default and later I'm also going to show you some examples of how you can
+172.0	176.9	build up some of these tools to make your Pi-agent even stronger than just a
+176.9	182.0	pure plain code. First of all Pi-agent has a very simple interface or if we
+182.0	187.8	call it faces it has only four main costumes TUI which is terminal user interface
+188.1	193.2	or you can run it as a CLI run it once. You can even do event streaming which means
+193.2	197.4	that it will spit out all those thinking steps for a question you ask and
+197.4	202.1	eventually it can have a live pipe which is using RPC. I'll show you a quick example.
+202.1	205.8	First thing first we should come to the Pi-agent website and we should copy this
+205.8	209.7	curl if you're on a MacBook or this PowerShell one if you're on the Windows.
+209.7	213.0	I'm using a MacBook so I'm going to copy this line. Then we're going to come to
+213.0	217.0	terminal and paste that in. Then you will be now you're installing the Pi-agent and
+217.0	220.2	since I have already installed it so I won't reinstall it so I'll just do
+220.2	224.8	nothing. After that what you do is that we can just type in Pi to test out
+224.8	229.8	the terminal user interface and if you have not set up any models you can just
+229.8	234.8	do slash login against either signing with an account or an API key. If you do
+234.8	238.8	an account and an anthropic it will pop up this window for you to authorize your
+238.8	242.1	account and it's going to say authentication is successful. It come back
+242.1	248.5	here they can do slash model to switch the model to cloud. Let's try haiku 4.5
+248.5	252.9	and we just say hello. Yeah cool it's because it's in my directory in
+252.9	256.6	Waku agent is telling me about do I do you want me to do something about it. We're
+256.6	259.4	not going to call anything else yet but I'm just going to show you a few more
+259.4	266.3	things if we do control C. If I do pi-p and then given a question be like who is
+266.3	272.4	some ultimate then instead of turning on the terminal user interface it's just
+272.4	276.6	going to return the answer back to me and he's telling me about that he's a CEO of
+276.6	281.1	OpenAI and he's one of the most prominent figures in AI industry which I am sure
+281.1	288.3	Elon is not going to agree with. Next one is pi mode JSON for testing the
+288.3	292.4	event stream and I'll just say pi-mode JSON will be happy with some
+292.4	297.4	moment eventually and instead of just showing me that one answer you see that
+297.4	302.2	it's showing me the entire thinking process and eventually I think the answer
+302.2	305.3	is probably somewhere. So if you're curious about the current relationship
+305.3	309.2	status recent public statements I could search for that information otherwise
+309.2	313.9	blah blah blah. Okay so you see this is showing me the thinking process and it
+313.9	318.6	streamed the entire thinking process back to me and obviously you can try the RPC
+318.6	321.8	one as well if you're interested but this is out of the scope for this video.
+321.8	326.2	So earlier the way we use pi-agent was not through the terminal remember the way we
+326.2	331.3	used it was that we were testing the Waku agent and we asked a question and our
+331.3	336.8	agent spun up this tool called delegate task and spun up a sub-agent to call
+336.8	342.9	pi-agent to write the code for me. The way it did is that our sub-agent started a
+342.9	348.1	pi-agent and did exactly what we just tested on the terminal like here and then
+348.1	353.5	got the answer and returned it back to our agent. That's literally how this is
+353.5	358.7	literally how you either use pi-agent by itself or you use a different harness
+358.7	363.6	which will call a pi-agent to write task for you. You understand? Okay let's move on.
+363.6	368.6	After the user or another agent harness asked a question through this
+368.6	373.4	interface what he does next is that it's feeding the context of the whole state
+373.8	378.3	into the LM and it's preparing the context for us. The way that it prepares
+378.3	387.2	AMD warrShar
+408.3	414.0	say, thank you so much, which is the opposite of your absolute right from clock code. So I can see
+414.0	419.1	that they have very different design philosophy here. And then it's also focusing on the code quality,
+419.1	423.7	also define how you should run commands, dependencyypes, and install security, how you should use
+423.7	430.4	GitHub, and issues and PRs, blah, blah, Cloak. Okay, so this understatement of how the
+430.4	437.8	Pi agent should behave as an agent. And that agents.md is part of this context. We're going to feed
+437.8	442.2	into the LAM later. And obviously we're going to have a system prompt as well.
+443.1	450.1	CODO, these two will be combined into a JSON file, which is forkable. And they will be fed
+450.1	457.2	into the Pi agent loop. The system prompt is within the Pi folder packages, code engagement,
+457.2	466.0	source core="/. And obviouslygallery.com.t.t.s. There we go. This is its system prompt,
+466.0	471.8	which is very simple. Look at this. You are an expert coding assistant operating inside Pi,
+472.4	477.9	a code agent harness. Yada, yada, yada, yada. And you got tool listoters, it got the guidelines,
+478.6	494.5	and all the rest of the stuff nomineificate.com. Then we're going toCENT.
+494.5	522.4	And now we're going to
+524.5	528.6	by doing these selections.
+528.6	540.2	And what the
+540.2	542.8	are we allowed to use that tool?
+542.8	549.1	And yes, here comes the four only actions that Pi Agent has.
+570.2	599.0	So you can see that within this directory, they have bash. SetFontSize
+599.0	602.6	and you can check it out in your fork or a last tree.
+602.6	605.4	And these information will be stored in this directory.
+605.4	610.4	So the sessions are not stored within this Pi folder because this is the GitHub.
+610.4	614.6	This is the open source code that they published right here.
+614.6	616.0	Okay, it's this repo.
+616.0	617.4	We're not going to change this repo.
+617.4	620.2	The sessionshtt are your own data. I is on your own laptop.
+620.2	622.4	So it's supposed to be in your home directory.
+622.4	626.2	If I scroll down, I will be able to see that there's aategeworthy folder right here.
+626.2	629.2	And I can see there's a folder called sessions.
+629.2	650.1	Okay, PKK Fa408 and see a bunch of
+658.1	665.1	we just literally use this terminal user interface and it prepared this context with agents and system prompt.
+665.1	673.1	And then it fed intoUSE 4.5HECOOVE model and then it decided that you use some tools to check out the Pokemon index online.
+673.1	679.6	And it was allowed and then it started writing something and it gave me a session.
+679.6	684.1	So the way we check sessions is either we go back to here.
+684.1	685.1	It's right here.
+685.1	715.1	It's' promot manslaughter
+715.1	717.1	juices.
+745.1	775.1	estinal
+775.1	781.1	We cloned over here and packages agent source agent loop.ts
+781.1	785.1	And if we scroll down, that's exactly 792 rows.
+785.1	794.1	And what it does is that it's defining a bunch of functions related to agent loop and all([
+794.1	797.1	functionalities needed to finish up the loop.
+805.1	810.1	And the tools basically as we said read, write, edit and bash.
+810.1	811.1	So simple.
+811.1	814.1	And then you might be204 wondering but in that case isn't this¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯
+814.1	818.1	Itraltar is going to be verydescription because it's got nothing.
+818.1	835.1	And I
+835.1	837.1	.$
+837.1	842.1	I'm sure you have to come across each region where clock or you can do planning with it.
+842.1	862.6	It's going to list to
+862.6	866.6	the next region.
+866.6	873.6	And you probably don't even write to notion or read from notion at all for maybe 90% of the times
+873.6	879.6	then these MCP contacts will just be used for nothing.
+879.6	880.6	You don't want that.
+880.6	883.6	So Py agent reduced now completely.
+883.6	886.6	What they did is that instead of saying hey.
+886.6	889.6	By default,j let me connect all these MCPs back to you.
+889.6	890.6	I'll let you decide.
+890.6	891.6	Okay.
+891.6	893.6	And the way they do that is the following.
+893.6	901.6	They make Py agents stronger by allowing the user to write their own skills, extensions,
+901.6	905.6	packages, and run your own bash with the README file.
+905.6	907.6	What do we mean by that?
+907.6	913.6	So a skill is basically you can tell an agent to behave in a way that you want.
+913.6	915.6	It's a procedural memory basically.
+915.6	918.6	And these things normally live in your Py agent folder.
+918.6	924.6	Within the Waku agent folder, I have a .agent skills file called Polkadex.
+924.6	925.6	Okay.
+925.6	930.6	With the skill right here, which is basically saying it should look up any Pokemon's types
+930.6	935.6	and the ability from the public Polkadex out there on the market.
+935.6	941.6	And with the skills Py agent should be able to read and run the task for us.
+941.6	942.6	Okay.
+942.6	943.6	Let's test it real quick.
+943.6	948.6	So if I just paste that in, it was using that skill and it gave me the data of Charizard,
+948.6	950.6	which is a fire and flying type.
+950.6	955.6	And the basic stats is that a special attack is 109, speed is 100.
+955.6	962.6	And the ability is that it has got Blaze, SolarPower, which are some basic information of Charizard.
+962.6	976.2	So I type that into the TUI, which is Terminal User
+985.6	987.6	It's got the Pi-P, which is running once.
+987.6	988.6	Okay.
+988.6	991.6	It's just going to give me the answer for the data.
+991.6	992.6	Oh, okay.
+992.6	995.6	I was asking Snorlveland in this case, not Charizard.
+995.6	996.6	Yeah, it makes sense.
+996.6	1010.5	Snorl
+1010.5	1015.5	So Py agentministics is really good.
+1015.5	1020.5	iatus, with Fire attacks or Ice attacks, it's fine because it's got a thick fact.
+1020.5	1021.5	OkayCRIP.
+1021.5	1024.5	So that was using the skill of my own folder.
+1024.5	1027.5	So Py agent was reading the skill from my own folder.
+1027.5	1030.5	Well, I was explicitly telling it to use it, right?
+1030.5	1036.5	But normally you can just, as long as it's in the agent's folder for skills, Py agent will go find out about these skills.
+1036.5	1039.5	That's the first way to make Py agent stronger with skill.
+1039.5	1041.5	Let's check out for an example first.
+1041.5	1042.5	Okay.
+1042.5	1048.5	So the extension is not something for the entire Git repoの魔, so it's not under the skills anymore.
+1048.5	1049.5	Right.
+1049.5	1057.5	So we created this new folder called .
+1057.5	1062.5	Py slash, and it can create TypeScript here for misconomptile.
+1062.5	1066.5	So, what extension does is that it can think of it as some kind of MCP, which will sort of let you use some tools and you can define more clearly what exactly
+1067.5	1070.5	Intumice functionality is how this tool should perform.
+1070.5	1072.5	It's not as simple as the skill anymore.
+1072.5	1075.5	It's got a proper thing that it's going to do.
+1075.5	1077.5	You can just load it for a quick test.
+1077.5	1078.5	Okay.
+1078.5	1107.9	partNameitualCrit
+1108.5	1108.6	$549�
+1138.5	1168.5	X deg
+1168.5	1170.5	skills and it's got the.
+1170.5	1174.5	package.json it's got itaeper. so you can just trigger
+1180.1	1182.6	の�ocobo-i.ouver-i.
+1182.6	1185.5	Let's try it out.
+1185.5	1186.5	You seeoided now it
+1186.5	1187.5	installed veh-i.
+1187.5	1199.0	It listed
+1200.4	1206.6	You see you're creating this completely local kind of harness system for your
+1231.4	1237.4	it's
+1237.4	1238.4	.
+1238.4	1239.4	it's
+1239.4	1241.4	project like pie agent is very popular.
+1260.4	1261.4	itrike
+1262.9	1268.4	it's
+1268.4	1275.4	it's
+1275.4	1280.4	it's
+1280.4	1281.4	it's
+1281.4	1282.4	it's
+1282.4	1284.4	it's
+1284.4	1287.4	it's
+1287.4	1291.3	I hope this is helpful. I have heard so many good comments about Pi
+1291.3	1294.1	Agent, which is why I decided to make this video.
+1294.6	1299.1	And I strongly recommend that everybody should go to the Pi
+1299.1	1302.1	Agent GitHub repo. If you're curious, read out some of those
+1302.1	1304.8	cloud documentations, but I think I have covered some of the
+1304.8	1308.6	most important things for you. And you should go check out their
+1308.6	1311.8	official website and download it by copying this to install it
+1311.8	1314.0	on your laptop. AndCompared to something like me, which is
+1314.0	1316.2	checking their own files of stuff, it was you do is they come
+1316.2	1319.7	to code and then copy this and just get cloned this to your
+1319.7	1323.0	own folder to check it out. Okay, meanwhile, at the same time,
+1323.0	1326.8	if you want to test out Pi Agent on a more complete Agent
+1326.8	1330.3	harness system with memories, eval, loop engineering, you can
+1330.3	1335.0	always come to Shenzhen slash waku dash agent and give us a
+1335.0	1338.3	star if you find this helpful. Thanks for your attention.
+1338.3	1341.8	Give us a subscribe and give us a like. Give us a star
+1341.8	1344.7	on the GitHub. I'm asking too much. But if you're really
+1344.7	1346.2	gested, join us in our discord.
+1346.7	1349.4	And I'm looking forward to see you next time. Thank you very
+1349.4	1349.6	much.
