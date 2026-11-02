@@ -16,7 +16,7 @@ export async function planBrief(o: { ledger: CostLedger; kind: SourceKind; name:
     o.ask.also && `- also cover: ${o.ask.also}`,
   ].filter(Boolean).join("\n");
   const b = await sparkJson({
-    ledger: o.ledger, step: "brief", schema: Brief, name: "brief", effort: "low", maxTokens: 3000,
+    ledger: o.ledger, step: "brief", schema: Brief, name: "brief", effort: "low", maxTokens: 3000, hedge: true,
     messages: [
       { role: "system", content: [
         "You are the director of a short whiteboard explainer video. Before anything is drawn, decide how this source should be explained.",
