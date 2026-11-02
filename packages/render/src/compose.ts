@@ -15,6 +15,7 @@ import { resolveIcon } from "./icons.js";
 import { ringOf, scaleArrow, placeFix, placeRingLabel, polyBox } from "./annotate.js";
 import path from "node:path";
 import { clearShots, type Backdrop, type Hidden } from "./clear.js";
+import { cardSlots, cardBox, drawCard, spliceCards, type CardSlot } from "./cards.js";
 
 // 24 fps is the film standard: a fifth fewer frames to draw than 30, and nothing downstream counts frames
 export const W = 1920, H = 1080, FPS = 24;
@@ -94,6 +95,7 @@ class Builder {
   icons = new Map<string, string>();
   constructor(public theme: Theme, public pack: IconPack) {}
   id(p: string) { return `${p}${this.n++}`; }
+  icon(name: string) { return iconHref(this.pack, name, this.icons).href; }
 
   /** the next element pushed carries this sound cue */
   cueNext(cue: "pop" | "whoosh") { this.pendingCue = cue; }
@@ -538,7 +540,7 @@ function along(pts: [number, number][], f: number): [number, number, number, num
   return [pts[0][0], pts[0][1], 1, 0];
 }
 
-export interface Composed { film: Film; sketch: Sketch; marks: Mark[]; timeline: { id: string; kind: string; start: number; end: number }[]; pace: PaceReport; placement: PlacementReport; backdrops: Backdrop[]; cleared: Hidden[] }
+export interface Composed { /** line cards cut in over the board, in time order */ cards?: { scene: string; visual: string; t0: number; t1: number }[]; film: Film; sketch: Sketch; marks: Mark[]; timeline: { id: string; kind: string; start: number; end: number }[]; pace: PaceReport; placement: PlacementReport; backdrops: Backdrop[]; cleared: Hidden[] }
 
 export async function compose(inp: ComposeInput): Promise<Composed> {
   const { plan, theme } = inp;
@@ -648,6 +650,7 @@ export async function compose(inp: ComposeInput): Promise<Composed> {
   const boardShown: { id: string; heading: string; keys: string[]; g: string }[] = [];
 
   const tempo = inp.spec.tempo;
+  const slots: CardSlot[] = [];
   for (const [si, s] of plan.scenes.entries()) {
     const au = audio.get(s.id) ?? { sceneId: s.id, duration: Math.max(2.5, s.narration.split(/\s+/).length / 2.6), words: [] };
     // every scene holds at least one beat of the chosen tempo, and breathes for the tempo's tail after the voice
@@ -656,6 +659,8 @@ export async function compose(inp: ComposeInput): Promise<Composed> {
     const words = au.words.map((w) => ({ ...w, start: T + LEAD + w.start, end: T + LEAD + w.end }));
     const t0 = T + LEAD + 0.15, tEnd = T + D - 0.9;
     timeline.push({ id: s.id, kind: s.kind, start: T, end: T + D });
+    // a line card may cut in from here on; the hook keeps its title card on screen first
+    let cardFrom = t0;
     const scaleRisk = s.kind === "scale" ? inp.arch?.scale[plan.scenes.filter((x) => x.kind === "scale").indexOf(s)] : undefined;
     // one title on screen at a time: the concept recap titles every board on the wall, so it gets no heading of its own
     const worldTitles = (s.kind === "recap" || s.kind === "outro") && !graph && boardShown.length > 0;
@@ -672,14 +677,13 @@ export async function compose(inp: ComposeInput): Promise<Composed> {
       const title = plan.title.toLowerCase();
       const ts = Math.min(150, 2400 / Math.max(6, title.length) * 1.6);
       const tw = textWidth(title, ts);
-      const nPrev = Math.min(5, inp.arch ? inp.arch.components.length : plan.scenes.flatMap((x) => x.board_nodes).length);
       // a long opening is told in shots: the hook line, a push-in on the title, then a pull back at a sentence end that reveals what is coming
       const lineEnd0 = kin ? T + LEAD + au.words[kin - 1].end : T;
       const tTitle = kin ? Math.max(lineEnd0 + 0.5, T + tempo.minBeat) : T;
       const titleBox: Box = { x: hookCx - Math.max(tw, textWidth(plan.subtitle.toLowerCase(), 46)) / 2, y: hookCy - 40 - ts, w: Math.max(tw, textWidth(plan.subtitle.toLowerCase(), 46)), h: ts + 140 };
       const zoomed = B.span(titleBox, 1.3) < W / 1.17;
       const lo = Math.max(tTitle + tempo.minBeat, tTitle + (kin ? tempo.move : 0) + 2.4);
-      const hi = Math.min(T + D - tempo.minBeat - 0.1, tEnd - nPrev * 0.6 - tempo.move - 0.1);
+      const hi = Math.min(T + D - tempo.minBeat - 0.1, tEnd - tempo.move - 0.1);
       const ends = words.slice(0, -1).map((w, i) => /[.!?]["')\]]*$/.test(w.word) ? (w.end + words[i + 1].start) / 2 : -1).filter((t) => t >= lo && t <= hi);
       const reveal = zoomed && ends.length ? ends.reduce((a, b) => (Math.abs(b - (lo + hi) / 2) < Math.abs(a - (lo + hi) / 2) ? b : a)) : 0;
       let Th = T;
@@ -712,20 +716,10 @@ export async function compose(inp: ComposeInput): Promise<Composed> {
       B.text({ text: title, x: hookCx, y: hookCy - 40, size: ts, color: theme.ink, anchor: "middle", t0: Th + 0.3, dur: 1.0, g: "hook" });
       B.rough(gen.line(hookCx - tw / 2, hookCy + 0, hookCx + tw / 2, hookCy + 6, { seed: B.seed++, stroke: C("orange"), strokeWidth: 7, roughness: 1.4 }), Th + 1.1, 0.5, "hook");
       B.text({ text: plan.subtitle.toLowerCase(), x: hookCx, y: hookCy + 80, size: 46, color: theme.colors.gray, anchor: "middle", t0: Th + 1.5, dur: 0.8, g: "hook" });
-      // preview icons of what is coming
-      const prev = inp.arch ? inp.arch.components.slice(0, 5).map((c) => ({ icon: c.icon, color: C(inp.colorOf ? inp.colorOf(c) : "white"), kw: c.keyword }))
-        : plan.scenes.flatMap((x) => x.board_nodes).slice(0, 5).map((n) => ({ icon: n.icon, color: C(n.color), kw: n.keyword }));
-      const ts2 = eventTimes(words, prev.map((p) => [p.kw]), reveal ? reveal + tempo.move + 0.1 : Math.min(Th + 2.4, tEnd - prev.length * 0.6), tEnd, 0.6);
-      const gap = 260, x0 = hookCx - ((prev.length - 1) * gap) / 2;
-      prev.forEach((p, i) => {
-        const cx = x0 + i * gap, cy = hookCy + 260;
-        B.ring(gen.circle(cx, cy, 170, { seed: B.seed++, stroke: p.color, strokeWidth: 3, roughness: 1.2 }), ts2[i], 0.5, "hook");
-        B.marks.push({ kind: "ring", g: "hook", t0: ts2[i], dur: 0.5, shape: { k: "circle", cx, cy, r: 85 }, target: { x: cx - 50, y: cy - 50, w: 100, h: 100 } });
-        const ic = iconHref(inp.pack, p.icon, B.icons);
-        B.img({ href: ic.href, x: cx - 50, y: cy - 50, w: 100, h: 100, t0: ts2[i] + 0.2, dur: 0.4, g: "hook" });
-      });
-      const hw = Math.max(tw, prev.length * gap, kin ? 1500 : 0);
-      const whole: Box = { x: hookCx - hw / 2, y: hookCy - 40 - ts, w: hw, h: ts + 480 };
+      // the title card is the repo name, its underline, the tagline and the hook line: no icon row under it
+      const hw = Math.max(tw, textWidth(plan.subtitle.toLowerCase(), 46), kin ? 1500 : 0);
+      const whole: Box = { x: hookCx - hw / 2, y: hookCy - 40 - ts, w: hw, h: ts + 300 };
+      cardFrom = Th + 2.6;
       if (reveal) {
         if (kin) B.fit(whole, T, 0, 1.0);
         B.fit(titleBox, tTitle, kin ? tempo.move : 0, 1.3);
@@ -1207,6 +1201,7 @@ export async function compose(inp: ComposeInput): Promise<Composed> {
         }
       }
     }
+    if (s.beats?.length && s.kind !== "recap" && s.kind !== "outro" && words.length) slots.push(...cardSlots(s.id, s.beats, words, cardFrom, T + D));
     // a scene ends only after its last ring or arrow finishes, so the next scene's camera move never cuts one off
     const drawnTo = Math.max(0, ...B.els.filter((e) => e.mark && e.t0 >= T).map((e) => e.t0 + e.dur));
     if (drawnTo + 0.15 > T + D) { D = drawnTo + 0.15 - T; timeline[timeline.length - 1].end = T + D; }
@@ -1228,5 +1223,8 @@ export async function compose(inp: ComposeInput): Promise<Composed> {
   const placement = placementPass({ film, sketch: B.sketch, marks: B.marks });
   // on the final camera: the dimmed rest of the board is never sliced by the frame or drawn under the heading
   const cleared = clearShots(film, B.backdrops);
-  return { film, sketch: B.sketch, marks: B.marks, timeline, pace, placement, backdrops: B.backdrops, cleared };
+  // line cards go in last, on the final camera, so no pass above ever reframes or retimes them
+  const cards = slots.map((sl, i) => { const box = cardBox(i, W, H), g = `card:${i}`; drawCard(B, gen, sl, box, g); return { box, t0: sl.t0, t1: sl.t1, g, scene: sl.scene, visual: sl.beat.visual }; });
+  spliceCards(film, cards);
+  return { film, sketch: B.sketch, marks: B.marks, timeline, pace, placement, backdrops: B.backdrops, cleared, cards: cards.map(({ scene, visual, t0, t1 }) => ({ scene, visual, t0, t1 })) };
 }
