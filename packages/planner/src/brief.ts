@@ -24,7 +24,7 @@ export async function planBrief(o: { ledger: CostLedger; kind: SourceKind; name:
         "Technical, unfamiliar or many-part topics go slower and step by step; simple topics go faster.",
         "The video must leave a newcomer able to say what this is and how one request flows through it. That core flow is the video; internals, scale and trade-offs are optional extras.",
         "Pick the approach from the shape of the source, not by habit: a request with one clear path through the system is 'story'; a project that grew one part at a time, each part answering a limit, is 'build-up'; a project that exists to kill one specific pain is 'problem-solution'; one that replaces a common way of doing something is 'compare'. Do not default to story.",
-        "If the approach is story, step-by-step or analogy, pick ONE everyday analogy for the whole system whose parts map onto the real parts. Draw it from the world this project serves (music, maps, money, health, games, transport, a workshop). Never a hotel front desk, a post office, a restaurant kitchen or a mailroom: those are the first thing anyone thinks of, and they make every video feel like the same video. If the approach is problem-solution or compare, set analogy to an empty string and let the pain carry the video.",
+        "An analogy is a tool for an abstract subject, not a decoration on every video. Use one only when the subject is genuinely abstract or unfamiliar and its parts have no everyday name (a resolver, a shard, an index, a queue). When the subject is concrete and familiar (a rocket company, a phone, a shop, a car engine, a website people use), explain it directly: set analogy to an empty string and let the real parts carry the video. When you do use one, give it one sentence in the hook and at most a light callback later; never map every part onto it. Never the hotel front desk, the post office, the restaurant kitchen or the mailroom: those are the first thing anyone thinks of, and they make every video feel like the same video.",
         "Pick the look from the subject, not by habit: chalk-dark for infrastructure and low-level systems, whiteboard-light for conceptual or product explanations, pen-light for business, data or everyday subjects. The last video's look is not a reason to pick it again.",
         "Pick the audience that will get the most from this source; the default viewer is a developer who has never seen this project.",
         "Pick depth from what the viewer needs, not from how big the code is: 'working' by default, 'overview' for small tools, 'deep' only when the internals are the point. Extras: usually none.",
@@ -38,5 +38,11 @@ export async function planBrief(o: { ledger: CostLedger; kind: SourceKind; name:
     ],
   });
   // what the viewer asked for is not a suggestion; a repo has no stated figures to chart, so it stays a whiteboard
-  return { ...b, depth: o.ask?.depth ?? b.depth, style: o.kind === "repo" ? "whiteboard" : b.style };
+  return {
+    ...b,
+    depth: o.ask?.depth ?? b.depth,
+    style: o.kind === "repo" ? "whiteboard" : b.style,
+    // a simple subject needs no borrowed picture: say the thing itself
+    analogy: b.complexity === "simple" ? "" : b.analogy,
+  };
 }
