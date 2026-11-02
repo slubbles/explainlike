@@ -59,42 +59,77 @@ const LOWER = { high: "medium", medium: "low", low: "minimal", minimal: "minimal
  * With `timeoutMs`, a try that has not answered by then is dropped and retried once the same way, so a slow
  * call costs at most two time limits instead of hanging through four five-minute retries.
  * `wire` is the schema sent to the API when it carries limits (max items, max length) the parse should not enforce.
+ * `hedge` sends the same request more than once side by side (see hedgeCopies) and keeps the first good answer.
  */
 export async function sparkJson<T extends z.ZodType>(opts: {
   ledger: CostLedger; step: string; schema: T; name: string; messages: ChatMessage[];
-  effort?: "minimal" | "low" | "medium" | "high"; maxTokens?: number; timeoutMs?: number; wire?: z.ZodType;
+  effort?: "minimal" | "low" | "medium" | "high"; maxTokens?: number; timeoutMs?: number; wire?: z.ZodType; hedge?: boolean;
 }): Promise<z.infer<T>> {
-  let effort = opts.effort ?? "low", maxTokens = opts.maxTokens ?? 12000;
-  for (let attempt = 0; ; attempt++) {
-    const t = Date.now();
-    const body = {
-      model: SPARK,
-      messages: opts.messages,
-      reasoning_effort: effort,
-      max_tokens: maxTokens,
-      response_format: { type: "json_schema", json_schema: { name: opts.name, strict: true, schema: strictJsonSchema(opts.wire ?? opts.schema) } },
-    };
-    let out;
-    try {
-      out = opts.timeoutMs ? await post("/chat/completions", body, opts.timeoutMs, false) : await post("/chat/completions", body);
-    } catch (e) {
-      if (!(e instanceof ServiceError && e.timedOut) || attempt >= 1) throw e;
-      // what a dropped try cost is not reported back, so it is logged at zero with the time it took
-      opts.ledger.add({ step: opts.step, model: SPARK, seconds: (Date.now() - t) / 1000, usd: 0, detail: { effort, timedOut: true } });
+  const copies = opts.hedge ? hedgeCopies() : 1;
+  let won: number | undefined;
+  // a copy that answers after another copy already won is still paid for, so it is logged under its own step name
+  const stepOf = (i: number) => (won !== undefined && won !== i ? `${opts.step}-hedge` : opts.step);
+  return firstOf(copies, async (i) => {
+    let effort = opts.effort ?? "low", maxTokens = opts.maxTokens ?? 12000;
+    for (let attempt = 0; ; attempt++) {
+      // a copy that lost does not pay for a retry nobody is waiting on
+      if (attempt && won !== undefined) throw new Error(`another copy of ${opts.step} already answered`);
+      const t = Date.now();
+      const body = {
+        model: SPARK,
+        messages: opts.messages,
+        reasoning_effort: effort,
+        max_tokens: maxTokens,
+        response_format: { type: "json_schema", json_schema: { name: opts.name, strict: true, schema: strictJsonSchema(opts.wire ?? opts.schema) } },
+      };
+      let out;
+      try {
+        out = opts.timeoutMs ? await post("/chat/completions", body, opts.timeoutMs, false) : await post("/chat/completions", body);
+      } catch (e) {
+        if (!(e instanceof ServiceError && e.timedOut) || attempt >= 1) throw e;
+        // what a dropped try cost is not reported back, so it is logged at zero with the time it took
+        opts.ledger.add({ step: stepOf(i), model: SPARK, seconds: (Date.now() - t) / 1000, usd: 0, detail: { effort, timedOut: true } });
+        effort = LOWER[effort];
+        continue;
+      }
+      const u = out.usage ?? {};
+      const usd = (u.prompt_tokens ?? 0) * PRICE.sparkIn + (u.completion_tokens ?? 0) * PRICE.sparkOut;
+      const content = out.choices?.[0]?.message?.content;
+      const cutOff = out.choices?.[0]?.finish_reason === "length";
+      let parsed: { ok: true; value: z.infer<T> } | { ok: false; error: unknown } | undefined;
+      if (content && !cutOff) {
+        try { parsed = { ok: true, value: opts.schema.parse(JSON.parse(content)) }; } catch (error) { parsed = { ok: false, error }; }
+        if (parsed.ok && won === undefined) won = i;
+      }
+      opts.ledger.add({ step: stepOf(i), model: SPARK, seconds: (Date.now() - t) / 1000, usd, detail: { prompt: u.prompt_tokens, completion: u.completion_tokens, reasoning: u.completion_tokens_details?.reasoning_tokens, effort, ...(attempt ? { retry: attempt } : {}), ...(copies > 1 ? { copy: i + 1, of: copies } : {}) } });
+      if (parsed) { if (parsed.ok) return parsed.value; throw parsed.error; }
+      const why = cutOff ? `ran out of room (${maxTokens} tokens)` : "returned no content";
+      if (attempt >= 1) throw new Error(`Muse Spark ${why} on ${opts.step}, twice`);
       effort = LOWER[effort];
-      continue;
+      maxTokens = Math.min(32000, Math.round(maxTokens * 1.5));
     }
-    const u = out.usage ?? {};
-    const usd = (u.prompt_tokens ?? 0) * PRICE.sparkIn + (u.completion_tokens ?? 0) * PRICE.sparkOut;
-    opts.ledger.add({ step: opts.step, model: SPARK, seconds: (Date.now() - t) / 1000, usd, detail: { prompt: u.prompt_tokens, completion: u.completion_tokens, reasoning: u.completion_tokens_details?.reasoning_tokens, effort, ...(attempt ? { retry: attempt } : {}) } });
-    const content = out.choices?.[0]?.message?.content;
-    const cutOff = out.choices?.[0]?.finish_reason === "length";
-    if (content && !cutOff) return opts.schema.parse(JSON.parse(content));
-    const why = cutOff ? `ran out of room (${maxTokens} tokens)` : "returned no content";
-    if (attempt >= 1) throw new Error(`Muse Spark ${why} on ${opts.step}, twice`);
-    effort = LOWER[effort];
-    maxTokens = Math.min(32000, Math.round(maxTokens * 1.5));
-  }
+  });
+}
+
+/**
+ * How many copies of a hedged call go out side by side. The same request to the same model takes 33 to
+ * 83 s from one try to the next (the reasoning runs 3.5k to 7.3k tokens and the token rate swings), so
+ * on the long calls that every later step waits for, the first of two answers saves more time than any
+ * prompt trim. Each extra copy is paid for and logged. EXPLANIMATE_HEDGE=1 (or 0) turns it off; 3 is the most.
+ */
+export function hedgeCopies(env: Record<string, string | undefined> = process.env): number {
+  const n = Number(env.EXPLANIMATE_HEDGE ?? 2);
+  if (!Number.isInteger(n) || n < 0) return 2;
+  return Math.min(Math.max(n, 1), 3);
+}
+
+/**
+ * Starts `n` copies of a task at once and settles with the first that succeeds. It fails only when every
+ * copy fails, with the first copy's error. Copies still running are left to finish on their own.
+ */
+export function firstOf<T>(n: number, run: (i: number) => Promise<T>): Promise<T> {
+  if (n <= 1) return run(0);
+  return Promise.any([...Array(n).keys()].map((i) => run(i))).catch((e: unknown) => { throw e instanceof AggregateError ? e.errors[0] : e; });
 }
 
 /** Muse Image: returns image bytes. */
