@@ -25,7 +25,7 @@ export interface ShapeSpec {
 
 export const SHAPES: Record<Shape, ShapeSpec> = {
   journey: {
-    analogy: "required",
+    analogy: "optional",
     hook:
       "Sentence one is the hook: a question the viewer would ask, or one surprising, concrete claim about the problem this project solves, at most 14 words, no product name needed. Then what the product is in plain words (no part names, no jargon), what goes wrong without it, the everyday analogy, and the promise of the story, e.g. 'Let's follow one message through it.'",
     spine:
@@ -73,7 +73,7 @@ export function shapeFor(approach: Approach): Shape {
 export function analogyRule(shape: Shape, analogy: string): string {
   const banned =
     "Never a hotel front desk, a post office, a restaurant kitchen or a mailroom unless the source is literally about one of those.";
-  if (shape === "fault") return `No everyday analogy in this video. ${banned}`;
-  if (!analogy) return `No analogy is needed; if one helps, it must come from the world this software serves. ${banned}`;
-  return `Everyday analogy for the whole system: ${analogy}. Draw it from the world this project serves, not from the standbys. ${banned} If this one does not map onto the real parts, say so in one line instead of forcing it.`;
+  if (shape === "fault") return `No everyday analogy in this video: the pain carries it. ${banned}`;
+  if (!analogy) return `No everyday analogy. Say the real parts by their real names; this subject is concrete enough without one. ${banned}`;
+  return `Everyday analogy, used lightly: ${analogy}. Give it one sentence in the hook and at most a light callback on the journey; do not dress every part in it, and say the real name each time you use it. It must come from the world this project serves, not from the standbys. ${banned}`;
 }
