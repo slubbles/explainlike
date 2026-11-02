@@ -9,6 +9,9 @@ import type { Approach } from "@explanimate/core";
  */
 export type Shape = "journey" | "build" | "fault";
 
+/** The hook line a journey video opens on: the "What if your AI could..." question the approved sample uses. */
+export const WHAT_IF = /^what if\b/i;
+
 export interface ShapeSpec {
   /** what the first scene does */
   hook: string;
@@ -27,9 +30,9 @@ export const SHAPES: Record<Shape, ShapeSpec> = {
   journey: {
     analogy: "optional",
     hook:
-      "Sentence one is the hook: a question the viewer would ask, or one surprising, concrete claim about the problem this project solves, at most 14 words, no product name needed. Then what the product is in plain words (no part names, no jargon), what goes wrong without it, and what you'll see, e.g. 'Here's what happens when your AI clicks log in.'",
+      "Sentence one is the hook, shown on the title card under the name and tagline: a 'What if ...?' question about what this lets you (or your AI, your app) do, at most 14 words, no product name ('What if your AI could really click around the web?'). Then one or two short lines on what that means in practice, said as the contrast with today ('Not guess what a page says. Actually open it, read it, and press the button.'). Then what the product is, in one plain sentence that names it and the familiar tools it works with ('That's agent-browser: a command-line tool that lets an AI agent, like Claude Code or Cursor, drive a real Chrome browser.'). No part names yet.",
     spine:
-      "Tell it in the order things happen ('First...', 'Next...'): each scene is the next thing that happens, said literally, and the part that does it. For each added part say its keyword out loud, what it does in plain words, and why it is there (plus its role in the analogy, only if the video has one).",
+      "Tell it in the order things happen ('First...', 'Next...'): each scene is the next thing that happens, said literally, and the part that does it. For each added part, first the problem it solves in one short line (what would be slow, hard or impossible without it), then the part by its keyword, what it is in one plain clause, and what that buys you (plus its role in the analogy, only if the video has one).",
     close:
       "End with one recap scene of two or three short plain sentences. First answer 'so what does it do for me?' for the viewer, in everyday words ('So your AI can log in, fill a form or grab a screenshot for you, in a real browser.'). Then retell what happened in one short literal sentence, naming the journey keywords in order the way you'd tell a friend, not as a list of steps, and if it fits, one line that answers the hook's question. Give it a plain heading that says what you get, like 'what you get'.",
     headings:

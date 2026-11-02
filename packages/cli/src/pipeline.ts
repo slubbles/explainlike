@@ -6,7 +6,7 @@ import { fileURLToPath } from "node:url";
 import { getTheme, looksLikeTopic, specFromBrief, DEFAULT_BRIEF, type Ask, type Brief, type ExplainSpec, type Architecture, type Progress, type SceneAudio, type ScenePlan, type SourceDoc, type SourceKind } from "@explanimate/core";
 import { CostLedger, museTranscribe } from "@explanimate/models";
 import { ingestRepo } from "@explanimate/ingest";
-import { planBrief, extractArchitecture, validateArchitecture, evidencePack, reviewArchitecture, fixArchitecture, planRepoScenes, respeak, planFocus, planWhatIf, kindColor, checkBeats, readmeExcerpt } from "@explanimate/planner";
+import { planBrief, extractArchitecture, validateArchitecture, evidencePack, reviewArchitecture, fixArchitecture, planRepoScenes, respeak, planFocus, planWhatIf, kindColor, checkBeats, readmeExcerpt, groundToReadme } from "@explanimate/planner";
 import { pickVoice, wordOverlap, DeepgramVoice, type VoiceProvider } from "@explanimate/voice";
 import { captionMismatches, loadIconPack, mergePacks, builtinPackIds, detectComponents, packHints, type DetectedComponent, iconCatalog, resolveIcon, compose, renderFilm, mixNarration, sfxCues, contactSheet, frameCheck, checkTldr, checkExcalidraw, toExcalidraw, toTldraw, type IconPack, type SourceShot } from "@explanimate/render";
 
@@ -217,6 +217,12 @@ export async function runExplanimate(o: RunOptions) {
       }
       return v.arch;
     }));
+    // the video covers the core and what the README puts up front; the rest of the map waits for a follow-up
+    if (readmeFile) {
+      const g = groundToReadme(arch!, r.digest.read(readmeFile, 200_000));
+      arch = g.arch;
+      if (g.dropped.length) notes.push(`scope: ${g.dropped.join("; ")}`);
+    }
     plan = await timed("scene plan", () => cacheJson(path.join(out, "plan.json"), () => {
       P({ stage: "plan", message: "writing the scene plan", pct: 32 });
       return planRepoScenes({ ledger, arch: arch!, spec, readme: readme(), source: r.digest.text, progress: P });
@@ -231,12 +237,14 @@ export async function runExplanimate(o: RunOptions) {
     const pol = plan as { renames?: { id: string; keyword: string }[]; polish?: { rewritten: number; kept: string[]; issues: string[] } };
     if (pol.renames?.length) arch = { ...arch!, components: arch!.components.map((c) => ({ ...c, keyword: pol.renames!.find((r) => r.id === c.id)?.keyword ?? c.keyword })) };
     if (pol.polish) notes.push(`narration polish: ${pol.polish.rewritten} scene(s) rewritten${pol.polish.kept.length ? `, kept as planned: ${pol.polish.kept.join(", ")}` : ""}${pol.renames?.length ? `; renamed ${pol.renames.map((r) => `${r.id} -> "${r.keyword}"`).join(", ")}` : ""}; speech check: ${pol.polish.issues.length ? pol.polish.issues.join("; ") : "clean"}`);
+    const ear = (plan as { ear?: string[] }).ear;
+    if (ear?.length) notes.push(`speech gate: ${ear.join("; ")}`);
     if (chk) notes.push(`plan self-check: ${chk.first.length} issue(s)${chk.revised ? `, revised once, ${chk.final.length} left` : ""}${chk.final.length ? `: ${chk.final.join("; ")}` : ""}`);
     }
     repoDir = r.repoDir;
   } else {
     const { ingestConcept, ingestTopic } = await import("@explanimate/ingest");
-    const { planConceptScenes } = await import("@explanimate/planner");
+    const { planConceptScenes, planConceptBeats } = await import("@explanimate/planner");
     P({ stage: "ingest", message: kind === "x-post" ? "reading the post" : kind === "topic" ? "finding reputable sources on the topic" : "reading the article", pct: 2 });
     const tmpOut = o.out ?? path.resolve("explainlike-out", "tmp-" + Date.now());
     fs.mkdirSync(tmpOut, { recursive: true });
@@ -250,11 +258,20 @@ export async function runExplanimate(o: RunOptions) {
       notes.push(`read ${doc.sources.length} source(s): ${doc.sources.map((x) => x.url).join(", ")}`);
     }
     await decide(path.join(out, "brief.json"), kind, doc.title, doc.text);
-    plan = await cacheJson(path.join(out, "plan.json"), () => {
+    plan = await cacheJson(path.join(out, "plan.json"), async () => {
       P({ stage: "plan", message: "Muse Spark is planning the explainer", pct: 15 });
-      return planConceptScenes({ ledger, doc, spec, icons: iconCatalog(pack), progress: P });
+      const p = await planConceptScenes({ ledger, doc, spec, icons: iconCatalog(pack), progress: P });
+      // line cards cut away from the map or chart on the lines that earn one
+      const cards = await planConceptBeats({ ledger, plan: p, source: doc.text, wps: spec.tempo.wps, progress: P });
+      return { ...p, scenes: cards.plan.scenes };
     });
     await recheckSpeech();
+    // a speech fix may have reworded a line: each line's card is cut and checked again against what is said
+    if (plan.scenes.some((s) => s.beats?.length)) {
+      const beats = checkBeats(plan, { arch: { product: "", one_liner: "", components: [], connections: [], walkthrough: { name: "", steps: [] }, scale: [] }, source: doc.text, wps: spec.tempo.wps });
+      plan = { ...plan, scenes: beats.plan.scenes };
+      notes.push(`line visuals: ${beats.report.beats} lines, ${beats.report.cards} cards (${Object.entries(beats.report.types).map(([k, n]) => `${k} ${n}`).join(", ")})${beats.report.repairs.length ? `; fixed: ${beats.report.repairs.join("; ")}` : ""}`);
+    }
     P({ stage: "plan", message: "finding the quoted lines on the page", pct: 30 });
     const quotes = plan.scenes.flatMap((s) => s.highlights.map((h) => h.quote));
     shot = await c.locate(quotes, path.join(out, "source.png"));

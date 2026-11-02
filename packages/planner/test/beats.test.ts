@@ -27,7 +27,7 @@ test("cards that show what the line says are kept, and the rest fall back to wor
   const plan = { title: "agent-browser", subtitle: "", scenes: [scene("hook", [
     beat("Can your AI agent click a button?", "title", "Can your"),
     beat("You use Claude Code or Cursor every day.", "chips", "Claude Code", { items: ["Claude Code", "Cursor", "Codex"] }),
-    beat("One command opens the page.", "terminal", "One command", { text: "$ agent-browser open example.com" }),
+    beat("One command opens example.com.", "terminal", "One command", { text: "$ agent-browser open example.com" }),
     beat("It types a command nobody wrote.", "terminal", "types", { text: "agent-browser fly mars" }),
     beat("That takes seven steps.", "number", "seven steps", { text: "7 steps" }),
   ])] };

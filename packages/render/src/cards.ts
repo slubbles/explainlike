@@ -125,9 +125,40 @@ export function spliceCards(film: Film, cards: { box: Box; t0: number; t1: numbe
   // what the board would draw while a card is up is drawn just after it, in the same order
   const cardGroups = new Set(cards.map((c) => c.g));
   for (const e of film.elements) {
-    if (e.g && cardGroups.has(e.g)) continue;
+    if (e.g && cardGroups.has(e.g.split("/")[0])) continue;
     for (let c = cards.find((c) => e.t0 > c.t0 - 0.05 && e.t0 < c.t1); c; c = cards.find((c) => e.t0 > c.t0 - 0.05 && e.t0 < c.t1)) e.t0 = c.t1 + 0.15 + (e.t0 - c.t0) * 0.12;
   }
+}
+
+/**
+ * One row of spoken words, built word by word and centred on what has been said so far, so a row
+ * never sits off to the left while it builds. Each stage (the first k words) is its own subgroup,
+ * laid out on its own width; it goes out the moment the next word comes in, which redraws the same
+ * words a little to the left with the new word fading in on the end. Returns the subgroups, the last
+ * of which stays up, so a caller can fade the finished row with them.
+ */
+export function buildRow(P: Pen, o: { words: { text: string; t: number; color: string }[]; cx: number; y: number; size: number; g: string; key?: number; underline: (x0: number, x1: number, t: number, dur: number, g: string) => void }): string[] {
+  const sp = textWidth(" ", o.size);
+  const ws = o.words.map((w) => textWidth(w.text, o.size));
+  const groups: string[] = [];
+  for (let s = 1; s <= o.words.length; s++) {
+    const gs = `${o.g}/s${s}`, t = o.words[s - 1].t;
+    groups.push(gs);
+    const width = ws.slice(0, s).reduce((a, b) => a + b, 0) + sp * (s - 1);
+    let x = o.cx - width / 2;
+    for (let k = 0; k < s; k++) {
+      const fresh = k === s - 1;
+      P.text({ text: o.words[k].text, x, y: o.y, size: o.size, color: o.words[k].color, t0: t, dur: fresh ? 0.2 : 0.01, g: gs, anim: "fade", sketch: false });
+      if (k === o.key) {
+        const uw = textWidth(o.words[k].text.replace(/[^\p{L}\p{N}]+$/u, ""), o.size);
+        // the underline draws once, on the stage its word arrives in; later stages show it already there
+        o.underline(x, x + uw, fresh ? t + 0.25 : t, fresh ? 0.35 : 0.01, gs);
+      }
+      x += ws[k] + sp;
+    }
+    if (s < o.words.length) P.setOp(gs, o.words[s].t, 0, 0.04);
+  }
+  return groups;
 }
 
 const CHIP_COLORS = ["blue", "green", "orange", "purple", "teal", "pink"] as const;
@@ -152,18 +183,19 @@ export function drawCard(P: Pen, gen: any, slot: CardSlot, box: Box, g: string) 
       const lh = size * 1.3, y0 = cy + size * 0.35 - ((rows.length - 1) * lh) / 2;
       const key = keyIndex(toks);
       let from = Math.max(0, words.findIndex((w) => w.start >= t0 - 0.3)), fb = t0 + 0.05;
+      const lineSeed = seed();
       rows.forEach((r, ri) => {
-        let x = cx - r.w / 2;
-        for (const i of r.idx) {
+        const y = y0 + ri * lh;
+        const row = r.idx.map((i) => {
           const j = saidAt(words, toks[i], from);
           const t = j >= 0 && words[j].start < t1 - 0.2 ? Math.max(t0 + 0.05, words[j].start - 0.04) : fb;
           if (j >= 0) from = j + 1;
           fb = t + 0.12;
-          const w = textWidth(toks[i], size);
-          P.text({ text: toks[i], x, y: y0 + ri * lh, size, color: i === key ? C("orange") : th.ink, t0: t, dur: 0.2, g, anim: "fade", sketch: false });
-          if (i === key) R(gen.line(x, y0 + ri * lh + size * 0.2, x + textWidth(toks[i].replace(/[^\p{L}\p{N}]+$/u, ""), size), y0 + ri * lh + size * 0.24, { seed: seed(), stroke: C("orange"), strokeWidth: 6, roughness: 1.3 }), t + 0.25, 0.35);
-          x += w + textWidth(" ", size);
-        }
+          return { text: toks[i], t, color: i === key ? C("orange") : th.ink };
+        });
+        // monotone times, so each stage really is followed by the next
+        for (let k = 1; k < row.length; k++) row[k].t = Math.max(row[k].t, row[k - 1].t + 0.05);
+        buildRow(P, { words: row, cx, y, size, g: `${g}/r${ri}`, key: r.idx.indexOf(key), underline: (x0, x1, t, dur, gs) => P.rough(gen.line(x0, y + size * 0.2, x1, y + size * 0.24, { seed: lineSeed, stroke: C("orange"), strokeWidth: 6, roughness: 1.3 }), t, dur, gs) });
       });
       break;
     }
