@@ -1,0 +1,1007 @@
+diff --git a/packages/cli/src/pipeline.ts b/packages/cli/src/pipeline.ts
+index 825731e..6197d2a 100644
+--- a/packages/cli/src/pipeline.ts
++++ b/packages/cli/src/pipeline.ts
+@@ -6,7 +6,7 @@ import { fileURLToPath } from "node:url";
+ import { getTheme, looksLikeTopic, specFromBrief, DEFAULT_BRIEF, type Ask, type Brief, type ExplainSpec, type Architecture, type Progress, type SceneAudio, type ScenePlan, type SourceDoc, type SourceKind } from "@explanimate/core";
+ import { CostLedger, museTranscribe } from "@explanimate/models";
+ import { ingestRepo } from "@explanimate/ingest";
+-import { planBrief, extractArchitecture, validateArchitecture, evidencePack, reviewArchitecture, fixArchitecture, planRepoScenes, respeak, planFocus, planWhatIf, kindColor, checkBeats, readmeExcerpt } from "@explanimate/planner";
++import { planBrief, extractArchitecture, validateArchitecture, evidencePack, reviewArchitecture, fixArchitecture, planRepoScenes, respeak, planFocus, planWhatIf, kindColor, checkBeats, readmeExcerpt, groundToReadme } from "@explanimate/planner";
+ import { pickVoice, wordOverlap, DeepgramVoice, type VoiceProvider } from "@explanimate/voice";
+ import { captionMismatches, loadIconPack, mergePacks, builtinPackIds, detectComponents, packHints, type DetectedComponent, iconCatalog, resolveIcon, compose, renderFilm, mixNarration, sfxCues, contactSheet, frameCheck, checkTldr, checkExcalidraw, toExcalidraw, toTldraw, type IconPack, type SourceShot } from "@explanimate/render";
+ 
+@@ -217,6 +217,12 @@ export async function runExplanimate(o: RunOptions) {
+       }
+       return v.arch;
+     }));
++    // the video covers the core and what the README puts up front; the rest of the map waits for a follow-up
++    if (readmeFile) {
++      const g = groundToReadme(arch!, r.digest.read(readmeFile, 200_000));
++      arch = g.arch;
++      if (g.dropped.length) notes.push(`scope: ${g.dropped.join("; ")}`);
++    }
+     plan = await timed("scene plan", () => cacheJson(path.join(out, "plan.json"), () => {
+       P({ stage: "plan", message: "writing the scene plan", pct: 32 });
+       return planRepoScenes({ ledger, arch: arch!, spec, readme: readme(), source: r.digest.text, progress: P });
+@@ -231,12 +237,14 @@ export async function runExplanimate(o: RunOptions) {
+     const pol = plan as { renames?: { id: string; keyword: string }[]; polish?: { rewritten: number; kept: string[]; issues: string[] } };
+     if (pol.renames?.length) arch = { ...arch!, components: arch!.components.map((c) => ({ ...c, keyword: pol.renames!.find((r) => r.id === c.id)?.keyword ?? c.keyword })) };
+     if (pol.polish) notes.push(`narration polish: ${pol.polish.rewritten} scene(s) rewritten${pol.polish.kept.length ? `, kept as planned: ${pol.polish.kept.join(", ")}` : ""}${pol.renames?.length ? `; renamed ${pol.renames.map((r) => `${r.id} -> "${r.keyword}"`).join(", ")}` : ""}; speech check: ${pol.polish.issues.length ? pol.polish.issues.join("; ") : "clean"}`);
++    const ear = (plan as { ear?: string[] }).ear;
++    if (ear?.length) notes.push(`speech gate: ${ear.join("; ")}`);
+     if (chk) notes.push(`plan self-check: ${chk.first.length} issue(s)${chk.revised ? `, revised once, ${chk.final.length} left` : ""}${chk.final.length ? `: ${chk.final.join("; ")}` : ""}`);
+     }
+     repoDir = r.repoDir;
+   } else {
+     const { ingestConcept, ingestTopic } = await import("@explanimate/ingest");
+-    const { planConceptScenes } = await import("@explanimate/planner");
++    const { planConceptScenes, planConceptBeats } = await import("@explanimate/planner");
+     P({ stage: "ingest", message: kind === "x-post" ? "reading the post" : kind === "topic" ? "finding reputable sources on the topic" : "reading the article", pct: 2 });
+     const tmpOut = o.out ?? path.resolve("explainlike-out", "tmp-" + Date.now());
+     fs.mkdirSync(tmpOut, { recursive: true });
+@@ -250,11 +258,20 @@ export async function runExplanimate(o: RunOptions) {
+       notes.push(`read ${doc.sources.length} source(s): ${doc.sources.map((x) => x.url).join(", ")}`);
+     }
+     await decide(path.join(out, "brief.json"), kind, doc.title, doc.text);
+-    plan = await cacheJson(path.join(out, "plan.json"), () => {
++    plan = await cacheJson(path.join(out, "plan.json"), async () => {
+       P({ stage: "plan", message: "Muse Spark is planning the explainer", pct: 15 });
+-      return planConceptScenes({ ledger, doc, spec, icons: iconCatalog(pack), progress: P });
++      const p = await planConceptScenes({ ledger, doc, spec, icons: iconCatalog(pack), progress: P });
++      // line cards cut away from the map or chart on the lines that earn one
++      const cards = await planConceptBeats({ ledger, plan: p, source: doc.text, wps: spec.tempo.wps, progress: P });
++      return { ...p, scenes: cards.plan.scenes };
+     });
+     await recheckSpeech();
++    // a speech fix may have reworded a line: each line's card is cut and checked again against what is said
++    if (plan.scenes.some((s) => s.beats?.length)) {
++      const beats = checkBeats(plan, { arch: { product: "", one_liner: "", components: [], connections: [], walkthrough: { name: "", steps: [] }, scale: [] }, source: doc.text, wps: spec.tempo.wps });
++      plan = { ...plan, scenes: beats.plan.scenes };
++      notes.push(`line visuals: ${beats.report.beats} lines, ${beats.report.cards} cards (${Object.entries(beats.report.types).map(([k, n]) => `${k} ${n}`).join(", ")})${beats.report.repairs.length ? `; fixed: ${beats.report.repairs.join("; ")}` : ""}`);
++    }
+     P({ stage: "plan", message: "finding the quoted lines on the page", pct: 30 });
+     const quotes = plan.scenes.flatMap((s) => s.highlights.map((h) => h.quote));
+     shot = await c.locate(quotes, path.join(out, "source.png"));
+diff --git a/packages/planner/src/architecture.ts b/packages/planner/src/architecture.ts
+index 63d9681..ed27936 100644
+--- a/packages/planner/src/architecture.ts
++++ b/packages/planner/src/architecture.ts
+@@ -13,13 +13,14 @@ function archSystem(L: ExplainSpec, icons: string, hints = "") {
+     "Ground rules (a reviewer will reject anything that breaks them):",
+     "- Only include a component if a file in the digest proves it exists. `evidence` lists 1 to 3 exact repo-relative file paths copied from the digest (from the tree, manifests, libraries->files, env->files or excerpt headers). Never invent paths.",
+     "- Use the real technology names found in the code (e.g. 'ClickHouse', 'Postgres via Prisma', 'Redis', 'Kafka'), not generic ones.",
+-    `- ${L.minComponents} to ${L.maxComponents} components. Merge minor helpers into the component they serve. Always include who/what starts requests (users, a browser, a tracker script, a CLI) as a client component.`,
++    `- ${L.minComponents} to ${L.maxComponents} components. Merge minor helpers into the component they serve. Always include who/what starts requests (users, a browser, a tracker script, a CLI) as a client component. Name the client the way the README does: when a program drives the product (an AI agent, a script), the client is that program ('ai agent'), never a bare 'user'.`,
+     "- Optional infrastructure (enabled by an env var or config flag) is fine to include; say 'optional' in `what`.",
+     "- one_liner: what this project is, who it is for and why they would use it, in one plain sentence a smart person who does not write code follows, with no jargon ('a small kit that lets you train your own chat assistant from scratch on one rented computer').",
+     `- ${PLAIN_LABELS} Step labels are plain verbs in everyday words ('send command', 'click the button'). The viewer learns each real name with one plain clause from the narration, so never swap a real name for a made-up one.`,
+     `- ${PLAIN_SUBTITLE}`,
+     "- No two keywords share a word other than the product's own name: 'agent-browser cli' and 'daemon' are fine, but 'browser link' and 'web browser' blur together when said in one sentence.",
+     "- A component's keyword names what the part IS, as a noun a teacher would point at ('ui core', 'command list', 'sdl window'), never what it does ('rebuild widgets', 'poll input'); the doing goes on the arrows.",
++    "- When the README names a long-running background process (a daemon, a server, a worker) that the entry point starts or talks to and that keeps state between calls, draw it as its own component under that name ('daemon'); it is usually why the product is fast.",
+     "- When the core flow hands a named data structure from one part to another (a command list, a job queue, a render buffer, an event log) and the code gives it its own type, draw it as its own component; it is often what the design is known for.",
+     "- connections follow the direction requests/data flow (from caller to callee). Each one cites one file where that call happens. If A's code includes or imports B and B never calls A, the arrow is A>B, even when data comes back: say 'read commands' from A's side, not 'emit commands' from B's.",
+     "- walkthrough: the core flow of the product: the most common real user action, traced from the client through 4 to 7 connections in order. If the user gets something back (an answer, a page, a result), the last step brings it back to the client along a connection that already exists. Steps must reuse component ids. Each step label is used once; when the flow loops back to a part, say what is different ('ask again', 'send result'). Labels are plain verbs a newcomer understands ('send message', 'pick a bot', 'reply'), saying what happens to the thing being followed, not repeating the name of the part it reaches (to a part called 'saved vocab', say 'store merges', not 'save vocab').",
+diff --git a/packages/planner/src/beats.ts b/packages/planner/src/beats.ts
+index e483dfc..25329fd 100644
+--- a/packages/planner/src/beats.ts
++++ b/packages/planner/src/beats.ts
+@@ -34,6 +34,12 @@ export function shownIsSaid(shown: string, line: string): boolean {
+   const ws = contentWords(shown);
+   return ws.length > 0 && ws.every((w) => spokenIn(w, line));
+ }
++/** Content words of one side of a pair that the other side does not share. */
++const PAIR_STOP = /^(a|an|the|and|or|of|to|for|in|on|with|it|is|are)$/;
++const pairWords = (s: string) => tokens(s).filter((w) => !PAIR_STOP.test(w));
++const distinctWords = (a: string, other: string) => { const o = new Set(pairWords(other).map(stem)); return pairWords(a).filter((w) => !o.has(stem(w))); };
++/** Where in the line the first of these words is said, or -1. */
++const firstSaid = (ws: string[], line: string) => tokens(line).findIndex((t) => ws.some((w) => t === w || stem(t) === stem(w)));
+ const someSaid = (shown: string, line: string) => contentWords(shown).some((w) => w.length >= 3 && spokenIn(w, line));
+ 
+ const NUM_WORDS = ["zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten", "eleven", "twelve", "thirteen", "fourteen", "fifteen", "sixteen", "seventeen", "eighteen", "nineteen", "twenty"];
+@@ -101,6 +107,13 @@ export function alignBeats(s: Scene): { beats: Beat[]; dropped: string[] } {
+     kept.push({ b: { ...b, anchor }, k });
+     at = k + 1;
+   }
++  // two beats starting in one sentence would say it twice: the card keeps the sentence, the board line goes
++  for (let i = kept.length - 1; i > 0; i--) {
++    if (sentOf[kept[i].k] !== sentOf[kept[i - 1].k]) continue;
++    const drop = kept[i].b.visual === "board" || kept[i - 1].b.visual === "title" ? i : i - 1;
++    dropped.push(`${s.id}: two beats started in one sentence; the ${kept[drop].b.visual} beat on "${kept[drop].b.anchor}" was merged`);
++    kept.splice(drop, 1);
++  }
+   const out = kept.map(({ b, k }, i) => {
+     const s0 = sentOf[k] ?? 0;
+     const next = kept[i + 1];
+@@ -153,7 +166,8 @@ export function checkBeats(plan: ScenePlan, o: { arch: Architecture; source?: st
+           const cmd = b.text.replace(/^\$\s*/, "").replace(/\s+/g, " ").trim();
+           const head = cmd.split(" ").slice(0, 2).join(" ").toLowerCase();
+           if (!cmd || !src.includes(` ${head}`) && !src.includes(head)) return kinetic(s, b, `types a command ("${cmd}") the source never shows`);
+-          if (!someSaid(cmd, line)) return kinetic(s, b, `types "${cmd}" but the line never says any of it`);
++          const need = commandWords(cmd);
++          if (!need.every((w) => spokenIn(w, line))) return kinetic(s, b, `types "${cmd}" but the line never says ${need.filter((w) => !spokenIn(w, line)).map((w) => `"${w}"`).join(", ")}`);
+           return { ...b, text: cmd, items: b.items.slice(0, 4), focus: "" };
+         }
+         case "output": {
+@@ -177,6 +191,11 @@ export function checkBeats(plan: ScenePlan, o: { arch: Architecture; source?: st
+         case "contrast": {
+           const [x, y] = b.items;
+           if (b.items.length !== 2 || !someSaid(x, line) || !someSaid(y, line)) return kinetic(s, b, "needs a before and an after that the line both says");
++          // what tells the two sides apart has to be heard ('ten' in 'ten browsers' against 'one browser')
++          if ([[x, y], [y, x]].some(([a, o]) => { const d = distinctWords(a, o); return d.length > 0 && !d.some((w) => spokenIn(w, line)); })) return kinetic(s, b, "shows a before or after the line does not say");
++          // the problem is said first: an after said before its before is the pair the wrong way round
++          const at = (a: string, o: string) => firstSaid(distinctWords(a, o), line);
++          if (at(y, x) >= 0 && at(x, y) > at(y, x)) { repairs.push(`${s.id}: the contrast was the wrong way round; swapped to [${y}, ${x}]`); return { ...b, items: [y, x], text: "", focus: "" }; }
+           return { ...b, text: "", focus: "" };
+         }
+         case "doodle":
+@@ -187,6 +206,22 @@ export function checkBeats(plan: ScenePlan, o: { arch: Architecture; source?: st
+     });
+     return { ...s, beats };
+   });
++  // a line that says an element's ref ('click e2') shows the README's element list with that row circled
++  const refRows = [...(o.source ?? "").matchAll(/^[#\s-]*(\w+ "[^"\n]{1,30}" \[ref=(e\d+)\])/gm)].map((m) => ({ row: m[1], ref: m[2] }));
++  if (refRows.length >= 2) {
++    let shown = scenes.some((s) => (s.beats ?? []).some((b) => b.visual === "output"));
++    for (const s of scenes) {
++      if (shown || s.kind === "hook" || s.kind === "recap" || s.kind === "outro") continue;
++      const i = (s.beats ?? []).findIndex((b) => (b.visual === "board" || b.visual === "kinetic") && refRows.some((r) => new RegExp(`\\b${r.ref}\\b`, "i").test(b.line)));
++      if (i < 0) continue;
++      const b = s.beats![i];
++      const hit = refRows.find((r) => new RegExp(`\\b${r.ref}\\b`, "i").test(b.line))!;
++      const rows = [...new Set([...refRows.slice(0, 3).map((r) => r.row), hit.row])].slice(0, 4).map((r) => r.slice(0, 48));
++      s.beats![i] = { ...b, visual: "output", text: "snapshot", items: rows, focus: hit.row.slice(0, 48) };
++      repairs.push(`${s.id}: the line says ${hit.ref}, so it shows the README's element list with that row circled`);
++      shown = true;
++    }
++  }
+   // never the same visual three lines running (the board, which keeps building, excepted)
+   const flat = scenes.flatMap((s, si) => (s.beats ?? []).map((b, bi) => ({ si, bi, b })));
+   for (let i = 2; i < flat.length; i++) {
+@@ -198,6 +233,17 @@ export function checkBeats(plan: ScenePlan, o: { arch: Architecture; source?: st
+     s.beats![flat[i].bi] = next;
+     flat[i].b = next;
+   }
++  // big words are the seasoning, not the meal: past about a third of the cards, kinetic lines go back to the board
++  const shown = scenes.filter((s) => s.kind !== "recap" && s.kind !== "outro").flatMap((s) => (s.beats ?? []).map((b, bi) => ({ s, bi, b })));
++  const cards = shown.filter((x) => isCard(x.b.visual));
++  const cap = Math.max(2, Math.round(cards.length / 3));
++  const spare = cards.filter((x) => x.b.visual === "kinetic" && x.s.kind !== "hook");
++  for (let over = cards.filter((x) => x.b.visual === "kinetic").length - cap; over > 0 && spare.length; over--) {
++    // the longest run of kinetic first: drop the one whose neighbours are kinetic too, else the last
++    const x = spare.splice(spare.length - 1, 1)[0];
++    x.s.beats![x.bi] = { ...x.b, visual: "board", text: "", items: [], focus: "" };
++    repairs.push(`${x.s.id}: kinetic line "${x.b.anchor}" went back to the board (kinetic is capped at about a third of the cards)`);
++  }
+   // a part is anchored to tools people know, early: "an AI agent, like Claude Code or Cursor"
+   const early = scenes.slice(0, 3).flatMap((s) => s.beats ?? []);
+   if (early.length && FAMILIAR.test(src) && !early.some((b) => b.visual === "chips" && b.items.some((x) => FAMILIAR.test(x)))) issues.push("no chips line in the first scenes names tools viewers already use (like 'Claude Code or Cursor'); anchor the user of this project to them early");
+@@ -212,6 +258,18 @@ export function checkBeats(plan: ScenePlan, o: { arch: Architecture; source?: st
+   return { plan: { ...plan, scenes }, report: { beats: all.length, cards: all.filter((b) => isCard(b.visual)).length, perMinute: minutes ? Math.round((changes / minutes) * 10) / 10 : 0, types, repairs, issues } };
+ }
+ 
++/**
++ * What a terminal card's line has to say for the command to count as spoken: the words after the
++ * program name, without flags or quoted values, refs read as said ("@e3" is "e3") and a file or site
++ * by its name ("page.png" is "page"). A bare program ("agent-browser") needs its own name said.
++ */
++export function commandWords(cmd: string): string[] {
++  const parts = cmd.replace(/"[^"]*"|'[^']*'/g, " ").trim().split(/\s+/).filter(Boolean);
++  const rest = parts.slice(1).filter((w) => !w.startsWith("-") && !/^[#|>&;]/.test(w)).map((w) => w.replace(/^@/, "").split(".")[0]);
++  const ws = rest.flatMap((w) => contentWords(w));
++  return ws.length ? ws : contentWords(parts[0] ?? "");
++}
++
+ /** Anchors the narration rewrites must keep, so each line's visual still lands on its words. */
+ export const beatAnchors = (s: Scene) => (s.beats ?? []).map((b) => b.anchor).filter((a) => a.trim());
+ 
+@@ -224,9 +282,18 @@ export function readmeExcerpt(text: string, max = 6000): string {
+   const head = clean.slice(0, max);
+   const rest = clean.slice(max);
+   // an element list (what an AI reads back) is the most telling example, then any printed output
++  // the README's feature bullets ("- **Authentication Vault**: ... The LLM never sees passwords.") are where a video's best why-lines live
++  const bullets = [...rest.matchAll(/^\s*[-*] \*\*([^*\n]{2,40})\*\*\s*[:\u2013-]\s*([^\n]{10,})$/gm)].map((x) => {
++    // the claim, not the flags: whole sentences up to about 160 characters, stopping before inline code
++    const said = x[2].split(/(?<=[.!?])\s+/).reduce((acc, t) => (acc.length + t.length < 160 && !t.includes("`") ? `${acc} ${t}` : acc), "").trim();
++    return said ? `- ${x[1].trim()}: ${said}` : "";
++  }).filter(Boolean);
++  let feat = "";
++  for (const b of bullets) { if (feat.length + b.length > 1500) break; feat += `${b}\n`; }
++  const tail = feat ? `\n...\nFeatures:\n${feat.trim()}` : "";
+   const m = [/\[ref=/, /^\s*#\s*-\s/m, /^#?\s*output:/im, /returns:/i].map((r) => r.exec(rest)).find(Boolean);
+-  if (!m) return head;
++  if (!m) return head + tail;
+   // a little context before the example (its heading and the command that printed it)
+   const at = Math.max(0, m.index - 400, rest.lastIndexOf("\n", Math.max(0, m.index - 300)));
+-  return `${head}\n...\n${rest.slice(at, at + 1200).trim()}`;
++  return `${head}\n...\n${rest.slice(at, at + 1200).trim()}${tail}`;
+ }
+diff --git a/packages/planner/src/scenes.ts b/packages/planner/src/scenes.ts
+index 95563cb..351680e 100644
+--- a/packages/planner/src/scenes.ts
++++ b/packages/planner/src/scenes.ts
+@@ -2,7 +2,7 @@ import { findPlace } from "@explanimate/core/places";
+ import { z } from "zod";
+ import { ScenePlan, RepoPlanWire, ConceptPlanWire, PLAIN_LANGUAGE, PLAIN_HEADINGS, plainSlips, stiffLines, practitionerTerm, figurative, coverageSeconds, parseFigure, parseDated, figureInQuote, lower, norm, tidySpeech, wordCount, quoteInSource, phraseAt, spokenWords, walkCues, missingArticles, grammarSlips, soundsLikeKeywords, shortHeading, type Architecture, type ExplainSpec, type Progress, type NoteItem, type Scene, type SourceDoc } from "@explanimate/core";
+ import { sparkJson, type CostLedger } from "@explanimate/models";
+-import { SHAPES, analogyRule, shapeFor } from "./shapes.js";
++import { SHAPES, WHAT_IF, analogyRule, shapeFor, type Shape } from "./shapes.js";
+ import { checkBeats, beatAnchors, type BeatReport } from "./beats.js";
+ 
+ /** Plain words are literal words: the newcomer test kept passing narration that swapped jargon for a riddle. */
+@@ -18,7 +18,10 @@ const STYLE = [
+   PLAIN,
+   "The viewer is 'you' where it's natural; the parts are 'the daemon', 'the command line', not 'your daemon', 'your command line'. Never call them 'the guest', 'the user' or 'the customer', even inside the analogy ('you walk up to the counter', not 'the guest walks up').",
+   "No two scenes or two sentences in a row open with the same words.",
+-  "Each part gets its why: what it is for, or what would go wrong without it.",
++  "Each part gets its why, and the why comes first: say what would be slow, hard or impossible without it, then the part that fixes it ('Opening a fresh browser for every command would be slow. So behind it runs the daemon...'). A line that only says which part hands what to which ('the CLI sends it to the daemon, which sends it to Chrome') explains nothing; say what each hop is for.",
++  "Every sentence has its own subject and verb and sounds like something a person says aloud: never a label-like line ('The agent-browser CLI starts every job.'), never a garbled phrase ('for you user to use').",
++  "After a part's full name is said, the next sentence calls it 'it' or a short name ('the CLI'), never the full name again.",
++  "Start a sentence on a part with 'the' ('The daemon keeps...'), never on its bare name ('Daemon keeps...', 'Agent-browser CLI starts...').",
+   `${PLAIN_HEADINGS} Headings are lowercase and the narration of that scene says their words (the viewer reads the heading while hearing it).`, "Keywords 1 to 3 lowercase words.",
+   "One new thing per sentence, and each sentence long enough to watch it being drawn (no two-word sentences).",
+   "Every sentence moves the story. Never announce what comes next instead of saying it: 'you'll meet', 'you'll see', 'you'll find', 'then you've got', 'let's take a look', 'basically', 'it's special' and 'it's important' are banned.",
+@@ -26,6 +29,34 @@ const STYLE = [
+   "At most one short, dry aside in the whole video, the kind a friendly engineer makes at the whiteboard ('which, to be fair, is most of programming'). Never a joke about people, never more than one sentence.",
+ ].join("\n");
+ 
++/**
++ * The voice to match, shown rather than described: the approved agent-browser script, a Fireship and
++ * a Crayon Capital opening. Rules alone kept producing lines that were grammatical but not speech
++ * ("the agent-browser CLI starts every job"); examples carry the rhythm the rules cannot.
++ */
++export const VOICE_EXAMPLES = [
++  "Examples of the voice to match. Match their rhythm and plainness; never copy their facts unless they are true of this source.",
++  "1. An approved explainer of a command-line tool (one line per visual):",
++  "  What if your AI could really click around the web?",
++  "  Not guess what a page says. Actually open it, read it, and press the button.",
++  "  That's agent-browser: a command-line tool that lets an AI agent, like Claude Code or Cursor, drive a real Chrome browser.",
++  "  Your agent doesn't need a special API. It just types commands, the way you would.",
++  "  Those commands go to the agent-browser CLI, a small program written in Rust, so it starts fast.",
++  "  But opening a fresh browser for every command would be slow. So behind it runs the daemon: a background process that keeps the browser open between commands.",
++  "  Now the clever part. Your agent can't see the screen. So it asks for a snapshot.",
++  "  A snapshot is the page as a short text list: every box and button, each with a tag called a ref.",
++  "  So it can say: fill e3 with your email, click e2. No guessing where things are.",
++  "  And the password? Save it in the auth vault, and the AI never sees it.",
++  "2. Fireship, Docker in 100 seconds (problem before the fix):",
++  "  Docker, a tool that packages software into containers that run reliably in any environment. But what is a container, and why do you need one?",
++  "  Imagine you built an app that runs on some weird flavor of Linux. You want to share it with your friend, but he has an entirely different system.",
++  "  So the problem becomes: how do we replicate the environment our software needs on any machine?",
++  "3. Crayon Capital, on TSMC (concrete before abstract):",
++  "  Right now, somewhere in Taiwan, a machine the size of a school bus is printing circuits thinner than a strand of DNA.",
++  "  Every iPhone, every AI chip, every modern fighter jet depends on what comes out of that building.",
++  "What they share: every sentence has a clear subject doing something; a part is named once with what it is, then called 'it'; each part arrives because of a problem said first; the real command or output is said aloud as the example.",
++].join("\n");
++
+ /** Components in the order one request meets them, then the parts the request never touches. */
+ export function journeyOrder(arch: Architecture): { path: string[]; side: string[] } {
+   const ids = new Set(arch.components.map((c) => c.id));
+@@ -34,6 +65,30 @@ export function journeyOrder(arch: Architecture): { path: string[]; side: string
+   return { path, side: arch.components.map((c) => c.id).filter((id) => !path.includes(id)) };
+ }
+ 
++/**
++ * What the video may cover beyond the core flow, held to the README: a side part the request never
++ * passes through stays only when the README's opening (what a reader meets first) names it, and a scale
++ * risk stays only when the README says its fix. Without this a dashboard deep in the docs, or a guessed
++ * load problem, got a scene of its own. A repo with no README keeps everything.
++ */
++const FIX_FILLER = /^(with|from|that|this|them|then|each|every|more|less|into|over|than|when|only|instead|before|after|using|their)$/;
++export function groundToReadme(arch: Architecture, readme: string, head = 12_000): { arch: Architecture; dropped: string[] } {
++  if (!readme.trim()) return { arch, dropped: [] };
++  const top = ` ${norm(readme.slice(0, head))} `, all = ` ${norm(readme)} `;
++  const { side } = journeyOrder(arch);
++  const named = (c: Architecture["components"][number]) => [c.keyword, c.name].some((k) => norm(k).length > 2 && top.includes(` ${norm(k)} `));
++  const drop = new Set(arch.components.filter((c) => side.includes(c.id) && !named(c)).map((c) => c.id));
++  // every content word of the fix appears somewhere in the README ("reuse", "contexts"), so the fix is the README's, not a guess
++  const said = (fix: string) => norm(fix).split(" ").filter((w) => w.length > 3 && !FIX_FILLER.test(w)).every((w) => all.includes(` ${w} `) || all.includes(` ${w.replace(/s$/, "")} `));
++  const scale = arch.scale.filter((r) => !drop.has(r.component) && said(r.fix));
++  const dropped = [
++    ...arch.components.filter((c) => drop.has(c.id)).map((c) => `side part "${c.keyword}" left out: the README's opening never names it`),
++    ...arch.scale.filter((r) => !scale.includes(r)).map((r) => `scale risk "${r.problem}" left out: the README never says its fix ("${r.fix}")`),
++  ];
++  if (!dropped.length) return { arch, dropped };
++  return { arch: { ...arch, components: arch.components.filter((c) => !drop.has(c.id)), connections: arch.connections.filter((c) => !drop.has(c.from) && !drop.has(c.to)), scale }, dropped };
++}
++
+ // ---------------------------------------------------------------------------
+ // Repo: tell one request's journey on one evolving canvas (docs/explaining-playbook.md).
+ // ---------------------------------------------------------------------------
+@@ -50,12 +105,13 @@ function repoSystem(arch: Architecture, L: ExplainSpec, lo: number, hi: number):
+     "You write the scene plan for a short whiteboard explainer of one repository. The renderer draws one evolving architecture canvas.",
+     "Goal: a newcomer finishes the video able to say what this project is and how one request flows through it. That flow is the video.",
+     STYLE,
++    VOICE_EXAMPLES,
+     L.voice,
+     analogyRule(shape, analogy),
+     "Scene order and rules:",
+     `1. one 'hook' scene, 3 or 4 sentences, shown big on screen as it is spoken. ${S.hook} Whatever the shape, right after the hook line say what this project is, who it's for and why they'd care, in plain everyday words with no jargon, like '${arch.one_liner}'; someone who doesn't write code and hears only that knows what the thing is for and whether it's for them. add_components empty.`,
+     `2. 'layer' scenes, one part or a few at a time, adding exactly these components in this order, at most ${L.perScene} per scene: ${path.map(kw).join(", ")}. ${S.spine} Say each added component's keyword out loud, in add_components order.`,
+-    `3. one 'walkthrough' scene right after them: the core flow told once, end to end, as one short story. Tell these steps in order, each as a natural sentence about who does what to the example, in everyday words, and name the part each step reaches by its keyword: the board moves to that part when you say it. The words in brackets only say what happens; they are not words to recite, so say the action the way a person would ('the chat window loads the saved model') and never turn a bracket into a noun ('the send cdp instruction', 'the drive page move', 'the return result step'). Call each part by its keyword, the name on screen that the layer scenes already said; its analogy role may ride along ('the demo app, your front desk, sends the message') but never stands in for it, since a viewer cannot map a new role name to a box, with articles and verb endings as speech needs: ${steps}. Say what happens and why it matters, the way you'd tell a friend. Good: 'Your AI agent says click the login button, and the daemon clicks it in Chrome.' Good: 'You type a question, and the counter sends the message to the manager.' Bad: 'The cli sends a cdp command to the client.' Bad: 'Step one is send message.' Never number the steps out loud. Follow one concrete example from the repo the whole way (a real input like the words 'hello world', a real message, a real file) and say what it looks like after each step, the way Caleb follows one 2 TB model from disk to GPU. End with the concrete thing the user gets back (e.g. 'a working fix in your chat'), not 'an answer'. Give it a heading of 2 to 4 lowercase words that the narration actually says, naming this moment rather than labelling it. About ${Math.round(L.wordsPerScene * 1.6)} words. add_components empty.`,
++    `3. one 'walkthrough' scene right after them: the core flow told once, end to end, as one short story. Tell these steps in order, each as a natural sentence about who does what to the example, in everyday words, and name the part each step reaches by its keyword: the board moves to that part when you say it. The words in brackets only say what happens; they are not words to recite, so say the action the way a person would ('the chat window loads the saved model') and never turn a bracket into a noun ('the send cdp instruction', 'the drive page move', 'the return result step'). Call each part by its keyword, the name on screen that the layer scenes already said; its analogy role may ride along ('the demo app, your front desk, sends the message') but never stands in for it, since a viewer cannot map a new role name to a box, with articles and verb endings as speech needs: ${steps}. Say what happens and why it matters, the way you'd tell a friend; never a chain of handoffs ('A passes it to B, B passes it to C'): each sentence says what that hop does for you. The trip back may be one sentence that names only where it lands ('the list comes back to your AI agent'), not every part it passes again. When the README shows how the product is really driven (the commands typed and what they print, like a snapshot's rows), the walkthrough follows that real example: say the real command aloud as the example ('it types snapshot'), say what comes back ('a short list where the email box is e3'), and what that lets it do next. Good: 'Your AI agent says click the login button, and the daemon clicks it in Chrome.' Good: 'You type a question, and the counter sends the message to the manager.' Bad: 'The cli sends a cdp command to the client.' Bad: 'Step one is send message.' Never number the steps out loud. Follow one concrete example from the repo the whole way (a real input like the words 'hello world', a real message, a real file) and say what it looks like after each step, the way Caleb follows one 2 TB model from disk to GPU. End with the concrete thing the user gets back (e.g. 'a working fix in your chat'), not 'an answer'. Give it a heading of 2 to 4 lowercase words that the narration actually says, naming this moment rather than labelling it. About ${Math.round(L.wordsPerScene * 1.6)} words. add_components empty.`,
+     side.length
+       ? `4. then 'layer' scene(s) for the side parts the request does not pass through: ${side.map(kw).join(", ")}. Keep them short: as few scenes as fit (at most ${L.perScene} parts per scene), one short clause per part (its keyword and plain job), opening with one tie-back to the journey such as 'Around the manager sit a few helpers:'. Do not repeat the same opener for each part.`
+       : "4. (no side parts)",
+@@ -70,7 +126,7 @@ function repoSystem(arch: Architecture, L: ExplainSpec, lo: number, hi: number):
+     "Leave add_connections, board_nodes, board_edges, highlights empty (the renderer derives them). callouts empty except in scale scenes. items empty except in notes scenes.",
+     "Never state a traffic, user, latency or cost number as a fact about this app: the repo does not tell you its real load. Numbers only appear as clearly labelled assumptions.",
+     "Proofread every sentence aloud: a/an and singular/plural agree with the noun, no half-finished phrases. Headings are on screen, never spoken as if they were a part.",
+-    "title: the product name in lowercase. subtitle: under 8 lowercase words, plain.",
++    "title: the product name in lowercase. subtitle: the one-line tagline under the name, 3 to 6 lowercase words saying what it does for you ('ai clicks real web pages').",
+     ...BEAT_RULES,
+   ].join("\n");
+ }
+@@ -91,6 +147,8 @@ export const BEAT_RULES = [
+   "- title: only the hook's first beat, the title card while the hook line is said.",
+   "anchor: 1 to 4 consecutive words of the line, copied exactly, where the visual appears (usually the first word it shows).",
+   "Mix them the way a good YouTube explainer does: never the same visual three lines running (board excepted), a new visual every 3 to 5 seconds, and at least four different card types across the video. The hook: title, then 2 or 3 card lines (a contrast or kinetic for the problem, chips naming the AI agents people use, a terminal with the one command). Scale and notes lines may use number or contrast. The recap ends on one payoff sentence, shown as kinetic.",
++  "Write lines that earn those cards: when the walkthrough says the agent asks for something, say the real command aloud ('it types snapshot') on a terminal line; when it says what comes back, describe the rows ('a short list: the email box is e3, the button is e2') on an output line with the README's rows; when it says the page is clicked or filled, a browser line; when a part fixes a problem or keeps a promise (the LLM never sees passwords), a contrast line with the problem and the fix. A terminal line says every word of its command after the program name ('fill e3', 'snapshot'), or it is not shown.",
++  "Kinetic is the seasoning: at most about one card in three is kinetic; prefer a card that shows the thing.",
+   "Never invent a command, an output row or a number: copy them from the README excerpt. Leave a beat's unused fields empty.",
+ ];
+ 
+@@ -183,19 +241,23 @@ export function labelEchoes(narration: string, arch: Architecture): string[] {
+  * Deterministic story check (docs/explaining-playbook.md): what the hook says, that the core flow is
+  * narrated hop by hop and early, that the analogy shows up, and that the recap retells the trip.
+  */
+-export function checkStory(plan: ScenePlan, arch: Architecture, analogy = ""): string[] {
++export function checkStory(plan: ScenePlan, arch: Architecture, analogy = "", shape?: Shape): string[] {
+   const issues: string[] = [];
+   const sc = plan.scenes;
+   const kwOf = (id: string) => arch.components.find((c) => c.id === id)?.keyword ?? id;
+   const { path } = journeyOrder(arch);
+   const hook = sc.find((s) => s.kind === "hook");
+   if (!hook || sc[0] !== hook) issues.push("the video must open with a 'hook' scene saying what this is and why you'd care");
+-  const parts = arch.components.filter((c) => hook && norm(hook.narration).includes(norm(c.keyword)));
++  // a journey hook names the client and what it drives in its "That's <name>: ..." line, by design
++  const hookSaid = hook ? (shape === "journey" ? sentencesIn(hook.narration).filter((t) => !/^that(?:'|\u2019)?s\b/i.test(t.trim())).join(" ") : hook.narration) : "";
++  const parts = arch.components.filter((c) => hook && (shape !== "journey" || c.kind !== "client") && norm(hookSaid).includes(norm(c.keyword)));
+   if (hook) {
+     const line = hookLine(hook.narration);
+     const n = wordCount(line);
+     if (n > 16) issues.push(`the hook's first sentence has ${n} words; make it a question or one surprising claim of at most 14 words`);
+     if (/^(hi|hello|welcome|today|in this video|this is|meet|let'?s)\b/i.test(line)) issues.push(`the hook opens with "${line.split(/\s+/).slice(0, 3).join(" ")}"; open on a question or a surprising claim instead`);
++    if (shape === "journey" && !WHAT_IF.test(line)) issues.push(`${hook.id}: the hook line "${line}" should be the 'What if ...?' question shown under the tagline ('What if your AI could really click around the web?')`);
++    if (shape === "journey" && plan.title && !new RegExp(`\\bthat(?:'|\u2019)?s ${escapeRe(plan.title.toLowerCase())}\\b`).test(hook.narration.toLowerCase())) issues.push(`${hook.id}: after the 'What if' line and the contrast lines, say "That's ${plan.title}: " and what it is in one plain clause, naming tools people know ('That's agent-browser: a command-line tool that lets an AI agent, like Claude Code or Cursor, drive a real Chrome browser.')`);
+     if (n === wordCount(hook.narration)) issues.push("the hook is a single sentence; after the hook line, say what this is, the stakes and the analogy");
+   }
+   if (hook && parts.length > 1) issues.push(`the hook names parts (${parts.map((c) => c.keyword).join(", ")}) before the story starts; say what it is in plain words instead`);
+@@ -211,7 +273,14 @@ export function checkStory(plan: ScenePlan, arch: Architecture, analogy = ""): s
+     const ws = spokenWords(sc[wi].narration);
+     const missing: string[] = [];
+     // a step is told by its label or, in plain words, by naming the part it reaches: the same cue the board follows
+-    walkCues(ws, arch).forEach((k, i) => { if (k < 0) { const st = arch.walkthrough.steps[i]; missing.push(`${kwOf(st.from)} to ${kwOf(st.to)} (${st.label})`); } });
++    const cues = walkCues(ws, arch), steps = arch.walkthrough.steps;
++    // the trip back may be told in one sentence naming where it lands: a hop reversing an earlier one is
++    // told when the client the trip ends at is named after the last hop that was told
++    const goingBack = (i: number) => steps.slice(0, i).some((x) => x.from === steps[i].to && x.to === steps[i].from) || i === steps.length - 1;
++    const lastFwd = Math.max(-1, ...cues.filter((k, i) => k >= 0 && !goingBack(i)));
++    const end = steps.length ? kwOf(steps[steps.length - 1].to) : "";
++    const homeTold = !!end && lastFwd >= 0 && phraseAt(ws, end, lastFwd + 1) >= 0;
++    cues.forEach((k, i) => { if (k < 0 && !(homeTold && goingBack(i) && steps.slice(i).every((_, j) => cues[i + j] >= 0 || goingBack(i + j)))) { const st = steps[i]; missing.push(`${kwOf(st.from)} to ${kwOf(st.to)} (${st.label})`); } });
+     if (missing.length) issues.push(`the walkthrough must tell each step in order, naming the part it reaches; missing or out of order: ${missing.join(", ")}`);
+     for (const e of labelEchoes(sc[wi].narration, arch)) issues.push(`the walkthrough says "${e}", a step label turned into a noun; say what happens in plain words instead`);
+     if (/\bstep (one|two|three|1|2|3)\b/.test(w)) issues.push("the walkthrough reads like a numbered list ('step one is ...'); tell it as a story where each part does its step");
+@@ -286,6 +355,44 @@ export function hookLine(narration: string): string {
+   return narration.trim().split(/(?<=[.!?])\s+/)[0] ?? "";
+ }
+ 
++/** Parts that really are the viewer's own, so "your" fits them ("your AI agent", "your app"). */
++const VIEWERS = /\b(ai|agent|agents|app|apps|account|accounts|computer|phone|you|user|users|code|project|site|website)\b/;
++const sentencesIn = (t: string) => t.trim().split(/(?<=[.!?])\s+/).filter(Boolean);
++const escapeRe = (x: string) => x.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
++
++/**
++ * Lines a person would not say aloud, which grammar rules miss: a garbled pronoun ("for you user to
++ * use"), a sentence that opens on a part's bare name ("Agent-browser CLI starts every job"), a part
++ * re-introduced with "that" right after it was named, and a long part name said again in the very next
++ * sentence where "it" belongs.
++ */
++/** Cute stand-ins for a real part or tool: the video names the thing itself. */
++const NICKNAMES = /\b(?:(?:your|my|our|that|this|the|a) (?:little )?(?:ai )?helpers?|helpers you (?:know|use)|buddy|buddies|sidekicks?|robot friend)\b/i;
++const kwsHave = (arch: Architecture, w: string) => arch.components.some((c) => c.keyword.toLowerCase().includes(w.toLowerCase()));
++
++export function spokenSlips(narration: string, arch: Architecture, plan?: ScenePlan, repeats = true): string[] {
++  const out: string[] = [];
++  const all = ` ${norm((plan?.scenes ?? []).map((x) => x.narration).join(" ") || narration)} `;
++  const garble = /\b(?:(?:you|your) (?:user|users|viewer|viewers|customer|customers)|for you \w+ to (?:use|do|get|see))\b/i.exec(narration);
++  if (garble) out.push(`"${garble[0]}" is garbled; say who does what in a whole sentence ('so you can use it', 'your AI agent types a command')`);
++  const nick = NICKNAMES.exec(narration);
++  if (nick && !kwsHave(arch, nick[0])) out.push(`"${nick[0]}" is a made-up nickname; say the real name ('your AI agent', 'Claude Code') or "it"`);
++  const kws = arch.components.map((c) => c.keyword.toLowerCase()).filter((k) => k.length > 2);
++  const sents = sentencesIn(narration);
++  sents.forEach((sent, i) => {
++    const t = norm(sent);
++    for (const k of kws) {
++      const nk = norm(k);
++      // a capitalised product (Chrome, Postgres) opens a sentence fine; a part said elsewhere as "the k" does not
++      if (t.startsWith(`${nk} `) && all.includes(` the ${nk} `)) out.push(`"${sent.trim()}" opens on the bare name "${k}"; say "the ${k}" and give the sentence a real verb about what it does`);
++      if (new RegExp(`^that ${escapeRe(nk)}\\b`).test(t)) out.push(`"${sent.trim()}" re-introduces "${k}" with "that" right after naming it; fold it into the sentence before, or say "it"`);
++      // a long name twice running: "the agent-browser CLI ... The agent-browser CLI ..."
++      if (repeats && /[\s-]/.test(k) && i > 0 && ` ${norm(sents[i - 1])} `.includes(` ${nk} `) && ` ${t} `.includes(` ${nk} `)) out.push(`"${k}" is said in two sentences in a row; the second time say "it" or a short name`);
++    }
++  });
++  return [...new Set(out)];
++}
++
+ /**
+  * Lines that would not sound like a person talking: a missing article ("will run agent"), the same
+  * sentence opener over and over, or a scene heading read out as if it were a part ("next it reaches
+@@ -310,8 +417,9 @@ export function speechIssues(plan: ScenePlan, arch: Architecture, analogy = ""):
+     const fig = figurative(s.heading, known);
+     if (fig) issues.push(`${s.id}: the heading "${s.heading}" uses "${fig}", a metaphor; say plainly what the scene is about ('where it starts', 'what runs the page', 'when lots of jobs come in')`);
+     if (!analogy) for (const sent of s.narration.split(/(?<=[.!?])\s+/)) { const f = figurative(sent, known); if (f) issues.push(`${s.id}: "${sent.trim()}" uses "${f}", a travel metaphor; say literally what happens`); }
+-    const yours = known.filter((k) => ` ${norm(s.narration)} `.includes(` your ${norm(k)} `));
+-    if (yours.length > 1) issues.push(`${s.id}: says ${yours.map((k) => `"your ${k}"`).join(", ")}; call the parts "the ${yours[0]}", and keep "your" for what's really the viewer's`);
++    const yours = arch.components.map((c) => c.keyword.toLowerCase()).filter((k) => k && !VIEWERS.test(k) && ` ${norm(s.narration)} `.includes(` your ${norm(k)} `));
++    if (yours.length) issues.push(`${s.id}: says ${yours.map((k) => `"your ${k}"`).join(", ")}; call the part "the ${yours[0]}", and keep "your" for what's really the viewer's (your AI agent, your email)`);
++    for (const x of spokenSlips(s.narration, arch, plan, s.kind !== "recap")) issues.push(`${s.id}: ${x}`);
+     if (s.kind === "recap" && s.narration.split(/(?<=[.!?])\s+/).filter(Boolean).length > 4) issues.push(`${s.id}: the recap runs ${s.narration.split(/(?<=[.!?])\s+/).filter(Boolean).length} sentences; say what it does for you, then retrace the trip, in a few short sentences`);
+     if ((s.kind === "hook" || s.kind === "walkthrough" || s.kind === "recap") && !/\b(you|your|you're|you'd|you'll|yours)\b/i.test(s.narration)) issues.push(`${s.id}: never talks to the viewer; say it in second person ('you', 'your')`);
+   }
+@@ -444,7 +552,12 @@ export async function polishNarration(o: { ledger: CostLedger; plan: ScenePlan;
+     "- Every sentence is a whole sentence with its own subject and verb; no fragments like 'It's incremental counts that update tallies.' 'a' and 'an' go only before one thing ('a load of pieces', never 'a ready loads of').",
+     "- Say what a part is only the first time it's named; after that, just its name. The recap never re-explains a part.",
+     "- No filler that announces instead of explains: never 'you'll meet', 'you'll see', 'you'll find', 'then you've got', 'let's take a look', 'basically', 'it's special'.",
+-    "- The hook scene's first sentence is shown on screen word by word: keep it a question or one surprising claim of at most 14 words, and keep it the first sentence.",
++    "- The hook scene's first sentence is shown on screen word by word: keep it a question (a 'What if ...?' when it is one) or one surprising claim of at most 14 words, and keep it the first sentence.",
++    "- Every sentence has a clear subject doing something, said the way a person talks: no label-like lines ('The agent-browser CLI starts every job.'), no garbled phrases ('for you user to use').",
++    "- Parts are 'the daemon', never 'your daemon'; 'your' is for what is really the viewer's (your AI agent, your email).",
++    "- After a part's full name, the next sentence says 'it' or a short name, not the full name again. Never open a sentence on a part's bare name ('Daemon keeps...'): say 'The daemon keeps...'.",
++    "- Each part's why comes before it: what would be slow or hard without it, then the part. A line that only says which part hands what to which gets the reason it matters.",
++    VOICE_EXAMPLES,
+     "Part names: 'parts' lists every part's real name. Keep them all; 'renames' is always an empty list.",
+     "Return every scene id with its rewritten narration.",
+   ].join("\n");
+@@ -508,7 +621,7 @@ export async function polishNarration(o: { ledger: CostLedger; plan: ScenePlan;
+   return { plan: res.plan, renames: [...renames].map(([id, keyword]) => ({ id, keyword })), rewritten: res.rewritten, kept: res.kept, issues };
+ }
+ 
+-export async function planRepoScenes(o: { ledger: CostLedger; arch: Architecture; spec: ExplainSpec; readme?: string; source?: string; progress?: Progress }): Promise<ScenePlan & { repairs: string[]; check: { first: string[]; final: string[]; revised: boolean }; renames: { id: string; keyword: string }[]; polish: { rewritten: number; kept: string[]; issues: string[] }; beats: BeatReport }> {
++export async function planRepoScenes(o: { ledger: CostLedger; arch: Architecture; spec: ExplainSpec; readme?: string; source?: string; progress?: Progress }): Promise<ScenePlan & { repairs: string[]; check: { first: string[]; final: string[]; revised: boolean }; renames: { id: string; keyword: string }[]; polish: { rewritten: number; kept: string[]; issues: string[] }; beats: BeatReport; ear: string[] }> {
+   const L = o.spec;
+   const [lo, hi] = coverageSeconds(L, { components: o.arch.components.length, steps: o.arch.walkthrough.steps.length, scale: o.arch.scale.length });
+   o.progress?.({ stage: "plan", message: "writing the scene plan" });
+@@ -520,7 +633,7 @@ export async function planRepoScenes(o: { ledger: CostLedger; arch: Architecture
+     scale: o.arch.scale.map((s) => ({ component: s.component, at: s.at, problem: s.problem, why: s.why, fix: s.fix, fix_detail: s.fix_detail })),
+   };
+   const sys = repoSystem(o.arch, L, lo, hi);
+-  const user = `${JSON.stringify(compact)}${o.readme ? `\n\nREADME excerpt (copy commands, output rows and numbers from here only):\n${o.readme}` : ""}`;
++  const user = `${JSON.stringify(compact)}${o.readme ? `\n\nREADME excerpt (copy commands, output rows and numbers from here only; the Features list is for why-lines about parts and steps already in the video, like a safety promise the README makes, never a new part or scene):\n${o.readme}` : ""}`;
+   const ask = (extra: { role: "assistant" | "user"; content: string }[] = []) => sparkJson({
+     ledger: o.ledger, step: extra.length ? "scene-plan-revise" : "scene-plan", schema: ScenePlan, wire: RepoPlanWire, name: "scene_plan", effort: "low", maxTokens: 14000, hedge: true,
+     messages: [{ role: "system", content: sys }, { role: "user", content: user }, ...extra],
+@@ -535,7 +648,7 @@ export async function planRepoScenes(o: { ledger: CostLedger; arch: Architecture
+   const source = `${o.source ?? ""}\n${o.readme ?? ""}`;
+   const beatsOf = (p: ScenePlan) => checkBeats(p, { arch: o.arch, source, wps: L.tempo.wps });
+   const found = (p: ScenePlan, arch: Architecture, c: Critique | undefined) => [
+-    ...checkStory(p, arch, L.brief.analogy),
++    ...checkStory(p, arch, L.brief.analogy, shapeFor(L.brief.approach)),
+     ...beatsOf(p).report.issues,
+     ...(c?.undefined_terms ?? []).filter((t) => said(p, t.term)).map((t) => termIssue(t)),
+     ...(c?.odd_phrases ?? []).filter((t) => said(p, t.phrase)).map((t) => oddIssue(t)),
+@@ -558,13 +671,91 @@ export async function planRepoScenes(o: { ledger: CostLedger; arch: Architecture
+     story = pol.plan;
+     final = found(story, arch, crit);
+   }
+-  const fixed = await fixWording({ ledger: o.ledger, plan: story, arch, issues: final, audience: L.audience, analogy: L.brief.analogy, progress: o.progress });
++  const fixed = await fixWording({ ledger: o.ledger, plan: story, arch, issues: final, audience: L.audience, analogy: L.brief.analogy, shape: shapeFor(L.brief.approach), progress: o.progress });
+   story = fixed.plan;
+   final = fixed.issues;
+   revised = revised || fixed.changed;
++  // a last listen for lines no rule names: garbled, subjectless or stiff sentences get rewritten one by one
++  const ear = await speechCheck({ ledger: o.ledger, plan: story, arch, audience: L.audience, progress: o.progress });
++  if (ear.changed.length) {
++    const was = new Set(checkStory(story, arch, L.brief.analogy, shapeFor(L.brief.approach)));
++    story = ear.plan;
++    final = [...checkStory(story, arch, L.brief.analogy, shapeFor(L.brief.approach)), ...final.filter((x) => !was.has(x))];
++    revised = true;
++  }
+   // every rewrite above may have moved a line: the beats are cut again from the final narration and checked
+   const b = beatsOf(story);
+-  return { ...plan, scenes: b.plan.scenes, check: { first, final, revised }, renames: pol.renames, polish: { rewritten: pol.rewritten, kept: pol.kept, issues: pol.issues }, beats: b.report };
++  return { ...plan, scenes: b.plan.scenes, check: { first, final, revised }, renames: pol.renames, polish: { rewritten: pol.rewritten, kept: pol.kept, issues: pol.issues }, beats: b.report, ear: ear.notes };
++}
++
++const Ear = z.object({
++  lines: z.array(z.object({
++    scene: z.string().describe("scene id"),
++    sentence: z.string().describe("the sentence, copied exactly"),
++    problem: z.string().describe("what is wrong, in a few words"),
++    rewrite: z.string().describe("the same sentence said the way a person would say it aloud, same facts, about the same length, keeping every name it had"),
++  })).describe("only sentences that are ungrammatical, garbled, missing a subject, stiff, or a bare chain of handoffs; empty when every line sounds natural"),
++});
++
++/**
++ * The grammar and natural-speech gate: one small call reads the narration as a listener and names the
++ * sentences no native speaker would say aloud; each is replaced by its rewrite only when the board
++ * still syncs to the scene and the rewrite adds no slip of its own (reject and rewrite, never guess).
++ */
++/**
++ * What a speech fix must keep: each part name and cut-in the scene says, once, in order. Card anchors and
++ * step labels are not held (the cards are cut again from the new words, and a step is also told by the
++ * part it reaches), so a garbled label like "and label buttons" can be rewritten.
++ */
++export function earPhrases(s: Scene, arch: Architecture): string[] {
++  const ws = spokenWords(s.narration);
++  const cands = [...arch.components.map((c) => c.keyword), ...(s.items ?? []).map((i) => i.text), ...(s.board_nodes ?? []).map((n) => n.keyword)];
++  const seen = new Set<string>();
++  return cands.map((p) => ({ p: p.toLowerCase(), at: phraseAt(ws, p) })).filter((x) => x.at >= 0 && !seen.has(x.p) && !!seen.add(x.p)).sort((a, b) => a.at - b.at).map((x) => x.p);
++}
++
++/** Why a walkthrough rewrite would lose one of its steps' cues; undefined when every step is still told. */
++function walkLoss(orig: string, next: string, s: Scene, arch: Architecture): string | undefined {
++  if (s.kind !== "walkthrough") return undefined;
++  const told = (t: string) => walkCues(spokenWords(t), arch).filter((k) => k >= 0).length;
++  return told(next) < told(orig) ? "it dropped a step of the walkthrough; keep every part the trip passes" : undefined;
++}
++
++export async function speechCheck(o: { ledger: CostLedger; plan: ScenePlan; arch: Architecture; audience: string; progress?: Progress }): Promise<{ plan: ScenePlan; changed: string[]; notes: string[] }> {
++  o.progress?.({ stage: "plan", message: "listening for lines that don't sound spoken" });
++  const out = await sparkJson({
++    ledger: o.ledger, step: "speech-check", schema: Ear, name: "speech_check", effort: "minimal", maxTokens: 3000,
++    messages: [
++      { role: "system", content: [
++        `You are a strict editor of spoken English for explainer videos, listening as ${plainListener(o.audience)}.`,
++        "Flag only sentences a native speaker would not say aloud: broken grammar, a missing subject or verb, garbled words ('for you user to use'), a label-like line with no real content ('The agent-browser CLI starts every job.'), 'your' stuck on a part of the system ('your daemon'), a long part name repeated from the sentence before, or a bare chain of handoffs that never says why ('the CLI sends it to the daemon, which sends it to Chrome').",
++        "For each, give a rewrite: one natural sentence (two short ones at most) with the same facts, about the same length, keeping every part name the scene needs (a name already said in the sentence before may become 'it') and every command it had. A cute stand-in for a real thing ('your helper', 'buddy') is a slip too: say the real name. Problem before fix where it helps. Never add a fact.",
++        VOICE_EXAMPLES,
++        "Leave good sentences alone; an empty list is the normal answer for clean narration.",
++      ].join("\n") },
++      { role: "user", content: o.plan.scenes.map((s) => `[${s.id}] ${s.narration}`).join("\n") },
++    ],
++  }).catch(() => undefined);
++  const notes: string[] = [], changed: string[] = [];
++  if (!out) return { plan: o.plan, changed, notes: ["speech check skipped"] };
++  const scenes = o.plan.scenes.map((s) => {
++    let narration = s.narration;
++    for (const l of out.lines.filter((x) => x.scene === s.id)) {
++      const at = narration.indexOf(l.sentence.trim());
++      const next = l.rewrite.trim();
++      if (at < 0 || !next || next === l.sentence.trim()) continue;
++      const cand = tidySpeech(narration.slice(0, at) + next + narration.slice(at + l.sentence.trim().length));
++      const one = { ...o.plan, scenes: [{ ...s, narration: cand }] };
++      const before = speechIssues({ ...o.plan, scenes: [{ ...s, narration }] }, o.arch).length;
++      const why = syncProblem(narration, cand, earPhrases({ ...s, narration }, o.arch), Math.ceil(wordCount(narration) * 1.25)) ?? walkLoss(narration, cand, s, o.arch) ?? (speechIssues(one, o.arch).length > before ? "the rewrite added a speech slip" : undefined);
++      if (why) { notes.push(`${s.id}: kept "${l.sentence.trim()}" (${l.problem}); rewrite rejected: ${why}`); continue; }
++      notes.push(`${s.id}: "${l.sentence.trim()}" -> "${next}" (${l.problem})`);
++      narration = cand;
++    }
++    if (narration !== s.narration) changed.push(s.id);
++    return narration === s.narration ? s : { ...s, narration };
++  });
++  return { plan: { ...o.plan, scenes }, changed, notes };
+ }
+ 
+ /**
+@@ -572,7 +763,7 @@ export async function planRepoScenes(o: { ledger: CostLedger; arch: Architecture
+  * whatever the second look still finds gets one more round. A rewrite the board could not use is sent
+  * back with the reason, and a flagged term the narration no longer says is settled without asking.
+  */
+-export async function fixWording(o: { ledger: CostLedger; plan: ScenePlan; arch: Architecture; issues: string[]; audience: string; analogy?: string; progress?: Progress }): Promise<{ plan: ScenePlan; issues: string[]; changed: boolean }> {
++export async function fixWording(o: { ledger: CostLedger; plan: ScenePlan; arch: Architecture; issues: string[]; audience: string; analogy?: string; shape?: Shape; progress?: Progress }): Promise<{ plan: ScenePlan; issues: string[]; changed: boolean }> {
+   let story = o.plan, final = o.issues, changed = false, notUsed: string[] = [];
+   for (let round = 1; round <= FIX_ROUNDS; round++) {
+     const todo = final.filter((x) => !structural(x));
+@@ -584,7 +775,7 @@ export async function fixWording(o: { ledger: CostLedger; plan: ScenePlan; arch:
+     notUsed = fix.rejected.map((r) => `[${r.id}] your last rewrite of this scene was not used: ${r.why}`);
+     const asked = todo.filter((x) => x.startsWith("a newcomer") || (x.startsWith("\"") && said(story, termOf(x))));
+     const left = asked.length ? await recheckTerms(o.ledger, story, asked, o.audience, round > 1 ? `plan-recheck-${round}` : undefined) : [];
+-    final = [...checkStory(story, o.arch, o.analogy), ...left];
++    final = [...checkStory(story, o.arch, o.analogy, o.shape), ...left];
+   }
+   return { plan: story, issues: final, changed };
+ }
+@@ -868,6 +1059,55 @@ export async function planConceptScenes(o: { ledger: CostLedger; doc: SourceDoc;
+   return { ...fixed, repairs: [...dropped.map((d) => `dropped unquoted: ${d}`), ...retold] };
+ }
+ 
++const LineCards = z.object({
++  lines: z.array(z.object({
++    n: z.number().int().describe("the line number given"),
++    visual: z.enum(["board", "kinetic", "chips", "number", "contrast", "doodle"]),
++    text: z.string().describe("kinetic: 2 to 6 words of the line, copied exactly; number: the figure as said ('2 million'); doodle: a 1 to 3 word label said in the line; otherwise empty"),
++    items: z.array(z.string()).describe("chips: 2 to 4 names said in the line; contrast: exactly [before, after], each 2 to 5 words the line says; otherwise empty"),
++    focus: z.string().describe("doodle: a plain noun for the picture ('ship', 'server'); otherwise empty"),
++  })),
++});
++
++/**
++ * Line cards for a topic or article video: one small call picks, for each sentence, whether the scene's
++ * own visual carries it (board) or a full-frame card does (big words, names, a figure, a before and
++ * after, a doodle). The same deterministic check as a repo plan then keeps only cards whose words are
++ * said in their line and figures the sources state; a failed call leaves the plan as it was.
++ */
++export async function planConceptBeats(o: { ledger: CostLedger; plan: ScenePlan; source: string; wps?: number; progress?: Progress }): Promise<{ plan: ScenePlan; report?: BeatReport }> {
++  const carded = o.plan.scenes.filter((s) => s.kind !== "recap" && s.kind !== "outro");
++  const lines = carded.flatMap((s) => sentencesIn(s.narration).map((line) => ({ id: s.id, kind: s.kind, line })));
++  if (lines.length < 3) return { plan: o.plan };
++  o.progress?.({ stage: "plan", message: "choosing a visual for each line" });
++  const out = await sparkJson({
++    ledger: o.ledger, step: "line-cards", schema: LineCards, name: "line_cards", effort: "minimal", maxTokens: 4000,
++    messages: [
++      { role: "system", content: [
++        "You pick the visual for each narration line of a whiteboard explainer, the way a good YouTube explainer cuts away from its main picture.",
++        "board: stay on the scene's own picture (the default; use it on most lines that describe the map, chart or page shown). kinetic: a short claim or punchline in big words. chips: 2 to 4 names the line says. number: one figure the line says. contrast: a before and after, or problem and fix, the line says. doodle: one labelled sketch of a thing the line names.",
++        "Put on screen only words the line says. About a third of lines get a card; never the same card type three lines running; at most one kinetic in three cards. The hook's first line is board.",
++      ].join("\n") },
++      { role: "user", content: lines.map((l, i) => `${i}. [${l.kind}] ${l.line}`).join("\n") },
++    ],
++  }).catch(() => undefined);
++  if (!out) return { plan: o.plan };
++  const pick = new Map(out.lines.map((x) => [x.n, x]));
++  let n = 0;
++  const scenes = o.plan.scenes.map((s) => {
++    if (!carded.includes(s)) return s;
++    const beats = sentencesIn(s.narration).map((line, k) => {
++      const p = pick.get(n++);
++      const first = s.kind === "hook" && k === 0;
++      const anchor = line.split(/\s+/).slice(0, 3).join(" ");
++      return { line, anchor, visual: !p || first ? "board" as const : p.visual, text: p?.text ?? "", items: p?.items ?? [], focus: p?.focus ?? "" };
++    });
++    return { ...s, beats };
++  });
++  const b = checkBeats({ ...o.plan, scenes }, { arch: NO_ARCH, source: o.source, wps: o.wps });
++  return { plan: b.plan, report: b.report };
++}
++
+ /**
+  * A plan cached before a speech check existed can still carry the slip that check now catches: one small
+  * rewrite of just the flagged scenes, so a re-render from cache fixes it and re-voices only those scenes.
+diff --git a/packages/planner/src/shapes.ts b/packages/planner/src/shapes.ts
+index 316d47a..c2f1081 100644
+--- a/packages/planner/src/shapes.ts
++++ b/packages/planner/src/shapes.ts
+@@ -9,6 +9,9 @@ import type { Approach } from "@explanimate/core";
+  */
+ export type Shape = "journey" | "build" | "fault";
+ 
++/** The hook line a journey video opens on: the "What if your AI could..." question the approved sample uses. */
++export const WHAT_IF = /^what if\b/i;
++
+ export interface ShapeSpec {
+   /** what the first scene does */
+   hook: string;
+@@ -27,9 +30,9 @@ export const SHAPES: Record<Shape, ShapeSpec> = {
+   journey: {
+     analogy: "optional",
+     hook:
+-      "Sentence one is the hook: a question the viewer would ask, or one surprising, concrete claim about the problem this project solves, at most 14 words, no product name needed. Then what the product is in plain words (no part names, no jargon), what goes wrong without it, and what you'll see, e.g. 'Here's what happens when your AI clicks log in.'",
++      "Sentence one is the hook, shown on the title card under the name and tagline: a 'What if ...?' question about what this lets you (or your AI, your app) do, at most 14 words, no product name ('What if your AI could really click around the web?'). Then one or two short lines on what that means in practice, said as the contrast with today ('Not guess what a page says. Actually open it, read it, and press the button.'). Then what the product is, in one plain sentence that names it and the familiar tools it works with ('That's agent-browser: a command-line tool that lets an AI agent, like Claude Code or Cursor, drive a real Chrome browser.'). No part names yet.",
+     spine:
+-      "Tell it in the order things happen ('First...', 'Next...'): each scene is the next thing that happens, said literally, and the part that does it. For each added part say its keyword out loud, what it does in plain words, and why it is there (plus its role in the analogy, only if the video has one).",
++      "Tell it in the order things happen ('First...', 'Next...'): each scene is the next thing that happens, said literally, and the part that does it. For each added part, first the problem it solves in one short line (what would be slow, hard or impossible without it), then the part by its keyword, what it is in one plain clause, and what that buys you (plus its role in the analogy, only if the video has one).",
+     close:
+       "End with one recap scene of two or three short plain sentences. First answer 'so what does it do for me?' for the viewer, in everyday words ('So your AI can log in, fill a form or grab a screenshot for you, in a real browser.'). Then retell what happened in one short literal sentence, naming the journey keywords in order the way you'd tell a friend, not as a list of steps, and if it fits, one line that answers the hook's question. Give it a plain heading that says what you get, like 'what you get'.",
+     headings:
+diff --git a/packages/planner/test/beats.test.ts b/packages/planner/test/beats.test.ts
+index 8882607..64ff576 100644
+--- a/packages/planner/test/beats.test.ts
++++ b/packages/planner/test/beats.test.ts
+@@ -27,7 +27,7 @@ test("cards that show what the line says are kept, and the rest fall back to wor
+   const plan = { title: "agent-browser", subtitle: "", scenes: [scene("hook", [
+     beat("Can your AI agent click a button?", "title", "Can your"),
+     beat("You use Claude Code or Cursor every day.", "chips", "Claude Code", { items: ["Claude Code", "Cursor", "Codex"] }),
+-    beat("One command opens the page.", "terminal", "One command", { text: "$ agent-browser open example.com" }),
++    beat("One command opens example.com.", "terminal", "One command", { text: "$ agent-browser open example.com" }),
+     beat("It types a command nobody wrote.", "terminal", "types", { text: "agent-browser fly mars" }),
+     beat("That takes seven steps.", "number", "seven steps", { text: "7 steps" }),
+   ])] };
+diff --git a/packages/planner/test/narration.test.ts b/packages/planner/test/narration.test.ts
+new file mode 100644
+index 0000000..5ce8734
+--- /dev/null
++++ b/packages/planner/test/narration.test.ts
+@@ -0,0 +1,139 @@
++import { test } from "node:test";
++import assert from "node:assert/strict";
++import type { Architecture, Beat, Scene } from "@explanimate/core";
++import { alignBeats, checkBeats, checkStory, earPhrases, commandWords, groundToReadme, readmeExcerpt, speechIssues, spokenSlips } from "@explanimate/planner";
++
++const comp = (id: string, keyword: string, kind = "service") => ({ id, name: keyword, kind, layer: "backend", keyword, icon: "box", what: "x", evidence: ["README.md"] });
++const arch = {
++  product: "agent-browser", one_liner: "browser automation for AI agents",
++  components: [comp("agent", "ai agent", "client"), comp("cli", "agent-browser cli"), comp("daemon", "daemon"), comp("chrome", "chrome"), comp("dash", "dashboard")],
++  connections: [
++    { from: "agent", to: "cli", label: "run command", evidence: "README.md" },
++    { from: "cli", to: "daemon", label: "send command", evidence: "README.md" },
++    { from: "daemon", to: "chrome", label: "drive page", evidence: "README.md" },
++    { from: "dash", to: "daemon", label: "watch", evidence: "README.md" },
++  ],
++  walkthrough: { name: "w", steps: [{ from: "agent", to: "cli", label: "run command" }, { from: "cli", to: "daemon", label: "send command" }, { from: "daemon", to: "chrome", label: "drive page" }] },
++  scale: [{ component: "daemon", load: "1k", problem: "too many browsers", why: "x", fix: "reuse contexts", evidence: "x" }, { component: "daemon", load: "1k", problem: "slow start", why: "x", fix: "shard across regions", evidence: "x" }],
++} as unknown as Architecture;
++const sc = (kind: Scene["kind"], narration: string, beats?: Beat[]): Scene => ({ id: kind, kind, heading: kind, narration: narration || (beats ?? []).map((b) => b.line).join(" "), add_components: [], add_connections: [], callouts: [], highlights: [], board_nodes: [], board_edges: [], items: [], ...(beats ? { beats } : {}) } as unknown as Scene);
++const plan = (...scenes: Scene[]) => ({ title: "agent-browser", subtitle: "", scenes });
++
++test("lines nobody says aloud are caught: garbled pronouns, bare part names, re-introductions and a long name twice running", () => {
++  assert.match(spokenSlips("It is a tool for you user to use.", arch).join(" "), /garbled/);
++  const p = plan(sc("layer", "Your agent types a command. The daemon keeps Chrome open."), sc("walkthrough", "Daemon keeps the page open."));
++  assert.match(spokenSlips("Daemon keeps the page open.", arch, p).join(" "), /bare name "daemon"/);
++  assert.match(spokenSlips("It runs the daemon. That daemon, a background process, waits.", arch).join(" "), /re-introduces "daemon"/);
++  assert.match(spokenSlips("Commands go to the agent-browser CLI. The agent-browser CLI starts every job.", arch).join(" "), /said in two sentences in a row/);
++  assert.deepEqual(spokenSlips("Commands go to the agent-browser CLI, a small Rust program. It starts fast.", arch), []);
++  assert.deepEqual(spokenSlips("Commands go to the agent-browser CLI. The agent-browser CLI starts it.", arch, undefined, false), [], "the recap may retell the names");
++});
++
++test("'your' on a part of the system is flagged even once, never on what is really the viewer's", () => {
++  const issues = speechIssues(plan(sc("layer", "Your daemon keeps the browser open.")), arch);
++  assert.ok(issues.some((i) => /"your daemon"/.test(i)), issues.join("; "));
++  assert.ok(!speechIssues(plan(sc("layer", "Your ai agent types a command, and the daemon runs it.")), arch).some((i) => /"your /.test(i)));
++});
++
++test("a journey hook opens on the 'What if ...?' question; other shapes and old callers are unchanged", () => {
++  const p = plan(sc("hook", "AI agents can't see web pages. That's agent-browser."));
++  assert.ok(checkStory(p, arch, "", "journey").some((i) => /What if/.test(i)));
++  assert.ok(!checkStory(plan(sc("hook", "What if your AI could really click around the web? That's agent-browser.")), arch, "", "journey").some((i) => /What if/.test(i)));
++  assert.ok(!checkStory(p, arch).some((i) => /What if/.test(i)));
++});
++
++test("the video's scope follows the README: a side part its opening never names, and a fix it never says, are left out", () => {
++  const readme = `# agent-browser\nBrowser automation CLI for AI agents. The daemon keeps Chrome open.${" filler".repeat(3000)}\n## Observability Dashboard\nReuse browser contexts between runs.`;
++  const g = groundToReadme(arch, readme);
++  assert.deepEqual(g.arch.components.map((c) => c.id), ["agent", "cli", "daemon", "chrome"]);
++  assert.ok(!g.arch.connections.some((c) => c.from === "dash" || c.to === "dash"));
++  assert.deepEqual(g.arch.scale.map((r) => r.fix), ["reuse contexts"]);
++  assert.equal(g.dropped.length, 2, g.dropped.join("; "));
++  assert.equal(groundToReadme(arch, "").arch, arch, "no README keeps the map as it is");
++});
++
++test("a terminal card needs its command said: the words after the program, refs and file names read aloud", () => {
++  assert.deepEqual(commandWords('agent-browser fill @e3 "test@example.com"'), ["fill", "e3"]);
++  assert.deepEqual(commandWords("agent-browser screenshot page.png --full"), ["screenshot", "page"]);
++  assert.deepEqual(commandWords("agent-browser"), ["agent", "browser"]);
++  const t = (line: string, text: string): Beat => ({ line, visual: "terminal", anchor: line.split(" ").slice(0, 2).join(" "), text, items: [], focus: "" });
++  const src = 'agent-browser snapshot\nagent-browser fill @e3 "test@example.com"';
++  const out = checkBeats(plan(sc("walkthrough", "", [t("So it types snapshot.", "agent-browser snapshot"), t("Then it fills the form.", 'agent-browser fill @e3 "a@b.c"')])), { arch, source: src });
++  assert.deepEqual(out.plan.scenes[0].beats!.map((b) => b.visual), ["terminal", "kinetic"]);
++  assert.ok(out.report.repairs.some((r) => /never says "e3"/.test(r)), out.report.repairs.join("; "));
++});
++
++test("kinetic cards are capped at about a third of the cards; the hook and recap keep theirs", () => {
++  const k = (line: string): Beat => ({ line, visual: "kinetic", anchor: line.split(" ")[0], text: line.replace(/\.$/, ""), items: [], focus: "" });
++  const c = (line: string, items: string[]): Beat => ({ line, visual: "chips", anchor: line.split(" ")[0], text: "", items, focus: "" });
++  const scenes = [
++    sc("hook", "", [k("Pages are hard."), c("Claude Code and Cursor work.", ["Claude Code", "Cursor"])]),
++    sc("layer", "", [k("Browsers are slow."), c("Chrome and Safari exist.", ["Chrome", "Safari"]), k("Scripts break often."), c("Claude Code or Cursor types.", ["Claude Code", "Cursor"]), k("Pages change daily.")]),
++    sc("recap", "", [k("Your agent clicks for real.")]),
++  ];
++  const out = checkBeats(plan(...scenes), { arch, source: "Claude Code" });
++  const v = out.plan.scenes.map((s) => s.beats!.map((b) => b.visual));
++  assert.deepEqual(v[0], ["kinetic", "chips"]);
++  assert.equal(v[1].filter((x) => x === "kinetic").length, 1, v[1].join(","));
++  assert.deepEqual(v[2], ["kinetic"]);
++  assert.ok(out.report.repairs.some((r) => /capped/.test(r)));
++});
++
++test("the README excerpt carries its feature claims, trimmed to the sentence that says them", () => {
++  const readme = `# x\nintro\n${"words ".repeat(1500)}\n- **Authentication Vault**: Store credentials locally (always encrypted), reference by name. The LLM never sees passwords. \`auth login\` navigates with \`load\` and then waits.\n`;
++  assert.match(readmeExcerpt(readme), /Authentication Vault: Store credentials locally \(always encrypted\), reference by name\. The LLM never sees passwords\.$/m);
++});
++
++test("a journey hook says \"That's <name>:\" after the question, and cute stand-ins for real parts are flagged", () => {
++  const without = plan(sc("hook", "What if your AI could really click around the web? Not guess. Actually open it."));
++  assert.ok(checkStory(without, arch, "", "journey").some((i) => /That's agent-browser/.test(i)));
++  const withIt = plan(sc("hook", "What if your AI could really click around the web? That's agent-browser: a tool that lets an AI agent drive Chrome."));
++  assert.ok(!checkStory(withIt, arch, "", "journey").some((i) => /That's agent-browser/.test(i)));
++  assert.match(spokenSlips("Your helper can't see the screen.", arch).join(" "), /made-up nickname/);
++  assert.deepEqual(spokenSlips("Your AI agent can't see the screen.", arch), []);
++});
++
++test("two beats starting in one sentence keep the card, so the sentence is never said twice", () => {
++  const s = sc("walkthrough", "", [
++    { line: "The CLI sends it on.", visual: "board", anchor: "The CLI sends", text: "", items: [], focus: "" },
++    { line: "The CLI sends it on.", visual: "browser", anchor: "sends it", text: "example.com", items: ["email box", "button submit"], focus: "" },
++    { line: "Chrome opens example.com.", visual: "board", anchor: "Chrome opens", text: "", items: [], focus: "" },
++  ]);
++  s.narration = "The CLI sends it on. Chrome opens example.com.";
++  const lines = alignBeats(s).beats.map((b) => `${b.visual}:${b.line}`);
++  assert.deepEqual(lines, ["browser:The CLI sends it on.", "board:Chrome opens example.com."]);
++});
++
++test("a contrast must say what tells its sides apart, problem first", () => {
++  const line = "A new browser for each click eats memory. So one browser stays open.";
++  const b = (items: string[]): Beat => ({ line, visual: "contrast", anchor: "A new browser", text: "", items, focus: "" });
++  const swapped = checkBeats(plan(sc("scale", line, [b(["one browser", "new browser each click"])])), { arch });
++  assert.deepEqual(swapped.plan.scenes[0].beats![0].items, ["new browser each click", "one browser"]);
++  const unsaid = checkBeats(plan(sc("scale", line, [b(["ten browsers", "one browser"])])), { arch });
++  assert.equal(unsaid.plan.scenes[0].beats![0].visual, "kinetic");
++});
++
++test("a speech fix keeps each part name once, not card anchors or step labels", () => {
++  const s = sc("walkthrough", "The ai agent asks. The daemon and label buttons. The daemon drives chrome.");
++  assert.deepEqual(earPhrases(s, arch), ["ai agent", "daemon", "chrome"]);
++});
++
++test("the trip back may be one sentence naming where it lands, and a journey hook's \"That's\" line may name the client", () => {
++  const round = { ...arch, walkthrough: { name: "w", steps: [...arch.walkthrough.steps, { from: "chrome", to: "daemon", label: "return page" }, { from: "daemon", to: "cli", label: "pass result" }, { from: "cli", to: "agent", label: "show output" }] } } as unknown as Architecture;
++  const walk = (n: string) => checkStory(plan(sc("hook", "What if? That's agent-browser: it lets an ai agent drive chrome."), sc("walkthrough", n)), round, "", "journey");
++  const told = walk("Your ai agent types a command for the agent-browser cli. The daemon keeps it warm, and chrome opens the page. A short list comes back to the ai agent.");
++  assert.ok(!told.some((i) => /tell each step/.test(i)), told.join("; "));
++  assert.ok(!told.some((i) => /hook names parts/.test(i)), told.join("; "));
++  const cut = walk("Your ai agent types a command for the agent-browser cli. The daemon keeps it warm, and chrome opens the page.");
++  assert.ok(cut.some((i) => /tell each step/.test(i)));
++});
++
++test("a line that says an element's ref shows the README's element list with that row circled", () => {
++  const source = 'agent-browser snapshot\n# - heading "Example Domain" [ref=e1]\n# - button "Submit" [ref=e2]\n# - textbox "Email" [ref=e3]\n';
++  const line = "It reads a short list, so it fills e3.";
++  const r = checkBeats(plan(sc("walkthrough", line, [{ line, visual: "board", anchor: "It reads", text: "", items: [], focus: "" }])), { arch, source });
++  const b = r.plan.scenes[0].beats![0];
++  assert.equal(b.visual, "output");
++  assert.equal(b.focus, 'textbox "Email" [ref=e3]');
++  assert.ok(b.items.length >= 2);
++});
+diff --git a/packages/render/src/cards.ts b/packages/render/src/cards.ts
+index b944fa4..3b62e40 100644
+--- a/packages/render/src/cards.ts
++++ b/packages/render/src/cards.ts
+@@ -125,11 +125,42 @@ export function spliceCards(film: Film, cards: { box: Box; t0: number; t1: numbe
+   // what the board would draw while a card is up is drawn just after it, in the same order
+   const cardGroups = new Set(cards.map((c) => c.g));
+   for (const e of film.elements) {
+-    if (e.g && cardGroups.has(e.g)) continue;
++    if (e.g && cardGroups.has(e.g.split("/")[0])) continue;
+     for (let c = cards.find((c) => e.t0 > c.t0 - 0.05 && e.t0 < c.t1); c; c = cards.find((c) => e.t0 > c.t0 - 0.05 && e.t0 < c.t1)) e.t0 = c.t1 + 0.15 + (e.t0 - c.t0) * 0.12;
+   }
+ }
+ 
++/**
++ * One row of spoken words, built word by word and centred on what has been said so far, so a row
++ * never sits off to the left while it builds. Each stage (the first k words) is its own subgroup,
++ * laid out on its own width; it goes out the moment the next word comes in, which redraws the same
++ * words a little to the left with the new word fading in on the end. Returns the subgroups, the last
++ * of which stays up, so a caller can fade the finished row with them.
++ */
++export function buildRow(P: Pen, o: { words: { text: string; t: number; color: string }[]; cx: number; y: number; size: number; g: string; key?: number; underline: (x0: number, x1: number, t: number, dur: number, g: string) => void }): string[] {
++  const sp = textWidth(" ", o.size);
++  const ws = o.words.map((w) => textWidth(w.text, o.size));
++  const groups: string[] = [];
++  for (let s = 1; s <= o.words.length; s++) {
++    const gs = `${o.g}/s${s}`, t = o.words[s - 1].t;
++    groups.push(gs);
++    const width = ws.slice(0, s).reduce((a, b) => a + b, 0) + sp * (s - 1);
++    let x = o.cx - width / 2;
++    for (let k = 0; k < s; k++) {
++      const fresh = k === s - 1;
++      P.text({ text: o.words[k].text, x, y: o.y, size: o.size, color: o.words[k].color, t0: t, dur: fresh ? 0.2 : 0.01, g: gs, anim: "fade", sketch: false });
++      if (k === o.key) {
++        const uw = textWidth(o.words[k].text.replace(/[^\p{L}\p{N}]+$/u, ""), o.size);
++        // the underline draws once, on the stage its word arrives in; later stages show it already there
++        o.underline(x, x + uw, fresh ? t + 0.25 : t, fresh ? 0.35 : 0.01, gs);
++      }
++      x += ws[k] + sp;
++    }
++    if (s < o.words.length) P.setOp(gs, o.words[s].t, 0, 0.04);
++  }
++  return groups;
++}
++
+ const CHIP_COLORS = ["blue", "green", "orange", "purple", "teal", "pink"] as const;
+ const BUTTON = /\b(button|log ?in|sign ?in|submit|search|send|buy|go|ok|next)\b/i;
+ 
+@@ -152,18 +183,19 @@ export function drawCard(P: Pen, gen: any, slot: CardSlot, box: Box, g: string)
+       const lh = size * 1.3, y0 = cy + size * 0.35 - ((rows.length - 1) * lh) / 2;
+       const key = keyIndex(toks);
+       let from = Math.max(0, words.findIndex((w) => w.start >= t0 - 0.3)), fb = t0 + 0.05;
++      const lineSeed = seed();
+       rows.forEach((r, ri) => {
+-        let x = cx - r.w / 2;
+-        for (const i of r.idx) {
++        const y = y0 + ri * lh;
++        const row = r.idx.map((i) => {
+           const j = saidAt(words, toks[i], from);
+           const t = j >= 0 && words[j].start < t1 - 0.2 ? Math.max(t0 + 0.05, words[j].start - 0.04) : fb;
+           if (j >= 0) from = j + 1;
+           fb = t + 0.12;
+-          const w = textWidth(toks[i], size);
+-          P.text({ text: toks[i], x, y: y0 + ri * lh, size, color: i === key ? C("orange") : th.ink, t0: t, dur: 0.2, g, anim: "fade", sketch: false });
+-          if (i === key) R(gen.line(x, y0 + ri * lh + size * 0.2, x + textWidth(toks[i].replace(/[^\p{L}\p{N}]+$/u, ""), size), y0 + ri * lh + size * 0.24, { seed: seed(), stroke: C("orange"), strokeWidth: 6, roughness: 1.3 }), t + 0.25, 0.35);
+-          x += w + textWidth(" ", size);
+-        }
++          return { text: toks[i], t, color: i === key ? C("orange") : th.ink };
++        });
++        // monotone times, so each stage really is followed by the next
++        for (let k = 1; k < row.length; k++) row[k].t = Math.max(row[k].t, row[k - 1].t + 0.05);
++        buildRow(P, { words: row, cx, y, size, g: `${g}/r${ri}`, key: r.idx.indexOf(key), underline: (x0, x1, t, dur, gs) => P.rough(gen.line(x0, y + size * 0.2, x1, y + size * 0.24, { seed: lineSeed, stroke: C("orange"), strokeWidth: 6, roughness: 1.3 }), t, dur, gs) });
+       });
+       break;
+     }
+diff --git a/packages/render/src/compose.ts b/packages/render/src/compose.ts
+index 042e000..00e1506 100644
+--- a/packages/render/src/compose.ts
++++ b/packages/render/src/compose.ts
+@@ -15,7 +15,7 @@ import { resolveIcon } from "./icons.js";
+ import { ringOf, scaleArrow, placeFix, placeRingLabel, polyBox } from "./annotate.js";
+ import path from "node:path";
+ import { clearShots, type Backdrop, type Hidden } from "./clear.js";
+-import { cardSlots, cardBox, drawCard, spliceCards, type CardSlot } from "./cards.js";
++import { buildRow, cardSlots, cardBox, drawCard, spliceCards, type CardSlot } from "./cards.js";
+ 
+ // 24 fps is the film standard: a fifth fewer frames to draw than 30, and nothing downstream counts frames
+ export const W = 1920, H = 1080, FPS = 24;
+@@ -695,22 +695,22 @@ export async function compose(inp: ComposeInput): Promise<Composed> {
+         let rows = wordRows(line.map((w) => w.word), size, maxW);
+         while (rows.length > 2 && size > 72) { size -= 8; rows = wordRows(line.map((w) => w.word), size, maxW); }
+         const lh = size * 1.3, y0 = hookCy + 120 - ((rows.length - 1) * lh) / 2;
+-        const sp = textWidth(" ", size);
++        const lineSeed = B.seed++;
++        const staged: string[] = [];
+         rows.forEach((row, r) => {
+-          const rw = row.reduce((a, i) => a + textWidth(line[i].word, size), 0) + sp * (row.length - 1);
+-          let x = hookCx - rw / 2;
+-          for (const i of row) {
+-            const w = line[i], ww = textWidth(w.word, size), at = T + LEAD + w.start - 0.04;
+-            B.text({ text: w.word, x, y: y0 + r * lh, size, color: i === key ? C("orange") : theme.ink, t0: at, dur: 0.22, g: "hookline", anim: "fade", sketch: false });
+-            const uw = textWidth(w.word.replace(/[^\p{L}\p{N}]+$/u, ""), size);
+-            if (i === key) B.cueNext("pop");
+-            if (i === key) B.rough(gen.line(x, y0 + r * lh + size * 0.2, x + uw, y0 + r * lh + size * 0.24, { seed: B.seed++, stroke: C("orange"), strokeWidth: 6, roughness: 1.3 }), T + LEAD + w.end, 0.4, "hookline");
+-            x += ww + sp;
+-          }
++          const y = y0 + r * lh;
++          const ws = row.map((i) => ({ text: line[i].word, t: T + LEAD + line[i].start - 0.04, color: i === key ? C("orange") : theme.ink }));
++          const ki = row.indexOf(key);
++          // the key word's underline lands as the word ends, with its pop, on the stage the word arrives in
++          staged.push(...buildRow(B, { words: ws, cx: hookCx, y, size, g: `hookline/r${r}`, key: ki, underline: (x0, x1, t, dur, gs) => {
++            const fresh = dur > 0.05;
++            if (fresh) B.cueNext("pop");
++            B.rough(gen.line(x0, y + size * 0.2, x1, y + size * 0.24, { seed: lineSeed, stroke: C("orange"), strokeWidth: 6, roughness: 1.3 }), fresh ? T + LEAD + line[key].end : t, fresh ? 0.4 : 0.01, gs);
++          } }));
+         });
+         const lineEnd = T + LEAD + line[kin - 1].end;
+         // when the title gets its own shot the line stays up until the push-in starts, and the title is drawn as it lands
+-        B.setOp("hookline", reveal ? Math.max(lineEnd + 0.45, tTitle) : lineEnd + 0.45, 0, 0.4);
++        for (const gs of ["hookline", ...staged]) B.setOp(gs, reveal ? Math.max(lineEnd + 0.45, tTitle) : lineEnd + 0.45, 0, 0.4);
+         Th = reveal ? tTitle + 0.05 : lineEnd + 0.6;
+       }
+       B.text({ text: title, x: hookCx, y: hookCy - 40, size: ts, color: theme.ink, anchor: "middle", t0: Th + 0.3, dur: 1.0, g: "hook" });
+diff --git a/packages/render/test/captions.test.ts b/packages/render/test/captions.test.ts
+index 55e8ec1..123b729 100644
+--- a/packages/render/test/captions.test.ts
++++ b/packages/render/test/captions.test.ts
+@@ -123,9 +123,16 @@ test("the hook's first line is drawn word by word as it is said, and the subtitl
+     return { sceneId: s.id, duration: ws.length * 0.38, words: ws.map((w: string, i: number) => ({ word: w, start: i * 0.38, end: i * 0.38 + 0.3 })) };
+   });
+   const { film } = await compose({ plan: p2, audio: a2, theme: getTheme("pen-light"), spec: specFromBrief(DEFAULT_BRIEF), pack: loadIconPack(), sourceLabel: "x", arch });
+-  const line = film.elements.filter((e) => e.g === "hookline" && e.k === "text").map((e: any) => e.text);
++  // each row is built in stages, centred on the words said so far; the last stage of each row is the finished line
++  const texts = film.elements.filter((e) => e.k === "text" && /^hookline\/r\d+\/s\d+$/.test(e.g ?? "")) as any[];
++  const stage = (e: any) => e.g.split("/").slice(1).map((x: string) => Number(x.slice(1)));
++  const rows = [...new Set(texts.map((e) => stage(e)[0]))].sort();
++  const last = (r: number) => Math.max(...texts.filter((e) => stage(e)[0] === r).map((e) => stage(e)[1]));
++  const line = rows.flatMap((r) => texts.filter((e) => stage(e)[0] === r && stage(e)[1] === last(r)).map((e) => e.text));
+   assert.deepEqual(line, "What if every song came from a robot?".split(" "));
+-  assert.ok(film.elements.some((e) => e.g === "hookline" && e.k === "text" && e.t0 < 5), "the hook line starts within five seconds");
++  const first = (r: number, s: number) => texts.find((e) => stage(e)[0] === r && stage(e)[1] === s)!.x;
++  assert.ok(first(rows[0], 1) > first(rows[0], last(rows[0])), "the first word starts centred and moves left as the row fills");
++  assert.ok(texts.some((e) => e.t0 < 5), "the hook line starts within five seconds");
+   const caps = film.captions.filter((c) => c.scene === hook.id);
+   assert.equal(caps.filter((c) => c.hidden).map((c) => c.words.map((w) => w.w).join(" ")).join(" "), line.join(" "));
+   // every spoken word is still in the captions, so the caption check still sees the whole narration
+diff --git a/packages/render/test/cards.test.ts b/packages/render/test/cards.test.ts
+index ce35a75..944f477 100644
+--- a/packages/render/test/cards.test.ts
++++ b/packages/render/test/cards.test.ts
+@@ -107,3 +107,21 @@ test("saidAt matches hyphenated names however the voice split them", () => {
+   assert.equal(saidAt(one, "The agent-browser CLI,"), 0);
+   assert.equal(saidAt(one, "agent-browser", 2), -1);
+ });
++
++test("a kinetic row stays centred while it builds: each stage is laid out on the words said so far and leaves as the next word lands", async () => {
++  const { buildRow } = await import("../src/cards.js");
++  const els: any[] = [], ops: Record<string, [number, number][]> = {};
++  const P: any = { text: (o: any) => els.push({ ...o }), setOp: (g: string, t: number, v: number) => (ops[g] ??= []).push([t, v]), rough: () => {}, cueNext: () => {} };
++  const words = ["agents", "click", "real", "pages"].map((text, i) => ({ text, t: i * 0.5, color: "#000" }));
++  const lines: number[] = [];
++  const groups = buildRow(P, { words, cx: 960, y: 500, size: 100, g: "card:0/r0", key: 2, underline: (_a, _b, _t, dur) => lines.push(dur) });
++  assert.deepEqual(groups, ["card:0/r0/s1", "card:0/r0/s2", "card:0/r0/s3", "card:0/r0/s4"]);
++  for (const g of groups) {
++    const row = els.filter((e) => e.g === g);
++    const left = row[0].x, right = row[row.length - 1].x + textWidth(row[row.length - 1].text, 100);
++    assert.ok(Math.abs((left + right) / 2 - 960) < 1, `${g} is centred`);
++  }
++  assert.deepEqual(Object.keys(ops), groups.slice(0, 3), "every stage but the last leaves");
++  assert.deepEqual(groups.slice(0, 3).map((g) => ops[g][0][0]), [0.5, 1, 1.5]);
++  assert.ok(lines[0] > 0.1 && lines[1] < 0.05, "the underline draws once, then is already there");
++});
