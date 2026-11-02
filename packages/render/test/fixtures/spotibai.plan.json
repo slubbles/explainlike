@@ -165,7 +165,7 @@
    "id": "s07-walkthrough",
    "kind": "walkthrough",
    "heading": "open fyp feed",
-   "narration": "Open the fyp app, hit the edge guard, render from worker host, fetch catalog from ingest api, read rows from d1 database, stream from edge cache, origin fetch clip blobs.",
+   "narration": "You open the fyp app, and the request first hits the edge guard. The guard hands it to the worker host, which renders the page. The page asks the ingest api for the catalog, and the api reads rows from the d1 database. Then your phone streams the video from the edge cache, which pulls it from the clip blobs the first time.",
    "add_components": [],
    "add_connections": [],
    "board_nodes": [],

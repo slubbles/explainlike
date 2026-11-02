@@ -141,6 +141,9 @@ export function validateArchitecture(arch: Architecture, files: string[], resolv
       taken.delete(c.keyword); taken.add(plain); c.keyword = plain;
     } else open.push({ target: c.id, problem: `part name "${c.keyword}" says what it does, not what it is; give it a 1 to 3 word noun name (what the part is, like "ui core" or "command list")` });
   }
+  // box names and step labels are read by newcomers: a practitioner term there ("cdp client", "rust cli") needs a plain word
+  for (const c of comps) { const j = practitionerTerm(c.keyword); if (j) open.push({ target: c.id, problem: `part name "${c.keyword}" uses "${j}", a word only practitioners know; give it an everyday 1 to 3 word name a newcomer knows (like "browser driver" or "command line tool") and keep "${j}" in name` }); }
+  steps.forEach((st, i) => { const j = practitionerTerm(st.label); if (j) open.push({ target: "walkthrough", problem: `step ${i + 1} label "${st.label}" uses "${j}", a word only practitioners know; say what happens in everyday words` }); });
   // arrows follow the code: an arrow from A to B where B's files import A's (and not the other way) is backwards
   let out = conns;
   if (read) {
@@ -166,6 +169,10 @@ export function validateArchitecture(arch: Architecture, files: string[], resolv
   return { arch: { ...arch, components: comps, connections: out, walkthrough: { name: arch.walkthrough.name, steps }, scale }, issues, open };
 }
 
+// words a newcomer does not know, which belong in a part's `name` or `what` but not on its box
+const PRACTITIONER = /\b(cdp|rpc|grpc|ipc|ffi|daemon|shards?|inference|wasm|orm|rust|golang|cli|stdio|jsonl|kv|dom|ast|repl|tty|pty|cgo|jni)\b/;
+/** The first practitioner-only word in a box name or step label, or "" when it reads plainly. */
+export function practitionerTerm(text: string): string { return PRACTITIONER.exec(text.toLowerCase())?.[1] ?? ""; }
 const PUSH = /^(emit|emits|send|sends|push|pushes|notify|notifies|dispatch|dispatches|post|posts|fire|fires|trigger|triggers|call|calls|tell|tells)\b/;
 // verbs a part name starts with when the model named it by what it does; nouns that double as verbs (queue, cache, store, map) are left out
 const ACTION = /^(rebuild|build|draw|poll|emit|send|render|handle|process|fetch|save|parse|run|read|write|make|create|update|get|show|display|feed|push|pull|sync|serve|route|manage|compute|generate|validate|scan|watch|listen|dispatch|convert|transform|compile|encode|decode|collect|gather|forward|deliver|paint|present|receive|call|execute|evaluate|merge|split|tokenize|train|predict|answer|reply|notify|lookup|look|find|pick|choose|check|track|queue|store|load|cache)\b/;
@@ -238,7 +245,7 @@ export function evidencePack(arch: Architecture, read: (p: string, max?: number)
   return out;
 }
 
-const REVIEWER = "You are a strict staff engineer reviewing an architecture map that will be shown to thousands of developers. Compare every component, connection, walkthrough step and scale risk against the cited file excerpts. Flag: components whose cited files do not support them, wrong technology names, wrong direction of data flow, missing major components that the files clearly show (e.g. a database client that is imported but not drawn), walkthrough steps that the code does not do, scale risks that are generic or not grounded in this code. Return verdict 'ok' only if a skeptical maintainer of this repo would sign off. Max 10 issues, most important first.";
+const REVIEWER = "You are a strict staff engineer reviewing an architecture map that will be shown to thousands of developers. Compare every component, connection, walkthrough step and scale risk against the cited file excerpts. Flag: components whose cited files do not support them, wrong technology names, wrong direction of data flow, missing major components that the files clearly show (e.g. a database client that is imported but not drawn), walkthrough steps that the code does not do, scale risks that are generic or not grounded in this code, and box keywords or step labels a newcomer would not know (a protocol or language name like 'cdp' or 'rust', 'cli', 'daemon', 'shards', 'inference'): rename them in everyday words ('browser driver', 'command line tool') and keep the real term in name. Return verdict 'ok' only if a skeptical maintainer of this repo would sign off. Max 10 issues, most important first.";
 
 const ReviewPatch = Review.extend({
   upsert_components: z.array(Component).describe("components to add, or to replace whole when an id already exists; empty when no component changes"),
