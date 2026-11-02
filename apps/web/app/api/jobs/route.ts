@@ -1,11 +1,12 @@
 import { NextResponse } from "next/server";
 import { admit, budgetNow, listJobs, startJob, validInput } from "../../../lib/jobs";
+import { asSeen } from "../../../lib/steps";
 import { MAX_INPUT_CHARS, clientIp, limitRequest, readBody } from "../../../lib/guard";
 
 export const runtime = "nodejs";
 
 export async function GET() {
-  return NextResponse.json(listJobs().slice(0, 40).map(({ id, kind, input, approach, voice, state, title, parent, focus, whatIf, costUsd, started, durationSec, outputs }) => ({ id, kind, input, approach, voice, state, title, parent, focus, whatIf, costUsd, started, durationSec, mp4: outputs?.mp4 })));
+  return NextResponse.json(listJobs().slice(0, 40).map(asSeen).map(({ id, kind, input, approach, voice, state, title, parent, focus, whatIf, costUsd, started, durationSec, outputs }) => ({ id, kind, input, approach, voice, state, title, parent, focus, whatIf, costUsd, started, durationSec, mp4: outputs?.mp4 })));
 }
 
 export async function POST(req: Request) {
