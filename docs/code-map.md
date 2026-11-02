@@ -21,7 +21,8 @@ flowchart LR
 
 The web app is a thin shell: it stores one JSON file per job on disk, spawns `node packages/cli/bin/explanimate.mjs`
 as a child process, and polls that JSON. All the work is in the CLI and the four packages under it.
-There is no database and no queue.
+There is no database. Up to `EXPLANIMATE_CONCURRENCY` renders (default 10) run at once; past that, jobs wait
+in an in-memory first-in, first-out line and their page shows the first step in progress.
 
 ## Packages
 
@@ -105,9 +106,10 @@ overspending. Cached re-runs are genuinely free: `$0.000` on the run above.
 
 ## Where it can still bite you
 
-**1. The render is the clock, and only one runs at a time.**
-`admit` refuses any new job while *any* job is `running` (`apps/web/lib/jobs.ts:81`), and a killed
-process can leave one stuck that way. With frames at ~20/s, a four-minute video is a six-minute wait.
+**1. The render is the clock.**
+Renders past `EXPLANIMATE_CONCURRENCY` wait for a slot (`pump` in `apps/web/lib/jobs.ts`), and a waiting job
+is lost if the server restarts. With frames at ~20/s, a four-minute video is a six-minute wait, longer when
+several draw at once on the same CPU.
 A live "watch it make one" beat cannot fit in a three-minute demo; and the "30 second cached re-render"
 in the older docs is wrong — the cache skips planning and voice (`0 s, $0.00`), then every frame is
 redrawn, because the frames folder is deleted at the start of each run (`packages/cli/src/pipeline.ts:310`).

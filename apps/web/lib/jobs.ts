@@ -3,7 +3,7 @@ import fs from "node:fs";
 import path from "node:path";
 import crypto from "node:crypto";
 import { validInput } from "./validate";
-import { budget, recordSpend, spent, type Budget } from "./guard";
+import { budget, caps, recordSpend, reserve, spent, type Budget } from "./guard";
 export { validInput };
 
 export type JobState = "queued" | "running" | "done" | "error";
@@ -21,8 +21,8 @@ export interface Job {
   ask?: Ask; via?: "voice";
   /** the CLI arguments, kept so a job cut off by a server restart can pick up where it stopped */
   args?: string[]; resumed?: number;
-  /** queued jobs: how many renders have to finish first */
-  ahead?: number;
+  /** when a render slot picked the job up (a job can wait for a slot after it is created) */
+  began?: number;
 }
 export type Ask = { goal?: string; audience?: string; depth?: "overview" | "working" | "deep"; also?: string };
 
@@ -32,7 +32,7 @@ const ID = /^[a-f0-9]{12}$/;
 const INTERRUPTED = "Interrupted by a server restart. Start it again.";
 
 // Jobs live on disk (one job.json per folder) so they survive a server restart.
-const g = globalThis as unknown as { __explanimateJobs?: Map<string, Job>; __explanimateLine?: string[]; __explanimateResumed?: boolean };
+const g = globalThis as unknown as { __explanimateJobs?: Map<string, Job>; __explanimateLine?: string[]; __explanimateSeen?: Map<string, number>; __explanimateResumed?: boolean };
 const jobs: Map<string, Job> = (g.__explanimateJobs ??= loadJobs());
 // first load after a restart: carry on with a job the restart cut off (EXPLANIMATE_RESUME=0 turns this off)
 if (!g.__explanimateResumed && process.env.EXPLANIMATE_RESUME !== "0") { g.__explanimateResumed = true; setTimeout(() => resumeInterrupted(), 0); }
@@ -48,7 +48,7 @@ function loadJobs(): Map<string, Job> {
       const j: Job = { kind: "video", ...JSON.parse(fs.readFileSync(f, "utf8")) };
       // the child process died with the old server: say so instead of spinning forever (resumeInterrupted may restart it)
       if (j.state === "running") Object.assign(j, { state: "error", error: INTERRUPTED, finished: Date.now() });
-      if (j.state === "queued") Object.assign(j, { state: "error", error: "The queue was lost in a server restart. Start it again.", finished: Date.now() });
+      if (j.state === "queued") Object.assign(j, { state: "error", error: "Interrupted by a server restart before it started. Start it again.", finished: Date.now() });
       m.set(id, j);
       save(j);
     } catch { /* skip a broken job file */ }
@@ -64,9 +64,9 @@ export function resumeInterrupted(): Job | undefined {
   if ([...jobs.values()].some((j) => j.state === "running")) return undefined;
   const j = [...jobs.values()].filter((x) => x.error === INTERRUPTED && x.args && (x.resumed ?? 0) < 1 && Date.now() - x.started < 6 * 3600_000).sort((a, b) => b.started - a.started)[0];
   if (!j) return undefined;
-  Object.assign(j, { state: "running", error: undefined, finished: undefined, resumed: (j.resumed ?? 0) + 1, message: "picking up where it stopped" });
-  save(j);
-  run(j, j.args!);
+  Object.assign(j, { error: undefined, finished: undefined, resumed: (j.resumed ?? 0) + 1 });
+  launch(j);
+  if (j.state === "running") { j.message = "picking up where it stopped"; save(j); }
   return j;
 }
 
@@ -77,13 +77,13 @@ function save(job: Job, soon = false) {
   if (!saveTimers.has(job.id)) saveTimers.set(job.id, setTimeout(write, 1000));
 }
 
-// ---- guard rails for any shared deployment: one render at a time, a per-client hourly cap, an optional demo-only switch
+// ---- guard rails for any shared deployment: a per-client hourly cap, a very high ceiling on waiting jobs, an optional demo-only switch
 const recent = new Map<string, number[]>();
 export function admit(client: string): string | undefined {
   if (process.env.EXPLANIMATE_DEMO_ONLY === "1") return "This demo only plays example videos. Run Explanimate locally with your own keys to make new ones.";
-  const waiting = [...jobs.values()].filter((j) => j.state === "queued").length;
-  const room = Number(process.env.EXPLANIMATE_QUEUE_MAX ?? 6);
-  if (waiting >= room) return `The line is full: ${waiting} videos are already waiting. Try again in a few minutes.`;
+  // nobody is turned away for being busy: past the render slots a job waits its turn. This ceiling only stops a flood.
+  sweep();
+  if (line().length >= num("EXPLANIMATE_QUEUE_MAX", 200)) return "Explanimate is very busy right now. Try again in a few minutes.";
   const b = budgetNow();
   if (!b.ok) return b.error;
   const cap = Number(process.env.EXPLANIMATE_JOBS_PER_HOUR ?? 20);
@@ -102,38 +102,77 @@ const CLI = () => process.env.EXPLANIMATE_CLI ?? path.join(ROOT, "packages/cli/b
 // the CLI reads private-network links by default (its user chose them); links typed into the web app never may
 const CLI_ENV = { ...process.env, EXPLANIMATE_ALLOW_PRIVATE_URLS: process.env.EXPLANIMATE_ALLOW_PRIVATE_URLS ?? "0" };
 
+// ---- the wait line: up to EXPLANIMATE_CONCURRENCY renders at once; past that, jobs wait first in, first out.
+// A waiting job looks like any job at its first step (the page never says "queued"); it is honest because nothing has run yet.
+const num = (name: string, dflt: number) => { const n = Number(process.env[name]); return Number.isFinite(n) && n > 0 ? n : dflt; };
+const slots = () => Math.floor(num("EXPLANIMATE_CONCURRENCY", 10));
 const line = (): string[] => (g.__explanimateLine ??= []);
-const busy = (except?: string): Job | undefined => [...jobs.values()].find((j) => j.state === "running" && j.id !== except);
-const aheadOf = (id: string): number => line().indexOf(id) + 1;
+const seen = (): Map<string, number> => (g.__explanimateSeen ??= new Map());
+const running = () => [...jobs.values()].filter((j) => j.state === "running").length;
+const GONE = "Not started: the page was closed while it waited. Start it again.";
 
-/** Start the next video in line, if the render slot is free. */
-function pump() {
-  if (busy()) return;
-  const id = line().shift();
-  if (!id) return;
-  const job = jobs.get(id);
-  if (!job || job.state !== "queued") return pump();
-  run(job, job.args ?? []);
-  line().forEach((other) => {
-    const j = jobs.get(other);
-    if (!j) return;
-    const n = aheadOf(other);
-    Object.assign(j, { ahead: n, message: n === 1 ? "one video ahead" : `${n} videos ahead` });
-    save(j, true);
-  });
+/** The page polls its job every second; this is how the server knows someone is still watching a waiting job. */
+export function touch(id: string) {
+  if (jobs.has(id)) seen().set(id, Date.now());
 }
 
-function run(job: Job, args: string[]) {
-  if (!job.args) { job.args = args; save(job); }
-  // one render at a time: a second request waits its turn instead of being told no
-  if (busy(job.id) || line().length) {
-    const n = line().length + (busy(job.id) ? 1 : 0) || 1;
-    Object.assign(job, { state: "queued", stage: "queued", ahead: n, message: n === 1 ? "one video ahead" : `${n} videos ahead` });
-    line().push(job.id);
-    save(job);
-    return;
+/** Drop waiting jobs whose page went away (no poll for EXPLANIMATE_WAIT_IDLE_S, default 120), so they never take a slot. */
+function sweep(now = Date.now()) {
+  const idle = num("EXPLANIMATE_WAIT_IDLE_S", 120) * 1000;
+  for (const id of [...line()]) {
+    const j = jobs.get(id);
+    if (j && j.state === "queued" && now - (seen().get(id) ?? j.started) <= idle) continue;
+    line().splice(line().indexOf(id), 1);
+    if (j?.state === "queued") { Object.assign(j, { state: "error", error: GONE, finished: now }); save(j); }
   }
-  const child = spawn(process.execPath, [CLI(), ...args, "--json"], { cwd: ROOT, env: CLI_ENV, stdio: ["ignore", "pipe", "pipe"] });
+}
+
+/** Room under the spend caps for this many renders at once, each holding back one job's reserve. */
+const roomFor = (n: number) => { const r = reserve(); return budget(spent(JOBS_DIR, [...jobs.values()]), caps(), { meta: r.meta * n, voice: r.voice * n }); };
+
+/** Start waiting jobs, oldest first, while a render slot is free. */
+function pump() {
+  sweep();
+  while (line().length && running() < slots()) {
+    const job = jobs.get(line()[0])!;
+    // the spend guard holds back one reserve per running render: wait for one to finish before starting another
+    const room = roomFor(running() + 1);
+    if (!room.ok && running() > 0) return;
+    line().shift();
+    if (!room.ok) { Object.assign(job, { state: "error", error: room.error, finished: Date.now() }); save(job); continue; }
+    launch(job);
+  }
+}
+
+/** Take a new job: start it now if a slot is free and nobody is waiting, otherwise it waits its turn. */
+function run(job: Job, args: string[]) {
+  job.args = args;
+  touch(job.id);
+  line().push(job.id);
+  save(job);
+  pump();
+}
+
+const spawnCli = (args: string[]) => spawn(process.execPath, [CLI(), ...args, "--json"], { cwd: ROOT, env: CLI_ENV, stdio: ["ignore", "pipe", "pipe"] });
+
+function launch(job: Job) {
+  Object.assign(job, { state: "running", stage: "start", message: "starting", pct: 0, began: Date.now() });
+  save(job);
+  let child: ReturnType<typeof spawnCli>;
+  try {
+    child = spawnCli(job.args ?? []);
+  } catch (e) {
+    Object.assign(job, { state: "error", error: `Could not start the renderer: ${(e as Error).message}`, finished: Date.now() });
+    save(job);
+    return void setTimeout(pump, 0);
+  }
+  // free the slot once, whether the process closed or never started
+  let ended = false;
+  const end = () => { if (ended) return; ended = true; save(job); pump(); };
+  child.on("error", (e) => {
+    if (job.state === "running") Object.assign(job, { state: "error", error: `The renderer stopped: ${e.message}`, finished: Date.now() });
+    end();
+  });
   let buf = "";
   child.stdout.on("data", (d: Buffer) => {
     buf += d.toString();
@@ -159,14 +198,13 @@ function run(job: Job, args: string[]) {
   child.stderr.on("data", (d: Buffer) => { errTail = (errTail + d.toString()).slice(-2000); });
   child.on("close", (code) => {
     if (job.state === "running") Object.assign(job, { state: code === 0 ? "done" : "error", finished: Date.now(), error: code === 0 ? undefined : errTail.split("\n").filter(Boolean).pop() ?? `exit ${code}` });
-    save(job);
-    pump();
+    end();
   });
 }
 
 function newJob(p: Omit<Job, "id" | "state" | "stage" | "message" | "pct" | "started">): Job {
   const id = crypto.randomBytes(6).toString("hex");
-  const job: Job = { ...p, id, state: "running", stage: "start", message: "starting", pct: 0, started: Date.now() };
+  const job: Job = { ...p, id, state: "queued", stage: "start", message: "starting", pct: 0, started: Date.now() };
   jobs.set(id, job);
   save(job);
   return job;
