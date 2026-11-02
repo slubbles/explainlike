@@ -134,8 +134,14 @@ const stemMatch = (a: string, b: string) => a === b || inflects(a, b) || inflect
  * ("sends the message"). Returns the index of the first matched word, or -1.
  */
 export function phraseAt(spoken: string[], phrase: string, from = 0): number {
-  const toks = phrase.toLowerCase().split(/[\s\-_/]+/).map((w) => w.replace(/[^a-z0-9]/g, "")).filter(Boolean);
   const ws = spoken.map((w) => w.toLowerCase().replace(/[^a-z0-9]/g, ""));
+  const tokens = (split: RegExp) => phrase.toLowerCase().split(split).map((w) => w.replace(/[^a-z0-9]/g, "")).filter(Boolean);
+  const at = matchAt(ws, tokens(/[\s\-_/]+/), from);
+  // a hyphenated word is one spoken word ("follow-ups"), so the label may need to match it whole
+  return at >= 0 || !/[-_/]/.test(phrase) ? at : matchAt(ws, tokens(/\s+/), from);
+}
+
+function matchAt(ws: string[], toks: string[], from: number): number {
   if (!toks.length) return -1;
   for (let i = from; i < ws.length; i++) {
     if (!stemMatch(ws[i], toks[0])) continue;
@@ -150,6 +156,7 @@ export function phraseAt(spoken: string[], phrase: string, from = 0): number {
   }
   return -1;
 }
+
 export const spokenWords = (s: string) => s.split(/\s+/).filter(Boolean);
 
 // Singular nouns that are almost never verbs and always need an article in speech.
