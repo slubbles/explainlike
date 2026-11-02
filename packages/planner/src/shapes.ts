@@ -27,13 +27,13 @@ export const SHAPES: Record<Shape, ShapeSpec> = {
   journey: {
     analogy: "optional",
     hook:
-      "Sentence one is the hook: a question the viewer would ask, or one surprising, concrete claim about the problem this project solves, at most 14 words, no product name needed. Then what the product is in plain words (no part names, no jargon), what goes wrong without it, the everyday analogy, and the promise of the story, e.g. 'Let's follow one message through it.'",
+      "Sentence one is the hook: a question the viewer would ask, or one surprising, concrete claim about the problem this project solves, at most 14 words, no product name needed. Then what the product is in plain words (no part names, no jargon), what goes wrong without it, and what you'll see, e.g. 'Here's what happens when your AI clicks log in.'",
     spine:
-      "Tell it as the request moving forward ('First...', 'Next it reaches...'): each scene is the next thing that happens to it, and the part it meets is the part that does that thing. For each added part say its keyword out loud, what it does in plain words, its role in the analogy, and why it is there.",
+      "Tell it in the order things happen ('First...', 'Next...'): each scene is the next thing that happens, said literally, and the part that does it. For each added part say its keyword out loud, what it does in plain words, and why it is there (plus its role in the analogy, only if the video has one).",
     close:
-      "End with one recap scene of two or three short plain sentences. First answer 'so what does it do for me?' for the viewer, in everyday words ('So your AI can log in, fill a form or grab a screenshot for you, in a real browser.'). Then retrace the trip in one short story sentence, naming the journey keywords in order the way you'd tell a friend, not as a list of steps, and if it fits, one line that answers the hook's question. Give it a heading that says what came back to the viewer, not 'the whole trip'.",
+      "End with one recap scene of two or three short plain sentences. First answer 'so what does it do for me?' for the viewer, in everyday words ('So your AI can log in, fill a form or grab a screenshot for you, in a real browser.'). Then retell what happened in one short literal sentence, naming the journey keywords in order the way you'd tell a friend, not as a list of steps, and if it fits, one line that answers the hook's question. Give it a plain heading that says what you get, like 'what you get'.",
     headings:
-      "Name the hop, in the words the narration says: 'a click arrives', 'the queue holds it', 'the ledger keeps it'. Never a generic summary heading.",
+      "Plain and literal, in the words the narration says: 'where it starts', 'what runs the page', 'when lots of jobs come in'. Never a metaphor or a generic summary heading.",
     recap: true,
   },
   build: {
@@ -43,9 +43,9 @@ export const SHAPES: Record<Shape, ShapeSpec> = {
     spine:
       "Each scene adds the next part because the scene before it hit a specific limit. Say the limit first, as a problem the viewer can feel ('one process is fine until the second writer arrives'), then add the part that lifts it and say what it buys. The parts arrive in the order the limits appear, not the order they are listed in the architecture.",
     close:
-      "Do not recap the whole trip. End on the walkthrough's payoff: the thing this system can do now that the first small version could not, in one sentence, and stop.",
+      "Do not recap every step. End on the walkthrough's payoff: the thing this system can do now that the first small version could not, in one sentence, and stop.",
     headings:
-      "Name the limit or the gain, not the part: 'it works once', 'the second writer', 'now it queues'. Never 'the whole trip'.",
+      "Plain and literal, naming the limit or the gain, not the part: 'it works once', 'the second writer', 'now it queues'. Never a metaphor.",
     recap: false,
   },
   fault: {

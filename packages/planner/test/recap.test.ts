@@ -31,7 +31,7 @@ test("a plan without a recap gets one that names every walkthrough part in order
   const plan = repairRepoPlan({ title: "x", subtitle: "", scenes: [sc("hook", "Can one script train a chat model?"), sc("walkthrough", "You follow one batch.")] }, arch, { perScene: 3 });
   const recap = plan.scenes.find((s) => s.kind === "recap")!;
   assert.equal(recap.narration, retellTrip(arch));
-  assert.match(recap.narration, /^Here's the whole trip you just followed\. It goes from the training scripts to the token shards, the gpt transformer and the checkpoint store\. Then it goes from the cli chat to the checkpoint store and the inference engine\. And finally it goes from the inference engine to the gpt transformer\.$/);
+  assert.match(recap.narration, /^Here's everything you just saw\. It goes from the training scripts to the token shards, the gpt transformer and the checkpoint store\. Then it goes from the cli chat to the checkpoint store and the inference engine\. And finally it goes from the inference engine to the gpt transformer\.$/);
   assert.deepEqual(recapIssue(recap.narration), []);
   assert.deepEqual(speechIssues({ title: "x", subtitle: "", scenes: [recap] }, arch).filter((i) => i.startsWith(recap.id)), []);
 });

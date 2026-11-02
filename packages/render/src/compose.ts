@@ -1,6 +1,6 @@
 import fs from "node:fs";
 import rough from "roughjs";
-import { agreementSlips, phraseAt, shortHeading, walkCues } from "@explanimate/core";
+import { agreementSlips, phraseAt, practitionerTerm, shortHeading, walkCues } from "@explanimate/core";
 import type { Architecture, ScenePlan, Scene, SceneAudio, Theme, ExplainSpec, Color, WordTiming, NoteItem } from "@explanimate/core";
 import type { Film, FElement, CamKey, Caption, Heading } from "./film.js";
 import { applyTempo, readableWidth, type PaceReport } from "./pace.js";
@@ -495,8 +495,17 @@ export function plainCase(s: string) {
   return s.replace(/\S+/g, (w) => (/[a-z][A-Z]|[A-Z]{2}|[0-9_]/.test(w) ? w : w.toLowerCase()));
 }
 
-export function subLine(keyword: string, name: string) {
-  const sub = shortSub(plainCase(name), 36);
+/**
+ * The small line under a box name: the plain `does` line when the map has one; else the real name, unless
+ * that name is practitioner jargon ("Rust CLI and daemon") a non-programmer would stumble on.
+ */
+export function boxSub(c: { keyword: string; name: string; does?: string }) {
+  if (c.does?.trim()) return subLine(c.keyword, c.does.trim(), false);
+  return practitionerTerm(c.name) ? undefined : subLine(c.keyword, c.name);
+}
+
+export function subLine(keyword: string, name: string, cased = true) {
+  const sub = shortSub(cased ? plainCase(name) : name, 36);
   const bare = (x: string) => x.toLowerCase().replace(/[^a-z0-9]+/g, "");
   return bare(sub) === bare(keyword) ? undefined : sub;
 }
@@ -553,7 +562,7 @@ export async function compose(inp: ComposeInput): Promise<Composed> {
     plan.scenes.forEach((s) => s.add_components.forEach((id) => { if (!order.has(id)) order.set(id, order.size); }));
     const comps = [...a.components].sort((x, y) => (order.get(x.id) ?? 99) - (order.get(y.id) ?? 99));
     // a sub line that only repeats the keyword ("command list" under "command list") is dropped
-    const gnodes: GNode[] = comps.map((c) => ({ id: c.id, keyword: c.keyword, sub: subLine(c.keyword, c.name), icon: c.icon, color: C(inp.colorOf ? inp.colorOf(c) : "white") }));
+    const gnodes: GNode[] = comps.map((c) => ({ id: c.id, keyword: c.keyword, sub: boxSub(c), icon: c.icon, color: C(inp.colorOf ? inp.colorOf(c) : "white") }));
     const gedges: GEdge[] = a.connections.map((c) => ({ from: c.from, to: c.to, label: c.label }));
     a.scale.forEach((r, i) => {
       const id = `fix-${i}`;

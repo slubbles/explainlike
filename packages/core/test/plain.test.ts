@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { plainSlips, practitionerTerm, PLAIN_LANGUAGE, PLAIN_LABELS } from "../src/index.js";
+import { plainSlips, practitionerTerm, PLAIN_LANGUAGE, PLAIN_LABELS, PLAIN_SUBTITLE, PLAIN_HEADINGS, figurative, subtitleSlip } from "../src/index.js";
 
 test("a sentence with unexplained jargon is flagged with the word it stumbles on", () => {
   const slips = plainSlips("The rust cli sends the send cdp instruction onward.");
@@ -29,4 +29,22 @@ test("the standard every prompt carries names the bar and its examples", () => {
   assert.match(PLAIN_LABELS, /web page/);
   assert.equal(practitionerTerm("web page"), "");
   assert.equal(practitionerTerm("dashboard ui"), "");
+});
+
+test("travel metaphors are caught in headings and lines, but box names that share the words are not", () => {
+  assert.equal(figurative("a real car door"), "car door");
+  assert.equal(figurative("too many riders"), "riders");
+  assert.equal(figurative("where it starts"), "");
+  assert.equal(figurative("the front door takes it", ["front door"]), "");
+});
+
+test("a box subtitle must say what the part does, in a few everyday words", () => {
+  assert.match(subtitleSlip("CDP client over chrome DevTools", "browser link"), /says "cdp"/);
+  assert.match(subtitleSlip("vercel sandbox runner that boots chrome in a remote cloud machine", "hosted sandbox"), /over 7 words/);
+  assert.match(subtitleSlip("Command line", "command line"), /repeats the box name/);
+  assert.match(subtitleSlip("", "chrome"), /no plain line/);
+  assert.equal(subtitleSlip("clicks and types for your AI", "browser tool"), "");
+  assert.match(PLAIN_SUBTITLE, /clicks and types/);
+  assert.match(PLAIN_HEADINGS, /where it starts/);
+  assert.match(PLAIN_LANGUAGE, /No running metaphor/);
 });
