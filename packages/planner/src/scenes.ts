@@ -58,11 +58,9 @@ function repoSystem(arch: Architecture, L: ExplainSpec, lo: number, hi: number):
       ? `5. ${arch.scale.length} short 'scale' scene(s), one per scale risk, in the given order: what breaks at that traffic level and why (problem keyword), then the fix (fix keyword), in 2 short plain sentences ('The fix is ...'). callouts: [{target: component id, text: problem keyword, color: red}, {target: component id, text: fix keyword, color: green}].`
       : "5. no 'scale' scenes.",
     ...notesRules(L.notes),
-    S.recap
-      ? `6. one closing scene of kind 'recap': ${S.close} When the flow comes back through a part, say that part again, so each pair you name back to back has an arrow between them.`
-      : `6. no 'recap' scene and no summary of the parts. ${S.close}`,
+    `6. one closing scene of kind 'recap': ${S.recap ? S.close : "First the walkthrough's payoff: what this system can do now that the first small version could not, in one sentence."} It retells the walkthrough's steps in order, in plain words, one short clause per step, naming the parts by keyword in this order: ${path.map((id) => `"${arch.components.find((c) => c.id === id)?.keyword}"`).join(", ")}. When the flow comes back through a part, say that part again, so each pair you name back to back has an arrow between them. About ${recapWords(path.length)} words; never re-explain a part.`,
     `Headings: ${S.headings}`,
-    `Keep the hook and the layer scenes brief enough that the walkthrough starts before the halfway mark of the whole narration, counted in words. Each scene's narration is about ${L.wordsPerScene} words (hook and recap can be shorter). There is no set length. At ${L.tempo.wps} words per second this repo's parts come to roughly ${lo} to ${hi} seconds; shorter is right if the story is told, never pad.`,
+    `Keep the hook and the layer scenes brief enough that the walkthrough starts before the halfway mark of the whole narration, counted in words. Each scene's narration is about ${L.wordsPerScene} words (the hook can be shorter). There is no set length. At ${L.tempo.wps} words per second this repo's parts come to roughly ${lo} to ${hi} seconds; shorter is right if the story is told, never pad.`,
     "Only say two parts talk to each other ('the poll input feeds the ui core') when the connections list joins them; otherwise tell the hop through the part between them.",
     "Leave add_connections, board_nodes, board_edges, highlights empty (the renderer derives them). callouts empty except in scale scenes. items empty except in notes scenes.",
     "Never state a traffic, user, latency or cost number as a fact about this app: the repo does not tell you its real load. Numbers only appear as clearly labelled assumptions.",
@@ -92,6 +90,45 @@ async function critiquePlan(ledger: CostLedger, plan: ScenePlan, audience: strin
 }
 
 const words4 = (s: string) => norm(s).split(" ").filter((w) => w.length >= 4 && !/^(that|with|from|into|your|this|their|which|where|every)$/.test(w));
+
+/** Words a recap needs to name every part on the walk with a short clause each. */
+export const recapWords = (parts: number) => 10 + 7 * parts;
+/** How many journey parts a recap has to name, in order: most of them, and never fewer than three. */
+export const recapNeeds = (parts: number) => Math.min(parts, Math.max(3, Math.ceil(parts * 0.6)));
+
+/**
+ * How many of the journey parts the recap names in the journey's order: the longest run of parts whose
+ * first mention comes after the one before (a part said again later does not break the order).
+ */
+export function recapInOrder(narration: string, keywords: string[]): number {
+  const r = ` ${norm(narration)} `;
+  const at = keywords.map((k) => {
+    const full = r.indexOf(` ${norm(k)} `);
+    if (full >= 0) return full;
+    const parts = words4(k).map((x) => r.indexOf(` ${x}`)).filter((i) => i >= 0);
+    return parts.length ? Math.min(...parts) : -1;
+  }).filter((i) => i >= 0);
+  const best: number[] = [];
+  at.forEach((p, i) => { best[i] = 1 + Math.max(0, ...at.slice(0, i).map((q, j) => (q < p ? best[j] : 0))); });
+  return Math.max(0, ...best);
+}
+
+/**
+ * A recap built from the walkthrough when the plan has none: each run of steps from one part, in order,
+ * so every part on the walk is named in the order the viewer met it. The polish turns it into speech.
+ */
+export function retellTrip(arch: Architecture): string {
+  const kw = (id: string) => arch.components.find((c) => c.id === id)?.keyword ?? id;
+  const runs: { from: string; to: string[] }[] = [];
+  for (const st of arch.walkthrough.steps) {
+    const last = runs[runs.length - 1];
+    if (last && last.from === st.from) { if (!last.to.includes(st.to)) last.to.push(st.to); } else runs.push({ from: st.from, to: [st.to] });
+  }
+  if (!runs.length) return "";
+  const list = (xs: string[]) => (xs.length > 1 ? `${xs.slice(0, -1).join(", ")} and ${xs[xs.length - 1]}` : xs[0]);
+  const hops = runs.map((r) => `from the ${kw(r.from)} to ${list(r.to.map((t) => `the ${kw(t)}`))}`);
+  return `Start to finish, the trip goes ${hops.length > 1 ? `${hops.slice(0, -1).join(", then ")}, and finally ${hops[hops.length - 1]}` : hops[0]}.`;
+}
 
 /**
  * Deterministic story check (docs/explaining-playbook.md): what the hook says, that the core flow is
@@ -140,9 +177,7 @@ export function checkStory(plan: ScenePlan, arch: Architecture, analogy = ""): s
   }
   const recap = sc.find((s) => s.kind === "recap");
   if (recap && path.length) {
-    const r = norm(recap.narration);
-    const said = path.filter((id) => r.includes(norm(kwOf(id))) || words4(kwOf(id)).some((x) => r.includes(x)));
-    if (said.length < Math.min(3, path.length)) issues.push("the recap must retell the trip, saying the journey parts in order");
+    if (recapInOrder(recap.narration, path.map(kwOf)) < recapNeeds(path.length)) issues.push(`the recap must retell the trip, saying the journey parts in order: ${path.map(kwOf).join(", ")}`);
   }
   return [...issues, ...undrawnLinks(plan, arch), ...speechIssues(plan, arch, analogy)];
 }
@@ -294,9 +329,9 @@ export function syncPhrases(s: Scene, arch: Architecture): string[] {
 export const keepsSync = (orig: string, next: string, phrases: string[]): boolean => !syncProblem(orig, next, phrases);
 
 /** Why a rewrite would cost the board its cues, in words the rewriter can act on; undefined when it is fine. */
-export function syncProblem(orig: string, next: string, phrases: string[]): string | undefined {
-  const a = wordCount(orig), b = wordCount(next);
-  if (b > a * 1.25) return `it had ${b} words, over the ${Math.floor(a * 1.25)} allowed; drop names a newcomer can do without instead of explaining them all`;
+export function syncProblem(orig: string, next: string, phrases: string[], room = 0): string | undefined {
+  const a = wordCount(orig), b = wordCount(next), most = Math.max(Math.floor(a * 1.25), room);
+  if (b > most) return `it had ${b} words, over the ${most} allowed; drop names a newcomer can do without instead of explaining them all`;
   if (b < a * 0.8) return `it had ${b} words, under the ${Math.ceil(a * 0.8)} needed`;
   if (soundsLikeKeywords(next)) return "it read like a list of names, not sentences";
   const ws = spokenWords(next);
@@ -496,7 +531,7 @@ export async function fixNarration(o: { ledger: CostLedger; plan: ScenePlan; arc
         `Audience: ${o.audience}.`,
         "- Change only what the problems need; keep everything else word for word, including facts and their order.",
         "- Each scene lists 'must_say': phrases the board syncs to. Keep each one, in that order, with its words in that order ('the', 'a' or 'your' may go between its words, verb endings may change).",
-        "- Keep each scene between 80% and 125% of its word count.",
+        "- Keep each scene between 80% and 125% of its word count; a recap may grow to its 'words' to retell the trip.",
         `- ${PLAIN}`,
         "- A term explained in plain words: a few words right where it's first said ('the font atlas, one image holding every letter').",
         "- When explaining every flagged term would make the scene too long, drop the ones a newcomer can do without: a product, service or library name ('D1', 'better-auth', 'Worker') becomes what it does ('a small cloud database', 'the sign-in code'). A must_say phrase is never dropped; explain it instead.",
@@ -508,7 +543,7 @@ export async function fixNarration(o: { ledger: CostLedger; plan: ScenePlan; arc
         parts: o.arch.components.map((c) => ({ id: c.id, name: c.keyword, what: c.what })),
         connections: o.arch.connections.map((c) => `${o.arch.components.find((x) => x.id === c.from)?.keyword ?? c.from} > ${o.arch.components.find((x) => x.id === c.to)?.keyword ?? c.to} (${c.label})`),
         context: o.plan.scenes.map((s) => `[${s.id}] ${s.narration}`).join("\n"),
-        scenes: scope.map((s) => ({ id: s.id, kind: s.kind, words: wordCount(s.narration), must_say: syncPhrases(s, o.arch), narration: s.narration })),
+        scenes: scope.map((s) => ({ id: s.id, kind: s.kind, words: s.kind === "recap" ? Math.max(wordCount(s.narration), recapWords(journeyOrder(o.arch).path.length)) : wordCount(s.narration), must_say: syncPhrases(s, o.arch), narration: s.narration })),
       }) },
     ],
   }).catch(() => undefined);
@@ -516,7 +551,7 @@ export async function fixNarration(o: { ledger: CostLedger; plan: ScenePlan; arc
   const scenes = o.plan.scenes.map((s) => {
     const next = out?.scenes.find((x) => x.id === s.id)?.narration?.trim();
     if (!next || next === s.narration || !scope.includes(s)) return s;
-    const why = syncProblem(s.narration, next, syncPhrases(s, o.arch));
+    const why = syncProblem(s.narration, next, syncPhrases(s, o.arch), s.kind === "recap" ? recapWords(journeyOrder(o.arch).path.length) : 0);
     if (why) { rejected.push({ id: s.id, why }); return s; }
     changed.push(s.id);
     return { ...s, narration: tidySpeech(next) };
@@ -669,7 +704,7 @@ export function repairRepoPlan(plan: ScenePlan, arch: Architecture, L: { perScen
     s.callouts = [{ target: r.component, text: r.problem, color: "red" }, { target: r.component, text: r.fix, color: "green" }];
   });
   for (const extra of scaleScenes.slice(arch.scale.length)) { scenes.splice(scenes.indexOf(extra), 1); repairs.push("extra scale scene dropped"); }
-  if (!scenes.some((s) => s.kind === "recap")) { scenes.push(blank({ id: "recap", kind: "recap", heading: "the big picture", narration: arch.one_liner })); repairs.push("recap added"); }
+  if (!scenes.some((s) => s.kind === "recap")) { scenes.push(blank({ id: "recap", kind: "recap", heading: "start to finish", narration: retellTrip(arch) || arch.one_liner })); repairs.push("recap added"); }
   scenes.forEach((s, i) => { s.id = `s${String(i + 1).padStart(2, "0")}-${s.kind}`; s.narration = tidySpeech(s.narration); });
   return { title: lower(plan.title || arch.product), subtitle: lower(plan.subtitle || ""), scenes, repairs };
 }
