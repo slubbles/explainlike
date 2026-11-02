@@ -41,6 +41,35 @@ curl -s localhost:3000/api/health
 - `paused: true` means demo-only mode is on or a spend cap is reached. The server is still healthy.
 - The image runs this check every 30 seconds. Point your host's health check at the same path.
 
+## Behind Caddy
+
+If a Caddy instance already owns ports 80 and 443, keep the container on loopback and
+give it a hostname of its own. Caddy gets the certificate itself.
+
+```caddyfile
+explainlike.example.com {
+	encode zstd gzip
+	handle {
+		reverse_proxy 127.0.0.1:3001
+	}
+}
+```
+
+Run the container with `-p 127.0.0.1:3001:3000` so nothing is reachable except through
+the proxy. Reload with `systemctl reload caddy`, or `caddy reload --config
+/etc/caddy/Caddyfile` if Caddy runs as a service you do not restart.
+
+### The volume is owned by root the first time
+
+`docker run -v explainlike-data:/data` creates the volume owned by root, so the health
+check reports `jobsDir: false` and the server refuses to start a render. Once, after the
+first run:
+
+```bash
+docker run --rm -v explainlike-data:/data --user 0 explainlike \
+  sh -c 'mkdir -p /data/jobs && chown -R 1000:1000 /data'
+```
+
 ## Pick a host
 
 A render needs about 2 CPU cores, 2 GB of memory and 3 to 6 minutes. Pick a plan with that much, and one machine. The rate limit lives in memory, so two machines would each allow the full rate.
