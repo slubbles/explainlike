@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { strictJsonSchema, practitionerTerm, type Architecture, type NoteItem, type Scene } from "@explanimate/core";
-import { validateNotes, validateArchitecture, repairRepoPlan, checkStory, journeyOrder, speechIssues, keepsSync, syncPhrases, fillerIn, hookLine, validateCutIn, cutInRules, applyReviewPatch, actionName, archWire, reviewWire, undrawnLinks, retellCutIn, validateConcept, structural, pictureWords, conceptSlips, namesPlace, respeak, emptyPoint, groundedSummary, labelEchoes } from "@explanimate/planner";
+import { validateNotes, validateArchitecture, repairRepoPlan, checkStory, journeyOrder, speechIssues, keepsSync, syncPhrases, fillerIn, hookLine, validateCutIn, cutInRules, applyReviewPatch, actionName, archWire, reviewWire, undrawnLinks, retellCutIn, validateConcept, structural, pictureWords, conceptSlips, namesPlace, respeak, emptyPoint, groundedSummary, labelEchoes, sharedWords } from "@explanimate/planner";
 
 const item = (text: string, extra: Partial<NoteItem> = {}): NoteItem => ({ text, color: "white", icon: "", target: "", estimate: false, evidence: "", ...extra });
 const ids = new Set(["d1-db", "edge"]);
@@ -589,4 +589,37 @@ test("the self-check holds every line and heading to the plain-language bar", ()
   assert.ok(!issues.some((i) => /recap/.test(i) && /uses "|never talks/.test(i)), issues.join("; "));
   const cold = repairRepoPlan({ title: "x", subtitle: "", scenes: [sc("hook", "Can a chat run bots? It can."), sc("walkthrough", "The door forwards it, and the harness runs the bot."), sc("recap", "Team chat to front door to bot harness to agent drivers.")] }, storyArch, { perScene: 2 });
   assert.ok(speechIssues(cold, storyArch).some((i) => /walkthrough: never talks to the viewer/.test(i)));
+});
+
+test("box subtitles and names are held to the plain bar on the map", () => {
+  const comps = storyArch.components.map((c) => (c.id === "srv" ? { ...c, does: "rust CLI and daemon" } : c.id === "bot" ? { ...c, does: "clicks and types for your AI" } : c.id === "edge" ? { ...c, keyword: "chat door" } : c));
+  const { open } = validateArchitecture({ ...storyArch, components: comps }, ["a.ts"], (n) => n, () => "box");
+  assert.ok(open.some((i) => i.target === "srv" && /line under "bot harness" \("rust CLI and daemon"\) says "(rust|cli|daemon)"/.test(i.problem)), open.map((i) => i.problem).join("; "));
+  assert.ok(!open.some((i) => i.target === "bot" && /line under/.test(i.problem)));
+  assert.ok(open.some((i) => i.target === "edge" && /"team chat" and "chat door" share a word/.test(i.problem)), open.map((i) => i.problem).join("; "));
+  assert.deepEqual(sharedWords([{ id: "a", keyword: "browser link" }, { id: "b", keyword: "web browser" }, { id: "c", keyword: "saved logins" }]).map(([a, b]) => `${a.id}-${b.id}`), ["a-b"]);
+});
+
+test("metaphor headings, travel talk, 'your' on every part and vague step pointers go back for a literal rewrite", () => {
+  const plan = repairRepoPlan({ title: "x", subtitle: "", scenes: [
+    sc("hook", "Can your chat run little bots? The team chat hands each message to a bot that does the job for you."),
+    { ...sc("layer", "Where does your ride start? You type in your team chat, and your front door takes it.", ["ui", "edge"]), heading: "a real car door" },
+    { ...sc("layer", "The bot harness runs bots for you, and the agent drivers do the work.", ["srv", "bot"]), heading: "who does the work" },
+    sc("walkthrough", "You send a message, the door forwards it, and that step runs the bot."),
+    sc("recap", "So your team chat gets real jobs done. Your message goes from the team chat to the front door, the bot harness and the agent drivers."),
+  ] }, storyArch, { perScene: 2 });
+  const issues = speechIssues(plan, storyArch);
+  const all = issues.join("; ");
+  assert.ok(issues.some((i) => /heading "a real car door" uses "car/.test(i)), all);
+  assert.ok(issues.some((i) => /"Where does your ride start\?" uses "ride", a travel metaphor/.test(i)), all);
+  assert.ok(issues.some((i) => /says "your team chat", "your front door"/.test(i)), all);
+  assert.ok(issues.some((i) => /walkthrough: says "that step"/.test(i)), all);
+  assert.ok(!issues.some((i) => /who does the work/.test(i)), all);
+  assert.ok(!speechIssues(plan, storyArch, "a hotel front desk").some((i) => /travel metaphor/.test(i)), "a chosen analogy may use its own picture");
+});
+
+test("a multi-word step label said as a noun is an echo, but the same words told as an action are not", () => {
+  const arch = { ...storyArch, walkthrough: { ...storyArch.walkthrough, steps: [...storyArch.walkthrough.steps, { from: "bot", to: "ui", label: "read result", evidence: "a.ts" }] } } as Architecture;
+  assert.deepEqual(labelEchoes("Finally the team chat shows you the read result.", arch), ["the read result"]);
+  assert.deepEqual(labelEchoes("Finally the agent drivers read the result and the team chat shows it.", arch), []);
 });
