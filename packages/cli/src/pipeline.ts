@@ -8,7 +8,7 @@ import { CostLedger, museTranscribe } from "@explanimate/models";
 import { ingestRepo } from "@explanimate/ingest";
 import { planBrief, extractArchitecture, validateArchitecture, evidencePack, reviewArchitecture, fixArchitecture, planRepoScenes, respeak, planFocus, planWhatIf, kindColor } from "@explanimate/planner";
 import { pickVoice, wordOverlap, DeepgramVoice, type VoiceProvider } from "@explanimate/voice";
-import { captionMismatches, loadIconPack, mergePacks, builtinPackIds, detectComponents, packHints, type DetectedComponent, iconCatalog, resolveIcon, compose, captureFrames, mixNarration, mp4Encoder, sfxCues, contactSheet, frameCheck, checkTldr, checkExcalidraw, toExcalidraw, toTldraw, type IconPack, type SourceShot } from "@explanimate/render";
+import { captionMismatches, loadIconPack, mergePacks, builtinPackIds, detectComponents, packHints, type DetectedComponent, iconCatalog, resolveIcon, compose, renderFilm, mixNarration, sfxCues, contactSheet, frameCheck, checkTldr, checkExcalidraw, toExcalidraw, toTldraw, type IconPack, type SourceShot } from "@explanimate/render";
 
 export interface RunOptions {
   input: string;
@@ -329,19 +329,14 @@ export async function runExplanimate(o: RunOptions) {
     }) : Promise.resolve(undefined);
     // ffmpeg encodes each frame as soon as it is drawn, instead of waiting for all of them
     const mp4 = path.join(out, `${base}.mp4`);
-    const encoder = mp4Encoder(film.fps, mp4, { duration: film.duration, workDir: frames, audio: narration, music: o.music, cues: o.sfx === false ? [] : sfxCues(film) });
     P({ stage: "render", message: "drawing frames", pct: 48 });
-    let cap: Awaited<ReturnType<typeof captureFrames>>;
-    try {
-      cap = await timed("render frames", () => captureFrames(film, frames, { workers: o.workers, onFrame: encoder.frame, onProgress: (d, t) => P({ stage: "render", message: `drawing frames ${d}/${t}`, pct: 48 + Math.round((d / t) * 42) }) }));
-    } catch (e) {
-      encoder.abort();
-      throw e;
-    }
+    const rendered = await timed("render frames", () => renderFilm(film, frames, mp4, { workers: o.workers, audio: narration, music: o.music, cues: o.sfx === false ? [] : sfxCues(film), onProgress: (d, t) => P({ stage: "render", message: `drawing frames ${d}/${t}`, pct: 48 + Math.round((d / t) * 42) }) }));
+    const cap = rendered.cap;
+    notes.push(`renderer: ${rendered.renderer}, ${rendered.codec}${rendered.fellBack ? ` (${rendered.fellBack})` : ""}`);
     const covering = cap.captions.filter((c) => c.overlapPx > 0);
     if (covering.length) notes.push(`${covering.length} caption(s) could not find fully free space: ${covering.map((c) => `${c.t0.toFixed(1)}s "${c.text}"`).join(", ")}`);
     // ffmpeg finishes the last frames while the frame check runs
-    const encoded = encoder.done();
+    const encoded = rendered.encoded;
     encoded.catch(() => {});
     // look at the picture itself: where every word, ring and caption actually landed, frame by frame
     P({ stage: "render", message: "checking the rendered frames", pct: 91 });
