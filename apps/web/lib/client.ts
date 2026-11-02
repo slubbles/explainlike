@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
+import type { GalleryItem } from "./gallery";
 
 export type Usd = { meta: number; voice: number; total: number };
 export type Job = {
@@ -63,4 +64,15 @@ export function useJobs(bump: unknown = 0) {
     return () => { stop = true; };
   }, [bump]);
   return jobs;
+}
+
+/** The example videos the server has (its gallery folder); empty when it has none. */
+export function useGallery() {
+  const [videos, setVideos] = useState<GalleryItem[]>([]);
+  useEffect(() => {
+    let stop = false;
+    fetch("/api/gallery").then((r) => (r.ok ? r.json() : { videos: [] })).then((j) => { if (!stop && Array.isArray(j?.videos)) setVideos(j.videos); }).catch(() => {});
+    return () => { stop = true; };
+  }, []);
+  return videos;
 }
