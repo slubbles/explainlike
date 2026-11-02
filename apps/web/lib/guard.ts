@@ -59,7 +59,7 @@ export const field = (v: unknown, max = MAX_FIELD_CHARS) => (typeof v === "strin
 // ---- spend guard ----
 
 export interface Spend { meta: number; voice: number }
-export const caps = (): Spend => ({ meta: Number(process.env.EXPLANIMATE_META_CAP_USD ?? 25), voice: Number(process.env.EXPLANIMATE_VOICE_CAP_USD ?? 3) });
+export const caps = (): Spend => ({ meta: Number(process.env.EXPLANIMATE_META_CAP_USD ?? 25), voice: Number(process.env.EXPLANIMATE_VOICE_CAP_USD ?? 10) });
 /** what one more video can cost, kept free under each cap so a job never starts that would cross it */
 export const reserve = (): Spend => ({ meta: Number(process.env.EXPLANIMATE_META_RESERVE_USD ?? 1), voice: Number(process.env.EXPLANIMATE_VOICE_RESERVE_USD ?? 0.15) });
 /** share of a cap at which a warning goes out */

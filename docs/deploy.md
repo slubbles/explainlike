@@ -202,7 +202,7 @@ The project used to be called Explain Like. Settings with the old `EXPLAINLIKE_`
 | `EXPLANIMATE_LLM_PROVIDER` | `openrouter` if its key is set, else `meta` | Which service runs Muse Spark. The health check asks for that service's key. |
 | `DEEPGRAM_API_KEY` | (optional) | Voiceover and voice mode. Read only on the server. |
 | `EXPLANIMATE_META_CAP_USD` | 25 | New work pauses before Muse spend (OpenRouter or Meta) could pass this amount. |
-| `EXPLANIMATE_VOICE_CAP_USD` | 3 | New work pauses before Deepgram spend could pass this amount. |
+| `EXPLANIMATE_VOICE_CAP_USD` | 10 | New work pauses before Deepgram spend could pass this amount. |
 | `EXPLANIMATE_REQ_PER_MIN` | 12 | Per-IP limit on the routes that start work or cost money. |
 | `EXPLANIMATE_JOBS_PER_HOUR` | 20 | Videos per hour across everyone. |
 | `EXPLANIMATE_TRUST_PROXY` | 0 | Trust `X-Forwarded-For` for the client IP. |
