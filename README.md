@@ -4,8 +4,7 @@ Give it a GitHub repo, an article, an X post, or just a topic ("how DNS works").
 
 ![Explanimate drawing the OpenMausBot repo](docs/media/openmausbot.gif)
 
-Live demo: **https://explainlike.84.247.153.238.sslip.io** — one video renders at a time, and a
-fresh render takes about five minutes.
+There is no public demo of the current build yet: the only deployment runs an older build (see [AGENTS.md](AGENTS.md#deployment)).
 
 
 *Above: 12 seconds from a 2-minute video about [milind-soni/OpenMausBot](https://github.com/milind-soni/OpenMausBot). A run like this costs well under $0.20 in models and voice.*
@@ -26,7 +25,7 @@ fresh render takes about five minutes.
 You need Node 20+, pnpm, ffmpeg on your PATH and Chrome or Chromium.
 
 ```bash
-git clone https://github.com/slubbles/explainlike && cd explainlike
+git clone https://github.com/slubbles/explanimate && cd explanimate
 pnpm install
 cp .env.example .env                    # add MODEL_API_KEY (Meta); DEEPGRAM_API_KEY adds the voice
 npx playwright-core install chromium    # or point EXPLANIMATE_CHROME at an installed Chrome

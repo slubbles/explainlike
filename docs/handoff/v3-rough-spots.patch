@@ -1,0 +1,296 @@
+diff --git a/packages/core/src/plain.ts b/packages/core/src/plain.ts
+index 5b001ed..d7462eb 100644
+--- a/packages/core/src/plain.ts
++++ b/packages/core/src/plain.ts
+@@ -11,6 +11,7 @@ export const PLAIN_LANGUAGE = [
+   "- Talk to the viewer as 'you' where it's natural ('you ask', 'you get the page back'), but don't stick 'your' on every part: 'the browser tool', not 'your browser tool'.",
+   "- Say things literally. No running metaphor (a trip, a ride, a journey, riders, a car door) and no figure of speech unless the brief gives an analogy because the topic is abstract.",
+   "- Never explain a part with its own name ('the browser link drives it in the web browser'), never turn a step label into a noun ('you get the read result', 'that step reused your saved logins'): say what actually happens ('Chrome clicks the button and sends back a short text list of the page').",
++  "- Put the part first and what it does after ('the terminal tool runs the page', never 'Running the page is the terminal tool' or 'Off to the side sits the live view'). Say each name once a sentence ('Chrome presses log in', never 'In chrome, real Chrome presses log in'). Say 'you', never 'folks' or 'people'. Every phrase has to make literal sense ('each open page uses memory', never 'holds memory for saved clicks').",
+   "- No package, module, file or language names as if the viewer knew them ('the rust cli', 'the cdp client'); say what the thing is for ('the little command tool', 'the part that talks to Chrome').",
+ ].join("\n");
+ 
+@@ -18,10 +19,55 @@ export const PLAIN_LANGUAGE = [
+ export const PLAIN_LABELS = "Box labels (keywords) are plain everyday nouns of 1 to 3 lowercase words, without 'the' or 'your', that a non-programmer already knows, like 'ai assistant', 'browser tool', 'chrome', 'web page', 'saved logins'; never a package, module, protocol or language name ('rust cli', 'cdp client', 'ws server').";
+ 
+ /** The line under each box name: what the part does for the viewer, in everyday words. */
+-export const PLAIN_SUBTITLE = "`does` is the small line under the box name: what the part does for the viewer, 2 to 6 everyday words with no product, package, protocol or language names ('clicks and types for your AI', 'keeps you logged in', 'shows what's running'). Never repeat the keyword in it.";
++export const PLAIN_SUBTITLE = "`does` is the small line under the box name: what the part does for the viewer, 2 to 6 everyday words with no product, package, protocol or language names. Make it concrete, a thing you could watch it do: 'clicks and types for your AI', 'turns 'log in' into clicks', 'keeps you logged in', 'shows what your AI did'. Never vague words like 'ready', 'commands', 'chores', 'tasks', 'data', 'handles' or 'manages', and never repeat the keyword in it.";
+ 
+ /** Headings: plain, literal and short. */
+-export const PLAIN_HEADINGS = "Headings are plain, literal and short, 2 to 5 everyday words saying what the scene is about ('where it starts', 'what runs the page', 'when lots of jobs come in'), never a metaphor ('a real car door', 'too many riders', 'your ride').";
++export const PLAIN_HEADINGS = "Headings are plain, literal and short: a complete phrase of 2 to 5 everyday words saying what the scene is about ('where it starts', 'what runs the page', 'when jobs pile up', 'watch what your AI did'), never cut off ('when lots of jobs'), never vague ('a watcher', 'the helper') and never a metaphor ('a real car door', 'too many riders', 'your ride').";
++
++// a 'when/where/what…' heading needs its verb, or it reads cut off ("when lots of jobs")
++const HEAD_VERB = /\b(is|are|was|were|has|have|had|do|does|did|can|get|gets|go|goes|come|comes|start|starts|end|ends|land|lands|run|runs|happen|happens|work|works|break|breaks|wait|waits|pile|piles|click|clicks|open|opens|send|sends|keep|keeps|show|shows|hold|holds|need|needs|see|sees|watch|watches|ask|asks|know|knows|stay|stays|move|moves|read|reads|write|writes|save|saves|load|loads|fail|fails|grow|grows|live|lives|sit|sits|talk|talks|make|makes|take|takes|find|finds|use|uses|lets?|\w+ed)\b/;
++const HEAD_DANGLING = /^(the|a|an|and|or|of|to|in|on|for|at|by|with|from|into|then|your|its|when|where|what|how)$/;
++
++/** Why a scene heading would look wrong on screen: cut off, vague, or too long to fit; "" when it reads well. */
++export function headingSlip(heading: string): string {
++  const ws = heading.trim().toLowerCase().replace(/[,;:.!?]+/g, " ").split(/\s+/).filter(Boolean);
++  if (!ws.length) return "is empty; say what the scene is about in 2 to 5 plain words";
++  if (ws.length > 5) return `runs ${ws.length} words and gets cut off on screen; say it in 2 to 5 words, as a complete phrase`;
++  if (HEAD_DANGLING.test(ws[ws.length - 1]!)) return `ends on "${ws[ws.length - 1]}", so it reads cut off; make it a complete phrase`;
++  if (/^(when|where|what|how|why|who)$/.test(ws[0]!) && !HEAD_VERB.test(ws.slice(1).join(" "))) return "reads cut off, a question word with no verb; finish the phrase ('when jobs pile up', 'where clicks land')";
++  if (ws.length <= 2 && /^(a|an|the|one|some|my|your)$/.test(ws[0]!)) return "is vague; say what happens in the scene in 3 to 5 words ('watch what your AI did')";
++  return "";
++}
++
++// back-to-front lines: an -ing phrase or a place put before the part it is about
++const INVERTED_ING = /^([a-z]+ing)\b[^,.;!?]*?\b(?:is|are)\s+(?:the|a|an|your)\b/i;
++const NOT_ING = /^(nothing|something|everything|anything|thing|during|bring|string|king|morning|evening|ceiling|being)$/i;
++const INVERTED_PLACE = /^(off to the side|to the side|next to (?:it|them|that)|behind (?:it|them|that)|on top(?: of (?:it|them))?|beside (?:it|them)|below (?:it|that)|above (?:it|that)|nearby|over here|out front|alongside),? (?:sits|sit|stands|lives|lies|comes|waits|is|are)\b/i;
++const VAGUE_PEOPLE = /\b(?:for|to|with|let|lets|helps?) (folks|people|somebody|someone)\b/i;
++const NONSENSE = /\bsaved (?:clicks|taps|steps|actions|commands)\b|\bmemory for (?:saved |old )?(?:clicks|taps|steps|actions)\b/i;
++const STOP = /^(that|this|with|from|your|then|they|them|their|there|what|when|which|just|into|each|very|more|than|have|does|it's|you're|page|pages)$/;
++
++/**
++ * Lines that read stiff or clumsy aloud, as fixes a rewriter can act on: back to front ("Running the page is
++ * the terminal tool", "Off to the side sits the live view"), the same name twice in a breath ("In chrome,
++ * real Chrome presses"), vague people ("for folks"), and phrases that make no literal sense ("saved clicks").
++ */
++export function stiffLines(narration: string): string[] {
++  const out: string[] = [];
++  for (const sent of narration.split(/(?<=[.!?])\s+/).map((s) => s.trim()).filter(Boolean)) {
++    const ing = INVERTED_ING.exec(sent);
++    if (ing && !NOT_ING.test(ing[1]!)) out.push(`"${sent}" is back to front; start with the part and say what it does ('the terminal tool runs the page')`);
++    if (INVERTED_PLACE.test(sent)) out.push(`"${sent}" is back to front; start with the part ('the live view sits off to the side')`);
++    const ws = sent.toLowerCase().replace(/[’‘]/g, "'").split(/\s+/).map((w) => w.replace(/[^a-z']/g, ""));
++    const twice = ws.find((w, i) => w.length >= 4 && !STOP.test(w) && ws.slice(i + 1, i + 4).includes(w) && !/^(by|after|to|for|and|or)$/.test(ws[i + 1] ?? ""));
++    if (twice) out.push(`"${sent}" says "${twice}" twice in a breath; say it once`);
++    const who = VAGUE_PEOPLE.exec(sent);
++    if (who) out.push(`"${sent}" says "${who[1]}"; say "you" or exactly who`);
++    const odd = NONSENSE.exec(sent);
++    if (odd) out.push(`"${sent}" says "${odd[0]}", which doesn't literally make sense; say what really happens`);
++  }
++  return out;
++}
+ 
+ // travel and vehicle words a model reaches for when it turns a request into a story; said about software they are a metaphor
+ const FIGURATIVE = /\b(trips?|rides?|riders?|journeys?|roads?|highways?|passengers?|car doors?|cars?|tickets?|vehicles?|drivers? seat|driving seat|suitcases?|luggage|destinations?)\b/i;
+@@ -33,6 +79,9 @@ export function figurative(text: string, known: string[] = []): string {
+   return FIGURATIVE.exec(t)?.[1]?.toLowerCase() ?? "";
+ }
+ 
++// words that name no thing a viewer could picture; under a box they say nothing ("builds ready commands", "runs browser chores")
++const ABSTRACT = /\b(ready|stuff|things?|chores?|handles?|manages?|process(?:es)?|logic|operations?|tasks?|data|commands?|sessions?|requests?|workflows?)\b/i;
++
+ /** A box subtitle that would lose a non-programmer: jargon, too long, or just the keyword again. */
+ export function subtitleSlip(does: string, keyword: string): string {
+   const d = does.trim();
+@@ -42,6 +91,8 @@ export function subtitleSlip(does: string, keyword: string): string {
+   if (d.split(/\s+/).length > 7) return "runs over 7 words; keep it to 2 to 6 everyday words";
+   const bare = (x: string) => x.toLowerCase().replace(/[^a-z0-9]+/g, "");
+   if (bare(d) === bare(keyword)) return "just repeats the box name; say what it does";
++  const vague = ABSTRACT.exec(d);
++  if (vague) return `says "${vague[1]!.toLowerCase()}", too abstract; say a concrete thing you could watch it do ('turns "log in" into clicks')`;
+   return "";
+ }
+ 
+diff --git a/packages/core/src/text.ts b/packages/core/src/text.ts
+index bca6cfe..16ce415 100644
+--- a/packages/core/src/text.ts
++++ b/packages/core/src/text.ts
+@@ -30,6 +30,21 @@ export function quoteInSource(quote: string, source: string): boolean {
+  * single spaces, no space before punctuation, no word said twice in a row,
+  * each sentence starting with a capital and the whole ending with a full stop.
+  */
++// product and acronym names a viewer reads in captions; lowercase they look like typos ("the ai agent", "chrome loads")
++const PROPER: Record<string, string> = {
++  ai: "AI", ais: "AIs", chrome: "Chrome", firefox: "Firefox", safari: "Safari", github: "GitHub", google: "Google", gmail: "Gmail",
++  youtube: "YouTube", slack: "Slack", discord: "Discord", openai: "OpenAI", chatgpt: "ChatGPT", iphone: "iPhone", android: "Android",
++  linux: "Linux", macos: "macOS", python: "Python", javascript: "JavaScript", typescript: "TypeScript", url: "URL", urls: "URLs",
++  pdf: "PDF", pdfs: "PDFs", api: "API", apis: "APIs", llm: "LLM", llms: "LLMs",
++};
++/**
++ * Product and acronym names in their real casing ("AI agent", "Chrome"), for narration and captions only;
++ * box labels keep their lowercase style. A name already cased by the writer is left alone.
++ */
++export function properNames(s: string): string {
++  return s.replace(/(^|[^\w'.\/-])([a-z]+)(?=$|[^\w'\/-]|'s\b)/g, (m, pre: string, w: string) => (PROPER[w] ? pre + PROPER[w] : m));
++}
++
+ export function tidySpeech(s: string): string {
+   let t = s.replace(/\s+/g, " ").trim()
+     .replace(/\s+([,.;:!?])/g, "$1")
+@@ -37,6 +52,7 @@ export function tidySpeech(s: string): string {
+     .replace(/\.{2,}(?!\.)/g, ".")
+     .replace(/\b(\w+) \1\b/gi, (m, w: string) => (/^(that|had|is)$/i.test(w) ? m : w));
+   t = fixAgreement(t);
++  t = properNames(t);
+   // a new sentence starts with a capital; "e.g." or "vs." do not end one
+   t = t.replace(/(^|(\S*)[.!?] )([a-z])/g, (m, a: string, w: string | undefined, c: string) =>
+     /^(e\.g|i\.e|vs|etc|approx)$/i.test(w ?? "") ? m : a + c.toUpperCase());
+@@ -254,7 +270,7 @@ const DANGLING = /^(the|a|an|and|or|of|to|in|on|for|at|by|with|from|into|start|t
+  * A scene heading of at most `max` words that still reads as a name: "one message, start to end"
+  * becomes "one message", never "one message start to".
+  */
+-export function shortHeading(s: string, max = 4): string {
++export function shortHeading(s: string, max = 5): string {
+   const all = lower(s).replace(/[,;:.!?]+/g, " ").split(/\s+/).filter(Boolean);
+   // a heading that already fits can still end mid-phrase ("one message start to")
+   const ws = all.slice(0, max);
+diff --git a/packages/planner/src/scenes.ts b/packages/planner/src/scenes.ts
+index 0284fcb..2afd964 100644
+--- a/packages/planner/src/scenes.ts
++++ b/packages/planner/src/scenes.ts
+@@ -1,6 +1,6 @@
+ import { findPlace } from "@explanimate/core/places";
+ import { z } from "zod";
+-import { ScenePlan, PLAIN_LANGUAGE, PLAIN_HEADINGS, plainSlips, practitionerTerm, figurative, coverageSeconds, parseFigure, parseDated, figureInQuote, lower, norm, tidySpeech, wordCount, quoteInSource, phraseAt, spokenWords, walkCues, missingArticles, grammarSlips, soundsLikeKeywords, shortHeading, type Architecture, type ExplainSpec, type Progress, type NoteItem, type Scene, type SourceDoc } from "@explanimate/core";
++import { ScenePlan, PLAIN_LANGUAGE, PLAIN_HEADINGS, plainSlips, stiffLines, headingSlip, practitionerTerm, figurative, coverageSeconds, parseFigure, parseDated, figureInQuote, lower, norm, tidySpeech, wordCount, quoteInSource, phraseAt, spokenWords, walkCues, missingArticles, grammarSlips, soundsLikeKeywords, shortHeading, type Architecture, type ExplainSpec, type Progress, type NoteItem, type Scene, type SourceDoc } from "@explanimate/core";
+ import { sparkJson, type CostLedger } from "@explanimate/models";
+ import { SHAPES, analogyRule, shapeFor } from "./shapes.js";
+ 
+@@ -76,7 +76,7 @@ const Critique = z.object({
+   undefined_terms: z.array(z.object({ term: z.string(), scene: z.string() })).describe("terms a newcomer would not know, used without a plain-words explanation at their first use"),
+   odd_phrases: z.array(z.object({ phrase: z.string(), scene: z.string() })).describe("figures of speech or squeezed made-up phrases that stand in for a real thing and would puzzle a newcomer, quoted exactly"),
+   purpose: z.string().describe("what this project is and why someone would use it, in one sentence, as you understood it from the opening; empty if the opening never told you"),
+-  hard_sentences: z.array(z.object({ sentence: z.string(), scene: z.string(), why: z.string() })).describe("sentences a smart person who doesn't write code would stumble on, quoted exactly: jargon; component names instead of what happens; circular lines that explain a part with itself ('the browser link drives it in the web browser'); a step label said as a noun ('you get the read result'); vague pointers ('that step', 'it' with no clear thing); a forced metaphor (a trip, a ride, riders); 'your' stuck on every part; anything awkward, stiff or too long to say aloud the way a person talks casually, with why in a few words"),
++  hard_sentences: z.array(z.object({ sentence: z.string(), scene: z.string(), why: z.string() })).describe("sentences a smart person who doesn't write code would stumble on, quoted exactly: jargon; component names instead of what happens; circular lines that explain a part with itself ('the browser link drives it in the web browser'); a step label said as a noun ('you get the read result'); vague pointers ('that step', 'it' with no clear thing); a forced metaphor (a trip, a ride, riders); 'your' stuck on every part; back-to-front lines ('Running the page is the terminal tool', 'Off to the side sits the live view'); a name said twice in a breath ('In chrome, real Chrome presses'); vague people ('for folks'); a phrase that doesn't literally make sense ('holds memory for saved clicks'); anything awkward, stiff or too long to say aloud the way a person talks casually, with why in a few words"),
+   who_for: z.string().describe("who this project is for and why they'd care, as you understood it from the opening; empty if the opening never told you"),
+   flow_clear: z.boolean().describe("true if a newcomer could retell how one request goes from the user to the result"),
+   flow_problem: z.string().describe("what is missing from the flow, or empty"),
+@@ -264,6 +264,21 @@ export function hookLine(narration: string): string {
+   return narration.trim().split(/(?<=[.!?])\s+/)[0] ?? "";
+ }
+ 
++/**
++ * "your" goes on one part a scene at most, the first one said; later ones become "the" ("Your AI agent asks
++ * the code helper… the terminal tool"). Rule-based, so the fix loop never spends a round on it.
++ */
++export function settleYours(narration: string, keywords: string[]): string {
++  const ks = keywords.map((k) => k.trim()).filter(Boolean).sort((a, b) => b.length - a.length).map((k) => k.replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replace(/\s+/g, "\\s+"));
++  if (!ks.length) return narration;
++  let seen = false;
++  return narration.replace(new RegExp(`\\b(your) (${ks.join("|")})\\b`, "gi"), (m, y: string, k: string) => {
++    if (!seen) { seen = true; return m; }
++    return `${y[0] === "Y" ? "The" : "the"} ${k}`;
++  });
++}
++const settle = (text: string, arch: Architecture) => settleYours(tidySpeech(text), arch.components.map((c) => c.keyword));
++
+ /**
+  * Lines that would not sound like a person talking: a missing article ("will run agent"), the same
+  * sentence opener over and over, or a scene heading read out as if it were a part ("next it reaches
+@@ -284,6 +299,9 @@ export function speechIssues(plan: ScenePlan, arch: Architecture, analogy = ""):
+     const hj = practitionerTerm(s.heading.toLowerCase().split(/\s+/).filter((w) => !known.some((k) => k.split(" ").includes(w))).join(" "));
+     if (hj) issues.push(`${s.id}: the heading "${s.heading}" uses "${hj}"; give it 2 to 4 everyday words the narration says`);
+     if ((s.kind === "walkthrough" || s.kind === "recap") && /\b(that|this) step\b/i.test(s.narration)) issues.push(`${s.id}: says "${/\b(that|this) step\b/i.exec(s.narration)![0]}"; name what actually happened instead`);
++    for (const x of stiffLines(s.narration)) issues.push(`${s.id}: ${x}`);
++    const hs = headingSlip(s.heading);
++    if (hs && s.kind !== "hook") issues.push(`${s.id}: the heading "${s.heading}" ${hs}; return a new heading for this scene`);
+     const fig = figurative(s.heading, known);
+     if (fig) issues.push(`${s.id}: the heading "${s.heading}" uses "${fig}", a metaphor; say plainly what the scene is about ('where it starts', 'what runs the page', 'when lots of jobs come in')`);
+     if (!analogy) for (const sent of s.narration.split(/(?<=[.!?])\s+/)) { const f = figurative(sent, known); if (f) issues.push(`${s.id}: "${sent.trim()}" uses "${f}", a travel metaphor; say literally what happens`); }
+@@ -348,6 +366,10 @@ const Polish = z.object({
+   scenes: z.array(z.object({ id: z.string(), narration: z.string() })),
+   renames: z.array(z.object({ id: z.string(), keyword: z.string() })),
+ });
++const Fix = z.object({
++  scenes: z.array(z.object({ id: z.string(), heading: z.string(), narration: z.string() })),
++  renames: z.array(z.object({ id: z.string(), keyword: z.string() })),
++});
+ 
+ /** Words of the borrowed picture ("cook tickets", "kitchen") that the map itself never uses, so said bare they stand in for a part. */
+ export function pictureWords(analogy: string, arch: Architecture): string[] {
+@@ -436,7 +458,7 @@ export async function polishNarration(o: { ledger: CostLedger; plan: ScenePlan;
+     const scenes = base.scenes.map((s) => {
+       const next = out.scenes.find((x) => x.id === s.id)?.narration?.trim();
+       const want = syncPhrases(s, o.arch).map((p) => { const c = o.arch.components.find((x) => x.keyword === p); return c && renames.has(c.id) ? renames.get(c.id)! : p; });
+-      if (next && keepsSync(s.narration, next, want)) { rewritten++; return { ...s, narration: tidySpeech(next) }; }
++      if (next && keepsSync(s.narration, next, want)) { rewritten++; return { ...s, narration: settle(next, o.arch) }; }
+       kept.push(s.id);
+       return s;
+     });
+@@ -467,9 +489,11 @@ export async function polishNarration(o: { ledger: CostLedger; plan: ScenePlan;
+   };
+   dropBadRenames();
+   let issues = speechIssues(res.plan, renamed(renames), o.analogy);
+-  if (issues.length || res.kept.length) {
++  // headings are the fix step's job; the polish only rewrites what is said
++  const said_ = (xs: string[]) => xs.filter((x) => !/the heading "/.test(x));
++  if (said_(issues).length || res.kept.length) {
+     o.progress?.({ stage: "plan", message: `narration polish: ${issues.length} issue(s), ${res.kept.length} scene(s) kept as is; one more try` });
+-    const again = await ask([...msgs, { role: "assistant", content: JSON.stringify(out) }, { role: "user", content: `Fix these and return all scenes again (same renames):\n${[...issues, ...res.kept.map((id) => `${id}: the rewrite dropped a must_say phrase, changed its order, or changed the length by more than 20%`)].map((x, i) => `${i + 1}. ${x}`).join("\n")}` }], "narration-polish-retry").catch(() => undefined);
++    const again = await ask([...msgs, { role: "assistant", content: JSON.stringify(out) }, { role: "user", content: `Fix these and return all scenes again (same renames):\n${[...said_(issues), ...res.kept.map((id) => `${id}: the rewrite dropped a must_say phrase, changed its order, or changed the length by more than 20%`)].map((x, i) => `${i + 1}. ${x}`).join("\n")}` }], "narration-polish-retry").catch(() => undefined);
+     if (again) {
+       const second = apply(o.plan, again, renames);
+       // per scene, prefer the retry when it passed, else the first rewrite
+@@ -531,7 +555,7 @@ export async function planRepoScenes(o: { ledger: CostLedger; arch: Architecture
+     final = found(story, arch, crit);
+   }
+   const fixed = await fixWording({ ledger: o.ledger, plan: story, arch, issues: final, audience: L.audience, analogy: L.brief.analogy, progress: o.progress });
+-  story = fixed.plan;
++  story = { ...fixed.plan, scenes: fixed.plan.scenes.map((s) => ({ ...s, narration: settle(s.narration, arch) })) };
+   final = fixed.issues;
+   revised = revised || fixed.changed;
+   return { ...plan, scenes: story.scenes, check: { first, final, revised }, renames: pol.renames, polish: { rewritten: pol.rewritten, kept: pol.kept, issues: pol.issues } };
+@@ -579,10 +603,10 @@ export async function fixNarration(o: { ledger: CostLedger; plan: ScenePlan; arc
+   // a problem that names no scene (the same opener three times, the flow as a whole) may need any of them
+   const scope = o.issues.some((x) => !o.plan.scenes.some((s) => x.includes(s.id))) ? o.plan.scenes : named;
+   const out = await sparkJson({
+-    ledger: o.ledger, step: o.step ?? "narration-fix", schema: Polish, name: "narration_fix", effort: "minimal", maxTokens: 5000,
++    ledger: o.ledger, step: o.step ?? "narration-fix", schema: Fix, name: "narration_fix", effort: "minimal", maxTokens: 5000,
+     messages: [
+       { role: "system", content: [
+-        "You fix specific problems in a whiteboard explainer's narration. The viewer hears every scene once, in order.",
++        "You fix specific problems in a whiteboard explainer's narration and headings. The viewer hears every scene once, in order.",
+         `Audience: ${o.audience}, but every line must make sense to a smart friend who doesn't write code.`,
+         PLAIN_LANGUAGE,
+         "- Change only what the problems need; keep everything else word for word, including facts and their order.",
+@@ -592,29 +616,39 @@ export async function fixNarration(o: { ledger: CostLedger; plan: ScenePlan; arc
+         "- A term explained in plain words: a few words right where it's first said ('the font atlas, one image holding every letter').",
+         "- When explaining every flagged term would make the scene too long, drop the ones a newcomer can do without: a product, service or library name ('D1', 'better-auth', 'Worker') becomes what it does ('a small cloud database', 'the sign-in code'). A must_say phrase is never dropped; explain it instead.",
+         "- Only say two parts talk to each other when the connections list joins them; otherwise tell the hop through the part between them.",
+-        "- Return only the scenes you changed, by id, with their full narration; renames stays empty.",
++        `- A problem about a heading: return a new 'heading' for that scene. ${PLAIN_HEADINGS} Otherwise return the heading as it is.`,
++        "- Return only the scenes you changed, by id, with their full narration and heading; renames stays empty.",
+       ].join("\n") },
+       { role: "user", content: JSON.stringify({
+         problems: o.issues,
+         parts: o.arch.components.map((c) => ({ id: c.id, name: c.keyword, what: c.what })),
+         connections: o.arch.connections.map((c) => `${o.arch.components.find((x) => x.id === c.from)?.keyword ?? c.from} > ${o.arch.components.find((x) => x.id === c.to)?.keyword ?? c.to} (${c.label})`),
+         context: o.plan.scenes.map((s) => `[${s.id}] ${s.narration}`).join("\n"),
+-        scenes: scope.map((s) => ({ id: s.id, kind: s.kind, words: s.kind === "recap" ? Math.max(wordCount(s.narration), recapWords(journeyOrder(o.arch).path.length)) : wordCount(s.narration), must_say: syncPhrases(s, o.arch), narration: s.narration })),
++        scenes: scope.map((s) => ({ id: s.id, kind: s.kind, heading: s.heading, words: s.kind === "recap" ? Math.max(wordCount(s.narration), recapWords(journeyOrder(o.arch).path.length)) : wordCount(s.narration), must_say: syncPhrases(s, o.arch), narration: s.narration })),
+       }) },
+     ],
+   }).catch(() => undefined);
+   const changed: string[] = [], rejected: { id: string; why: string }[] = [];
+   const scenes = o.plan.scenes.map((s) => {
+     const next = out?.scenes.find((x) => x.id === s.id)?.narration?.trim();
+-    if (!next || next === s.narration || !scope.includes(s)) return s;
++    if (!scope.includes(s)) return s;
++    const head = newHeading(s, out?.scenes.find((x) => x.id === s.id)?.heading);
++    if (!next || next === s.narration) { if (head.heading) changed.push(s.id); return { ...s, ...head }; }
+     const why = syncProblem(s.narration, next, syncPhrases(s, o.arch), s.kind === "recap" ? recapWords(journeyOrder(o.arch).path.length) : 0);
+-    if (why) { rejected.push({ id: s.id, why }); return s; }
++    if (why) { rejected.push({ id: s.id, why }); if (head.heading) changed.push(s.id); return { ...s, ...head }; }
+     changed.push(s.id);
+-    return { ...s, narration: tidySpeech(next) };
++    return { ...s, ...head, narration: settle(next, o.arch) };
+   });
+   return { plan: { ...o.plan, scenes }, changed, rejected };
+ }
+ 
++/** A rewritten heading is taken only when it fixes the old one: complete, literal and short. */
++function newHeading(s: Scene, h: string | undefined): { heading?: string } {
++  const t = (h ?? "").trim().toLowerCase().replace(/[.!?]+$/, "");
++  if (!t || t === s.heading.toLowerCase() || headingSlip(t) || figurative(t)) return {};
++  return { heading: t };
++}
++
+ const Recheck = z.object({
+   open: z.array(z.string()).describe("the numbers of the problems still there, as written"),
+ });
+@@ -678,7 +712,8 @@ export function repairRepoPlan(plan: ScenePlan, arch: Architecture, L: { perScen
+   const files = new Set(arch.components.flatMap((c) => c.evidence));
+   const evidenceOf = (id: string) => arch.components.find((c) => c.id === id)?.evidence[0] ?? "";
+   for (const s0 of plan.scenes) {
+-    const s = { ...s0, heading: shortHeading(s0.heading) };
++    // a long heading is left for the heading check to send back; only runaway text is cut here
++    const s = { ...s0, heading: shortHeading(s0.heading, 8) };
+     if (s.kind === "layer") {
+       const add = s.add_components.filter((id) => { if (!ids.has(id)) { repairs.push(`unknown component ${id} removed`); return false; } if (seen.has(id)) { repairs.push(`${id} added twice`); return false; } return true; });
+       add.forEach((id) => seen.add(id));

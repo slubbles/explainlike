@@ -1,5 +1,7 @@
 # Running Explanimate on a server
 
+> Current state (Nov 3, 2026): production is the Tokyo VPS running the old `explainlike` container built from commit a5100c3 (before the rename, queue, gallery, Skia and OpenRouter). Today's main is **not** deployed. See [AGENTS.md](../AGENTS.md#deployment).
+
 Explanimate is built to run on your own machine. This page is what to check before you put the web app anywhere other people can reach it. Nothing here deploys anything for you.
 
 ## What the server needs
@@ -163,7 +165,7 @@ Caddy gets and renews the certificate itself and sets `X-Forwarded-For`, so `EXP
 
 ## Point explanimate.co at it
 
-The domain is not bought yet. Once it is, add these records at the registrar or DNS host:
+explanimate.co is bought, but its DNS is on hold until the user says to point it. When they do, add these records at the registrar or DNS host:
 
 | Host | Railway | Fly.io | VPS |
 | --- | --- | --- | --- |
