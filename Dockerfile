@@ -34,7 +34,7 @@ ENV NODE_ENV=production \
     EXPLAINLIKE_JOBS_DIR=/data/jobs \
     EXPLAINLIKE_CHROME=/usr/bin/chromium \
     PORT=3000
-RUN mkdir -p /data && chown -R node:node /data /app/apps/web/.next
+RUN mkdir -p /data/jobs && chown -R node:node /app
 USER node
 VOLUME /data
 EXPOSE 3000
