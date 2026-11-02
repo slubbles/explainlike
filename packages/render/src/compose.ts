@@ -1,6 +1,6 @@
 import fs from "node:fs";
 import rough from "roughjs";
-import { agreementSlips, phraseAt, shortHeading } from "@explanimate/core";
+import { agreementSlips, phraseAt, shortHeading, walkCues } from "@explanimate/core";
 import type { Architecture, ScenePlan, Scene, SceneAudio, Theme, ExplainSpec, Color, WordTiming, NoteItem } from "@explanimate/core";
 import type { Film, FElement, CamKey, Caption, Heading } from "./film.js";
 import { applyTempo, readableWidth, type PaceReport } from "./pace.js";
@@ -375,6 +375,11 @@ function eventTimes(words: WordTiming[], phrases: string[][], start: number, end
     for (const p of alts) { idx = spokenAt(words, p, from); if (idx >= 0) break; }
     if (idx >= 0) { raw.push(words[idx].start); from = idx + 1; } else raw.push(null);
   }
+  return spaceEvents(raw, start, end, gap);
+}
+
+/** Event times from when each was said (null when it never was): in order, a gap apart, inside the scene. */
+function spaceEvents(raw: (number | null)[], start: number, end: number, gap: number): number[] {
   const n = raw.length;
   const out: number[] = [];
   for (let i = 0; i < n; i++) {
@@ -772,7 +777,8 @@ export async function compose(inp: ComposeInput): Promise<Composed> {
       for (const k of drawnEdges) { const [f, t] = k.slice(2).split(">"); B.setOp(k, T, on.has(f) && on.has(t) ? 1 : dim); }
       // the placement check enlarges the step numbers if the walk ends up in one wide shot
       const stepSize = 34;
-      const times = eventTimes(words, steps.map((x) => [x.label]), t0 + 0.3, tEnd - 0.4, 1.3);
+      // each step fires when the narration tells it: its label, or in plain words the part it reaches (the same cue the planner checks)
+      const times = spaceEvents(walkCues(words.map((w) => w.word), inp.arch).map((k) => (k >= 0 ? words[k].start : null)), t0 + 0.3, tEnd - 0.4, 1.3);
       // the camera follows the walk: consecutive steps share a readable shot, and a new shot starts
       // only after a full beat (it may glide along with a travelling dot, which is the walk's motion anyway)
       const RW = readableWidth({ width: W, height: H });

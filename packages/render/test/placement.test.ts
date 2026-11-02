@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
-import { getTheme, specFromBrief, DEFAULT_BRIEF, type Brief } from "@explanimate/core";
+import { getTheme, specFromBrief, DEFAULT_BRIEF, walkCues, type Brief } from "@explanimate/core";
 import { compose, loadIconPack, checkPlacement, placementPass, textWidth, cameraAt, readableWidth, shotStarts, type Film, type FText, type Mark, type Sketch } from "../src/index.js";
 
 const fx = new URL("./fixtures/", import.meta.url);
@@ -243,4 +243,22 @@ test("a long repo recap moves through the trip instead of holding one wide frame
   assert.match(said(inHook[1])!.word, /[.!?]$/, `the pull back at ${inHook[1]} s comes after a full sentence`);
   const icons = film.elements.filter((e) => e.g === "hook" && e.k === "img");
   assert.ok(icons.every((e) => e.t0 > inHook[1]), "the preview icons are drawn after the reveal starts, not off frame");
+});
+
+test("each walkthrough step fires on the words that tell it, not on a recited label", async () => {
+  // the spotibai walk is told in plain sentences; every dot must leave when its step is said
+  const { film, timeline } = await compose({ plan, audio, theme: getTheme("chalk-dark"), spec: specFromBrief(DEFAULT_BRIEF), pack: loadIconPack(), sourceLabel: "x", arch });
+  const walk = timeline.find((s) => s.kind === "walkthrough")!;
+  const scene = plan.scenes.find((s: any) => s.kind === "walkthrough");
+  const ws = audio.find((a: any) => a.sceneId === scene.id).words;
+  const cues = walkCues(ws.map((w: any) => w.word), arch);
+  assert.ok(cues.every((k) => k >= 0), `every step is told: ${cues}`);
+  const dots = film.elements.filter((e: any) => e.k === "dot" && e.g === "walk").map((e) => e.t0).sort((a, b) => a - b);
+  assert.equal(dots.length, arch.walkthrough.steps.length);
+  // the said word's time in the film is the scene's voice start plus its offset; spacing may push a step back by under a second
+  const lead = Math.min(...dots.slice(1).map((t, i) => t - ws[cues[i + 1]].start));
+  assert.ok(lead >= walk.start - 0.01 && lead < walk.start + 1, `voice starts ${(lead - walk.start).toFixed(2)} s into the walk`);
+  dots.slice(1).forEach((t, i) => assert.ok(t - lead - ws[cues[i + 1]].start < 1.0, `step ${i + 2} at ${t.toFixed(2)}, said at ${(lead + ws[cues[i + 1]].start).toFixed(2)}`));
+  // the first dot leaves as the scene opens (the board never waits on an empty walk) and never after its step is said
+  assert.ok(dots[0] <= lead + ws[cues[0]].start + 0.01 && dots[0] >= walk.start, `step 1 at ${dots[0].toFixed(2)}`);
 });

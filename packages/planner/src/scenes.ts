@@ -1,6 +1,6 @@
 import { findPlace } from "@explanimate/core/places";
 import { z } from "zod";
-import { ScenePlan, coverageSeconds, parseFigure, parseDated, figureInQuote, lower, norm, tidySpeech, wordCount, quoteInSource, phraseAt, spokenWords, missingArticles, grammarSlips, soundsLikeKeywords, shortHeading, type Architecture, type ExplainSpec, type Progress, type NoteItem, type Scene, type SourceDoc } from "@explanimate/core";
+import { ScenePlan, coverageSeconds, parseFigure, parseDated, figureInQuote, lower, norm, tidySpeech, wordCount, quoteInSource, phraseAt, spokenWords, walkCues, missingArticles, grammarSlips, soundsLikeKeywords, shortHeading, type Architecture, type ExplainSpec, type Progress, type NoteItem, type Scene, type SourceDoc } from "@explanimate/core";
 import { sparkJson, type CostLedger } from "@explanimate/models";
 import { SHAPES, analogyRule, shapeFor } from "./shapes.js";
 
@@ -39,7 +39,8 @@ function repoSystem(arch: Architecture, L: ExplainSpec, lo: number, hi: number):
   const S = SHAPES[shape];
   const { path, side } = journeyOrder(arch);
   const kw = (id: string) => `${id} ("${arch.components.find((c) => c.id === id)?.keyword}")`;
-  const steps = arch.walkthrough.steps.map((s) => `"${s.label}"`).join(", ");
+  const name = (id: string) => arch.components.find((c) => c.id === id)?.keyword ?? id;
+  const steps = arch.walkthrough.steps.map((s) => `${name(s.from)} to ${name(s.to)} (${s.label})`).join("; ");
   const analogy = L.brief.analogy || "an everyday place with clear jobs (a restaurant, a post office)";
   return [
     "You write the scene plan for a short whiteboard explainer of one repository. The renderer draws one evolving architecture canvas.",
@@ -50,7 +51,7 @@ function repoSystem(arch: Architecture, L: ExplainSpec, lo: number, hi: number):
     "Scene order and rules:",
     `1. one 'hook' scene, 3 or 4 sentences, shown big on screen as it is spoken. ${S.hook} Whatever the shape, the sentence right after the hook line says what this project is and why someone would use it, in one plain sentence with no jargon, like '${arch.one_liner}'; a newcomer who hears only that sentence knows what the thing is for. add_components empty.`,
     `2. 'layer' scenes, one part or a few at a time, adding exactly these components in this order, at most ${L.perScene} per scene: ${path.map(kw).join(", ")}. ${S.spine} Say each added component's keyword out loud, in add_components order.`,
-    `3. one 'walkthrough' scene right after them: the core flow told once, end to end, as one short story. Say these step labels in order, each as the action of a natural sentence about who does what. Call each part by its keyword, the name on screen that the layer scenes already said; its analogy role may ride along ('the demo app, your front desk, sends the message') but never stands in for it, since a viewer cannot map a new role name to a box, adding articles and verb endings as speech needs ('send message' becomes 'sends the message'): ${steps}. Good: 'You type a question, and the counter sends the message to the manager.' Bad: 'Step one is send message.' Never number the steps out loud. Follow one concrete example from the repo the whole way (a real input like the words 'hello world', a real message, a real file) and say what it looks like after each step, the way Caleb follows one 2 TB model from disk to GPU. End with the concrete thing the user gets back (e.g. 'a working fix in your chat'), not 'an answer'. Give it a heading of 2 to 4 lowercase words that the narration actually says, naming this moment rather than labelling it. About ${Math.round(L.wordsPerScene * 1.6)} words. add_components empty.`,
+    `3. one 'walkthrough' scene right after them: the core flow told once, end to end, as one short story. Tell these steps in order, each as a natural sentence about who does what to the example, in everyday words, and name the part each step reaches by its keyword: the board moves to that part when you say it. The words in brackets only say what happens; they are not words to recite, so say the action the way a person would ('the chat window loads the saved model') and never turn a bracket into a noun ('the send cdp instruction', 'the drive page move', 'the return result step'). Call each part by its keyword, the name on screen that the layer scenes already said; its analogy role may ride along ('the demo app, your front desk, sends the message') but never stands in for it, since a viewer cannot map a new role name to a box, with articles and verb endings as speech needs: ${steps}. Good: 'You type a question, and the counter sends the message to the manager.' Bad: 'Step one is send message.' Never number the steps out loud. Follow one concrete example from the repo the whole way (a real input like the words 'hello world', a real message, a real file) and say what it looks like after each step, the way Caleb follows one 2 TB model from disk to GPU. End with the concrete thing the user gets back (e.g. 'a working fix in your chat'), not 'an answer'. Give it a heading of 2 to 4 lowercase words that the narration actually says, naming this moment rather than labelling it. About ${Math.round(L.wordsPerScene * 1.6)} words. add_components empty.`,
     side.length
       ? `4. then 'layer' scene(s) for the side parts the request does not pass through: ${side.map(kw).join(", ")}. Keep them short: as few scenes as fit (at most ${L.perScene} parts per scene), one short clause per part (its keyword and plain job), opening with one tie-back to the journey such as 'Around the manager sit a few helpers:'. Do not repeat the same opener for each part.`
       : "4. (no side parts)",
@@ -132,6 +133,22 @@ export function retellTrip(arch: Architecture): string {
 }
 
 /**
+ * Step labels said as nouns ("the send cdp instruction", "performs the drive page move"): the sound of
+ * narration reciting the map instead of telling what happens.
+ */
+export function labelEchoes(narration: string, arch: Architecture): string[] {
+  const t = ` ${norm(narration)} `;
+  const out: string[] = [];
+  for (const st of arch.walkthrough.steps) {
+    const l = norm(st.label).replace(/[.*+?^${}()|[\]\\]/g, "");
+    if (!l) continue;
+    const m = new RegExp(`(?:(?:the|a|an) ${l} (?:step|move|instruction|action|stage|command|call|task)s?|(?:performs?|completes?|does|handles?) the ${l})\\b`).exec(t);
+    if (m) out.push(m[0].trim());
+  }
+  return out;
+}
+
+/**
  * Deterministic story check (docs/explaining-playbook.md): what the hook says, that the core flow is
  * narrated hop by hop and early, that the analogy shows up, and that the recap retells the trip.
  */
@@ -161,11 +178,11 @@ export function checkStory(plan: ScenePlan, arch: Architecture, analogy = ""): s
   if (wi >= 0) {
     const w = norm(sc[wi].narration);
     const ws = spokenWords(sc[wi].narration);
-    let at = 0;
     const missing: string[] = [];
-    // "sends the message" says the step "send message": small words between and verb endings are fine
-    for (const st of arch.walkthrough.steps) { const k = phraseAt(ws, st.label, at); if (k < 0) missing.push(st.label); else at = k + 1; }
-    if (missing.length) issues.push(`the walkthrough must say each step label in order (articles between its words and verb endings are fine); missing or out of order: ${missing.map((m) => `"${m}"`).join(", ")}`);
+    // a step is told by its label or, in plain words, by naming the part it reaches: the same cue the board follows
+    walkCues(ws, arch).forEach((k, i) => { if (k < 0) { const st = arch.walkthrough.steps[i]; missing.push(`${kwOf(st.from)} to ${kwOf(st.to)} (${st.label})`); } });
+    if (missing.length) issues.push(`the walkthrough must tell each step in order, naming the part it reaches; missing or out of order: ${missing.join(", ")}`);
+    for (const e of labelEchoes(sc[wi].narration, arch)) issues.push(`the walkthrough says "${e}", a step label turned into a noun; say what happens in plain words instead`);
     if (/\bstep (one|two|three|1|2|3)\b/.test(w)) issues.push("the walkthrough reads like a numbered list ('step one is ...'); tell it as a story where each part does its step");
     const before = sc.slice(0, wi);
     const late = path.filter((id) => !before.some((s) => s.add_components.includes(id)));
@@ -322,8 +339,18 @@ export function pictureWords(analogy: string, arch: Architecture): string[] {
 /** The phrases a scene's narration must keep, in the order it says them, so the board stays in sync. */
 export function syncPhrases(s: Scene, arch: Architecture): string[] {
   const ws = spokenWords(s.narration);
-  const cands = [...arch.components.map((c) => c.keyword), ...(s.kind === "walkthrough" ? arch.walkthrough.steps.map((x) => x.label) : []), ...(s.items ?? []).map((i) => i.text), ...(s.board_nodes ?? []).map((n) => n.keyword)];
-  return cands.map((p) => ({ p, at: phraseAt(ws, p) })).filter((x) => x.at >= 0).sort((a, b) => a.at - b.at).map((x) => x.p);
+  const cands = [...arch.components.map((c) => c.keyword), ...(s.items ?? []).map((i) => i.text), ...(s.board_nodes ?? []).map((n) => n.keyword)];
+  const hits = cands.map((p) => ({ p, at: phraseAt(ws, p) })).filter((x) => x.at >= 0);
+  // the walkthrough also keeps whatever told each step (a part named a second time on the way back counts too)
+  if (s.kind === "walkthrough") {
+    const kw = (id: string) => arch.components.find((c) => c.id === id)?.keyword ?? "";
+    walkCues(ws, arch).forEach((k, i) => {
+      const st = arch.walkthrough.steps[i];
+      if (k >= 0) hits.push({ p: phraseAt(ws, st.label, k) === k ? st.label : kw(st.to), at: k });
+    });
+  }
+  const seen = new Set<string>();
+  return hits.sort((a, b) => a.at - b.at).filter((x) => !seen.has(`${x.at} ${x.p}`) && !!seen.add(`${x.at} ${x.p}`)).map((x) => x.p);
 }
 
 /** True when a rewrite still says every sync phrase in order and stays close to the original length. */
@@ -672,7 +699,7 @@ export function repairRepoPlan(plan: ScenePlan, arch: Architecture, L: { perScen
     repairs.push(`added ${missing.length} missing components`);
   }
   if (!scenes.some((s) => s.kind === "walkthrough") && arch.walkthrough.steps.length) {
-    scenes.push(blank({ id: "walk", kind: "walkthrough", heading: "follow one request", narration: `Let's follow one request: ${arch.walkthrough.name}. ` + arch.walkthrough.steps.map((s) => s.label).join(", then ") + "." }));
+    scenes.push(blank({ id: "walk", kind: "walkthrough", heading: "follow one request", narration: `Let's follow one request: ${arch.walkthrough.name}. ${retellTrip(arch)}` }));
     repairs.push("walkthrough added");
   }
   // story order (docs/explaining-playbook.md): hook, the journey's parts in the order the request meets them,
