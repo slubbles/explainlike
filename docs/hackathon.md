@@ -19,10 +19,10 @@ files. Tapped boxes answer only from their evidence files. Names the voice
 mishears get one respelled retake. Labels, arrows, frames, and both boards
 pass deterministic checks before the render counts.
 
-A fresh repo run takes three to six minutes and costs well under a dollar. A
-re-run of the same commit reuses the plan and the voiceover, so it makes no
-model calls and spends nothing; the drawing still redraws every frame, at about
-twenty frames a second. The plan cache is shared per commit, and every run
+A fresh repo run takes three to six minutes and costs about a quarter. A re-run
+of the same commit reuses the plan and the voiceover, so planning and speech are
+free and the only spend is about a cent for the voice check; the drawing still
+redraws every frame, at about twenty frames a second. The plan cache is shared per commit, and every run
 prints its spend against a guard.
 
 ## Samples
