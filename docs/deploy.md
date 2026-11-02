@@ -41,6 +41,28 @@ curl -s localhost:3000/api/health
 - `paused: true` means demo-only mode is on or a spend cap is reached. The server is still healthy.
 - The image runs this check every 30 seconds. Point your host's health check at the same path.
 
+### Example videos
+
+The home page and `/gallery` show the videos in the gallery folder (`/data/gallery` in Docker), never
+the jobs visitors made. The folder holds the mp4s, a poster image for each and a `gallery.json` that lists
+them in order; [`gallery.example.json`](gallery.example.json) shows the fields. Only files the manifest
+names are served. With no folder or no manifest, the page hides the examples.
+
+The videos are not in git. Copy the folder onto the volume. The list is read on every request, so no
+restart is needed:
+
+```bash
+docker cp ./explanimate-gallery/. explanimate:/data/gallery/
+```
+
+To make a poster for a new video, take a frame a little past the middle:
+
+```bash
+ffmpeg -ss 50 -i video.mp4 -frames:v 1 -vf scale=1280:-2 -q:v 3 video.jpg
+```
+
+Encode videos with `-movflags +faststart` so they start playing before they finish loading.
+
 ## Behind Caddy
 
 If a Caddy instance already owns ports 80 and 443, keep the container on loopback and
@@ -187,6 +209,7 @@ The project used to be called Explain Like. Settings with the old `EXPLAINLIKE_`
 | `EXPLANIMATE_DEMO_ONLY` | 0 | Show the finished examples only and refuse new videos. |
 | `EXPLANIMATE_RESUME` | 1 | After a restart, start the job it cut off once more, if it is under 6 hours old. |
 | `EXPLANIMATE_JOBS_DIR` | `explainlike-out/web` (`/data/jobs` in Docker) | Where jobs and the spend ledger live. Must be on a persistent disk. |
+| `EXPLANIMATE_GALLERY_DIR` | unset (`/data/gallery` in Docker) | Folder of example videos and their `gallery.json`. Unset or empty: no examples. |
 | `EXPLANIMATE_ALLOW_LOCAL` | 0 | Accept folder paths on the server. Leave off in public. |
 | `EXPLANIMATE_ALLOW_PRIVATE_URLS` | 0 (web), 1 (CLI) | Read links that resolve to private addresses. Leave off in public. A host whose DNS hands out proxy addresses (198.18.0.0/15, as some sandboxes and "fake-IP" proxies do) fails every link with the guard on; give such a host real DNS rather than turning the guard off. |
 
@@ -207,4 +230,5 @@ The project used to be called Explain Like. Settings with the old `EXPLAINLIKE_`
 - There is no sign-in or per-user quota.
 - The private-address check resolves the name, then fetches. A DNS server that answers differently the second time could still slip through (DNS rebinding). Pinning the checked address in the connection needs the `undici` package. Until then, block the metadata address and your private ranges in the host's firewall as well.
 - Chromium loads images named in a page's card (avatars, preview images) without that check. It can only show them as pictures, but a firewall rule covers it too.
+- `/api/jobs` still lists the newest jobs to anyone who asks. The home page no longer shows them, but the list and each job are readable by id. Limit it to the caller (or turn it off) before a public launch.
 - The GitHub Actions in CI still run on Node 20 and print deprecation notices. Move `actions/checkout`, `pnpm/action-setup` and `actions/setup-node` to their latest majors.

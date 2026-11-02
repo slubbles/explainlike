@@ -1,0 +1,21 @@
+{
+  "videos": [
+    {
+      "id": "karpathy-minbpe",
+      "title": "karpathy/minbpe",
+      "kind": "repo",
+      "source": "https://github.com/karpathy/minbpe",
+      "durationSec": 174.5,
+      "file": "karpathy-minbpe.mp4",
+      "poster": "karpathy-minbpe.jpg"
+    },
+    {
+      "id": "how-dns-works",
+      "title": "How names find computers",
+      "kind": "topic",
+      "durationSec": 94.9,
+      "file": "how-dns-works.mp4",
+      "poster": "how-dns-works.jpg"
+    }
+  ]
+}

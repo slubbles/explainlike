@@ -32,9 +32,10 @@ ENV NODE_ENV=production \
     HOME=/data \
     EXPLANIMATE_ROOT=/app \
     EXPLANIMATE_JOBS_DIR=/data/jobs \
+    EXPLANIMATE_GALLERY_DIR=/data/gallery \
     EXPLANIMATE_CHROME=/usr/bin/chromium \
     PORT=3000
-RUN mkdir -p /data/jobs && chown -R node:node /app
+RUN mkdir -p /data/jobs /data/gallery && chown -R node:node /app
 USER node
 VOLUME /data
 EXPOSE 3000
