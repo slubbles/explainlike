@@ -1,4 +1,4 @@
-# Explain Like web app: one container that takes a link or topic and renders the video itself.
+# Explanimate web app: one container that takes a link or topic and renders the video itself.
 # Needs a persistent volume at /data (jobs, spend ledger, caches). See docs/deploy.md.
 FROM node:22-bookworm-slim
 
@@ -25,14 +25,14 @@ COPY packages/voice/package.json packages/voice/
 RUN pnpm install --frozen-lockfile
 
 COPY . .
-RUN pnpm --filter @explainlike/web build
+RUN pnpm --filter @explanimate/web build
 
 # Everything the server writes goes under /data: jobs, the spend ledger and the repo, plan, voice and icon caches.
 ENV NODE_ENV=production \
     HOME=/data \
-    EXPLAINLIKE_ROOT=/app \
-    EXPLAINLIKE_JOBS_DIR=/data/jobs \
-    EXPLAINLIKE_CHROME=/usr/bin/chromium \
+    EXPLANIMATE_ROOT=/app \
+    EXPLANIMATE_JOBS_DIR=/data/jobs \
+    EXPLANIMATE_CHROME=/usr/bin/chromium \
     PORT=3000
 RUN mkdir -p /data/jobs && chown -R node:node /app
 USER node

@@ -9,7 +9,7 @@ import { encodeMp4, mp4Encoder } from "../src/index.js";
 const videoHash = (file: string) => spawnSync("ffmpeg", ["-v", "error", "-i", file, "-map", "0:v", "-f", "framemd5", "-"], { encoding: "utf8" }).stdout.split("\n").filter((l) => l && !l.startsWith("#")).map((l) => l.split(",").pop()!.trim());
 
 test("frames streamed to ffmpeg out of order give the same video as encoding them from disk", { timeout: 60_000 }, async () => {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "explainlike-encode-"));
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "explanimate-encode-"));
   const frames = path.join(dir, "frames");
   fs.mkdirSync(frames);
   // a moving pattern, so a frame out of place would show
@@ -28,7 +28,7 @@ test("frames streamed to ffmpeg out of order give the same video as encoding the
 });
 
 test("the streaming encoder refuses to finish with a frame missing", { timeout: 30_000 }, async () => {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "explainlike-encode-"));
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "explanimate-encode-"));
   const enc = mp4Encoder(10, path.join(dir, "x.mp4"), { duration: 1, workDir: dir, music: false });
   const jpg = path.join(dir, "a.jpg");
   spawnSync("ffmpeg", ["-v", "error", "-f", "lavfi", "-i", "color=c=white:s=64x64", "-frames:v", "1", jpg]);

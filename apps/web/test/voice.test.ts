@@ -50,7 +50,7 @@ test("voice mode answers only requests made on this machine", async () => {
 test("a misheard repo name finds the real one among the owner's repos", async () => {
   const { closest } = await import("../lib/reach.ts");
   assert.deepEqual(closest("openmousebot", ["umami", "OpenMausBot", "example-app", "open-mouse"]).slice(0, 1), ["OpenMausBot"]);
-  assert.deepEqual(closest("explainlike", ["umami", "example-app"]), []);
+  assert.deepEqual(closest("explanimate", ["umami", "example-app"]), []);
 });
 
 test("a spoken topic with no link starts a topic video, a spoken link still becomes a URL", async () => {

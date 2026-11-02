@@ -4,7 +4,7 @@ import path from "node:path";
 import { chromium } from "playwright-core";
 import { Readability } from "@mozilla/readability";
 import { parseHTML } from "linkedom";
-import type { SourceDoc } from "@explainlike/core";
+import type { SourceDoc } from "@explanimate/core";
 import { redact } from "./secrets.js";
 import { publicFetch, PrivateAddressError } from "./net.js";
 
@@ -16,7 +16,7 @@ export interface ConceptSource {
   locate(quotes: string[], pngPath: string): Promise<SourceShotOut>;
 }
 
-const UA = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130 Safari/537.36 explainlike";
+const UA = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130 Safari/537.36 explanimate";
 const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]!);
 const norm = (s: string) => s.toLowerCase().replace(/[\u2018\u2019]/g, "'").replace(/[\u201c\u201d]/g, '"').replace(/[^a-z0-9]+/g, "");
 
@@ -24,7 +24,7 @@ export function xStatusId(url: string): string | undefined {
   return url.match(/(?:x|twitter)\.com\/[^/]+\/status(?:es)?\/(\d+)/i)?.[1] ?? url.match(/\/i\/(?:web\/)?status\/(\d+)/)?.[1];
 }
 
-/** Chrome's usual Windows install folders, so a fresh shell works without setting EXPLAINLIKE_CHROME. */
+/** Chrome's usual Windows install folders, so a fresh shell works without setting EXPLANIMATE_CHROME. */
 function windowsChromePaths(): string[] {
   if (process.platform !== "win32") return [];
   const programFiles = process.env.PROGRAMFILES ?? "C:\\Program Files";
@@ -38,10 +38,10 @@ function windowsChromePaths(): string[] {
 }
 
 function findChrome(): string {
-  const c = [process.env.EXPLAINLIKE_CHROME, "/usr/bin/google-chrome", "/usr/bin/google-chrome-stable", "/usr/bin/chromium", "/usr/bin/chromium-browser",
+  const c = [process.env.EXPLANIMATE_CHROME, "/usr/bin/google-chrome", "/usr/bin/google-chrome-stable", "/usr/bin/chromium", "/usr/bin/chromium-browser",
     "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome", ...windowsChromePaths()].filter(Boolean) as string[];
   const f = c.find((p) => fs.existsSync(p));
-  if (!f) throw new Error("no Chrome/Chromium found; set EXPLAINLIKE_CHROME");
+  if (!f) throw new Error("no Chrome/Chromium found; set EXPLANIMATE_CHROME");
   return f;
 }
 

@@ -23,7 +23,7 @@ test("timeline ticks run oldest first, evenly spaced, whatever order the plan ga
 
 test("a chart and a timeline in a real plan stay whole on screen from their last row to the end of the scene", async () => {
   const fs = await import("node:fs");
-  const { getTheme, specFromBrief, DEFAULT_BRIEF } = await import("@explainlike/core");
+  const { getTheme, specFromBrief, DEFAULT_BRIEF } = await import("@explanimate/core");
   const { compose, loadIconPack, cameraAt, boxOf } = await import("../src/index.js");
   const plan = JSON.parse(fs.readFileSync(new URL("./fixtures/internet-cutins.plan.json", import.meta.url), "utf8"));
   const audio = plan.scenes.map((s: { id: string; narration: string }) => {
@@ -49,7 +49,7 @@ test("a chart and a timeline in a real plan stay whole on screen from their last
 
 test("a map card frames its places with room, keeps coastlines and labels on the card, and labels never cover each other", async () => {
   const { mapLayout, sceneMap, MAP } = await import("../src/cutins.js");
-  const { countries, findPlace } = await import("@explainlike/core/places");
+  const { countries, findPlace } = await import("@explanimate/core/places");
   const place = (target: string, text: string) => ({ ...row(text), target });
   // three cities close together, where a naive label to the right of each would collide
   const L = mapLayout([place("geneva", "web is born"), place("zurich", "the second lab"), place("bern", "the capital listens"), place("france", "next door")], countries(), findPlace);
@@ -70,7 +70,7 @@ test("a map card frames its places with room, keeps coastlines and labels on the
 
 test("a map cut-in in a real plan shows its places and the Natural Earth credit, all on screen", async () => {
   const fs = await import("node:fs");
-  const { getTheme, specFromBrief, DEFAULT_BRIEF } = await import("@explainlike/core");
+  const { getTheme, specFromBrief, DEFAULT_BRIEF } = await import("@explanimate/core");
   const { compose, loadIconPack, cameraAt, boxOf } = await import("../src/index.js");
   const plan = JSON.parse(fs.readFileSync(new URL("./fixtures/internet-cutins.plan.json", import.meta.url), "utf8"));
   const s = plan.scenes.find((x: { kind: string }) => x.kind === "chart");

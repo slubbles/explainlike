@@ -3,12 +3,12 @@ import os from "node:os";
 import path from "node:path";
 import crypto from "node:crypto";
 import { fileURLToPath } from "node:url";
-import { getTheme, looksLikeTopic, specFromBrief, DEFAULT_BRIEF, type Ask, type Brief, type ExplainSpec, type Architecture, type Progress, type SceneAudio, type ScenePlan, type SourceDoc, type SourceKind } from "@explainlike/core";
-import { CostLedger, museTranscribe } from "@explainlike/models";
-import { ingestRepo } from "@explainlike/ingest";
-import { planBrief, extractArchitecture, validateArchitecture, evidencePack, reviewArchitecture, fixArchitecture, planRepoScenes, respeak, planFocus, planWhatIf, kindColor } from "@explainlike/planner";
-import { pickVoice, wordOverlap, DeepgramVoice, type VoiceProvider } from "@explainlike/voice";
-import { captionMismatches, loadIconPack, mergePacks, builtinPackIds, detectComponents, packHints, type DetectedComponent, iconCatalog, resolveIcon, compose, captureFrames, mixNarration, mp4Encoder, sfxCues, contactSheet, frameCheck, checkTldr, checkExcalidraw, toExcalidraw, toTldraw, type IconPack, type SourceShot } from "@explainlike/render";
+import { getTheme, looksLikeTopic, specFromBrief, DEFAULT_BRIEF, type Ask, type Brief, type ExplainSpec, type Architecture, type Progress, type SceneAudio, type ScenePlan, type SourceDoc, type SourceKind } from "@explanimate/core";
+import { CostLedger, museTranscribe } from "@explanimate/models";
+import { ingestRepo } from "@explanimate/ingest";
+import { planBrief, extractArchitecture, validateArchitecture, evidencePack, reviewArchitecture, fixArchitecture, planRepoScenes, respeak, planFocus, planWhatIf, kindColor } from "@explanimate/planner";
+import { pickVoice, wordOverlap, DeepgramVoice, type VoiceProvider } from "@explanimate/voice";
+import { captionMismatches, loadIconPack, mergePacks, builtinPackIds, detectComponents, packHints, type DetectedComponent, iconCatalog, resolveIcon, compose, captureFrames, mixNarration, mp4Encoder, sfxCues, contactSheet, frameCheck, checkTldr, checkExcalidraw, toExcalidraw, toTldraw, type IconPack, type SourceShot } from "@explanimate/render";
 
 export interface RunOptions {
   input: string;
@@ -45,9 +45,9 @@ const FALLBACK_ICON: Record<string, string> = {
 /**
  * Plans are shared across output folders per repo commit: the same repo at the same commit, asked the
  * same way, by the same planner code, gets the same brief, architecture and scene plan for $0.
- * EXPLAINLIKE_PLAN_CACHE=0 or --fresh skips reading it.
+ * EXPLANIMATE_PLAN_CACHE=0 or --fresh skips reading it.
  */
-export const PLAN_CACHE = process.env.EXPLAINLIKE_PLAN_CACHE_DIR ?? path.join(os.homedir(), ".cache", "explainlike", "plans");
+export const PLAN_CACHE = process.env.EXPLANIMATE_PLAN_CACHE_DIR ?? path.join(os.homedir(), ".cache", "explainlike", "plans");
 let engineId: string | undefined;
 /** a fingerprint of the planner and core sources, so a prompt change never reuses an old plan */
 function plannerFingerprint(): string {
@@ -62,7 +62,7 @@ function plannerFingerprint(): string {
 }
 export function planCacheDir(o: { url: string; commit: string; ask?: Ask }): string | undefined {
   // only a pushed commit is a stable key; a local folder may have uncommitted edits
-  if (process.env.EXPLAINLIKE_PLAN_CACHE === "0" || !/^https?:\/\//.test(o.url) || !/^[0-9a-f]{40}$/.test(o.commit)) return undefined;
+  if (process.env.EXPLANIMATE_PLAN_CACHE === "0" || !/^https?:\/\//.test(o.url) || !/^[0-9a-f]{40}$/.test(o.commit)) return undefined;
   const key = crypto.createHash("sha256").update(JSON.stringify([o.url.replace(/\.git$/, "").toLowerCase(), o.commit, o.ask ?? null, plannerFingerprint()])).digest("hex").slice(0, 24);
   return path.join(PLAN_CACHE, key);
 }
@@ -75,7 +75,7 @@ export function detectKind(input: string): SourceKind {
   return looksLikeTopic(input) ? "topic" : "article";
 }
 
-export async function runExplainLike(o: RunOptions) {
+export async function runExplanimate(o: RunOptions) {
   const ledger = new CostLedger();
   // every progress event carries the running cost (the cost meter in the CLI and web app)
   let voiceRef: VoiceProvider | undefined;
@@ -229,8 +229,8 @@ export async function runExplainLike(o: RunOptions) {
     }
     repoDir = r.repoDir;
   } else {
-    const { ingestConcept, ingestTopic } = await import("@explainlike/ingest");
-    const { planConceptScenes } = await import("@explainlike/planner");
+    const { ingestConcept, ingestTopic } = await import("@explanimate/ingest");
+    const { planConceptScenes } = await import("@explanimate/planner");
     P({ stage: "ingest", message: kind === "x-post" ? "reading the post" : kind === "topic" ? "finding reputable sources on the topic" : "reading the article", pct: 2 });
     const tmpOut = o.out ?? path.resolve("explainlike-out", "tmp-" + Date.now());
     fs.mkdirSync(tmpOut, { recursive: true });
@@ -286,7 +286,7 @@ export async function runExplainLike(o: RunOptions) {
   const bad = captionMismatches(film, plan.scenes);
   if (bad.length) throw new Error(`captions do not match the narration in ${bad.map((b) => `${b.scene}: said "${b.said}" but shown "${b.shown}"`).join("; ")}`);
   fs.writeFileSync(path.join(out, "film.json"), JSON.stringify({ ...film, fonts: undefined, elements: film.elements.length }, null, 1));
-  const base = slug(o.name ?? plan.title) || "explainlike";
+  const base = slug(o.name ?? plan.title) || "explanimate";
   // the editable boards: a .tldr for tldraw.com and an .excalidraw for excalidraw.com, each checked after writing
   const tldrFile = path.join(out, `${base}.tldr`), excalidrawFile = path.join(out, `${base}.excalidraw`);
   fs.writeFileSync(tldrFile, JSON.stringify(await toTldraw(sketch, { colorNames: Object.fromEntries(Object.entries(theme.colors).map(([k, v]) => [v.toLowerCase(), k])), darkIcons: true, name: o.name ?? plan.title })));
@@ -362,7 +362,7 @@ export async function runExplainLike(o: RunOptions) {
 
     const voiceUsd = voice instanceof DeepgramVoice ? voice.usd : 0;
     const manifest = {
-      tool: "explainlike", input: o.input, kind, sources: doc.sources, brief: spec.brief, tempo: spec.tempo, pace, repoDir, followUp: o.focus ? { focus: o.focus } : o.whatIf ? { whatIf: o.whatIf } : undefined, look: theme.id, packs: { loaded: extra.map((p) => p.id), detected: detected.map((d) => ({ pack: d.pack, id: d.component.id, name: d.component.name, evidence: d.evidence })) }, title: plan.title, durationSec: Number(film.duration.toFixed(1)),
+      tool: "explanimate", input: o.input, kind, sources: doc.sources, brief: spec.brief, tempo: spec.tempo, pace, repoDir, followUp: o.focus ? { focus: o.focus } : o.whatIf ? { whatIf: o.whatIf } : undefined, look: theme.id, packs: { loaded: extra.map((p) => p.id), detected: detected.map((d) => ({ pack: d.pack, id: d.component.id, name: d.component.name, evidence: d.evidence })) }, title: plan.title, durationSec: Number(film.duration.toFixed(1)),
       outputs: { mp4, tldr: tldrFile, excalidraw: excalidrawFile, contactSheet: sheet, plan: path.join(out, "plan.json"), architecture: arch ? path.join(out, "architecture.json") : undefined },
       scenes: timeline, repairs: plan.repairs ?? [], notes, qa,
       boardCheck: boardCheck.map((c) => ({ format: c.format, ok: c.ok, ...c.counts })),

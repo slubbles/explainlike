@@ -1,5 +1,5 @@
-import { APPROACHES, Brief, LOOKS, NOTE_LIBRARY, STYLES, type Ask, type Progress, type SourceKind } from "@explainlike/core";
-import { sparkJson, type CostLedger } from "@explainlike/models";
+import { APPROACHES, Brief, LOOKS, NOTE_LIBRARY, STYLES, type Ask, type Progress, type SourceKind } from "@explanimate/core";
+import { sparkJson, type CostLedger } from "@explanimate/models";
 
 /**
  * Step one of every video: read the source and decide how to explain it.

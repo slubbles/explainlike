@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { getTheme, specFromBrief, DEFAULT_BRIEF, agreementSlips } from "@explainlike/core";
+import { getTheme, specFromBrief, DEFAULT_BRIEF, agreementSlips } from "@explanimate/core";
 import { compose, loadIconPack, captureFrames, captionsFor, kineticLine, keyWordIndex } from "../src/index.js";
 
 const fx = new URL("./fixtures/", import.meta.url);
@@ -17,7 +17,7 @@ const audio = plan.scenes.map((s: any) => {
 test("captions sit in one fixed spot at the bottom, on one line, and never cover the drawing at rest", { timeout: 120_000 }, async () => {
   for (const theme of ["pen-light", "chalk-dark"]) {
     const { film } = await compose({ plan, audio, theme: getTheme(theme), spec: specFromBrief(DEFAULT_BRIEF), pack: loadIconPack(), sourceLabel: "x", arch });
-    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "explainlike-cap-"));
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "explanimate-cap-"));
     const { captions } = await captureFrames(film, dir, { only: [0], workers: 1 });
     fs.rmSync(dir, { recursive: true, force: true });
     assert.equal(captions.length, film.captions.filter((c) => !c.hidden).length);

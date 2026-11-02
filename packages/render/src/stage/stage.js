@@ -1,4 +1,4 @@
-// Explain Like stage: draws any frame of a Film deterministically. window.render(t) seeks.
+// Explanimate stage: draws any frame of a Film deterministically. window.render(t) seeks.
 (function () {
   const F = window.FILM;
   const NS = "http://www.w3.org/2000/svg";

@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { looksLikeTopic } from "@explainlike/core";
+import { looksLikeTopic } from "@explanimate/core";
 import { topicQuery, topicWords, reputable, relevance, topicText } from "../src/topic.ts";
 
 test("a topic in words is told apart from links and folders", () => {

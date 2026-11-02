@@ -1,7 +1,7 @@
-import { findPlace } from "@explainlike/core/places";
+import { findPlace } from "@explanimate/core/places";
 import { z } from "zod";
-import { ScenePlan, coverageSeconds, parseFigure, parseDated, figureInQuote, lower, norm, tidySpeech, wordCount, quoteInSource, phraseAt, spokenWords, missingArticles, grammarSlips, soundsLikeKeywords, shortHeading, type Architecture, type ExplainSpec, type Progress, type NoteItem, type Scene, type SourceDoc } from "@explainlike/core";
-import { sparkJson, type CostLedger } from "@explainlike/models";
+import { ScenePlan, coverageSeconds, parseFigure, parseDated, figureInQuote, lower, norm, tidySpeech, wordCount, quoteInSource, phraseAt, spokenWords, missingArticles, grammarSlips, soundsLikeKeywords, shortHeading, type Architecture, type ExplainSpec, type Progress, type NoteItem, type Scene, type SourceDoc } from "@explanimate/core";
+import { sparkJson, type CostLedger } from "@explanimate/models";
 import { SHAPES, analogyRule, shapeFor } from "./shapes.js";
 
 const STYLE = [

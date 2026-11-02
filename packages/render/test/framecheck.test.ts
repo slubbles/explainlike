@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { getTheme, specFromBrief, DEFAULT_BRIEF, type Brief } from "@explainlike/core";
+import { getTheme, specFromBrief, DEFAULT_BRIEF, type Brief } from "@explanimate/core";
 import { compose, loadIconPack, sampleTimes, moving, judgeFrames, measureFrames, findChrome, cameraAt, type FrameBoxes, type FrameEl } from "../src/index.js";
 
 const fx = new URL("./fixtures/", import.meta.url);

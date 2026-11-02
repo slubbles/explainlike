@@ -6,7 +6,7 @@ const sans = localFont({ src: "./fonts/InterVariable.woff2", variable: "--sans",
 const hand = localFont({ src: "../../../packages/render/assets/fonts/Excalifont-Regular.woff2", variable: "--hand", display: "swap" });
 
 export const metadata: Metadata = {
-  title: "Explain Like — whiteboard explainers from any repo, post or article",
+  title: "Explanimate — whiteboard explainers from any repo, post or article",
   description: "Paste a GitHub repo, X post or article. Get a whiteboard explainer video and an editable board that opens in tldraw.com. Powered by Meta Muse models.",
 };
 

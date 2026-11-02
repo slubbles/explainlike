@@ -1,6 +1,6 @@
 import { z } from "zod";
-import { Architecture, Component, Connection, ScaleRisk, COLOR_MEANING, lower, type ExplainSpec, type Progress } from "@explainlike/core";
-import { sparkJson, type CostLedger } from "@explainlike/models";
+import { Architecture, Component, Connection, ScaleRisk, COLOR_MEANING, lower, type ExplainSpec, type Progress } from "@explanimate/core";
+import { sparkJson, type CostLedger } from "@explanimate/models";
 
 export interface ArchIssue { target: string; problem: string }
 

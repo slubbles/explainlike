@@ -1,4 +1,4 @@
-// Stands in for the explainlike CLI: prints the same JSON lines, writes the files, costs nothing.
+// Stands in for the explanimate CLI: prints the same JSON lines, writes the files, costs nothing.
 import fs from "node:fs";
 import path from "node:path";
 const argv = process.argv.slice(2);

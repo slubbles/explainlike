@@ -1,7 +1,7 @@
 /**
  * Fetches for links a stranger can type: every hop (the link and each redirect) must resolve to a public
  * address, so a page cannot point the server at itself, its cloud metadata service or a private network.
- * EXPLAINLIKE_ALLOW_PRIVATE_URLS=1 lifts it; the CLI sets that by default, since its user chose the link.
+ * EXPLANIMATE_ALLOW_PRIVATE_URLS=1 lifts it; the CLI sets that by default, since its user chose the link.
  */
 import dns from "node:dns/promises";
 import net from "node:net";
@@ -24,11 +24,11 @@ export function privateAddress(ip: string): boolean {
 
 async function assertPublic(url: URL, isPrivate: (ip: string) => boolean): Promise<void> {
   if (url.protocol !== "https:" && url.protocol !== "http:") throw new PrivateAddressError(`Only http and https links can be read (got ${url.protocol}).`);
-  if (process.env.EXPLAINLIKE_ALLOW_PRIVATE_URLS === "1") return;
+  if (process.env.EXPLANIMATE_ALLOW_PRIVATE_URLS === "1") return;
   const host = url.hostname.replace(/^\[|\]$/g, "");
   const addrs = net.isIP(host) ? [host] : (await dns.lookup(host, { all: true }).catch(() => [])).map((a) => a.address);
   if (!addrs.length) throw new Error(`Could not find the site ${host}. Check the link.`);
-  if (addrs.some(isPrivate)) throw new PrivateAddressError(`That link points at a private network address (${host}), which this server does not read. If every site fails like this, the host's DNS answers with proxy addresses; see EXPLAINLIKE_ALLOW_PRIVATE_URLS in docs/deploy.md.`);
+  if (addrs.some(isPrivate)) throw new PrivateAddressError(`That link points at a private network address (${host}), which this server does not read. If every site fails like this, the host's DNS answers with proxy addresses; see EXPLANIMATE_ALLOW_PRIVATE_URLS in docs/deploy.md.`);
 }
 
 /** fetch() that checks each hop's address and follows at most `hops` redirects itself. The response's url is the final one. */

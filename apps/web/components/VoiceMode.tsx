@@ -30,7 +30,7 @@ export default function VoiceMode({ typed, voice, onJob, onEnd }: Props) {
       <div className="vlog" ref={log} aria-live="polite">
         {lines.length === 0 && <p className="vhint">Tell it what you want explained, who it's for, and how deep to go.</p>}
         {lines.map((l, i) => (
-          <p key={i} className={`vline ${l.role}${l.live ? " live" : ""}`}><span className="who">{l.role === "user" ? "You" : "Explain Like"}</span>{l.text}</p>
+          <p key={i} className={`vline ${l.role}${l.live ? " live" : ""}`}><span className="who">{l.role === "user" ? "You" : "Explanimate"}</span>{l.text}</p>
         ))}
       </div>
       {/* spoken links and names get misheard: typing is always there as a fallback */}

@@ -1,8 +1,8 @@
-# Explain Like
+# Explanimate
 
 Give it a GitHub repo, an article, an X post, or just a topic ("how DNS works"). It gives you back a narrated **whiteboard explainer video** and the same drawing as **editable boards** you can open in [tldraw](https://www.tldraw.com) or [Excalidraw](https://excalidraw.com).
 
-![Explain Like drawing the OpenMausBot repo](docs/media/openmausbot.gif)
+![Explanimate drawing the OpenMausBot repo](docs/media/openmausbot.gif)
 
 Live demo: **https://explainlike.YOUR_SERVER_IP.sslip.io** — one video renders at a time, and a
 fresh render takes about five minutes.
@@ -29,9 +29,9 @@ You need Node 20+, pnpm, ffmpeg on your PATH and Chrome or Chromium.
 git clone https://github.com/slubbles/explainlike && cd explainlike
 pnpm install
 cp .env.example .env                    # add MODEL_API_KEY (Meta); DEEPGRAM_API_KEY adds the voice
-npx playwright-core install chromium    # or point EXPLAINLIKE_CHROME at an installed Chrome
+npx playwright-core install chromium    # or point EXPLANIMATE_CHROME at an installed Chrome
 
-pnpm explainlike https://github.com/milind-soni/OpenMausBot
+pnpm explanimate https://github.com/milind-soni/OpenMausBot
 ```
 
 Without a Deepgram key the video renders silent, with timed captions. Every run prints what it spent.
@@ -43,7 +43,7 @@ Results land in `explainlike-out/<name>/`:
 - `<name>.contact.jpg`: a sheet of frames for a quick look
 - `manifest.json`: what was made, the check results and the spend
 
-The plan and voiceover are cached in that folder, so running the same source again costs almost nothing. A GitHub repo's plan is also kept per commit in `~/.cache/explainlike/plans`, so a new folder for the same commit, asked the same way, skips the Muse planning calls too; a change to the planner code or a new commit plans again. Use `--fresh` to plan again, or set `EXPLAINLIKE_PLAN_CACHE=0` to turn the shared cache off.
+The plan and voiceover are cached in that folder, so running the same source again costs almost nothing. A GitHub repo's plan is also kept per commit in `~/.cache/explainlike/plans`, so a new folder for the same commit, asked the same way, skips the Muse planning calls too; a change to the planner code or a new commit plans again. Use `--fresh` to plan again, or set `EXPLANIMATE_PLAN_CACHE=0` to turn the shared cache off.
 
 ## Web app, with voice mode
 
@@ -55,7 +55,7 @@ Paste a link and watch it build, with a live cost meter. Or press the **mic butt
 
 When the video is done you can tap any box for a short explanation from the code, render a 15-20 s deep dive on it, ask "what if 10x traffic?", or download the boards.
 
-Every job spends your API credits. The web app has a per-IP rate limit, size limits and a spend guard that pauses new work before the Meta or Deepgram cap (`EXPLAINLIKE_META_CAP_USD`, `EXPLAINLIKE_VOICE_CAP_USD`). Voice mode only answers on localhost. Read [docs/deploy.md](docs/deploy.md) before you put it anywhere public.
+Every job spends your API credits. The web app has a per-IP rate limit, size limits and a spend guard that pauses new work before the Meta or Deepgram cap (`EXPLANIMATE_META_CAP_USD`, `EXPLANIMATE_VOICE_CAP_USD`). Voice mode only answers on localhost. Read [docs/deploy.md](docs/deploy.md) before you put it anywhere public.
 
 If a server restart cuts a video off, it starts again on its own the next time the app loads. Every setting is listed in [`.env.example`](.env.example).
 
@@ -70,7 +70,7 @@ The tests need ffmpeg and Chrome but no API keys.
 ## CLI
 
 ```
-pnpm explainlike <github url | local repo folder | article url | x.com post url | "a topic"> [options]
+pnpm explanimate <github url | local repo folder | article url | x.com post url | "a topic"> [options]
 
   --out <dir>                 output folder (default ./explainlike-out/<name>)
   --voice <deepgram|silent>   default: deepgram when DEEPGRAM_API_KEY is set
@@ -87,19 +87,19 @@ follow-ups on an earlier repo run:
   --from <earlier out dir> --what-if <10x|100x>   what breaks if traffic grows
 ```
 
-`pnpm explainlike --help` lists the rest.
+`pnpm explanimate --help` lists the rest.
 
-## /explainlike in your coding agent
+## /explanimate in your coding agent
 
-`packages/mcp` is an MCP server that runs Explain Like on your own machine. Add it to your agent, then ask:
+`packages/mcp` is an MCP server that runs Explanimate on your own machine. Add it to your agent, then ask:
 
 ```
-/explainlike explain what this repo is about https://github.com/milind-soni/OpenMausBot
+/explanimate explain what this repo is about https://github.com/milind-soni/OpenMausBot
 ```
 
 It renders locally and answers with the paths to the mp4 and both boards. Say "this repo" without a link and it explains the folder you're in. Files go to `~/explainlike-videos/<name>`. A render takes a few minutes, so the agent checks back with `explain_status` while it works.
 
-Replace `/path/to/explainlike` below with where you cloned this repo.
+Replace `/path/to/explanimate` below with where you cloned this repo.
 
 **Muse Code**, in `~/.config/muse/settings.json` (merge with what's there):
 
@@ -107,10 +107,10 @@ Replace `/path/to/explainlike` below with where you cloned this repo.
 {
   "schema_version": 1,
   "mcp_servers": {
-    "explainlike": {
+    "explanimate": {
       "transport": "stdio",
       "command": "node",
-      "args": ["/path/to/explainlike/packages/mcp/bin/explainlike-mcp.mjs"],
+      "args": ["/path/to/explanimate/packages/mcp/bin/explanimate-mcp.mjs"],
       "env": { "MODEL_API_KEY": "${MODEL_API_KEY}", "DEEPGRAM_API_KEY": "${DEEPGRAM_API_KEY}" },
       "mode": "optional"
     }
@@ -123,9 +123,9 @@ Replace `/path/to/explainlike` below with where you cloned this repo.
 ```json
 {
   "mcpServers": {
-    "explainlike": {
+    "explanimate": {
       "command": "node",
-      "args": ["/path/to/explainlike/packages/mcp/bin/explainlike-mcp.mjs"],
+      "args": ["/path/to/explanimate/packages/mcp/bin/explanimate-mcp.mjs"],
       "env": { "MODEL_API_KEY": "your Meta key", "DEEPGRAM_API_KEY": "your Deepgram key" }
     }
   }
@@ -137,16 +137,16 @@ Replace `/path/to/explainlike` below with where you cloned this repo.
 ```json
 {
   "mcpServers": {
-    "explainlike": {
+    "explanimate": {
       "command": "node",
-      "args": ["/path/to/explainlike/packages/mcp/bin/explainlike-mcp.mjs"],
+      "args": ["/path/to/explanimate/packages/mcp/bin/explanimate-mcp.mjs"],
       "env": { "MODEL_API_KEY": "${env:MODEL_API_KEY}", "DEEPGRAM_API_KEY": "${env:DEEPGRAM_API_KEY}" }
     }
   }
 }
 ```
 
-Want to call it from your own code instead? `packages/api` runs the same jobs over a localhost HTTP API (`node packages/api/bin/explainlike-api.mjs`).
+Want to call it from your own code instead? `packages/api` runs the same jobs over a localhost HTTP API (`node packages/api/bin/explanimate-api.mjs`).
 
 ## How it works
 
@@ -164,7 +164,7 @@ The code is a pnpm workspace: `packages/` holds `core`, `models`, `ingest`, `pla
 flowchart TD
     CLI["cli: pipeline"] --> ING["ingest: repos, posts, articles, topics"]
     WEB["apps/web: Next.js + voice mode"] --> API["api: local job server"]
-    MCP["mcp: /explainlike server"] --> API
+    MCP["mcp: /explanimate server"] --> API
     API --> ING
     ING --> PLAN["planner: brief, architecture, scenes"]
     PLAN --> VOICE["voice: Deepgram TTS + retake checks"]

@@ -6,14 +6,14 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
-import { JobRunner } from "@explainlike/api";
-import { createExplainLikeServer } from "../src/index.ts";
+import { JobRunner } from "@explanimate/api";
+import { createExplanimateServer } from "../src/index.ts";
 
 const cliPath = fileURLToPath(new URL("../../api/test/fixtures/fake-cli.mjs", import.meta.url));
 
 async function connect(env: Record<string, string> = {}) {
-  const runner = new JobRunner({ cliPath, outRoot: fs.mkdtempSync(path.join(os.tmpdir(), "explainlike-mcp-")), env });
-  const { server } = createExplainLikeServer(runner);
+  const runner = new JobRunner({ cliPath, outRoot: fs.mkdtempSync(path.join(os.tmpdir(), "explanimate-mcp-")), env });
+  const { server } = createExplanimateServer(runner);
   const [a, b] = InMemoryTransport.createLinkedPair();
   const client = new Client({ name: "test", version: "1" });
   await Promise.all([server.connect(a), client.connect(b)]);
@@ -21,13 +21,13 @@ async function connect(env: Record<string, string> = {}) {
 }
 const text = (r: any) => r.content.map((c: any) => c.text).join("\n");
 
-test("the server offers explain, explain_status, explain_cancel and the /explainlike prompt", async () => {
+test("the server offers explain, explain_status, explain_cancel and the /explanimate prompt", async () => {
   const { client } = await connect();
   const tools = (await client.listTools()).tools.map((t) => t.name).sort();
   assert.deepEqual(tools, ["explain", "explain_cancel", "explain_status"]);
   const status = (await client.listTools()).tools.find((t) => t.name === "explain_status")!;
   assert.equal(status.annotations?.readOnlyHint, true);
-  const p = await client.getPrompt({ name: "explainlike", arguments: { request: "explain what this repo is about https://github.com/a/b" } });
+  const p = await client.getPrompt({ name: "explanimate", arguments: { request: "explain what this repo is about https://github.com/a/b" } });
   assert.match((p.messages[0].content as any).text, /https:\/\/github\.com\/a\/b/);
 });
 

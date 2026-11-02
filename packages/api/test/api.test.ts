@@ -7,7 +7,7 @@ import { fileURLToPath } from "node:url";
 import { JobRunner, createApiServer, nameFor, checkInput } from "../src/index.ts";
 
 const cliPath = fileURLToPath(new URL("./fixtures/fake-cli.mjs", import.meta.url));
-const tmp = () => fs.mkdtempSync(path.join(os.tmpdir(), "explainlike-api-"));
+const tmp = () => fs.mkdtempSync(path.join(os.tmpdir(), "explanimate-api-"));
 
 test("output folders are named after what is being explained", () => {
   assert.equal(nameFor("https://github.com/milind-soni/OpenMausBot"), "milind-soni-openmausbot");

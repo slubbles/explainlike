@@ -14,8 +14,8 @@ test("plans are shared per repo commit and ask, and never for a local folder", (
   assert.equal(planCacheDir({ url: "https://github.com/openai/swarm", commit: "local" }), undefined);
 });
 
-test("EXPLAINLIKE_PLAN_CACHE=0 turns the shared plan cache off", () => {
-  process.env.EXPLAINLIKE_PLAN_CACHE = "0";
+test("EXPLANIMATE_PLAN_CACHE=0 turns the shared plan cache off", () => {
+  process.env.EXPLANIMATE_PLAN_CACHE = "0";
   try { assert.equal(planCacheDir({ url: "https://github.com/openai/swarm", commit: sha }), undefined); }
-  finally { delete process.env.EXPLAINLIKE_PLAN_CACHE; }
+  finally { delete process.env.EXPLANIMATE_PLAN_CACHE; }
 });

@@ -1,12 +1,12 @@
 # Plugins: icon packs
 
-Explain Like has one plugin point, the icon pack. It is a plain folder; no fork needed.
+Explanimate has one plugin point, the icon pack. It is a plain folder; no fork needed.
 
 There are no levels or themes to pick any more. Muse Spark reads the source first and writes a brief (`packages/core/src/brief.ts`): the audience, the approach (analogy, story, step by step, build-up, compare, problem then solution), the depth, the tempo and the look. See [How the engine decides](#how-the-engine-decides).
 
 | plugin | what it changes | how you add one |
 | --- | --- | --- |
-| **pack** | which building blocks Explain Like recognises in a repo, and the icons it draws them with | a folder with `manifest.json` (+ PNGs), passed with `--pack <dir>` |
+| **pack** | which building blocks Explanimate recognises in a repo, and the icons it draws them with | a folder with `manifest.json` (+ PNGs), passed with `--pack <dir>` |
 
 ## Packs
 
@@ -71,14 +71,14 @@ The repo has a worked example in [`examples/packs/supabase`](../examples/packs/s
 ```bash
 # 1. see what the pack detects, without spending anything
 node --import tsx -e '
-  import { digestRepo } from "@explainlike/ingest";
-  import { loadIconPack, detectComponents, packHints } from "@explainlike/render";
+  import { digestRepo } from "@explanimate/ingest";
+  import { loadIconPack, detectComponents, packHints } from "@explanimate/render";
   const d = digestRepo(process.argv[1]);
   console.log(packHints(detectComponents([loadIconPack(process.argv[2])], d.files, (f) => d.read(f))) || "nothing detected");
 ' /path/to/a/supabase/app ./examples/packs/supabase
 
 # 2. use it
-node packages/cli/bin/explainlike.mjs https://github.com/you/your-supabase-app --pack ./examples/packs/supabase
+node packages/cli/bin/explanimate.mjs https://github.com/you/your-supabase-app --pack ./examples/packs/supabase
 ```
 
 Run the first command from `packages/cli` so the workspace packages resolve. `loadIconPack` validates the manifest and lists every problem at once (bad regex, missing PNG, keyword with capitals, missing fields).

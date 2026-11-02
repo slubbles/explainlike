@@ -1,4 +1,4 @@
-import type { Approach } from "@explainlike/core";
+import type { Approach } from "@explanimate/core";
 
 /**
  * The shape of the video, chosen from the approach the brief picked. Until now every source got the

@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import rough from "roughjs";
-import { agreementSlips, phraseAt, shortHeading } from "@explainlike/core";
-import type { Architecture, ScenePlan, Scene, SceneAudio, Theme, ExplainSpec, Color, WordTiming, NoteItem } from "@explainlike/core";
+import { agreementSlips, phraseAt, shortHeading } from "@explanimate/core";
+import type { Architecture, ScenePlan, Scene, SceneAudio, Theme, ExplainSpec, Color, WordTiming, NoteItem } from "@explanimate/core";
 import type { Film, FElement, CamKey, Caption, Heading } from "./film.js";
 import { applyTempo, readableWidth, type PaceReport } from "./pace.js";
 import { placementPass, MIN_TEXT_PX, MIN_SMALL_TEXT_PX, type Mark, type PlacementReport } from "./placement.js";
@@ -9,7 +9,7 @@ import { layoutGraph, unionBox, shiftLayout, wrapText, NODE, type Box, type GNod
 import { textWidth, fontDataUrl, useHandFont, HAND_FONTS } from "./measure.js";
 import { penOutline } from "./draw.js";
 import { chartLayout, timelineLayout, sceneMap, cutInSize, CHART, TIMELINE, MAP } from "./cutins.js";
-import { MAP_CREDIT } from "@explainlike/core/places";
+import { MAP_CREDIT } from "@explanimate/core/places";
 import type { IconPack } from "./icons.js";
 import { resolveIcon } from "./icons.js";
 import { ringOf, scaleArrow, placeFix, placeRingLabel, polyBox } from "./annotate.js";
@@ -438,7 +438,7 @@ export function captionsFor(scene: string, words: WordTiming[], offset: number, 
     const len = j - i + 1, chars = text(i, j).length;
     if (len > 1 && (len > maxWords + 3 || chars > maxChars + 8)) return Infinity;
     let c = 2 * Math.max(0, len - maxWords) + 0.5 * Math.max(0, chars - maxChars);
-    // a sentence ending inside the phrase ("pipeline. Explain Like.") only when the phrase is a single word long otherwise
+    // a sentence ending inside the phrase ("pipeline. Explanimate.") only when the phrase is a single word long otherwise
     for (let k = i; k < j; k++) if (/[.!?]$/.test(words[k].word)) c += k === i ? 5 : 50;
     const whole = (i === 0 || /[.!?]$/.test(words[i - 1].word)) && (j === n - 1 || /[.!?]$/.test(words[j].word));
     if (len === 1 && !whole) c += 6;
@@ -1188,7 +1188,7 @@ export async function compose(inp: ComposeInput): Promise<Composed> {
     T += D;
   }
 
-  const brand = "Explain Like";
+  const brand = "Explanimate";
   const film: Film = {
     width: W, height: H, fps: FPS, duration: T + 4.2,
     theme: { background: theme.background, ink: theme.ink, accent: theme.accent, caption: theme.caption },

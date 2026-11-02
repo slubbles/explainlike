@@ -1,8 +1,8 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import { JobError, JobRunner, type Job } from "@explainlike/api";
+import { JobError, JobRunner, type Job } from "@explanimate/api";
 
-export const DEFAULT_WAIT_SEC = Number(process.env.EXPLAINLIKE_MCP_WAIT_SEC ?? 50);
+export const DEFAULT_WAIT_SEC = Number(process.env.EXPLANIMATE_MCP_WAIT_SEC ?? 50);
 
 const fmtTime = (s?: number) => (s == null ? "?" : `${Math.floor(s / 60)}:${String(Math.round(s % 60)).padStart(2, "0")}`);
 const money = (n?: number) => `$${(n ?? 0).toFixed(3)}`;
@@ -35,9 +35,9 @@ const fail = (message: string) => ({ content: [{ type: "text" as const, text: me
 const waitSeconds = z.number().int().min(0).max(600).optional()
   .describe(`How long to wait for the video before answering with progress instead (default ${DEFAULT_WAIT_SEC}). Renders take a few minutes.`);
 
-export function createExplainLikeServer(runner = new JobRunner()) {
-  const server = new McpServer({ name: "explainlike", version: "0.1.0" }, {
-    instructions: "Explain Like turns a GitHub repo, an X post or an article into a narrated whiteboard explainer video (mp4) plus editable .tldr and .excalidraw boards, saved on this machine. Call explain with the link, then explain_status until it is done, then tell the user where the files are.",
+export function createExplanimateServer(runner = new JobRunner()) {
+  const server = new McpServer({ name: "explanimate", version: "0.1.0" }, {
+    instructions: "Explanimate turns a GitHub repo, an X post or an article into a narrated whiteboard explainer video (mp4) plus editable .tldr and .excalidraw boards, saved on this machine. Call explain with the link, then explain_status until it is done, then tell the user where the files are.",
   });
 
   type Extra = { _meta?: { progressToken?: string | number }; sendNotification: (n: any) => Promise<void>; signal: AbortSignal };
@@ -67,7 +67,7 @@ export function createExplainLikeServer(runner = new JobRunner()) {
     description: "Make a narrated, hand-drawn whiteboard explainer video of a GitHub repo, an X post, an article, a local repo folder, or a plain topic (\"how DNS works\": it reads and cites a few reputable pages about it). The engine reads the source and decides the explaining style, depth and length itself. Writes an mp4, a .tldr (tldraw) and an .excalidraw board to a folder on this machine and returns their paths. Uses the Meta Model API and Deepgram keys from the environment, so each new video costs a little (usually well under $0.50); re-running the same source into the same folder reuses the cached plan.",
     inputSchema: {
       source: z.string().min(1).describe("A GitHub repo URL, an x.com post URL, an article URL, an absolute path to a local repo folder, or a topic in a few words ('how DNS works') when there is no link."),
-      outDir: z.string().optional().describe("Folder to write the files to. Default: ~/explainlike-videos/<name> (or $EXPLAINLIKE_OUT_DIR)."),
+      outDir: z.string().optional().describe("Folder to write the files to. Default: ~/explainlike-videos/<name> (or $EXPLANIMATE_OUT_DIR)."),
       voice: z.enum(["deepgram", "silent"]).optional().describe("deepgram narrates (default when DEEPGRAM_API_KEY is set); silent keeps captions only."),
       fresh: z.boolean().optional().describe("Re-plan from scratch instead of reusing a plan cached in outDir or for this repo commit."),
       followUpOf: z.string().optional().describe("For a follow-up clip on a finished repo video: that video's output folder. Use with focus or whatIf."),
@@ -110,9 +110,9 @@ export function createExplainLikeServer(runner = new JobRunner()) {
     return j ? report(j) : fail(`no job ${a.jobId} in this session`);
   });
 
-  server.registerPrompt("explainlike", {
-    title: "Explain Like",
-    description: "Turn a repo, X post or article into a whiteboard explainer video. Example: /explainlike explain what this repo is about https://github.com/owner/repo",
+  server.registerPrompt("explanimate", {
+    title: "Explanimate",
+    description: "Turn a repo, X post or article into a whiteboard explainer video. Example: /explanimate explain what this repo is about https://github.com/owner/repo",
     argsSchema: { request: z.string().describe("What to explain, with the link or local folder, e.g. \"explain what this repo is about https://github.com/owner/repo\"") },
   }, ({ request }) => ({
     messages: [{
@@ -120,7 +120,7 @@ export function createExplainLikeServer(runner = new JobRunner()) {
       content: {
         type: "text",
         text: [
-          `Make an Explain Like video for this request: ${request}`,
+          `Make an Explanimate video for this request: ${request}`,
           "",
           "1. Find the source in the request: a GitHub repo URL, an x.com post URL, an article URL, or a local repo folder (use the current project folder if I say \"this repo\" without a link). With no link at all, use the topic itself in a few words (\"how DNS works\").",
           "2. Call the explain tool with it as `source`. If I asked about something specific (\"what this repo is about\" is general, \"how auth works\" is specific), pass that as `question`; pass `audience` or `depth` only if I said them.",

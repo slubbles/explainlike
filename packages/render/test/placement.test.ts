@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
-import { getTheme, specFromBrief, DEFAULT_BRIEF, type Brief } from "@explainlike/core";
+import { getTheme, specFromBrief, DEFAULT_BRIEF, type Brief } from "@explanimate/core";
 import { compose, loadIconPack, checkPlacement, placementPass, textWidth, cameraAt, readableWidth, shotStarts, type Film, type FText, type Mark, type Sketch } from "../src/index.js";
 
 const fx = new URL("./fixtures/", import.meta.url);

@@ -3,7 +3,7 @@ import { budgetNow, noteSpend } from "../../../../lib/jobs";
 
 export const runtime = "nodejs";
 
-const VOICE = process.env.EXPLAINLIKE_CHAT_VOICE ?? "aura-2-thalia-en";
+const VOICE = process.env.EXPLANIMATE_CHAT_VOICE ?? "aura-2-thalia-en";
 
 /** One sentence of the assistant's reply as Deepgram Aura speech, streamed through as it is made. */
 export async function GET(req: Request) {

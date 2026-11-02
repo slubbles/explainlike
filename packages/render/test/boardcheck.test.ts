@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
-import { getTheme, specFromBrief, DEFAULT_BRIEF } from "@explainlike/core";
+import { getTheme, specFromBrief, DEFAULT_BRIEF } from "@explanimate/core";
 import { compose, loadIconPack, toTldraw, toExcalidraw, checkTldr, checkExcalidraw } from "../src/index.js";
 
 const fx = new URL("./fixtures/", import.meta.url);

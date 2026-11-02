@@ -3,8 +3,8 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { getTheme, specFromBrief, DEFAULT_BRIEF, type Architecture, type ScenePlan } from "@explainlike/core";
-import { compose, loadIconPack, offFrameTexts, boxOf, textWidth, overlaps, polyBox, placeRingLabel, ringOf, scaleArrow } from "@explainlike/render";
+import { getTheme, specFromBrief, DEFAULT_BRIEF, type Architecture, type ScenePlan } from "@explanimate/core";
+import { compose, loadIconPack, offFrameTexts, boxOf, textWidth, overlaps, polyBox, placeRingLabel, ringOf, scaleArrow } from "@explanimate/render";
 
 const fx = path.join(path.dirname(fileURLToPath(import.meta.url)), "fixtures");
 const plan = JSON.parse(fs.readFileSync(path.join(fx, "example-app.plan.json"), "utf8")) as ScenePlan;

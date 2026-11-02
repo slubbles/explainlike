@@ -7,7 +7,7 @@ import type { Film } from "./film.js";
 import { stageHtml } from "./stage.js";
 import { makeBed, makeSfx, mixGraph, type SfxCue } from "./music.js";
 
-/** Chrome's usual Windows install folders, so a fresh shell works without setting EXPLAINLIKE_CHROME. */
+/** Chrome's usual Windows install folders, so a fresh shell works without setting EXPLANIMATE_CHROME. */
 function windowsChromePaths(): string[] {
   if (process.platform !== "win32") return [];
   const programFiles = process.env.PROGRAMFILES ?? "C:\\Program Files";
@@ -21,10 +21,10 @@ function windowsChromePaths(): string[] {
 }
 
 export function findChrome(): string {
-  const c = [process.env.EXPLAINLIKE_CHROME, "/usr/bin/google-chrome", "/usr/bin/google-chrome-stable", "/usr/bin/chromium", "/usr/bin/chromium-browser",
+  const c = [process.env.EXPLANIMATE_CHROME, "/usr/bin/google-chrome", "/usr/bin/google-chrome-stable", "/usr/bin/chromium", "/usr/bin/chromium-browser",
     "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome", ...windowsChromePaths()].filter(Boolean) as string[];
   const f = c.find((p) => fs.existsSync(p));
-  if (!f) throw new Error("Chrome/Chromium not found. Set EXPLAINLIKE_CHROME to a Chrome binary.");
+  if (!f) throw new Error("Chrome/Chromium not found. Set EXPLANIMATE_CHROME to a Chrome binary.");
   return f;
 }
 

@@ -1,22 +1,22 @@
 {
-  "name": "explainlike-monorepo",
+  "name": "explanimate-monorepo",
   "private": true,
   "version": "0.1.0",
-  "description": "Explain Like: paste a repo, X post or article, get a whiteboard explainer video and an editable board that opens in tldraw.com. Powered by Meta Muse models.",
+  "description": "Explanimate: paste a repo, X post or article, get a whiteboard explainer video and an editable board that opens in tldraw.com. Powered by Meta Muse models.",
   "license": "MIT",
   "type": "module",
   "packageManager": "pnpm@9.15.9",
   "scripts": {
-    "explainlike": "tsx packages/cli/src/bin.ts",
+    "explanimate": "tsx packages/cli/src/bin.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "web": "pnpm --filter @explainlike/web dev",
+    "web": "pnpm --filter @explanimate/web dev",
     "icons:generate": "tsx scripts/gen-icon-pack.ts",
     "test": "node --import tsx --test \"packages/*/test/*.test.ts\" \"apps/web/test/*.test.ts\""
   },
   "devDependencies": {
-    "@explainlike/core": "workspace:^",
-    "@explainlike/models": "workspace:^",
-    "@explainlike/render": "workspace:^",
+    "@explanimate/core": "workspace:^",
+    "@explanimate/models": "workspace:^",
+    "@explanimate/render": "workspace:^",
     "@types/node": "^22.10.0",
     "tsx": "^4.19.2",
     "typescript": "^5.7.2"

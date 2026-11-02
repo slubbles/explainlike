@@ -7,11 +7,11 @@ import path from "node:path";
  */
 
 /**
- * The caller's address. X-Forwarded-For is only believed behind a proxy that sets it (EXPLAINLIKE_TRUST_PROXY=1),
+ * The caller's address. X-Forwarded-For is only believed behind a proxy that sets it (EXPLANIMATE_TRUST_PROXY=1),
  * because anyone can send the header and dodge a per-IP limit with it.
  */
 export function clientIp(req: Request): string {
-  if (process.env.EXPLAINLIKE_TRUST_PROXY !== "1") return "direct";
+  if (process.env.EXPLANIMATE_TRUST_PROXY !== "1") return "direct";
   return req.headers.get("x-forwarded-for")?.split(",")[0].trim() || req.headers.get("x-real-ip")?.trim() || "unknown";
 }
 
@@ -26,9 +26,9 @@ export function rateLimit(key: string, limit: number, windowMs: number, now = Da
   return 0;
 }
 
-/** Per-IP request limit for the API routes that cost money or start work (EXPLAINLIKE_REQ_PER_MIN, default 12). */
+/** Per-IP request limit for the API routes that cost money or start work (EXPLANIMATE_REQ_PER_MIN, default 12). */
 export function limitRequest(req: Request, route: string): Response | undefined {
-  const perMin = Number(process.env.EXPLAINLIKE_REQ_PER_MIN ?? 12);
+  const perMin = Number(process.env.EXPLANIMATE_REQ_PER_MIN ?? 12);
   const wait = rateLimit(`${route}:${clientIp(req)}`, perMin, 60_000);
   return wait ? Response.json({ error: `Too many requests. Try again in ${wait} s.` }, { status: 429, headers: { "retry-after": String(wait) } }) : undefined;
 }
@@ -59,9 +59,9 @@ export const field = (v: unknown, max = MAX_FIELD_CHARS) => (typeof v === "strin
 // ---- spend guard ----
 
 export interface Spend { meta: number; voice: number }
-export const caps = (): Spend => ({ meta: Number(process.env.EXPLAINLIKE_META_CAP_USD ?? 25), voice: Number(process.env.EXPLAINLIKE_VOICE_CAP_USD ?? 3) });
+export const caps = (): Spend => ({ meta: Number(process.env.EXPLANIMATE_META_CAP_USD ?? 25), voice: Number(process.env.EXPLANIMATE_VOICE_CAP_USD ?? 3) });
 /** what one more video can cost, kept free under each cap so a job never starts that would cross it */
-export const reserve = (): Spend => ({ meta: Number(process.env.EXPLAINLIKE_META_RESERVE_USD ?? 1), voice: Number(process.env.EXPLAINLIKE_VOICE_RESERVE_USD ?? 0.15) });
+export const reserve = (): Spend => ({ meta: Number(process.env.EXPLANIMATE_META_RESERVE_USD ?? 1), voice: Number(process.env.EXPLANIMATE_VOICE_RESERVE_USD ?? 0.15) });
 /** share of a cap at which a warning goes out */
 export const WARN_AT = 0.8;
 
@@ -94,7 +94,7 @@ export function budget(s: Spend, c = caps(), r = reserve()): Budget {
   const name = { meta: "Meta (Muse)", voice: "Deepgram" } as const;
   let error: string | undefined;
   for (const k of ["meta", "voice"] as const) {
-    if (s[k] + r[k] > c[k]) error ??= `The ${name[k]} budget is nearly used up ($${s[k].toFixed(2)} of $${c[k].toFixed(2)}), so new videos are paused. Raise EXPLAINLIKE_${k === "meta" ? "META" : "VOICE"}_CAP_USD to allow more.`;
+    if (s[k] + r[k] > c[k]) error ??= `The ${name[k]} budget is nearly used up ($${s[k].toFixed(2)} of $${c[k].toFixed(2)}), so new videos are paused. Raise EXPLANIMATE_${k === "meta" ? "META" : "VOICE"}_CAP_USD to allow more.`;
     else if (s[k] >= c[k] * WARN_AT) warnings.push(`${name[k]} spend is at $${s[k].toFixed(2)} of a $${c[k].toFixed(2)} cap.`);
   }
   return { ok: !error, error, warnings, spent: s, caps: c };

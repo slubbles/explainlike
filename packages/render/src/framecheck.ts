@@ -7,7 +7,7 @@ import fs from "node:fs";
 import path from "node:path";
 import sharp from "sharp";
 import { chromium } from "playwright-core";
-import { reviewFrames, type CostLedger } from "@explainlike/models";
+import { reviewFrames, type CostLedger } from "@explanimate/models";
 import type { Film } from "./film.js";
 import { findChrome } from "./capture.js";
 import { stageHtml } from "./stage.js";
