@@ -2,7 +2,7 @@ import type { Film, FText, CamKey } from "./film.js";
 import type { Box } from "./layout.js";
 import type { Sketch } from "./compose.js";
 import { cameraAt } from "./check.js";
-import { boxOf, readableWidth, TITLE_BAND, CAPTION_BAND } from "./pace.js";
+import { boxOf, readableWidth, bigChange, TITLE_BAND, CAPTION_BAND } from "./pace.js";
 import { RING_PAD, ringReach } from "./annotate.js";
 
 /**
@@ -377,7 +377,7 @@ function pan(p: Placed, it: Item, k: CamKey, r: number): boolean {
     if (lx > hx || ly > hy) continue;
     const nf = { ...k, x: Math.min(hx, Math.max(lx, k.x)), y: Math.min(hy, Math.max(ly, k.y)) };
     if (slices(p, k, nf, r, it)) continue;
-    Object.assign(k, { x: nf.x, y: nf.y });
+    reframe(film, k, { x: nf.x, y: nf.y, w: k.w, h: k.h });
     return true;
   }
   return false;
@@ -414,8 +414,19 @@ function widen(p: Placed, it: Item, k: CamKey, r: number, capped: boolean, depth
     all.w = Math.max(...xs.map((q) => q.x + q.w)) - all.x; all.h = Math.max(...xs.map((q) => q.y + q.h)) - all.y;
     return depth < 2 && widen(p, { ...it, box: all }, k, r, capped, depth + 1);
   }
-  Object.assign(k, nf);
+  reframe(film, k, nf);
   return true;
+}
+
+/**
+ * Give a shot a new frame. Keys right after it that the viewer cannot tell apart from it (a pace fix
+ * may leave a small drift inside one hold) are the same shot on screen, so they take the new frame too:
+ * changing only the first would turn one long hold into a cut the beat check never saw.
+ */
+function reframe(film: Placed["film"], k: CamKey, nf: Box) {
+  const K = film.camera, was = { x: k.x, y: k.y, w: k.w, h: k.h };
+  for (let j = K.indexOf(k) + 1; j > 0 && j < K.length && !bigChange(was, K[j]); j++) Object.assign(K[j], { x: nf.x, y: nf.y, w: nf.w, h: nf.h });
+  Object.assign(k, { x: nf.x, y: nf.y, w: nf.w, h: nf.h });
 }
 
 /** Ways to bring a cut-off item whole into every shot that cuts it, gentlest first: slide, slide or widen, widen. */
