@@ -78,7 +78,7 @@ export type Critique = z.infer<typeof Critique>;
 async function critiquePlan(ledger: CostLedger, plan: ScenePlan, audience: string): Promise<Critique> {
   const script = plan.scenes.map((s) => `[${s.id}] ${s.narration}`).join("\n");
   return sparkJson({
-    ledger, step: "plan-check", schema: Critique, name: "critique", effort: "low", maxTokens: 6000, hedge: true,
+    ledger, step: "plan-check", schema: Critique, name: "critique", effort: "low", maxTokens: 6000,
     messages: [
       { role: "system", content: `You are ${audience}, hearing this explainer narration once, in order. List every term you would not know (an acronym, product, protocol or internal name) that is used without a plain-words explanation at or before its first use. Words every developer knows (server, database, browser, app, API, model) do not count; a part the narration explains in plain words counts as explained. Then say whether you could now retell how one request goes from the user to the result, and if not, what is missing. Be strict but fair; at most 8 terms.` },
       { role: "user", content: script },
