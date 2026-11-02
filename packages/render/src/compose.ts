@@ -15,7 +15,8 @@ import { resolveIcon } from "./icons.js";
 import { ringOf, scaleArrow, placeFix, placeRingLabel, polyBox } from "./annotate.js";
 import path from "node:path";
 
-export const W = 1920, H = 1080, FPS = 30;
+// 24 fps is the film standard: a fifth fewer frames to draw than 30, and nothing downstream counts frames
+export const W = 1920, H = 1080, FPS = 24;
 const LEAD = 0.3;
 const SAFE = { top: 160, bottom: 180, side: 110 };
 let gen = rough.generator();
