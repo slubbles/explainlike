@@ -49,7 +49,7 @@ Two other packages carry the packs and the API/MCP surface; they are not on the 
    and a fix pass applies the reviewer's patches.
 4. **Scenes.** Muse writes the narration scene by scene, with the heading, the board nodes and the exact
    phrases the drawing will sync to. The plan is then polished for speech, renamed to plain keywords,
-   self-checked, and repaired — a structural problem replans once, a wording problem gets one small rewrite.
+   self-checked, and repaired — a structural problem replans once, a wording problem gets a small rewrite and a second look, up to two rounds.
 5. **Compose.** The plan becomes a `Film`: element positions and start times, camera keys, captions with
    per-word timings, headings, fades. No pixels yet.
 6. **Voice.** Each scene is spoken, 8 at a time, and cut to word timings; the narration is mixed to one
