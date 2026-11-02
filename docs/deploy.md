@@ -181,6 +181,9 @@ The project used to be called Explain Like. Settings with the old `EXPLAINLIKE_`
 | `EXPLANIMATE_REQ_PER_MIN` | 12 | Per-IP limit on the routes that start work or cost money. |
 | `EXPLANIMATE_JOBS_PER_HOUR` | 20 | Videos per hour across everyone. |
 | `EXPLANIMATE_TRUST_PROXY` | 0 | Trust `X-Forwarded-For` for the client IP. |
+| `EXPLANIMATE_CONCURRENCY` | 10 | Videos rendered at once. Past that, new videos wait their turn (first in, first out) and their page shows the first step in progress; nobody is turned away for being busy. Each render is a Chromium plus ffmpeg, so size this to the machine. |
+| `EXPLANIMATE_QUEUE_MAX` | 200 | Safety ceiling on videos waiting for a slot. Only past this is a request refused ("very busy"). |
+| `EXPLANIMATE_WAIT_IDLE_S` | 120 | A waiting video whose page has not polled for this long (the tab was closed) is dropped before it starts. |
 | `EXPLANIMATE_DEMO_ONLY` | 0 | Show the finished examples only and refuse new videos. |
 | `EXPLANIMATE_RESUME` | 1 | After a restart, start the job it cut off once more, if it is under 6 hours old. |
 | `EXPLANIMATE_JOBS_DIR` | `explainlike-out/web` (`/data/jobs` in Docker) | Where jobs and the spend ledger live. Must be on a persistent disk. |
@@ -189,7 +192,7 @@ The project used to be called Explain Like. Settings with the old `EXPLAINLIKE_`
 
 ## What is already guarded
 
-- **Spend.** Each job records its Meta and Deepgram cost. Voice chat, speech and box explanations are added to `spend.jsonl` in the jobs folder. A warning appears past 80% of a cap. New work stops while the cap is less than one job's reserve away.
+- **Spend.** Each job records its Meta and Deepgram cost. Voice chat, speech and box explanations are added to `spend.jsonl` in the jobs folder. A warning appears past 80% of a cap. New work stops while the cap is less than one job's reserve away, and each render running at once holds back its own reserve, so a busy server starts waiting videos only as the budget allows.
 - **Rate and size.** Each IP is rate-limited. JSON bodies are capped at 16 KB (96 KB for voice turns), and links at 2,048 characters. Repos over the clone limit, private repos, and pages over 5 MB are refused with a plain message.
 - **Keys.** API keys are read only in server code. A test fails if a client component touches `process.env` or an API key.
 - **Private networks.** A link, and every redirect from it, must resolve to a public address. Links to localhost, private ranges or the cloud metadata address (169.254.169.254) are refused.
