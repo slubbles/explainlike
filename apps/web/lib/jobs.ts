@@ -6,7 +6,7 @@ import { validInput } from "./validate";
 import { budget, recordSpend, spent, type Budget } from "./guard";
 export { validInput };
 
-export type JobState = "running" | "done" | "error";
+export type JobState = "queued" | "running" | "done" | "error";
 export type JobKind = "video" | "focus" | "what-if";
 export interface Job {
   id: string; kind: JobKind; input: string; voice: string; approach?: string; state: JobState;
@@ -21,6 +21,8 @@ export interface Job {
   ask?: Ask; via?: "voice";
   /** the CLI arguments, kept so a job cut off by a server restart can pick up where it stopped */
   args?: string[]; resumed?: number;
+  /** queued jobs: how many renders have to finish first */
+  ahead?: number;
 }
 export type Ask = { goal?: string; audience?: string; depth?: "overview" | "working" | "deep"; also?: string };
 
@@ -30,7 +32,7 @@ const ID = /^[a-f0-9]{12}$/;
 const INTERRUPTED = "Interrupted by a server restart. Start it again.";
 
 // Jobs live on disk (one job.json per folder) so they survive a server restart.
-const g = globalThis as unknown as { __explainlikeJobs?: Map<string, Job>; __explainlikeResumed?: boolean };
+const g = globalThis as unknown as { __explainlikeJobs?: Map<string, Job>; __explainlikeLine?: string[]; __explainlikeResumed?: boolean };
 const jobs: Map<string, Job> = (g.__explainlikeJobs ??= loadJobs());
 // first load after a restart: carry on with a job the restart cut off (EXPLAINLIKE_RESUME=0 turns this off)
 if (!g.__explainlikeResumed && process.env.EXPLAINLIKE_RESUME !== "0") { g.__explainlikeResumed = true; setTimeout(() => resumeInterrupted(), 0); }
@@ -46,6 +48,7 @@ function loadJobs(): Map<string, Job> {
       const j: Job = { kind: "video", ...JSON.parse(fs.readFileSync(f, "utf8")) };
       // the child process died with the old server: say so instead of spinning forever (resumeInterrupted may restart it)
       if (j.state === "running") Object.assign(j, { state: "error", error: INTERRUPTED, finished: Date.now() });
+      if (j.state === "queued") Object.assign(j, { state: "error", error: "The queue was lost in a server restart. Start it again.", finished: Date.now() });
       m.set(id, j);
       save(j);
     } catch { /* skip a broken job file */ }
@@ -78,7 +81,9 @@ function save(job: Job, soon = false) {
 const recent = new Map<string, number[]>();
 export function admit(client: string): string | undefined {
   if (process.env.EXPLAINLIKE_DEMO_ONLY === "1") return "This demo only plays example videos. Run Explain Like locally with your own keys to make new ones.";
-  if ([...jobs.values()].some((j) => j.state === "running")) return "Another video is drawing right now. Try again in a minute.";
+  const waiting = [...jobs.values()].filter((j) => j.state === "queued").length;
+  const room = Number(process.env.EXPLAINLIKE_QUEUE_MAX ?? 6);
+  if (waiting >= room) return `The line is full: ${waiting} videos are already waiting. Try again in a few minutes.`;
   const b = budgetNow();
   if (!b.ok) return b.error;
   const cap = Number(process.env.EXPLAINLIKE_JOBS_PER_HOUR ?? 20);
@@ -93,12 +98,41 @@ export const budgetNow = (): Budget => budget(spent(JOBS_DIR, [...jobs.values()]
 /** Note a paid call made outside a job (voice-mode chat), so the spend guard sees it. */
 export const noteSpend = (s: { meta?: number; voice?: number }, what: string) => recordSpend(JOBS_DIR, s, what);
 
-const CLI = () => path.join(ROOT, "packages/cli/bin/explainlike.mjs");
+const CLI = () => process.env.EXPLAINLIKE_CLI ?? path.join(ROOT, "packages/cli/bin/explainlike.mjs");
 // the CLI reads private-network links by default (its user chose them); links typed into the web app never may
 const CLI_ENV = { ...process.env, EXPLAINLIKE_ALLOW_PRIVATE_URLS: process.env.EXPLAINLIKE_ALLOW_PRIVATE_URLS ?? "0" };
 
+const line = (): string[] => (g.__explainlikeLine ??= []);
+const busy = (except?: string): Job | undefined => [...jobs.values()].find((j) => j.state === "running" && j.id !== except);
+const aheadOf = (id: string): number => line().indexOf(id) + 1;
+
+/** Start the next video in line, if the render slot is free. */
+function pump() {
+  if (busy()) return;
+  const id = line().shift();
+  if (!id) return;
+  const job = jobs.get(id);
+  if (!job || job.state !== "queued") return pump();
+  run(job, job.args ?? []);
+  line().forEach((other) => {
+    const j = jobs.get(other);
+    if (!j) return;
+    const n = aheadOf(other);
+    Object.assign(j, { ahead: n, message: n === 1 ? "one video ahead" : `${n} videos ahead` });
+    save(j, true);
+  });
+}
+
 function run(job: Job, args: string[]) {
   if (!job.args) { job.args = args; save(job); }
+  // one render at a time: a second request waits its turn instead of being told no
+  if (busy(job.id) || line().length) {
+    const n = line().length + (busy(job.id) ? 1 : 0) || 1;
+    Object.assign(job, { state: "queued", stage: "queued", ahead: n, message: n === 1 ? "one video ahead" : `${n} videos ahead` });
+    line().push(job.id);
+    save(job);
+    return;
+  }
   const child = spawn(process.execPath, [CLI(), ...args, "--json"], { cwd: ROOT, env: CLI_ENV, stdio: ["ignore", "pipe", "pipe"] });
   let buf = "";
   child.stdout.on("data", (d: Buffer) => {
@@ -126,6 +160,7 @@ function run(job: Job, args: string[]) {
   child.on("close", (code) => {
     if (job.state === "running") Object.assign(job, { state: code === 0 ? "done" : "error", finished: Date.now(), error: code === 0 ? undefined : errTail.split("\n").filter(Boolean).pop() ?? `exit ${code}` });
     save(job);
+    pump();
   });
 }
 
