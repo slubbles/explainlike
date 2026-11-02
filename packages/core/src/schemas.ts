@@ -41,6 +41,7 @@ export const Component = z.object({
   keyword,
   icon: z.string().describe("icon name from the icon pack"),
   what: z.string().describe("one sentence: what it does in THIS repo"),
+  does: z.string().optional().describe("the small line under the box: what it does for the viewer, 2 to 6 everyday words ('clicks and types for your AI')"),
   evidence: z.array(z.string()).describe("1 to 3 exact repo-relative file paths that prove it exists"),
 });
 export type Component = z.infer<typeof Component>;

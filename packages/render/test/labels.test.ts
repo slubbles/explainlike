@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { shortSub, plainCase, subLine } from "../src/index.js";
+import { shortSub, plainCase, subLine, boxSub } from "../src/index.js";
 
 test("box descriptions shorten at whole words, never mid-word", () => {
   assert.equal(shortSub("cloudflare cdn clips.spotibai.com edge", 30), "cloudflare cdn");
@@ -76,4 +76,10 @@ test("a box's sub line is dropped when it only repeats the keyword", () => {
   assert.equal(subLine("host app", "Host App"), undefined);
   assert.equal(subLine("ui core", "MicroUI Core"), "MicroUI core");
   assert.equal(subLine("sdl window", "Demo Renderer"), "demo renderer");
+});
+
+test("the line under a box is its plain 'does' line, and a jargon name is never shown in its place", () => {
+  assert.equal(boxSub({ keyword: "command line", name: "Rust CLI and daemon", does: "takes your AI's orders" }), "takes your AI's orders");
+  assert.equal(boxSub({ keyword: "command line", name: "Rust CLI and daemon" }), undefined);
+  assert.equal(boxSub({ keyword: "ui core", name: "MicroUI Core" }), "MicroUI core");
 });

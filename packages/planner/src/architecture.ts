@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { Architecture, Component, Connection, ScaleRisk, COLOR_MEANING, lower, type ExplainSpec, type Progress, practitionerTerm, PLAIN_LABELS } from "@explanimate/core";
+import { Architecture, Component, Connection, ScaleRisk, COLOR_MEANING, lower, type ExplainSpec, type Progress, practitionerTerm, PLAIN_LABELS, PLAIN_SUBTITLE, subtitleSlip } from "@explanimate/core";
 import { sparkJson, type CostLedger } from "@explanimate/models";
 
 export interface ArchIssue { target: string; problem: string }
@@ -16,6 +16,8 @@ function archSystem(L: ExplainSpec, icons: string, hints = "") {
     "- Optional infrastructure (enabled by an env var or config flag) is fine to include; say 'optional' in `what`.",
     "- one_liner: what this project is, who it is for and why they would use it, in one plain sentence a smart person who does not write code follows, with no jargon ('a small kit that lets you train your own chat assistant from scratch on one rented computer').",
     `- ${PLAIN_LABELS} Step labels are plain verbs in the same everyday words ('send question', 'click the button'). A term only practitioners know (a shard, an inference engine, a protocol, a daemon, a language name) goes in \`name\` or \`what\`, never in a keyword or a step label.`,
+    `- ${PLAIN_SUBTITLE}`,
+    "- No two keywords share a word: 'browser link' and 'web browser' blur together when said in one sentence, so call them 'browser tool' and 'chrome'.",
     "- A component's keyword names what the part IS, as a noun a teacher would point at ('ui core', 'command list', 'sdl window'), never what it does ('rebuild widgets', 'poll input'); the doing goes on the arrows.",
     "- When the core flow hands a named data structure from one part to another (a command list, a job queue, a render buffer, an event log) and the code gives it its own type, draw it as its own component; it is often what the design is known for.",
     "- connections follow the direction requests/data flow (from caller to callee). Each one cites one file where that call happens. If A's code includes or imports B and B never calls A, the arrow is A>B, even when data comes back: say 'read commands' from A's side, not 'emit commands' from B's.",
@@ -48,7 +50,7 @@ export function archWire(L: Pick<ExplainSpec, "maxComponents" | "scaleItems">) {
 function wireParts(L: Pick<ExplainSpec, "maxComponents" | "scaleItems">) {
   const conn = Connection.extend({ label: z.string().max(40), evidence: z.string().max(160) });
   return {
-    components: z.array(Component.extend({ name: z.string().max(80), keyword: z.string().max(40), what: z.string().max(200), evidence: z.array(z.string().max(160)).max(3) })).max(L.maxComponents),
+    components: z.array(Component.extend({ name: z.string().max(80), keyword: z.string().max(40), what: z.string().max(200), does: z.string().max(60), evidence: z.array(z.string().max(160)).max(3) })).max(L.maxComponents),
     connections: z.array(conn).max(L.maxComponents + 4),
     steps: z.array(conn).max(7),
     scale: z.array(ScaleRisk.extend({ why: z.string().max(300), fix_detail: z.string().max(300) })).max(Math.max(0, L.scaleItems)),
@@ -143,6 +145,8 @@ export function validateArchitecture(arch: Architecture, files: string[], resolv
   }
   // box names and step labels are read by newcomers: a practitioner term there ("cdp client", "rust cli") needs a plain word
   for (const c of comps) { const j = practitionerTerm(c.keyword); if (j) open.push({ target: c.id, problem: `part name "${c.keyword}" uses "${j}", a word only practitioners know; give it a plain everyday 1 to 3 word noun a non-programmer knows (like "ai assistant", "browser tool", "chrome" or "web page") and keep "${j}" in name` }); }
+  for (const c of comps) { if (c.does === undefined) continue; const slip = subtitleSlip(c.does, c.keyword); if (slip) open.push({ target: c.id, problem: `the line under "${c.keyword}" ("${c.does}") ${slip}, like "clicks and types for your AI"` }); }
+  for (const [a, b] of sharedWords(comps)) open.push({ target: b.id, problem: `part names "${a.keyword}" and "${b.keyword}" share a word, so they blur together when said in one sentence; rename "${b.keyword}" to a different everyday noun` });
   steps.forEach((st, i) => { const j = practitionerTerm(st.label); if (j) open.push({ target: "walkthrough", problem: `step ${i + 1} label "${st.label}" uses "${j}", a word only practitioners know; say what happens in everyday words` }); });
   // arrows follow the code: an arrow from A to B where B's files import A's (and not the other way) is backwards
   let out = conns;
@@ -241,7 +245,17 @@ export function evidencePack(arch: Architecture, read: (p: string, max?: number)
   return out;
 }
 
-const REVIEWER = "You are a strict staff engineer reviewing an architecture map that will be shown to thousands of developers. Compare every component, connection, walkthrough step and scale risk against the cited file excerpts. Flag: components whose cited files do not support them, wrong technology names, wrong direction of data flow, missing major components that the files clearly show (e.g. a database client that is imported but not drawn), walkthrough steps that the code does not do, scale risks that are generic or not grounded in this code, and box keywords or step labels a non-programmer would not know (a package, module, protocol or language name like 'cdp client' or 'rust cli', 'daemon', 'shards', 'inference'): rename them as plain everyday nouns ('ai assistant', 'browser tool', 'chrome', 'web page') and keep the real term in name. Return verdict 'ok' only if a skeptical maintainer of this repo would sign off. Max 10 issues, most important first.";
+// words a box name may share with another without the two sounding alike
+const SHARE_OK = new Set(["the", "a", "an", "of", "and", "app", "data", "user", "users"]);
+/** Pairs of boxes whose names share a word ("browser link", "web browser"): said together they sound circular. */
+export function sharedWords(comps: { id: string; keyword: string }[]): [{ id: string; keyword: string }, { id: string; keyword: string }][] {
+  const out: [{ id: string; keyword: string }, { id: string; keyword: string }][] = [];
+  const words = (k: string) => new Set(k.toLowerCase().split(/[^a-z0-9]+/).filter((w) => w.length > 2 && !SHARE_OK.has(w)));
+  comps.forEach((a, i) => comps.slice(i + 1).forEach((b) => { const wa = words(a.keyword); if ([...words(b.keyword)].some((w) => wa.has(w))) out.push([a, b]); }));
+  return out;
+}
+
+const REVIEWER = "You are a strict staff engineer reviewing an architecture map that will be shown to thousands of developers. Compare every component, connection, walkthrough step and scale risk against the cited file excerpts. Flag: components whose cited files do not support them, wrong technology names, wrong direction of data flow, missing major components that the files clearly show (e.g. a database client that is imported but not drawn), walkthrough steps that the code does not do, scale risks that are generic or not grounded in this code, and box keywords or step labels a non-programmer would not know (a package, module, protocol or language name like 'cdp client' or 'rust cli', 'daemon', 'shards', 'inference'): rename them as plain everyday nouns ('ai assistant', 'browser tool', 'chrome', 'web page') and keep the real term in name. Also flag a box's `does` line that uses such words or just repeats the keyword (it must be 2 to 6 everyday words saying what the part does for the viewer, like 'clicks and types for your AI'), and two box keywords that share a word ('browser link' and 'web browser'). Every upserted component carries a plain `does`. Return verdict 'ok' only if a skeptical maintainer of this repo would sign off. Max 10 issues, most important first.";
 
 const ReviewPatch = Review.extend({
   upsert_components: z.array(Component).describe("components to add, or to replace whole when an id already exists; empty when no component changes"),

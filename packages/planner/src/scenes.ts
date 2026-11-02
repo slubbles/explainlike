@@ -1,6 +1,6 @@
 import { findPlace } from "@explanimate/core/places";
 import { z } from "zod";
-import { ScenePlan, PLAIN_LANGUAGE, plainSlips, practitionerTerm, coverageSeconds, parseFigure, parseDated, figureInQuote, lower, norm, tidySpeech, wordCount, quoteInSource, phraseAt, spokenWords, walkCues, missingArticles, grammarSlips, soundsLikeKeywords, shortHeading, type Architecture, type ExplainSpec, type Progress, type NoteItem, type Scene, type SourceDoc } from "@explanimate/core";
+import { ScenePlan, PLAIN_LANGUAGE, PLAIN_HEADINGS, plainSlips, practitionerTerm, figurative, coverageSeconds, parseFigure, parseDated, figureInQuote, lower, norm, tidySpeech, wordCount, quoteInSource, phraseAt, spokenWords, walkCues, missingArticles, grammarSlips, soundsLikeKeywords, shortHeading, type Architecture, type ExplainSpec, type Progress, type NoteItem, type Scene, type SourceDoc } from "@explanimate/core";
 import { sparkJson, type CostLedger } from "@explanimate/models";
 import { SHAPES, analogyRule, shapeFor } from "./shapes.js";
 
@@ -14,10 +14,10 @@ const STYLE = [
   "Every narration sentence is complete and grammatical: each verb agrees with its subject, and articles (a, an, the) are not dropped.",
   "Plain words first. Name each part by its plain keyword. A code name (a library, framework, database or file name such as React, SQLite or Node) is said only when it helps the viewer, after the plain name, with what it is: 'the chat transcripts, saved in SQLite, a small database file on your disk'. Never 'called X'. Every other technical term (an acronym, a protocol, 'api', 'driver', 'harness') is explained in a few plain words the first time it is said, in the same sentence; a term the newcomer does not need is left out.",
   PLAIN,
-  "The viewer is always 'you', from the first line to the last. Never call them 'the guest', 'the user' or 'the customer', even inside the analogy ('you walk up to the counter', not 'the guest walks up').",
+  "The viewer is 'you' where it's natural; the parts are 'the browser tool', 'the command line', not 'your browser tool', 'your command line'. Never call them 'the guest', 'the user' or 'the customer', even inside the analogy ('you walk up to the counter', not 'the guest walks up').",
   "No two scenes or two sentences in a row open with the same words.",
   "Each part gets its why: what it is for, or what would go wrong without it.",
-  "Headings are 2 to 4 lowercase everyday words that the narration of that scene actually says (the viewer reads the heading while hearing it). Keywords 1 to 3 lowercase words.",
+  `${PLAIN_HEADINGS} Headings are lowercase and the narration of that scene says their words (the viewer reads the heading while hearing it).`, "Keywords 1 to 3 lowercase words.",
   "One new thing per sentence, and each sentence long enough to watch it being drawn (no two-word sentences).",
   "Every sentence moves the story. Never announce what comes next instead of saying it: 'you'll meet', 'you'll see', 'you'll find', 'then you've got', 'let's take a look', 'basically', 'it's special' and 'it's important' are banned.",
   "If the video uses an everyday analogy, keep that one analogy from the hook to the end; never switch to a second one.",
@@ -42,7 +42,8 @@ function repoSystem(arch: Architecture, L: ExplainSpec, lo: number, hi: number):
   const kw = (id: string) => `${id} ("${arch.components.find((c) => c.id === id)?.keyword}")`;
   const name = (id: string) => arch.components.find((c) => c.id === id)?.keyword ?? id;
   const steps = arch.walkthrough.steps.map((s) => `${name(s.from)} to ${name(s.to)} (${s.label})`).join("; ");
-  const analogy = L.brief.analogy || "an everyday place with clear jobs (a restaurant, a post office)";
+  // no analogy unless the brief chose one: a default picture became a running travel metaphor ("your ride", "too many riders")
+  const analogy = L.brief.analogy;
   return [
     "You write the scene plan for a short whiteboard explainer of one repository. The renderer draws one evolving architecture canvas.",
     "Goal: a newcomer finishes the video able to say what this project is and how one request flows through it. That flow is the video.",
@@ -60,13 +61,13 @@ function repoSystem(arch: Architecture, L: ExplainSpec, lo: number, hi: number):
       ? `5. ${arch.scale.length} short 'scale' scene(s), one per scale risk, in the given order: what breaks at that traffic level and why (problem keyword), then the fix (fix keyword), in 2 short plain sentences ('The fix is ...'). callouts: [{target: component id, text: problem keyword, color: red}, {target: component id, text: fix keyword, color: green}].`
       : "5. no 'scale' scenes.",
     ...notesRules(L.notes),
-    `6. one closing scene of kind 'recap': ${S.recap ? S.close : "First the walkthrough's payoff: what this system can do for you now that the first small version could not, in one sentence."} It answers 'so what does it do for me?' in one or two plain sentences, then retraces the trip in one short story sentence (not a list of steps), naming the parts by keyword in this order: ${path.map((id) => `"${arch.components.find((c) => c.id === id)?.keyword}"`).join(", ")}. About ${recapWords(path.length)} words; never re-explain a part.`,
+    `6. one closing scene of kind 'recap': ${S.recap ? S.close : "First the walkthrough's payoff: what this system can do for you now that the first small version could not, in one sentence."} It answers 'so what does it do for me?' in one or two plain sentences, then retells what happened in one short literal sentence (not a list of steps), naming the parts by keyword in this order: ${path.map((id) => `"${arch.components.find((c) => c.id === id)?.keyword}"`).join(", ")}. About ${recapWords(path.length)} words; never re-explain a part.`,
     `Headings: ${S.headings}`,
     `Keep the hook and the layer scenes brief enough that the walkthrough starts before the halfway mark of the whole narration, counted in words. Each scene's narration is about ${L.wordsPerScene} words (the hook can be shorter). There is no set length. At ${L.tempo.wps} words per second this repo's parts come to roughly ${lo} to ${hi} seconds; shorter is right if the story is told, never pad.`,
     "Only say two parts talk to each other ('the poll input feeds the ui core') when the connections list joins them; otherwise tell the hop through the part between them.",
     "Leave add_connections, board_nodes, board_edges, highlights empty (the renderer derives them). callouts empty except in scale scenes. items empty except in notes scenes.",
     "Never state a traffic, user, latency or cost number as a fact about this app: the repo does not tell you its real load. Numbers only appear as clearly labelled assumptions.",
-    "Proofread every sentence aloud: a/an and singular/plural agree with the noun, no half-finished phrases. Headings are plain 2 to 4 word names for a place in the analogy (like 'the front desk' or 'the back office'); they are on screen, never spoken as if they were a part.",
+    "Proofread every sentence aloud: a/an and singular/plural agree with the noun, no half-finished phrases. Headings are on screen, never spoken as if they were a part.",
     "title: the product name in lowercase. subtitle: under 8 lowercase words, plain.",
   ].join("\n");
 }
@@ -75,7 +76,7 @@ const Critique = z.object({
   undefined_terms: z.array(z.object({ term: z.string(), scene: z.string() })).describe("terms a newcomer would not know, used without a plain-words explanation at their first use"),
   odd_phrases: z.array(z.object({ phrase: z.string(), scene: z.string() })).describe("figures of speech or squeezed made-up phrases that stand in for a real thing and would puzzle a newcomer, quoted exactly"),
   purpose: z.string().describe("what this project is and why someone would use it, in one sentence, as you understood it from the opening; empty if the opening never told you"),
-  hard_sentences: z.array(z.object({ sentence: z.string(), scene: z.string(), why: z.string() })).describe("sentences a smart person who doesn't write code would stumble on (jargon, component names instead of what happens, too long, abstract), quoted exactly, with why in a few words"),
+  hard_sentences: z.array(z.object({ sentence: z.string(), scene: z.string(), why: z.string() })).describe("sentences a smart person who doesn't write code would stumble on, quoted exactly: jargon; component names instead of what happens; circular lines that explain a part with itself ('the browser link drives it in the web browser'); a step label said as a noun ('you get the read result'); vague pointers ('that step', 'it' with no clear thing); a forced metaphor (a trip, a ride, riders); 'your' stuck on every part; anything awkward, stiff or too long to say aloud the way a person talks casually, with why in a few words"),
   who_for: z.string().describe("who this project is for and why they'd care, as you understood it from the opening; empty if the opening never told you"),
   flow_clear: z.boolean().describe("true if a newcomer could retell how one request goes from the user to the result"),
   flow_problem: z.string().describe("what is missing from the flow, or empty"),
@@ -91,7 +92,7 @@ async function critiquePlan(ledger: CostLedger, plan: ScenePlan, audience: strin
   return sparkJson({
     ledger, step: "plan-check", schema: Critique, name: "critique", effort: "low", maxTokens: 6000,
     messages: [
-      { role: "system", content: `You are ${plainListener(audience)}. You hear this explainer narration once, in order. Grade it against this standard:\n${PLAIN_LANGUAGE}\nList every term you would not know (an acronym, product, protocol or internal name) that is used without a plain-words explanation at or before its first use. Words everyone knows (app, browser, website, AI, chat, file, password) do not count; a part the narration explains in plain words counts as explained. Also quote, as odd phrases, any figure of speech or squeezed made-up phrase that stands in for a real thing and would make you stop and wonder what it literally means (a model called 'a brain', saved weights called 'memory', 'fast focus math'). Quote, as hard sentences, every sentence you would stumble on: jargon, a component name where you wanted to hear what happens, a sentence too long to follow by ear, or an abstract claim with no example; say why in a few words. Say in one sentence what this project is and why someone would use it, from the opening alone, and who it is for and why they'd care; leave either empty if the opening never told you. Then say whether you could now retell how one request goes from the user to the result, and if not, what is missing. Be strict but fair; at most 8 terms and 8 hard sentences.` },
+      { role: "system", content: `You are ${plainListener(audience)}. You hear this explainer narration once, in order. Grade it against this standard:\n${PLAIN_LANGUAGE}\nList every term you would not know (an acronym, product, protocol or internal name) that is used without a plain-words explanation at or before its first use. Words everyone knows (app, browser, website, AI, chat, file, password) do not count; a part the narration explains in plain words counts as explained. Also quote, as odd phrases, any figure of speech or squeezed made-up phrase that stands in for a real thing and would make you stop and wonder what it literally means (a model called 'a brain', saved weights called 'memory', 'fast focus math'). Quote, as hard sentences, every sentence you would stumble on or that sounds odd read aloud: jargon, a component name where you wanted to hear what happens, a circular line that explains a part with itself, a step label said as a noun, a vague 'that step', a forced metaphor, 'your' on every part, a stiff or awkward phrase, a sentence too long to follow by ear, or an abstract claim with no example; say why in a few words. A good line sounds like someone talking casually: direct and short. Say in one sentence what this project is and why someone would use it, from the opening alone, and who it is for and why they'd care; leave either empty if the opening never told you. Then say whether you could now retell how one request goes from the user to the result, and if not, what is missing. Be strict but fair; at most 8 terms and 8 hard sentences.` },
       { role: "user", content: script },
     ],
   });
@@ -137,7 +138,7 @@ export function retellTrip(arch: Architecture): string {
   const hops = runs.map((r) => `from the ${kw(r.from)} to ${list(r.to.map((t) => `the ${kw(t)}`))}`);
   const lead = ["It goes", "Then it goes", "And finally it goes"];
   const said = hops.map((h, i) => `${i === hops.length - 1 && i > 0 ? lead[2] : lead[Math.min(i, 1)]} ${h}.`);
-  return `Here's the whole trip you just followed. ${said.join(" ")}`;
+  return `Here's everything you just saw. ${said.join(" ")}`;
 }
 
 /**
@@ -150,7 +151,7 @@ export function labelEchoes(narration: string, arch: Architecture): string[] {
   for (const st of arch.walkthrough.steps) {
     const l = norm(st.label).replace(/[.*+?^${}()|[\]\\]/g, "");
     if (!l) continue;
-    const m = new RegExp(`(?:(?:the|a|an) ${l} (?:step|move|instruction|action|stage|command|call|task)s?|(?:performs?|completes?|does|handles?) the ${l})\\b`).exec(t);
+    const m = new RegExp(`(?:(?:the|a|an) ${l} (?:step|move|instruction|action|stage|command|call|task)s?|(?:performs?|completes?|does|handles?) the ${l}${l.includes(" ") ? `|(?:the|a|an|that|this) ${l}(?! (?:to|into|from|in|on|for|and|with)\\b)` : ""})\\b`).exec(t);
     if (m) out.push(m[0].trim());
   }
   return out;
@@ -282,6 +283,12 @@ export function speechIssues(plan: ScenePlan, arch: Architecture, analogy = ""):
     for (const p of plainSlips(s.narration, known)) issues.push(`${s.id}: ${p}`);
     const hj = practitionerTerm(s.heading.toLowerCase().split(/\s+/).filter((w) => !known.some((k) => k.split(" ").includes(w))).join(" "));
     if (hj) issues.push(`${s.id}: the heading "${s.heading}" uses "${hj}"; give it 2 to 4 everyday words the narration says`);
+    if ((s.kind === "walkthrough" || s.kind === "recap") && /\b(that|this) step\b/i.test(s.narration)) issues.push(`${s.id}: says "${/\b(that|this) step\b/i.exec(s.narration)![0]}"; name what actually happened instead`);
+    const fig = figurative(s.heading, known);
+    if (fig) issues.push(`${s.id}: the heading "${s.heading}" uses "${fig}", a metaphor; say plainly what the scene is about ('where it starts', 'what runs the page', 'when lots of jobs come in')`);
+    if (!analogy) for (const sent of s.narration.split(/(?<=[.!?])\s+/)) { const f = figurative(sent, known); if (f) issues.push(`${s.id}: "${sent.trim()}" uses "${f}", a travel metaphor; say literally what happens`); }
+    const yours = known.filter((k) => ` ${norm(s.narration)} `.includes(` your ${norm(k)} `));
+    if (yours.length > 1) issues.push(`${s.id}: says ${yours.map((k) => `"your ${k}"`).join(", ")}; call the parts "the ${yours[0]}", and keep "your" for what's really the viewer's`);
     if (s.kind === "recap" && s.narration.split(/(?<=[.!?])\s+/).filter(Boolean).length > 4) issues.push(`${s.id}: the recap runs ${s.narration.split(/(?<=[.!?])\s+/).filter(Boolean).length} sentences; say what it does for you, then retrace the trip, in a few short sentences`);
     if ((s.kind === "hook" || s.kind === "walkthrough" || s.kind === "recap") && !/\b(you|your|you're|you'd|you'll|yours)\b/i.test(s.narration)) issues.push(`${s.id}: never talks to the viewer; say it in second person ('you', 'your')`);
   }
@@ -556,7 +563,7 @@ export async function fixWording(o: { ledger: CostLedger; plan: ScenePlan; arch:
 const FIX_ROUNDS = 3;
 const termOf = (issue: string) => /^"(.+?)" \(/.exec(issue)?.[1] ?? "";
 const termIssue = (t: { term: string; scene: string }) => `"${t.term}" (${t.scene}) is used without a plain-words explanation; explain it in the same sentence or drop it`;
-const hardIssue = (t: { sentence: string; scene: string; why: string }) => `"${t.sentence}" (${t.scene}) would lose someone who doesn't write code (${t.why}); say it the way you'd tell a friend: what happens and why it matters, in short everyday words`;
+const hardIssue = (t: { sentence: string; scene: string; why: string }) => `"${t.sentence}" (${t.scene}) would lose someone who doesn't write code (${t.why}); say it the way you'd tell a friend, casual, direct and short: what actually happens and why it matters, in everyday words, with no metaphor and no part explained by its own name`;
 const oddIssue = (t: { phrase: string; scene: string }) => `"${t.phrase}" (${t.scene}) is a figure of speech a newcomer would stumble on; say the literal thing in plain words`;
 const said = (p: ScenePlan, term: string) => p.scenes.some((s) => ` ${norm(s.narration)} `.includes(` ${norm(term)} `));
 
