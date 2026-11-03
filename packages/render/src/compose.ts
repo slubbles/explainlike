@@ -3,7 +3,7 @@ import rough from "roughjs";
 import { agreementSlips, phraseAt, practitionerTerm, shortHeading, walkCues } from "@explanimate/core";
 import type { Architecture, ScenePlan, Scene, SceneAudio, Theme, ExplainSpec, Color, WordTiming, NoteItem } from "@explanimate/core";
 import type { Film, FElement, CamKey, Caption, Heading } from "./film.js";
-import { applyTempo, readableWidth, type PaceReport } from "./pace.js";
+import { applyTempo, paceReport, readableWidth, type PaceReport } from "./pace.js";
 import { placementPass, MIN_TEXT_PX, MIN_SMALL_TEXT_PX, type Mark, type PlacementReport } from "./placement.js";
 import { layoutGraph, unionBox, shiftLayout, wrapText, NODE, type Box, type GNode, type GEdge, type Layout, type PlacedNode, type PlacedEdge } from "./layout.js";
 import { textWidth, fontDataUrl, useHandFont, HAND_FONTS } from "./measure.js";
@@ -1222,9 +1222,12 @@ export async function compose(inp: ComposeInput): Promise<Composed> {
     end: { t0: T, title: plan.title.toLowerCase(), lines: [inp.sourceLabel, `explained for ${inp.spec.audience.toLowerCase()}`], credit: "Powered by Meta Muse models" },
     brand,
   };
-  const pace = applyTempo(film, timeline, tempo);
+  let pace = applyTempo(film, timeline, tempo);
   // every ring, arrow and label checked against the final camera, with a few fix passes
   const placement = placementPass({ film, sketch: B.sketch, marks: B.marks });
+  // placement reframes shots to keep lit words, boxes and wires whole, which can merge two
+  // adjacent shots into one hold: measure the film the viewer gets, not the pre-fix one
+  pace = paceReport(film, tempo);
   // on the final camera: the dimmed rest of the board is never sliced by the frame or drawn under the heading
   const cleared = clearShots(film, B.backdrops);
   // line cards go in last, on the final camera, so no pass above ever reframes or retimes them
