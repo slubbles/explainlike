@@ -37,14 +37,14 @@ pnpm explanimate https://github.com/milind-soni/OpenMausBot
 
 Without a Deepgram key the video renders silent, with timed captions. Every run prints what it spent.
 
-Results land in `explainlike-out/<name>/`:
+Results land in `explanimate-out/<name>/`:
 
 - `<name>.mp4`: the 1920x1080 video, with narration and captions
 - `<name>.tldr` and `<name>.excalidraw`: the drawing as boards you can keep editing
 - `<name>.contact.jpg`: a sheet of frames for a quick look
 - `manifest.json`: what was made, the check results and the spend
 
-The plan and voiceover are cached in that folder, so running the same source again costs almost nothing. A GitHub repo's plan is also kept per commit in `~/.cache/explainlike/plans`, so a new folder for the same commit, asked the same way, skips the Muse planning calls too; a change to the planner code or a new commit plans again. Use `--fresh` to plan again, or set `EXPLANIMATE_PLAN_CACHE=0` to turn the shared cache off.
+The plan and voiceover are cached in that folder, so running the same source again costs almost nothing. A GitHub repo's plan is also kept per commit in `~/.cache/explanimate/plans`, so a new folder for the same commit, asked the same way, skips the Muse planning calls too; a change to the planner code or a new commit plans again. Use `--fresh` to plan again, or set `EXPLANIMATE_PLAN_CACHE=0` to turn the shared cache off.
 
 ## Web app, with voice mode
 
@@ -73,7 +73,7 @@ The tests need ffmpeg and Chrome but no API keys.
 ```
 pnpm explanimate <github url | local repo folder | article url | x.com post url | "a topic"> [options]
 
-  --out <dir>                 output folder (default ./explainlike-out/<name>)
+  --out <dir>                 output folder (default ./explanimate-out/<name>)
   --voice <deepgram|silent>   default: deepgram when DEEPGRAM_API_KEY is set
   --fresh                     plan again instead of using the cached plan
   --goal <text>               what you want to understand
@@ -99,7 +99,7 @@ follow-ups on an earlier repo run:
 /explanimate explain what this repo is about https://github.com/milind-soni/OpenMausBot
 ```
 
-It renders locally and answers with the paths to the mp4 and both boards. Say "this repo" without a link and it explains the folder you're in. Files go to `~/explainlike-videos/<name>`. A render takes a few minutes, so the agent checks back with `explain_status` while it works.
+It renders locally and answers with the paths to the mp4 and both boards. Say "this repo" without a link and it explains the folder you're in. Files go to `~/explanimate-videos/<name>`. A render takes a few minutes, so the agent checks back with `explain_status` while it works.
 
 Replace `/path/to/explanimate` below with where you cloned this repo.
 

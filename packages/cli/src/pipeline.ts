@@ -1,9 +1,8 @@
 import fs from "node:fs";
-import os from "node:os";
 import path from "node:path";
 import crypto from "node:crypto";
 import { fileURLToPath } from "node:url";
-import { getTheme, looksLikeTopic, specFromBrief, DEFAULT_BRIEF, type Ask, type Brief, type ExplainSpec, type Architecture, type Progress, type SceneAudio, type ScenePlan, type SourceDoc, type SourceKind } from "@explanimate/core";
+import { getTheme, looksLikeTopic, specFromBrief, withLegacyDir, userCacheDir, DEFAULT_BRIEF, type Ask, type Brief, type ExplainSpec, type Architecture, type Progress, type SceneAudio, type ScenePlan, type SourceDoc, type SourceKind } from "@explanimate/core";
 import { CostLedger, museTranscribe } from "@explanimate/models";
 import { ingestRepo } from "@explanimate/ingest";
 import { planBrief, extractArchitecture, validateArchitecture, evidencePack, reviewArchitecture, fixArchitecture, planRepoScenes, respeak, planFocus, planWhatIf, kindColor, checkBeats, readmeExcerpt, groundToReadme } from "@explanimate/planner";
@@ -47,7 +46,9 @@ const FALLBACK_ICON: Record<string, string> = {
  * same way, by the same planner code, gets the same brief, architecture and scene plan for $0.
  * EXPLANIMATE_PLAN_CACHE=0 or --fresh skips reading it.
  */
-export const PLAN_CACHE = process.env.EXPLANIMATE_PLAN_CACHE_DIR ?? path.join(os.homedir(), ".cache", "explainlike", "plans");
+export const PLAN_CACHE = process.env.EXPLANIMATE_PLAN_CACHE_DIR ?? userCacheDir("plans");
+/** default output folder, resolved when a run starts: an existing pre-rename folder is still used. */
+const defaultOutRoot = () => withLegacyDir(path.resolve("explanimate-out"), path.resolve("explainlike-out"));
 let engineId: string | undefined;
 /** a fingerprint of the planner and core sources, so a prompt change never reuses an old plan */
 function plannerFingerprint(): string {
@@ -145,7 +146,7 @@ export async function runExplanimate(o: RunOptions) {
     const name = o.name ?? r.title;
     // a repo URL shows itself; a local checkout shows --name or its folder name, never the path on this machine
     sourceLabel = /^https?:\/\//.test(r.url) ? r.url.replace(/^https?:\/\/(www\.)?/, "").replace(/\.git$/, "") : o.name ? `github.com/${o.name}` : path.basename(r.url);
-    out = o.out ?? path.resolve("explainlike-out", slug(name));
+    out = o.out ?? path.join(defaultOutRoot(), slug(name));
     fs.mkdirSync(out, { recursive: true });
     notes.push(`digest: ${r.digest.files.length} files, ${r.digest.text.length} chars; ${r.digest.skippedSecret.length} secret-looking files never opened`);
     detected = detectComponents(extra, r.digest.files, (f) => r.digest.read(f, 60_000));
@@ -246,11 +247,11 @@ export async function runExplanimate(o: RunOptions) {
     const { ingestConcept, ingestTopic } = await import("@explanimate/ingest");
     const { planConceptScenes, planConceptBeats } = await import("@explanimate/planner");
     P({ stage: "ingest", message: kind === "x-post" ? "reading the post" : kind === "topic" ? "finding reputable sources on the topic" : "reading the article", pct: 2 });
-    const tmpOut = o.out ?? path.resolve("explainlike-out", "tmp-" + Date.now());
+    const tmpOut = o.out ?? path.join(defaultOutRoot(), "tmp-" + Date.now());
     fs.mkdirSync(tmpOut, { recursive: true });
     const c = kind === "topic" ? await ingestTopic(o.input) : await ingestConcept(o.input, tmpOut);
     doc = c.doc;
-    out = o.out ?? path.resolve("explainlike-out", slug(o.name ?? doc.title));
+    out = o.out ?? path.join(defaultOutRoot(), slug(o.name ?? doc.title));
     if (out !== tmpOut) { fs.mkdirSync(path.dirname(out), { recursive: true }); fs.rmSync(out, { recursive: true, force: true }); fs.renameSync(tmpOut, out); }
     sourceLabel = doc.sources ? `sources: ${doc.sources.map((x) => x.site).join(", ")}`.slice(0, 80) : doc.url.replace(/^https?:\/\/(www\.)?/, "").slice(0, 60);
     if (doc.sources) {

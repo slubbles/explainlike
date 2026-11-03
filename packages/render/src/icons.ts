@@ -1,9 +1,9 @@
 import fs from "node:fs";
 import path from "node:path";
-import os from "node:os";
 import sharp from "sharp";
 import { fileURLToPath } from "node:url";
 import { museImage, samDetect, type CostLedger } from "@explanimate/models";
+import { userCacheDir } from "@explanimate/core";
 
 /**
  * Icon packs are a plugin point. A pack is a folder with manifest.json:
@@ -175,4 +175,4 @@ export async function keyToAlpha(png: Buffer, crop?: { left: number; top: number
 }
 
 /** Cache for icons generated on demand (names not in the pack). */
-export const ICON_CACHE = process.env.EXPLANIMATE_ICON_CACHE ?? path.join(os.homedir(), ".cache", "explainlike", "icons");
+export const ICON_CACHE = process.env.EXPLANIMATE_ICON_CACHE ?? userCacheDir("icons");

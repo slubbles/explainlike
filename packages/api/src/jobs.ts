@@ -5,7 +5,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { looksLikeTopic, privateHostname, allowPrivateUrls } from "@explanimate/core";
+import { looksLikeTopic, privateHostname, allowPrivateUrls, withLegacyDir } from "@explanimate/core";
 
 /** What to explain and how. Only `input` is required: the engine picks the approach, depth, pace and look itself. */
 export interface JobRequest {
@@ -65,7 +65,7 @@ export interface Job {
 }
 
 export interface RunnerOptions {
-  /** where outputs go when a request names no folder; default $EXPLANIMATE_OUT_DIR or ~/explainlike-videos */
+  /** where outputs go when a request names no folder; default $EXPLANIMATE_OUT_DIR or ~/explanimate-videos */
   outRoot?: string;
   /** the explanimate CLI entry; default the one in this monorepo (tests point it at a stand-in) */
   cliPath?: string;
@@ -130,7 +130,7 @@ export class JobRunner extends EventEmitter {
 
   constructor(o: RunnerOptions = {}) {
     super();
-    this.outRoot = path.resolve(o.outRoot ?? process.env.EXPLANIMATE_OUT_DIR ?? path.join(os.homedir(), "explainlike-videos"));
+    this.outRoot = path.resolve(o.outRoot ?? process.env.EXPLANIMATE_OUT_DIR ?? withLegacyDir(path.join(os.homedir(), "explanimate-videos"), path.join(os.homedir(), "explainlike-videos")));
     this.cli = o.cliPath ?? DEFAULT_CLI;
     this.maxRunning = o.maxRunning ?? 1;
     // renders spawned here never read private-network links unless local use explicitly allows it

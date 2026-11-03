@@ -3,6 +3,7 @@ import fs from "node:fs";
 import path from "node:path";
 import crypto from "node:crypto";
 import { validInput } from "./validate";
+import { withLegacyDir } from "@explanimate/core/env";
 import { budget, caps, recordSpend, reserve, spent, type Budget } from "./guard";
 export { validInput };
 
@@ -27,7 +28,7 @@ export interface Job {
 export type Ask = { goal?: string; audience?: string; depth?: "overview" | "working" | "deep"; also?: string };
 
 const ROOT = process.env.EXPLANIMATE_ROOT ?? path.resolve(process.cwd(), "../..");
-export const JOBS_DIR = process.env.EXPLANIMATE_JOBS_DIR ?? path.join(ROOT, "explainlike-out", "web");
+export const JOBS_DIR = process.env.EXPLANIMATE_JOBS_DIR ?? withLegacyDir(path.join(ROOT, "explanimate-out", "web"), path.join(ROOT, "explainlike-out", "web"));
 const ID = /^[a-f0-9]{12}$/;
 const INTERRUPTED = "Interrupted by a server restart. Start it again.";
 
