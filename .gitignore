@@ -10,6 +10,7 @@ out/
 *.key
 .explainlike-cache/
 explainlike-out/
+explanimate-out/
 /jobs/
 *.log
 .DS_Store
