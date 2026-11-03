@@ -51,7 +51,7 @@ test("a dimmed box the shot would slice, or that sits under the heading, is fade
   assert.deepEqual(film.groups.lit, [[0, 1]], "what the shot is about is never faded by this pass");
 });
 
-for (const name of ["nanochat", "spotibai", "microui"]) {
+for (const name of ["nanochat", "clipfeed", "microui"]) {
   test(`${name}: no dimmed box or label is sliced by the frame or drawn under the heading`, async () => {
     const { film, backdrops, cleared } = await build(name);
     const slips = backdropSlips(film, backdrops);

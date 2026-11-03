@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { asSeen, cap, stepsFor, stepStates } from "../lib/steps.ts";
 
-const repo = { kind: "video", input: "https://github.com/slubbles/spotibai", voice: "deepgram" };
+const repo = { kind: "video", input: "https://github.com/karpathy/minbpe", voice: "deepgram" };
 
 test("a repo video lists the same steps the pipeline reports, in order", () => {
   assert.deepEqual(stepsFor(repo).map((s) => s.stage), ["ingest", "brief", "architecture", "review", "plan", "voice", "compose", "render", "encode", "qa"]);

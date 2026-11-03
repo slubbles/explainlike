@@ -9,8 +9,8 @@ import { compose, loadIconPack, captureFrames, cameraAt, textWidth, cardSlots, s
 import { captureFramesSkia } from "../src/skia.js";
 
 const fx = new URL("./fixtures/", import.meta.url);
-const base = JSON.parse(fs.readFileSync(new URL("spotibai.plan.json", fx), "utf8"));
-const arch = JSON.parse(fs.readFileSync(new URL("spotibai.architecture.json", fx), "utf8"));
+const base = JSON.parse(fs.readFileSync(new URL("clipfeed.plan.json", fx), "utf8"));
+const arch = JSON.parse(fs.readFileSync(new URL("clipfeed.architecture.json", fx), "utf8"));
 const audio = base.scenes.map((s: any) => {
   const ws = s.narration.split(/\s+/);
   return { sceneId: s.id, duration: ws.length * 0.38, words: ws.map((w: string, i: number) => ({ word: w, start: i * 0.38, end: i * 0.38 + 0.3 })) };
@@ -21,9 +21,9 @@ const beat = (line: string, visual: string, o: { text?: string; items?: string[]
 const plan = structuredClone(base);
 const sc = (id: string) => plan.scenes.find((s: any) => s.id === id);
 const L = (id: string) => lines(sc(id).narration);
-sc("s01-hook").beats = [beat(L("s01-hook")[0], "kinetic", { text: "Spotibai is a Bisaya meme music TikTok feed" }), beat(L("s01-hook")[1], "board")];
+sc("s01-hook").beats = [beat(L("s01-hook")[0], "kinetic", { text: "Clipfeed is a Bisaya meme music TikTok feed" }), beat(L("s01-hook")[1], "board")];
 sc("s02-notes").beats = [beat(L("s02-notes")[0], "chips", { text: "it must", items: ["video feed", "clips", "live chat"] }), beat(L("s02-notes")[1], "kinetic", { text: "fast global video start" })];
-sc("s03-layer").beats = [beat(L("s03-layer")[0], "board"), beat(L("s03-layer")[1], "browser", { text: "spotibai.com/admin", items: ["email box", "password box", "button log in"], focus: "button log in" }), beat(L("s03-layer")[2], "terminal", { text: "npx wrangler deploy" })];
+sc("s03-layer").beats = [beat(L("s03-layer")[0], "board"), beat(L("s03-layer")[1], "browser", { text: "clipfeed.com/admin", items: ["email box", "password box", "button log in"], focus: "button log in" }), beat(L("s03-layer")[2], "terminal", { text: "npx wrangler deploy" })];
 sc("s04-layer").beats = [beat(L("s04-layer")[0], "number", { text: "eighty one route handlers" }), beat(L("s04-layer")[1], "board"), beat(L("s04-layer")[2], "output", { text: "clip blobs", items: ["clip-01.mp4", "clip-01.jpg", "clip-02.mp4"], focus: "clip-01.mp4" })];
 sc("s05-layer").beats = [beat(L("s05-layer")[0], "board"), beat(L("s05-layer")[1], "doodle", { text: "live chat", focus: "chat" }), beat(L("s05-layer")[2], "contrast", { items: ["tallies hearts", "blocks floods"] })];
 sc("s08-notes").beats = [beat(L("s08-notes")[0], "board"), beat(L("s08-notes")[1], "number", { text: "10 times at peak" })];

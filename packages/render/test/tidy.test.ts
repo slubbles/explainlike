@@ -7,8 +7,8 @@ import { getTheme, specFromBrief, DEFAULT_BRIEF, type Architecture, type ScenePl
 import { compose, loadIconPack, tidySketch, textBox, widestGap, overlaps } from "@explanimate/render";
 
 const fx = path.join(path.dirname(fileURLToPath(import.meta.url)), "fixtures");
-const plan = JSON.parse(fs.readFileSync(path.join(fx, "spotibai.plan.json"), "utf8")) as ScenePlan;
-const arch = JSON.parse(fs.readFileSync(path.join(fx, "spotibai.architecture.json"), "utf8")) as Architecture;
+const plan = JSON.parse(fs.readFileSync(path.join(fx, "clipfeed.plan.json"), "utf8")) as ScenePlan;
+const arch = JSON.parse(fs.readFileSync(path.join(fx, "clipfeed.architecture.json"), "utf8")) as Architecture;
 const composed = compose({ plan, audio: [], theme: getTheme("chalk-dark"), spec: specFromBrief(DEFAULT_BRIEF), pack: loadIconPack(), sourceLabel: "x", arch });
 
 test("exported whiteboard: notes from different scenes do not sit on each other or on boxes", async () => {

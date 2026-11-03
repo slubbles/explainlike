@@ -67,7 +67,7 @@ export function toExcalidraw(raw: Sketch, opts: { background: string; source?: s
   for (const t of sk.texts) els.push(text(t.text, t.x, t.y, t.size, t.color, t.anchor));
 
   return {
-    type: "excalidraw", version: 2, source: opts.source ?? "https://github.com/slubbles/explainlike",
+    type: "excalidraw", version: 2, source: opts.source ?? "https://github.com/slubbles/explanimate",
     elements: els,
     appState: { viewBackgroundColor: opts.background, theme: "light", gridSize: null, currentItemFontFamily: 5 },
     files,

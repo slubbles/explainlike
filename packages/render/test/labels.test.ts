@@ -3,11 +3,11 @@ import assert from "node:assert/strict";
 import { shortSub, plainCase, subLine, boxSub } from "../src/index.js";
 
 test("box descriptions shorten at whole words, never mid-word", () => {
-  assert.equal(shortSub("cloudflare cdn clips.spotibai.com edge", 30), "cloudflare cdn");
+  assert.equal(shortSub("cloudflare cdn clips.clipfeed.com edge", 30), "cloudflare cdn");
   assert.equal(shortSub("cloudflare d1 via feedback_db", 30), "cloudflare d1 via feedback_db");
   assert.equal(shortSub("durable object via the websocket hub", 30), "durable object");
   assert.equal(shortSub("supercalifragilisticexpialidocious-service", 30).length, 30);
-  for (const s of ["next.js browser feed and home player", "worker that renders the app on spotibai.com"]) {
+  for (const s of ["next.js browser feed and home player", "worker that renders the app on clipfeed.com"]) {
     const out = shortSub(s, 30);
     assert.ok(out.length <= 30 && s.startsWith(out) && !out.endsWith("…"), out);
   }
@@ -32,8 +32,8 @@ test("box sublabels are big and dark enough to read in a wide shot, and still fi
   const { compose, loadIconPack } = await import("../src/index.js");
   const fs = await import("node:fs");
   const fx = new URL("./fixtures/", import.meta.url);
-  const plan = JSON.parse(fs.readFileSync(new URL("spotibai.plan.json", fx), "utf8"));
-  const arch = JSON.parse(fs.readFileSync(new URL("spotibai.architecture.json", fx), "utf8"));
+  const plan = JSON.parse(fs.readFileSync(new URL("clipfeed.plan.json", fx), "utf8"));
+  const arch = JSON.parse(fs.readFileSync(new URL("clipfeed.architecture.json", fx), "utf8"));
   const audio = plan.scenes.map((s: any) => {
     const ws = s.narration.split(/\s+/);
     return { sceneId: s.id, duration: ws.length * 0.38, words: ws.map((w: string, i: number) => ({ word: w, start: i * 0.38, end: i * 0.38 + 0.3 })) };

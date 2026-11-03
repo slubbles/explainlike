@@ -7,9 +7,9 @@ import { getTheme, specFromBrief, DEFAULT_BRIEF, type Architecture, type ScenePl
 import { compose, loadIconPack, spokenHeading, unspokenWords } from "@explanimate/render";
 
 const fx = path.join(path.dirname(fileURLToPath(import.meta.url)), "fixtures");
-const plan = JSON.parse(fs.readFileSync(path.join(fx, "spotibai.plan.json"), "utf8")) as ScenePlan;
-const arch = JSON.parse(fs.readFileSync(path.join(fx, "spotibai.architecture.json"), "utf8")) as Architecture;
-const composed = compose({ plan, audio: [], theme: getTheme("chalk-dark"), spec: specFromBrief(DEFAULT_BRIEF), pack: loadIconPack(), sourceLabel: "github.com/slubbles/spotibai", arch, colorOf: (c) => (c.kind === "database" ? "blue" : "white") as any });
+const plan = JSON.parse(fs.readFileSync(path.join(fx, "clipfeed.plan.json"), "utf8")) as ScenePlan;
+const arch = JSON.parse(fs.readFileSync(path.join(fx, "clipfeed.architecture.json"), "utf8")) as Architecture;
+const composed = compose({ plan, audio: [], theme: getTheme("chalk-dark"), spec: specFromBrief(DEFAULT_BRIEF), pack: loadIconPack(), sourceLabel: "github.com/example/clipfeed", arch, colorOf: (c) => (c.kind === "database" ? "blue" : "white") as any });
 
 test("the heading uses words the narrator says", () => {
   const n = "At ten times traffic, d1 read overload hits because every feed scans all rows.";
@@ -19,7 +19,7 @@ test("the heading uses words the narrator says", () => {
   assert.equal(spokenHeading("product requirements", "It must scroll", []), "product requirements");
 });
 
-test("spotibai scale scenes read the same words they say", async () => {
+test("clipfeed scale scenes read the same words they say", async () => {
   const { film, timeline } = await composed;
   for (const s of plan.scenes.filter((x) => x.kind === "scale")) {
     const at = timeline.find((x) => x.id === s.id)!;

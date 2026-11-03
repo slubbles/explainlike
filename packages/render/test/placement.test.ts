@@ -5,8 +5,8 @@ import { getTheme, specFromBrief, DEFAULT_BRIEF, walkCues, type Brief } from "@e
 import { compose, loadIconPack, checkPlacement, placementPass, textWidth, cameraAt, readableWidth, shotStarts, EDGE_PX, type Film, type FText, type Mark, type Sketch } from "../src/index.js";
 
 const fx = new URL("./fixtures/", import.meta.url);
-const plan = JSON.parse(fs.readFileSync(new URL("spotibai.plan.json", fx), "utf8"));
-const arch = JSON.parse(fs.readFileSync(new URL("spotibai.architecture.json", fx), "utf8"));
+const plan = JSON.parse(fs.readFileSync(new URL("clipfeed.plan.json", fx), "utf8"));
+const arch = JSON.parse(fs.readFileSync(new URL("clipfeed.architecture.json", fx), "utf8"));
 const audio = plan.scenes.map((s: any) => {
   const ws = s.narration.split(/\s+/);
   return { sceneId: s.id, duration: ws.length * 0.38, words: ws.map((w: string, i: number) => ({ word: w, start: i * 0.38, end: i * 0.38 + 0.3 })) };
@@ -268,7 +268,7 @@ test("a long repo recap moves through the trip instead of holding one wide frame
 });
 
 test("each walkthrough step fires on the words that tell it, not on a recited label", async () => {
-  // the spotibai walk is told in plain sentences; every dot must leave when its step is said
+  // the clipfeed walk is told in plain sentences; every dot must leave when its step is said
   const { film, timeline } = await compose({ plan, audio, theme: getTheme("chalk-dark"), spec: specFromBrief(DEFAULT_BRIEF), pack: loadIconPack(), sourceLabel: "x", arch });
   const walk = timeline.find((s) => s.kind === "walkthrough")!;
   const scene = plan.scenes.find((s: any) => s.kind === "walkthrough");
@@ -349,7 +349,7 @@ test("every fixture and tempo: every lit box sits a margin inside the frame or f
   const read = (n: string, ext: string) => JSON.parse(fs.readFileSync(new URL(`${n}.${ext}.json`, fx), "utf8"));
   const cases: { name: string; plan: any; arch?: any; audio: any; theme: any; spec: any }[] = [];
   for (const complexity of ["simple", "moderate", "technical"] as Brief["complexity"][]) {
-    cases.push({ name: `spotibai/${complexity}`, plan, arch, audio, theme: getTheme("chalk-dark"), spec: specFromBrief({ ...DEFAULT_BRIEF, complexity }) });
+    cases.push({ name: `clipfeed/${complexity}`, plan, arch, audio, theme: getTheme("chalk-dark"), spec: specFromBrief({ ...DEFAULT_BRIEF, complexity }) });
   }
   for (const n of ["microui", "nanochat"]) {
     const p = read(n, "plan");

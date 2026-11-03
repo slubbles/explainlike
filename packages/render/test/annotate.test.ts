@@ -7,9 +7,9 @@ import { getTheme, specFromBrief, DEFAULT_BRIEF, type Architecture, type ScenePl
 import { compose, loadIconPack, offFrameTexts, boxOf, textWidth, overlaps, polyBox, placeRingLabel, ringOf, scaleArrow } from "@explanimate/render";
 
 const fx = path.join(path.dirname(fileURLToPath(import.meta.url)), "fixtures");
-const plan = JSON.parse(fs.readFileSync(path.join(fx, "spotibai.plan.json"), "utf8")) as ScenePlan;
-const arch = JSON.parse(fs.readFileSync(path.join(fx, "spotibai.architecture.json"), "utf8")) as Architecture;
-const composed = compose({ plan, audio: [], theme: getTheme("chalk-dark"), spec: specFromBrief(DEFAULT_BRIEF), pack: loadIconPack(), sourceLabel: "github.com/slubbles/spotibai", arch, colorOf: (c) => (c.kind === "database" ? "blue" : "white") as any });
+const plan = JSON.parse(fs.readFileSync(path.join(fx, "clipfeed.plan.json"), "utf8")) as ScenePlan;
+const arch = JSON.parse(fs.readFileSync(path.join(fx, "clipfeed.architecture.json"), "utf8")) as Architecture;
+const composed = compose({ plan, audio: [], theme: getTheme("chalk-dark"), spec: specFromBrief(DEFAULT_BRIEF), pack: loadIconPack(), sourceLabel: "github.com/example/clipfeed", arch, colorOf: (c) => (c.kind === "database" ? "blue" : "white") as any });
 
 test("every text is fully inside the frame when it finishes appearing", async () => {
   const { film } = await composed;

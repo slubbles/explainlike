@@ -82,8 +82,8 @@ test("skia measures path lengths the way the browser does", () => {
 });
 
 const fx = new URL("./fixtures/", import.meta.url);
-const plan = JSON.parse(fs.readFileSync(new URL("spotibai.plan.json", fx), "utf8"));
-const arch = JSON.parse(fs.readFileSync(new URL("spotibai.architecture.json", fx), "utf8"));
+const plan = JSON.parse(fs.readFileSync(new URL("clipfeed.plan.json", fx), "utf8"));
+const arch = JSON.parse(fs.readFileSync(new URL("clipfeed.architecture.json", fx), "utf8"));
 const audio = plan.scenes.map((s: any) => {
   const ws = s.narration.split(/\s+/);
   return { sceneId: s.id, duration: ws.length * 0.38, words: ws.map((w: string, i: number) => ({ word: w, start: i * 0.38, end: i * 0.38 + 0.3 })) };

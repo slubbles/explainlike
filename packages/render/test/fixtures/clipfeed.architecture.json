@@ -1,5 +1,5 @@
 {
- "product": "Spotibai",
+ "product": "Clipfeed",
  "one_liner": "Bisaya meme-music TikTok feed plus Spotify home, hosted on Cloudflare.",
  "components": [
   {
@@ -34,7 +34,7 @@
    "layer": "edge",
    "keyword": "worker host",
    "icon": "box",
-   "what": "Serves the Next.js build, document cache and WebSocket fanout on spotibai.com.",
+   "what": "Serves the Next.js build, document cache and WebSocket fanout on clipfeed.com.",
    "evidence": [
     "scripts/cf-worker.mjs",
     "wrangler.jsonc"
@@ -114,7 +114,7 @@
    "layer": "auth",
    "keyword": "google login",
    "icon": "lock",
-   "what": "Google sign-in for users and Access-gated admin on admin.spotibai.com.",
+   "what": "Google sign-in for users and Access-gated admin on admin.clipfeed.com.",
    "evidence": [
     "app/api/auth/google/route.ts",
     "lib/admin-auth.ts"
@@ -122,7 +122,7 @@
   },
   {
    "id": "clips-cdn",
-   "name": "Cloudflare CDN clips.spotibai.com",
+   "name": "Cloudflare CDN clips.clipfeed.com",
    "kind": "cdn",
    "layer": "edge",
    "keyword": "edge cache",
