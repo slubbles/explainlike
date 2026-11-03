@@ -6,12 +6,7 @@ The maintainer's v3 feedback rules that out: use real part names, anchor to tool
 
 ## 0. Evidence used
 
-Full transcripts are in `transcripts/<channel>/`:
-- `.txt` and `.vtt` files are YouTube captions.
-- `.whisper.tsv` files are local faster-whisper output with per-line timestamps.
-- `nov1_*` files were copied from the Nov 1 study.
-
-Crayon frame studies are in `crayon-frames/`. Each sheet shows two frames per narration line, captioned with that line.
+The study worked from YouTube captions and local whisper transcripts of the videos below, plus per-line frame sheets for the Crayon videos. That source material is not kept in the repo.
 
 | Channel | Videos analysed this round (full length unless noted) |
 |---|---|
