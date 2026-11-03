@@ -9,7 +9,8 @@
     "./topic": "./src/topic.ts",
     "./places": "./src/places.ts",
     "./env": "./src/env.ts",
-    "./llm": "./src/llm.ts"
+    "./llm": "./src/llm.ts",
+    "./private": "./src/private.ts"
   },
   "dependencies": {
     "zod": "^4.1.0"

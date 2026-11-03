@@ -10,4 +10,5 @@ export * from "./walk.js";
 export * from "./plain.js";
 export * from "./http.js";
 export * from "./topic.js";
+export * from "./private.js";
 export * from "./figures.js";

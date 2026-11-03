@@ -5,7 +5,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { looksLikeTopic } from "@explanimate/core";
+import { looksLikeTopic, privateHostname, allowPrivateUrls } from "@explanimate/core";
 
 /** What to explain and how. Only `input` is required: the engine picks the approach, depth, pace and look itself. */
 export interface JobRequest {
@@ -94,11 +94,16 @@ export function nameFor(input: string): string {
   return slug(`${host}-${parts.join("-")}`) || "explanimate";
 }
 
-/** Links, local repo folders and plain topics ("how DNS works", read from reputable sources) are fine. */
-export function checkInput(input: string): string {
+/** Links, local repo folders and plain topics ("how DNS works", read from reputable sources) are fine. Links to localhost or private networks are refused unless EXPLANIMATE_ALLOW_PRIVATE_URLS=1. */
+export function checkInput(input: string, env: NodeJS.ProcessEnv = process.env): string {
   const s = input.trim();
   if (/^https?:\/\/\S+$/i.test(s)) {
-    try { new URL(s); return s; } catch { throw new JobError(`not a valid link: ${s}`); }
+    let host: string;
+    try { host = new URL(s).hostname; } catch { throw new JobError(`not a valid link: ${s}`); }
+    // localhost and private-network links are refused, the way the web app refuses them (the fetch
+    // checks every redirect hop again). EXPLANIMATE_ALLOW_PRIVATE_URLS=1 opts local use back out.
+    if (!allowPrivateUrls(env) && privateHostname(host)) throw new JobError(`that link points at a private network address (${host}), which this server does not read. Set EXPLANIMATE_ALLOW_PRIVATE_URLS=1 to allow it for local use.`);
+    return s;
   }
   const p = path.resolve(s.replace(/^~(?=\/|$)/, os.homedir()));
   if (/^[~./]/.test(s) || fs.existsSync(p)) {
@@ -128,14 +133,16 @@ export class JobRunner extends EventEmitter {
     this.outRoot = path.resolve(o.outRoot ?? process.env.EXPLANIMATE_OUT_DIR ?? path.join(os.homedir(), "explainlike-videos"));
     this.cli = o.cliPath ?? DEFAULT_CLI;
     this.maxRunning = o.maxRunning ?? 1;
-    this.env = { ...process.env, ...o.env };
+    // renders spawned here never read private-network links unless local use explicitly allows it
+    // (an agent passing a localhost URL it was told about must not reach the server itself)
+    this.env = { EXPLANIMATE_ALLOW_PRIVATE_URLS: "0", ...process.env, ...o.env };
   }
 
   get(id: string): Job | undefined { const j = this.jobs.get(id); return j && { ...j }; }
   list(): Job[] { return [...this.jobs.values()].sort((a, b) => b.started - a.started).map((j) => ({ ...j })); }
 
   start(req: JobRequest): Job {
-    const input = checkInput(req.input);
+    const input = checkInput(req.input, this.env);
     if ((req.focus || req.whatIf) && !req.from) throw new JobError("focus and whatIf need `from`: the output folder of an earlier repo run");
     if (req.focus && req.whatIf) throw new JobError("pick one of focus or whatIf");
     if (req.focus && !/^[a-z0-9-]{1,60}$/.test(req.focus)) throw new JobError("focus is a component id from architecture.json, like `api` or `job-queue`");

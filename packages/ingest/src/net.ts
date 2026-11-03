@@ -1,7 +1,7 @@
 /**
  * Fetches for links a stranger can type: every hop (the link and each redirect) must resolve to a public
  * address, so a page cannot point the server at itself, its cloud metadata service or a private network.
- * EXPLANIMATE_ALLOW_PRIVATE_URLS=1 lifts it; the CLI sets that by default, since its user chose the link.
+ * EXPLANIMATE_ALLOW_PRIVATE_URLS=1 (or the CLI's --allow-private) lifts it for local intranet pages.
  */
 import dns from "node:dns/promises";
 import net from "node:net";
@@ -28,7 +28,7 @@ async function assertPublic(url: URL, isPrivate: (ip: string) => boolean): Promi
   const host = url.hostname.replace(/^\[|\]$/g, "");
   const addrs = net.isIP(host) ? [host] : (await dns.lookup(host, { all: true }).catch(() => [])).map((a) => a.address);
   if (!addrs.length) throw new Error(`Could not find the site ${host}. Check the link.`);
-  if (addrs.some(isPrivate)) throw new PrivateAddressError(`That link points at a private network address (${host}), which this server does not read. If every site fails like this, the host's DNS answers with proxy addresses; see EXPLANIMATE_ALLOW_PRIVATE_URLS in docs/deploy.md.`);
+  if (addrs.some(isPrivate)) throw new PrivateAddressError(`That link points at a private network address (${host}), which is not read by default. To read a local intranet, set EXPLANIMATE_ALLOW_PRIVATE_URLS=1 (or pass --allow-private to the CLI). If every site fails like this, the host's DNS answers with proxy addresses; give such a host real DNS instead.`);
 }
 
 /** fetch() that checks each hop's address and follows at most `hops` redirects itself. The response's url is the final one. */

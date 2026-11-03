@@ -66,6 +66,44 @@ test("a failed render reports the reason, and only one render runs at a time", a
   assert.match(end!.error!, /could not read/);
 });
 
+test("links to localhost and private networks are refused unless local use allows them", () => {
+  for (const u of ["http://127.0.0.1:8080/x", "http://localhost:3000/", "http://10.0.0.5/", "http://192.168.1.1/", "http://[::1]/", "http://169.254.169.254/latest/meta-data/"]) {
+    assert.throws(() => checkInput(u), /private network/, u);
+  }
+  assert.equal(checkInput("https://github.com/owner/repo"), "https://github.com/owner/repo");
+  // explicit local-dev opt-out, without touching the process environment
+  assert.equal(checkInput("http://127.0.0.1:8080/x", { EXPLANIMATE_ALLOW_PRIVATE_URLS: "1" }), "http://127.0.0.1:8080/x");
+});
+
+test("a job for a private link is refused before anything renders", () => {
+  const had = process.env.EXPLANIMATE_ALLOW_PRIVATE_URLS;
+  delete process.env.EXPLANIMATE_ALLOW_PRIVATE_URLS;
+  try {
+    const runner = new JobRunner({ cliPath, outRoot: tmp() });
+    assert.throws(() => runner.start({ input: "http://127.0.0.1:8080/x" }), /private network/);
+  } finally { if (had !== undefined) process.env.EXPLANIMATE_ALLOW_PRIVATE_URLS = had; }
+});
+
+test("the opt-out lets a local render start, and renders see the guard is off", async () => {
+  const runner = new JobRunner({ cliPath, outRoot: tmp(), env: { EXPLANIMATE_ALLOW_PRIVATE_URLS: "1" } });
+  const job = runner.start({ input: "http://127.0.0.1:8080/x" });
+  const done = await runner.wait(job.id, 10_000);
+  assert.equal(done?.state, "done");
+  const { allowPrivate } = JSON.parse(fs.readFileSync(path.join(done!.out, "args.json"), "utf8"));
+  assert.equal(allowPrivate, "1");
+});
+
+test("renders spawned by default see the guard is on", async () => {
+  const had = process.env.EXPLANIMATE_ALLOW_PRIVATE_URLS;
+  delete process.env.EXPLANIMATE_ALLOW_PRIVATE_URLS;
+  try {
+    const runner = new JobRunner({ cliPath, outRoot: tmp() });
+    const done = await runner.wait(runner.start({ input: "https://github.com/owner/repo" }).id, 10_000);
+    const { allowPrivate } = JSON.parse(fs.readFileSync(path.join(done!.out, "args.json"), "utf8"));
+    assert.equal(allowPrivate, "0");
+  } finally { if (had !== undefined) process.env.EXPLANIMATE_ALLOW_PRIVATE_URLS = had; }
+});
+
 test("the HTTP API creates a job, waits on it, and refuses other hosts and web pages", async () => {
   const api = createApiServer({ runner: new JobRunner({ cliPath, outRoot: tmp() }) });
   const port = await api.listen(0);
