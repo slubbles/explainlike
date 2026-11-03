@@ -99,7 +99,7 @@ export const budgetNow = (): Budget => budget(spent(JOBS_DIR, [...jobs.values()]
 export const noteSpend = (s: { meta?: number; voice?: number }, what: string) => recordSpend(JOBS_DIR, s, what);
 
 const CLI = () => process.env.EXPLANIMATE_CLI ?? path.join(ROOT, "packages/cli/bin/explanimate.mjs");
-// the CLI reads private-network links by default (its user chose them); links typed into the web app never may
+// renders spawned here never read private-network links unless the server explicitly allows them for local use
 const CLI_ENV = { ...process.env, EXPLANIMATE_ALLOW_PRIVATE_URLS: process.env.EXPLANIMATE_ALLOW_PRIVATE_URLS ?? "0" };
 
 // ---- the wait line: up to EXPLANIMATE_CONCURRENCY renders at once; past that, jobs wait first in, first out.

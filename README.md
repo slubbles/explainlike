@@ -80,6 +80,7 @@ pnpm explanimate <github url | local repo folder | article url | x.com post url 
   --workers <n>               threads (Skia) or Chrome processes drawing frames
   --no-music, --no-qa         skip the music bed, skip the voiceover check
   --json                      progress as JSON lines
+  --allow-private             read links that resolve to private or localhost addresses (local intranet only)
 
 follow-ups on an earlier repo run:
   --from <earlier out dir> --focus <box id>       15-20 s deep dive on one box

@@ -39,6 +39,7 @@ const HELP = `explanimate <github-url | local-repo-dir | x.com post url | articl
   --no-music                               no music bed (by default a quiet original bed sits 22 dB under the voice)
   --no-sfx                                 no sound effects (by default soft, locally made pops and whooshes mark what is drawn)
   --vision-review                          also show 8 rendered frames to Muse Spark for a look-over (costs a little; off by default)
+  --allow-private                          read links that resolve to private or localhost addresses (local intranet only)
 
 what the viewer wants (the web app's voice chat fills these in):
   --goal <text>                            what they want to understand
@@ -56,13 +57,13 @@ explanimate explain --from <earlier out dir> --component <id> [--json]
 `;
 
 const argv = process.argv.slice(2);
-// the person at this terminal chose the link, so the CLI may read intranet pages; the private-address guard
-// is for links strangers type into the web app. Set EXPLANIMATE_ALLOW_PRIVATE_URLS=0 to keep it on here too.
-process.env.EXPLANIMATE_ALLOW_PRIVATE_URLS ??= "1";
+// localhost and private-network links are refused, the way the web app refuses them;
+// --allow-private (or EXPLANIMATE_ALLOW_PRIVATE_URLS=1) reads them anyway, for local intranet pages
+if (argv.includes("--allow-private")) process.env.EXPLANIMATE_ALLOW_PRIVATE_URLS = "1";
 if (!argv.length || argv.includes("--help") || argv.includes("-h")) { process.stdout.write(HELP); process.exit(0); }
 const opt = (k: string) => { const i = argv.indexOf(k); return i >= 0 ? argv[i + 1] : undefined; };
 const many = (k: string) => argv.flatMap((a, i) => (a === k ? [argv[i + 1]] : []));
-const flags = new Set(["--fresh", "--json", "--no-qa", "--no-packs", "--no-music", "--no-sfx", "--vision-review"]);
+const flags = new Set(["--fresh", "--json", "--no-qa", "--no-packs", "--no-music", "--no-sfx", "--vision-review", "--allow-private"]);
 if (argv[0] === "explain") await explain();
 const input = argv.find((a, i) => !a.startsWith("--") && (i === 0 || !argv[i - 1].startsWith("--") || flags.has(argv[i - 1])));
 if (!input) { process.stderr.write(HELP); process.exit(1); }
