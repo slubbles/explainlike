@@ -97,14 +97,16 @@ voice, repos, and icons are cached. Details live in
 
 ```bash
 pnpm typecheck                     # tsc, must be clean
+pnpm lint                          # eslint, must be clean
+pnpm format:check                  # prettier, must be clean (pnpm format rewrites)
 pnpm test                          # node:test across packages and the web app
 pnpm --filter @explanimate/web build
 ```
 
-CI ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)) runs typecheck,
-tests, and the web build on every push and PR. The tests need `ffmpeg` and
-Chrome but no API keys. The Skia tests need the `@napi-rs/canvas` native
-module; CI installs it.
+CI ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)) runs lint,
+format:check, typecheck, tests, and the web build on every push and PR.
+The tests need `ffmpeg` and Chrome but no API keys. The Skia tests need the
+`@napi-rs/canvas` native module; CI installs it.
 
 ## 7. Deployment
 
