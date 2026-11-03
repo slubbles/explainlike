@@ -149,7 +149,7 @@ const unionOf = (a: Box, b: Box): Box => {
   return { x, y, w: Math.max(a.x + a.w, b.x + b.w) - x, h: Math.max(a.y + a.h, b.y + b.h) - y };
 };
 
-export interface Item { kind: "text" | "node" | "ring" | "arrow" | "wire"; box: Box; t0: number; g?: string; owner?: number; el?: FText; mark?: Mark; label: string }
+export interface Item { kind: "text" | "node" | "ring" | "arrow" | "wire"; box: Box; t0: number; g?: string; owner?: number; el?: FText; mark?: Mark; label: string; board?: boolean }
 
 function items(p: Placed): Item[] {
   const out: Item[] = [];
@@ -165,7 +165,7 @@ function items(p: Placed): Item[] {
   }
   nodes.forEach((n, i) => {
     const own = out.find((x) => x.kind === "text" && x.owner === i);
-    out.push({ kind: "node", box: n.box, t0: n.t0 ?? own?.t0 ?? 0, g: own?.g, owner: i, label: `box "${n.keyword}"` });
+    out.push({ kind: "node", box: n.box, t0: n.t0 ?? own?.t0 ?? 0, g: own?.g, owner: i, label: `box "${n.keyword}"`, board: n.board });
   });
   for (const m of p.marks) {
     const box = m.kind === "ring" ? ringBox(m.shape) : (() => {
@@ -268,15 +268,18 @@ export function checkPlacement(p: Placed, counts: Record<string, number> = {}): 
     }
   }
 
-  // the frame: every word, ring and arrow whole on screen as it finishes, and words big enough to read
+  // the frame: every lit word, ring, arrow, node and wire whole through every later shot that holds part of them, and words big enough to read
   for (const it of all) {
-    // a system wire may lead off screen to a box out of shot; a board's own arrows are whole, like its words
-    if (it.kind === "node" || (it.kind === "wire" && (!it.g || it.g.startsWith("e:")))) continue;
+    // a node or a system wire may sit fully off screen (a part out of shot, or a wire leading to one): only being sliced by the frame edge reads as cut off, and only in a shot after the one it is born into: a closeup may open half out, travelling in, but no later shot may lose what an earlier one held whole
+    const offscreenOk = it.kind === "node" || (it.kind === "wire" && (!it.g || it.g.startsWith("e:")));
+    // boards on a wall are scenery the camera pans across: half in frame is the language, not a cut
+    if (it.kind === "node" && it.board) continue;
     const t = settled(film, it.t0);
     if (t >= (film.end?.t0 ?? film.duration) || opacity(film, it.g, t) < 0.6) continue;
     const cam = cameraAt(film, t), m = (4 * cam.w) / film.width;
     count("cropped");
-    if (!contains(cam, it.box, -m)) out.push({ rule: "cropped", t, what: `${it.label} is cut off by the frame edge`, item: it, seen: seen(cam, it.box) });
+    const atRest = seen(cam, it.box);
+    if (!contains(cam, it.box, -m) && !offscreenOk) out.push({ rule: "cropped", t, what: `${it.label} is cut off by the frame edge`, item: it, seen: atRest });
     else {
       // it stays whole while it is lit, through every later shot that comes to rest on part of it
       // (a word a later shot slices is a slip to fix, never a reason to stop the video)
@@ -285,7 +288,12 @@ export function checkPlacement(p: Placed, counts: Record<string, number> = {}): 
         const r = k.t + k.move + 0.01;
         if (k.t <= t || r >= end || opacity(film, it.g, r) < 0.6) continue;
         const c = cameraAt(film, r);
-        if (!contains(c, it.box, -m) && seen(c, it.box) > 0) { out.push({ rule: "cropped", t: r, what: `${it.label} is cut off by the frame edge at ${r.toFixed(1)}s`, item: it, seen: seen(c, it.box), later: it.kind === "text" }); break; }
+        if (!contains(c, it.box, -m) && seen(c, it.box) > 0) {
+          // a node or system wire counts only when it was whole in the shot it was born into: a closeup
+          // that never contained it is framing past it (the walk travelling on), not losing it
+          const bornWhole = !offscreenOk || contains(cam, it.box, -m);
+          if (bornWhole) { out.push({ rule: "cropped", t: r, what: `${it.label} is cut off by the frame edge at ${r.toFixed(1)}s`, item: it, seen: seen(c, it.box), later: it.kind === "text" || offscreenOk }); break; }
+        }
       }
       // and no pan drags it half off the frame for long on the way between two clean shots
       const last = out[out.length - 1];
