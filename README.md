@@ -2,11 +2,20 @@
 
 Give it a GitHub repo, an article, an X post, or just a topic ("how DNS works"). It gives you back a narrated **whiteboard explainer video** and the same drawing as **editable boards** you can open in [tldraw](https://www.tldraw.com) or [Excalidraw](https://excalidraw.com).
 
+Try it live at https://explanimate.co, or run it yourself below.
+
+## How it works
+
 ![Explanimate drawing the OpenMausBot repo](docs/media/openmausbot.gif)
 
-There is no public demo of the current build yet: the only deployment runs an older build (see [AGENTS.md](AGENTS.md#deployment)).
-
 _Above: 12 seconds from a 2-minute video about [milind-soni/OpenMausBot](https://github.com/milind-soni/OpenMausBot). A run like this costs well under $0.20 in models and voice._
+
+![The Explanimate site turning a link into a video](docs/media/site.jpg)
+
+1. **Paste a link or a topic.** A repo, an article, an X post, or just words on the site or the CLI.
+2. **Muse plans the explanation.** It reads the source, maps the architecture against the code, and writes the narration.
+3. **The board draws itself in sync.** Deepgram speaks each scene while the hand-drawn board builds on the words being said.
+4. **Take the video and the boards.** An mp4 plus `.tldr` and `.excalidraw` boards, with a manifest of every check that ran.
 
 ## What it does
 
