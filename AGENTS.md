@@ -158,16 +158,17 @@ Plans (per repo commit), voice, repos and icons are cached. See [`docs/code-map.
 - Kinetic rows were built off to the left.
 
 ## 11. Next tasks, in priority order
-Done: private links are refused everywhere by default (CLI, local API, /explanimate MCP path, with `--allow-private` for local use); the README quick start, code map and deploy notes are refreshed and `railway.json` is deleted; the DNS wire cut is fixed with a regression test. What remains:
+Done: private links are refused everywhere by default (CLI, local API, /explanimate MCP path, with `--allow-private` for local use); the README quick start, code map and deploy notes are refreshed and `railway.json` is deleted; the DNS wire cut is fixed with a regression test; the site is live (section 8); the live minbpe frame-edge slices and the verb-object caption split are fixed with regression tests. What remains:
 1. **v5 script polish** (the shipped v5 is render attempt 1; attempt 2 used the merged code):
    - Attempt 1: about 10.6 visual changes a minute, under 12; the walkthrough repeats the daemon line; the password promise is said but has no contrast card, and "Chrome fills the saved password" is looser than the README (credentials are stored encrypted locally, `auth login` logs in by name).
    - Attempt 2 (merged code: every sentence naming a part points the board): about 18.5 changes a minute, but the promise came out as "so it stays hidden", and the walkthrough has a handoff line ("the devtools protocol passes it on").
    - Both: the self-check is left open on "the daemon and the chrome talk directly" with no arrow.
    - Next: make the promise check a hard fail before polish rewrites it; keep the walkthrough why-first through polish.
 2. **Re-render the DNS gallery sample** from cache and check the frames against the lines before calling it done.
-3. **Hosting decision:** ask the user whether to redeploy on the Tokyo VPS or move to vps VPS 6, then deploy only with his OK. DNS stays on hold until he says.
-4. **Ask the user:** whether to run the contributor-model test (`muse-spark-1.3-contributor` vs OpenRouter Muse Spark).
-5. **Later:** the hackathon write-up and X post drafts ([`docs/hackathon.md`](docs/hackathon.md); don't post), the demo video plan ([`docs/demo-video.md`](docs/demo-video.md)), and voice cloning.
+3. **Sign off or revert the walkthrough trade:** the frame-edge fix keeps a sliced subject whole by widening its shot, and on the dense microui7 walk that merges adjacent closeups (the placement test now asserts at least 2 walk shots instead of 3; close-ups still cover at least 60%). Keep whole subjects, or revert `packages/render/src/placement.ts` to main and put the 3-shot bar back (sliced subjects return).
+4. **Caption wording, not chunking:** "You watch aa win aa" splits at "and" correctly; the line itself is awkward ("aa win aa"). Fix in the planner wording rules, not the chunker.
+5. **Ask the user:** whether to run the contributor-model test (`muse-spark-1.3-contributor` vs OpenRouter Muse Spark).
+6. **Later:** the hackathon write-up and X post drafts ([`docs/hackathon.md`](docs/hackathon.md); don't post), the demo video plan ([`docs/demo-video.md`](docs/demo-video.md)), and voice cloning.
 
 ## 12. Don'ts
 - Never read, print, commit or send API keys or `.env` files to a model. The pre-commit check is `scripts/check-secrets.sh`.
