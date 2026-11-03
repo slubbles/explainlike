@@ -24,8 +24,8 @@ test("every tempo: every ring, arrow and label passes the placement check before
 });
 
 // a tiny hand-made board, one fault at a time
-const film = (elements: FText[], cam = { x: 0, y: 0, w: 1920, h: 1080 }): Film => ({
-  width: 1920, height: 1080, fps: 30, duration: 10, elements, groups: {}, headings: [], captions: [], fades: [], brand: "",
+const film = (elements: FText[], cam = { x: 0, y: 0, w: 1920, h: 1080 }, groups: Film["groups"] = {}): Film => ({
+  width: 1920, height: 1080, fps: 30, duration: 10, elements, groups, headings: [], captions: [], fades: [], brand: "",
   camera: [{ t: 0, ...cam, move: 0 }],
   theme: { background: "#000", ink: "#fff", accent: "#f00", caption: { color: "#fff", highlight: "#ff0", background: "#000" } }, fonts: { hand: "", sans: "" },
 });
@@ -91,12 +91,34 @@ test("a board arrow whose source box is out of shot is caught, and the fix bring
     { id: "b", box: { x: 800, y: 400, w: 400, h: 200 }, color: "#fff", keyword: "b", t0: 0 },
   ];
   const wire = (g: string): Mark => ({ kind: "wire", t0: 1, dur: 0.5, g, from: "a", to: "b", points: [[-40, 500], [800, 500]] });
-  const p = { film: film([], { x: -60, y: 0, w: 1920, h: 1080 }), sketch: sketch(nodes), marks: [wire("b:s01-board")] };
+  // the out-of-shot part and its keyword are dimmed, the way compose dims context off screen
+  const ownedA = { ...text("a", -240, 510), g: "n:a" };
+  const dimGroups: Film["groups"] = { "n:a": [[0, 0.2]] };
+  const p = { film: film([ownedA], { x: -60, y: 0, w: 1920, h: 1080 }, dimGroups), sketch: sketch(nodes), marks: [wire("b:s01-board")] };
   assert.deepEqual(checkPlacement(p).map((i) => i.rule), ["cropped"]);
   assert.ok(placementPass(p).ok);
   assert.ok(cameraAt(p.film, 2).x <= -150, "a piece of the source box is in shot");
-  // a system wire may still lead off screen to a part out of shot
-  assert.deepEqual(rules([wire("e:a>b")], [], nodes, { x: -60, y: 0, w: 1920, h: 1080 }), []);
+  // a system wire dimmed with the part out of shot may still lead off screen
+  const dimmed = film([ownedA], { x: -60, y: 0, w: 1920, h: 1080 }, { ...dimGroups, "e:a>b": [[0, 0.2]] });
+  const dim = { film: dimmed, sketch: sketch(nodes), marks: [wire("e:a>b")] };
+  assert.deepEqual(checkPlacement(dim).map((i) => i.rule), []);
+});
+
+test("a lit node box and a lit wire sliced by a closeup are caught, and the fix takes them in", () => {
+  // the live minbpe run: the regex box sat touching the left frame edge and wires ran off the edges of later shots,
+  // drawn whole, and the check passed because nodes and system wires were never examined
+  const nodes: Sketch["nodes"] = [
+    { id: "regex", box: { x: 400, y: 400, w: 300, h: 200 }, color: "#fff", keyword: "regex", t0: 0 },
+    { id: "counts", box: { x: 900, y: 400, w: 300, h: 200 }, color: "#fff", keyword: "counts", t0: 0 },
+  ];
+  const marks: Mark[] = [{ kind: "wire", t0: 1, dur: 0.5, g: "e:regex>counts", from: "regex", to: "counts", points: [[400, 500], [900, 500]] }];
+  const wide = film([], { x: 0, y: 0, w: 1920, h: 1080 });
+  wide.camera.push({ t: 4, x: 560, y: 0, w: 1920, h: 1080, move: 0.5 });
+  const p = { film: wide, sketch: sketch(nodes), marks };
+  assert.deepEqual(checkPlacement(p).map((i) => i.rule), ["cropped", "cropped"]);
+  const rep = placementPass(p);
+  assert.ok(rep.ok, JSON.stringify(rep.issues));
+  assert.deepEqual(checkPlacement(p), []);
 });
 
 test("an arrow cut off in a later shot is fixed in every shot it is on screen, in one fix", () => {
@@ -214,7 +236,7 @@ test("the walkthrough follows the walk up close instead of showing the whole boa
   let close = 0;
   for (let t = walk.start + 0.05; t < walk.end; t += 0.1) if (cameraAt(film, t).w <= RW) close += 0.1;
   assert.ok(close / (walk.end - walk.start) >= 0.6, `readable for ${close.toFixed(1)} of ${(walk.end - walk.start).toFixed(1)} s`);
-  assert.ok(shotStarts(film).filter((t) => t > walk.start - 0.01 && t < walk.end).length >= 3, "the walk gets a shot per stretch of steps");
+  assert.ok(shotStarts(film).filter((t) => t > walk.start - 0.01 && t < walk.end).length >= 2, "the walk gets a shot per stretch of steps (adjacent closeups may merge when the check keeps a sliced subject whole)");
   assert.ok(pace.shortestHold >= 4 - 0.05, `no shot under 4 s: shortest hold ${pace.shortestHold}`);
   assert.ok(pace.cutsPerMin >= 6.5 && pace.cutsPerMin <= 9, `${pace.cutsPerMin} cuts a minute`);
 });
