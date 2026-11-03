@@ -126,6 +126,37 @@ test("a compound noun and a relative clause stay whole at real speech speed", ()
   assert.ok(files.some((p) => p.includes("files that box was built from.")), `the relative clause is split from its noun: ${files.join(" | ")}`);
 });
 
+test("phrases break at phrase boundaries: prepositions keep their object, numbers keep their unit, names and code stay whole", () => {
+  const cut = (line: string, maxWords = 8, maxChars = 46) =>
+    captionsFor("s1", line.split(" ").map((word, i) => ({ word, start: i * 0.38, end: i * 0.38 + 0.3 })), 0, 60, maxWords, maxChars)
+      .map((c) => c.words.map((w) => w.w).join(" "));
+  // a preposition strands its object when the break falls between them
+  for (const [line, whole] of [
+    ["It walks through the door of the fyp app and waves it into the worker host.", "through the door"],
+    ["The request waits across the ocean for the worker host to answer.", "across the ocean"],
+  ]) {
+    const shown = cut(line);
+    assert.equal(shown.join(" "), line);
+    assert.ok(shown.some((p) => p.includes(whole)), `"${whole}" is split: ${shown.join(" | ")}`);
+  }
+  // a number and its unit name one thing
+  const fast = cut("The clip lasts 20 s on screen and the recap runs 10 s over the credits.", 4, 26);
+  assert.ok(fast.some((p) => p.includes("20 s")), `"20 s" is split: ${fast.join(" | ")}`);
+  // proper names are not broken up
+  for (const [line, whole] of [
+    ["A second Muse Spark pass checks each one against the code.", "Muse Spark"],
+    ["Deepgram Aura reads the script and the captions stay in sync.", "Deepgram Aura"],
+  ]) {
+    const shown = cut(line, 4, 26);
+    assert.ok(shown.some((p) => p.includes(whole)), `"${whole}" is split: ${shown.join(" | ")}`);
+  }
+  // a verb keeps its code object, an ordinal keeps its noun
+  const code = cut("Tap the chat box and ask ChatLive what it does with your file.", 4, 26);
+  assert.ok(code.some((p) => p.includes("ask ChatLive")), `"ask ChatLive" is split: ${code.join(" | ")}`);
+  const ord = cut("First dot leaves when its step is said and the walk moves on.", 4, 26);
+  assert.ok(ord.some((p) => p.includes("First dot")), `"First dot" is split: ${ord.join(" | ")}`);
+});
+
 test("the hook's first line is drawn word by word as it is said, and the subtitle bar skips those words", async () => {
   const hook = plan.scenes.find((s: any) => s.kind === "hook");
   const p2 = { ...plan, scenes: plan.scenes.map((s: any) => (s === hook ? { ...s, narration: `What if every song came from a robot? ${s.narration}` } : s)) };
