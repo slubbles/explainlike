@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import { getTheme, specFromBrief, DEFAULT_BRIEF, walkCues, type Brief } from "@explanimate/core";
-import { compose, loadIconPack, checkPlacement, placementPass, textWidth, cameraAt, readableWidth, shotStarts, type Film, type FText, type Mark, type Sketch } from "../src/index.js";
+import { compose, loadIconPack, checkPlacement, placementPass, textWidth, cameraAt, readableWidth, shotStarts, EDGE_PX, type Film, type FText, type Mark, type Sketch } from "../src/index.js";
 
 const fx = new URL("./fixtures/", import.meta.url);
 const plan = JSON.parse(fs.readFileSync(new URL("spotibai.plan.json", fx), "utf8"));
@@ -296,4 +296,103 @@ test("a wire spanning a wide board stays whole: later shots hold wide instead of
   const r = await compose({ plan: dnsPlan, audio: dnsAudio, theme: getTheme("chalk-dark"), spec: specFromBrief({ ...DEFAULT_BRIEF }), pack: loadIconPack(), sourceLabel: "x" });
   assert.ok(r.placement.ok, JSON.stringify(r.placement.issues));
   assert.deepEqual(r.placement.issues, []);
+});
+
+/** A lit box is fully outside the frame or a margin inside it, at every settled camera rest. */
+function edgeClear(film: Film, items: { box: { x: number; y: number; w: number; h: number }; t0?: number; g?: string }[]) {
+  const op = (g: string | undefined, t: number) => {
+    const k = g ? film.groups[g] : undefined;
+    if (!k?.length) return 1;
+    if (t <= k[0][0]) return k[0][1];
+    for (let i = 1; i < k.length; i++) if (t < k[i][0]) { const [t0, v0] = k[i - 1], [t1, v1] = k[i]; return v0 + ((v1 - v0) * (t - t0)) / Math.max(1e-6, t1 - t0); }
+    return k[k.length - 1][1];
+  };
+  const end = film.end?.t0 ?? film.duration;
+  for (const k of film.camera) {
+    const r = k.t + k.move + 0.01;
+    if (r >= end) continue;
+    const c = cameraAt(film, r), s = film.width / c.w;
+    for (const it of items) {
+      if ((it.t0 ?? 0) > r || op(it.g, r) < 0.6) continue;
+      const b = it.box;
+      if (b.x + b.w <= c.x || b.x >= c.x + c.w || b.y + b.h <= c.y || b.y >= c.y + c.h) continue;
+      const gap = Math.min(b.x - c.x, b.y - c.y, c.x + c.w - b.x - b.w, c.y + c.h - b.y - b.h) * s;
+      assert.ok(gap >= EDGE_PX - 1e-6, `a box at ${r.toFixed(1)}s is ${gap.toFixed(1)} px from the frame edge (needs ${EDGE_PX})`);
+    }
+  }
+}
+
+test("a box touching the frame edge is caught even when no edge cuts through it, and the fix clears it by the edge margin", () => {
+  // the live minbpe run: the regex box sat touching the left frame edge, drawn whole, and the check passed
+  // because touching counted as whole and nodes were never examined at rest
+  const nodes: Sketch["nodes"] = [
+    { id: "regex", box: { x: 400, y: 400, w: 300, h: 200 }, color: "#fff", keyword: "regex", t0: 0 },
+    { id: "counts", box: { x: 900, y: 400, w: 300, h: 200 }, color: "#fff", keyword: "counts", t0: 0 },
+  ];
+  const wide = film([], { x: 0, y: 0, w: 1920, h: 1080 });
+  wide.camera.push({ t: 4, x: 400, y: 0, w: 1920, h: 1080, move: 0.5 });
+  const p = { film: wide, sketch: sketch(nodes), marks: [] as Mark[] };
+  const found = checkPlacement(p);
+  assert.ok(found.some((i) => i.rule === "cropped" && /frame edge/.test(i.what)), `touching the edge passes: ${JSON.stringify(found)}`);
+  const rep = placementPass(p);
+  assert.ok(rep.ok, JSON.stringify(rep.issues));
+  assert.deepEqual(checkPlacement(p), []);
+  edgeClear(p.film, nodes);
+});
+
+test("every fixture and tempo: every lit box sits a margin inside the frame or fully outside it, at every settled shot", async () => {
+  // the guarantee, measured directly on finished films across board layouts and pacing, not only via the check
+  const voiced = (p: any, scale = 0.38) => p.scenes.map((s: any) => {
+    const ws = s.narration.split(/\s+/);
+    return { sceneId: s.id, duration: ws.length * scale, words: ws.map((w: string, i: number) => ({ word: w, start: i * scale, end: i * scale + scale * 0.8 })) };
+  });
+  const read = (n: string, ext: string) => JSON.parse(fs.readFileSync(new URL(`${n}.${ext}.json`, fx), "utf8"));
+  const cases: { name: string; plan: any; arch?: any; audio: any; theme: any; spec: any }[] = [];
+  for (const complexity of ["simple", "moderate", "technical"] as Brief["complexity"][]) {
+    cases.push({ name: `spotibai/${complexity}`, plan, arch, audio, theme: getTheme("chalk-dark"), spec: specFromBrief({ ...DEFAULT_BRIEF, complexity }) });
+  }
+  for (const n of ["microui", "nanochat"]) {
+    const p = read(n, "plan");
+    cases.push({ name: n, plan: p, arch: read(n, "architecture"), audio: voiced(p), theme: getTheme("chalk-dark"), spec: specFromBrief(DEFAULT_BRIEF) });
+  }
+  for (const n of ["microui7", "microui8"]) {
+    const p = read(n, "plan"), brief = read(n, "brief");
+    const secs: Record<string, number> = n === "microui7"
+      ? { "s01-hook": 10.82, "s02-layer": 10.02, "s03-layer": 13.98, "s04-layer": 8.66, "s05-walkthrough": 19.42, "s06-recap": 14.74 }
+      : { "s01-hook": 15.82, "s02-layer": 10.78, "s03-layer": 12.3, "s04-walkthrough": 17.5, "s05-layer": 8.54, "s06-recap": 16.3 };
+    const au = p.scenes.map((s: any) => {
+      const ws = s.narration.split(/\s+/), st = (secs[s.id] - 1.2) / ws.length;
+      return { sceneId: s.id, duration: secs[s.id] - 1.2, words: ws.map((w: string, i: number) => ({ word: w, start: i * st, end: i * st + st * 0.8 })) };
+    });
+    cases.push({ name: n, plan: p, arch: read(n, "architecture"), audio: au, theme: getTheme(specFromBrief(brief).look), spec: specFromBrief(brief) });
+  }
+  const dns = read("dns-board", "plan");
+  cases.push({ name: "dns-board", plan: dns, audio: voiced(dns), theme: getTheme("chalk-dark"), spec: specFromBrief({ ...DEFAULT_BRIEF }) });
+  const cutins = read("internet-cutins", "plan");
+  cases.push({ name: "internet-cutins", plan: cutins, audio: voiced(cutins), theme: getTheme("whiteboard-light"), spec: specFromBrief({ ...DEFAULT_BRIEF, style: "explainer" }) });
+  let boxes = 0;
+  for (const c of cases) {
+    const { film, sketch, placement } = await compose({ plan: c.plan, audio: c.audio, theme: c.theme, spec: c.spec, pack: loadIconPack(), sourceLabel: "x", arch: c.arch });
+    assert.ok(placement.ok, `${c.name}: ${JSON.stringify(placement.issues)}`);
+    const ns = sketch.nodes.filter((x) => !x.board);
+    if (c.name !== "internet-cutins" && c.name !== "dns-board") assert.ok(ns.length > 0, `${c.name} has no boxes to measure`);
+    boxes += ns.length;
+    edgeClear(film, ns.map((x) => ({ box: x.box, t0: x.t0, g: `n:${x.id}` })));
+  }
+  assert.ok(boxes > 20, `only ${boxes} boxes measured`);
+});
+
+test("a slow pan that drags a lit box half off the frame is caught and fixed, though both shots are clean", () => {
+  // the word version of this pan is caught; a box sweeping across the frame reads the same cut off
+  const nodes: Sketch["nodes"] = [{ id: "q", box: { x: 40, y: 400, w: 300, h: 200 }, color: "#fff", keyword: "q", t0: 0 }];
+  const f = film([], { x: 0, y: 0, w: 1920, h: 1080 });
+  f.camera.push({ t: 3, x: 420, y: 0, w: 1920, h: 1080, move: 1.66 });
+  f.duration = 8;
+  const p = { film: f, sketch: sketch(nodes), marks: [] as Mark[] };
+  const found = checkPlacement(p);
+  assert.deepEqual(found.map((i) => i.rule), ["cropped"]);
+  assert.match(found[0].what, /while the camera moves/);
+  const rep = placementPass(p);
+  assert.ok(rep.ok, JSON.stringify(rep));
+  assert.deepEqual(checkPlacement(p), []);
 });
