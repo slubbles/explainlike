@@ -55,6 +55,12 @@ const seen = (f: Box, b: Box) => {
   return Math.min(part(f.x, f.w, b.x, b.w), part(f.y, f.h, b.y, b.h));
 };
 const contains = (o: Box, b: Box, m = 0) => b.x >= o.x - m && b.y >= o.y - m && b.x + b.w <= o.x + o.w + m && b.y + b.h <= o.y + o.h + m;
+/** A settled framing never lets a lit box touch its edge: what the shot holds sits this far inside it, in screen pixels, or fully outside it. */
+export const EDGE_PX = 8;
+/** Whether the box sits a full edge margin inside the frame. */
+const clearOf = (film: Film, f: Box, b: Box) => { const e = (EDGE_PX * f.w) / film.width; return b.x >= f.x + e && b.y >= f.y + e && b.x + b.w <= f.x + f.w - e && b.y + b.h <= f.y + f.h - e; };
+/** Closest the box comes to the frame edge, in screen pixels (negative when the edge cuts through it). */
+const edgeGapPx = (film: Film, f: Box, b: Box) => Math.floor(Math.min(b.x - f.x, b.y - f.y, f.x + f.w - b.x - b.w, f.y + f.h - b.y - b.h) * (film.width / f.w));
 /** Distance from p to the outline of b: positive outside, negative inside. */
 function boxDist(p: [number, number], b: Box) {
   const dx = Math.max(b.x - p[0], 0, p[0] - b.x - b.w), dy = Math.max(b.y - p[1], 0, p[1] - b.y - b.h);
@@ -149,7 +155,7 @@ const unionOf = (a: Box, b: Box): Box => {
   return { x, y, w: Math.max(a.x + a.w, b.x + b.w) - x, h: Math.max(a.y + a.h, b.y + b.h) - y };
 };
 
-export interface Item { kind: "text" | "node" | "ring" | "arrow" | "wire"; box: Box; t0: number; g?: string; owner?: number; el?: FText; mark?: Mark; label: string; board?: boolean }
+export interface Item { kind: "text" | "node" | "ring" | "arrow" | "wire"; box: Box; t0: number; g?: string; owner?: number; el?: FText; mark?: Mark; label: string; board?: boolean; from?: string; to?: string }
 
 function items(p: Placed): Item[] {
   const out: Item[] = [];
@@ -179,7 +185,7 @@ function items(p: Placed): Item[] {
         return nb && Math.abs(boxDist(q, nb)) <= TOUCH * 4 ? [clipBox({ x: q[0] - END_SLICE, y: q[1] - END_SLICE, w: 2 * END_SLICE, h: 2 * END_SLICE }, nb)] : [];
       })].reduce(unionOf)
       : box;
-    out.push({ kind: m.kind, box: shown, t0: m.t0 + m.dur, g: m.g, mark: m, label: m.kind === "wire" ? `wire ${m.from}>${m.to}` : `${m.kind} at ${(m.t0).toFixed(1)}s` });
+    out.push({ kind: m.kind, box: shown, t0: m.t0 + m.dur, g: m.g, mark: m, label: m.kind === "wire" ? `wire ${m.from}>${m.to}` : `${m.kind} at ${(m.t0).toFixed(1)}s`, ...(m.kind === "wire" ? { from: (m as { from?: string }).from, to: (m as { to?: string }).to } : {}) });
   }
   return out;
 }
@@ -268,9 +274,9 @@ export function checkPlacement(p: Placed, counts: Record<string, number> = {}): 
     }
   }
 
-  // the frame: every lit word, ring, arrow, node and wire whole through every later shot that holds part of them, and words big enough to read
+  // the frame: every lit word, ring, arrow, node and wire a margin inside every shot that holds it, and words big enough to read
   for (const it of all) {
-    // a node or a system wire may sit fully off screen (a part out of shot, or a wire leading to one): only being sliced by the frame edge reads as cut off, and only in a shot after the one it is born into: a closeup may open half out, travelling in, but no later shot may lose what an earlier one held whole
+    // a node or a system wire may sit fully off screen (a part out of shot, or a wire leading to one): touching the edge reads as cut off. nodes hold a margin everywhere they are held; a closeup may open half out, travelling in, but no later shot may lose what an earlier one held whole, and a wire to a part out of shot is scenery, not a cut
     const offscreenOk = it.kind === "node" || (it.kind === "wire" && (!it.g || it.g.startsWith("e:")));
     // boards on a wall are scenery the camera pans across: half in frame is the language, not a cut
     if (it.kind === "node" && it.board) continue;
@@ -279,7 +285,8 @@ export function checkPlacement(p: Placed, counts: Record<string, number> = {}): 
     const cam = cameraAt(film, t), m = (4 * cam.w) / film.width;
     count("cropped");
     const atRest = seen(cam, it.box);
-    if (!contains(cam, it.box, -m) && !offscreenOk) out.push({ rule: "cropped", t, what: `${it.label} is cut off by the frame edge`, item: it, seen: atRest });
+    const whole = it.kind === "node" ? (atRest > 0 && clearOf(film, cam, it.box)) : contains(cam, it.box, -m);
+    if (!whole && (!offscreenOk || it.kind === "node")) out.push({ rule: "cropped", t, what: edgeGapPx(film, cam, it.box) < 0 ? `${it.label} is cut off by the frame edge` : `${it.label} sits ${edgeGapPx(film, cam, it.box)} px from the frame edge (needs ${EDGE_PX})`, item: it, seen: atRest });
     else {
       // it stays whole while it is lit, through every later shot that comes to rest on part of it
       // (a word a later shot slices is a slip to fix, never a reason to stop the video)
@@ -288,7 +295,13 @@ export function checkPlacement(p: Placed, counts: Record<string, number> = {}): 
         const r = k.t + k.move + 0.01;
         if (k.t <= t || r >= end || opacity(film, it.g, r) < 0.6) continue;
         const c = cameraAt(film, r);
-        if (!contains(c, it.box, -m) && seen(c, it.box) > 0) {
+        const wholeLater = it.kind === "node" ? clearOf(film, c, it.box) : contains(c, it.box, -m);
+        // a wire to a part out of shot is scenery, not a cut: only flag it when both ends are on screen
+        const endsOut = it.kind === "wire" && [it.from, it.to].some((id) => {
+          const b = id === undefined ? undefined : p.sketch.nodes.find((n) => n.id === id)?.box;
+          return b !== undefined && seen(c, b) === 0;
+        });
+        if (!wholeLater && seen(c, it.box) > 0 && !endsOut) {
           // a node or system wire counts only when it was whole in the shot it was born into: a closeup
           // that never contained it is framing past it (the walk travelling on), not losing it
           const bornWhole = !offscreenOk || contains(cam, it.box, -m);
@@ -297,7 +310,7 @@ export function checkPlacement(p: Placed, counts: Record<string, number> = {}): 
       }
       // and no pan drags it half off the frame for long on the way between two clean shots
       const last = out[out.length - 1];
-      if (it.kind === "text" && !(last?.item === it && last.rule === "cropped")) {
+      if ((it.kind === "text" || it.kind === "node") && !(last?.item === it && last.rule === "cropped")) {
         const cut = cutMidMove(film, it.box, it.g, t);
         if (cut) out.push({ rule: "cropped", t: cut.t, what: `${it.label} is cut off by the frame edge for ${cut.dur.toFixed(1)}s while the camera moves at ${cut.t.toFixed(1)}s`, item: it, seen: cut.seen, later: true, shot: cut.k });
       }
@@ -360,8 +373,10 @@ function cropShots(p: Placed, it: Item): { k: CamKey; r: number }[] {
     const k = K[i], r = i === i0 ? start : k.t + k.move + 0.01;
     if (i > i0 && r >= end) break;
     if (opacity(film, it.g, r) < 0.6) continue;
+
     const m = (4 * k.w) / film.width;
-    if (!contains(k, it.box, -m) && (i === i0 || seen(k, it.box) > 0)) out.push({ k, r });
+    const wholeK = it.kind === "node" ? clearOf(film, k, it.box) : contains(k, it.box, -m);
+    if (!wholeK && (i === i0 || seen(k, it.box) > 0)) out.push({ k, r });
   }
   return out;
 }
@@ -372,7 +387,7 @@ function slices(p: Placed, before: Box, after: Box, r: number, skip: Item) {
 }
 function sliced(p: Placed, before: Box, after: Box, r: number, skip: Item): Item[] {
   const cut = (f: Box, b: Box) => !contains(f, b) && area(f, b) > 0;
-  return items(p).filter((o) => o.kind !== "wire" && o.kind !== "node" && o.label !== skip.label && o.t0 <= r && opacity(p.film, o.g, r) > 0.6
+  return items(p).filter((o) => o.kind !== "wire" && o.label !== skip.label && o.t0 <= r && opacity(p.film, o.g, r) > 0.6
     && cut(after, o.box) && !cut(before, o.box));
 }
 
