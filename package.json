@@ -11,14 +11,22 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "web": "pnpm --filter @explanimate/web dev",
     "icons:generate": "tsx scripts/gen-icon-pack.ts",
-    "test": "node --import tsx --test \"packages/*/test/*.test.ts\" \"apps/web/test/*.test.ts\""
+    "test": "node --import tsx --test \"packages/*/test/*.test.ts\" \"apps/web/test/*.test.ts\"",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "lint": "eslint ."
   },
   "devDependencies": {
+    "@eslint/js": "^10.0.1",
     "@explanimate/core": "workspace:^",
     "@explanimate/models": "workspace:^",
     "@explanimate/render": "workspace:^",
     "@types/node": "^22.10.0",
+    "eslint": "^10.14.0",
+    "globals": "^17.14.0",
+    "prettier": "^3.9.10",
     "tsx": "^4.19.2",
-    "typescript": "^5.7.2"
+    "typescript": "^5.7.2",
+    "typescript-eslint": "^8.72.1"
   }
 }
