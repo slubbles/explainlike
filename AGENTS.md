@@ -2,6 +2,8 @@
 
 This file is the single entry point for any AI or human picking up the project. Read it top to bottom once; deeper docs are linked where they matter.
 
+For a short, plain-language eagle view of the whole codebase and project, see [`docs/CODEBASE-MAP.md`](docs/CODEBASE-MAP.md).
+
 ## 1. Summary
 - **What it is:** Explanimate turns a GitHub repo, an article, an X post or a plain topic ("how DNS works") into a narrated, hand-drawn whiteboard explainer video (mp4), plus the same drawing as `.tldr` and `.excalidraw` boards.
 - **Why:** Meta Global AI Developer Hackathon entry (indie track), built on Meta Muse models (Muse Spark for planning, Muse Transcribe for the voiceover check, Muse Image/SAM for doodle icons) with Deepgram Aura for the voice. The user submits the entry himself.
