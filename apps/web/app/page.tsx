@@ -93,7 +93,7 @@ export default function Home() {
   return (
     <>
       <Nav />
-      <main className="page">
+      <main className={jobId ? "page job" : "page"}>
         {!jobId && <InputScreen form={form} set={set} go={go} busy={posting} err={err} examples={examples} talking={talking} talk={setTalking} onVoiceJob={voiceJob} />}
         {jobId && (
           <>
