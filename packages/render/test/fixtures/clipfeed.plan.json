@@ -1,12 +1,12 @@
 {
- "title": "example-app",
+ "title": "clipfeed",
  "subtitle": "bisaya meme music video feed",
  "scenes": [
   {
    "id": "s01-hook",
    "kind": "hook",
-   "heading": "what is example-app",
-   "narration": "example-app is a Bisaya meme music TikTok feed plus Spotify home. The question: how does one Cloudflare Worker serve video, likes, and chat?",
+   "heading": "what is clipfeed",
+   "narration": "Clipfeed is a Bisaya meme music TikTok feed plus Spotify home. The question: how does one Cloudflare Worker serve video, likes, and chat?",
    "add_components": [],
    "add_connections": [],
    "board_nodes": [],
@@ -81,7 +81,7 @@
    "id": "s03-layer",
    "kind": "layer",
    "heading": "client and edge",
-   "narration": "The fyp app is the Next.js browser feed and home player. The edge guard checks admin, inbox and CSRF. The worker host renders the app on example-app.com.",
+   "narration": "The fyp app is the Next.js browser feed and home player. The edge guard checks admin, inbox and CSRF. The worker host renders the app on clipfeed.com.",
    "add_components": [
     "browser-client",
     "edge-middleware",
@@ -101,7 +101,7 @@
    "id": "s04-layer",
    "kind": "layer",
    "heading": "api and video",
-   "narration": "The ingest api is eighty one route handlers for clips and uploads. The edge cache serves clips.example-app.com video for a year. The clip blobs store mp4s and covers.",
+   "narration": "The ingest api is eighty one route handlers for clips and uploads. The edge cache serves clips.clipfeed.com video for a year. The clip blobs store mp4s and covers.",
    "add_components": [
     "next-api",
     "clips-cdn",
@@ -349,7 +349,7 @@
   {
    "id": "s13-recap",
    "kind": "recap",
-   "heading": "example-app in sum",
+   "heading": "clipfeed in sum",
    "narration": "Browser to edge to Worker to D1, R2, and Durable Objects. CDN streams, Scribe transcribes, sharding fixes scale.",
    "add_components": [],
    "add_connections": [],

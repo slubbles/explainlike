@@ -5,15 +5,15 @@ import { readStart, spokenUrl, takeSentences, voiceSystem } from "../lib/voice.t
 const github = (u: string) => /^https:\/\/github\.com\/[\w.-]+\/[\w.-]+$/.test(u);
 
 test("a link said out loud becomes a real link", () => {
-  assert.equal(spokenUrl("github dot com slash slubbles slash openmausbot"), "https://github.com/slubbles/openmausbot");
-  assert.equal(spokenUrl("github.com/slubbles/explain like"), "https://github.com/slubbles/explainlike");
+  assert.equal(spokenUrl("github dot com slash karpathy slash minbpe"), "https://github.com/karpathy/minbpe");
+  assert.equal(spokenUrl("github.com/slubbles/ex planimate"), "https://github.com/slubbles/explanimate");
   assert.equal(spokenUrl("HTTPS://github.com/a/b"), "https://github.com/a/b");
 });
 
 test("the start call becomes a job request with safe defaults", () => {
-  const r = readStart({ link: "github dot com slash slubbles slash openmausbot", goal: "  how a message\nflows ", audience: "my cofounder", depth: "bogus", also: "", confirm: "" }, github);
+  const r = readStart({ link: "github dot com slash karpathy slash minbpe", goal: "  how a message\nflows ", audience: "my cofounder", depth: "bogus", also: "", confirm: "" }, github);
   assert.ok(r.ok);
-  assert.deepEqual(r.req, { input: "https://github.com/slubbles/openmausbot", goal: "how a message flows", audience: "my cofounder", depth: "working", also: "" });
+  assert.deepEqual(r.req, { input: "https://github.com/karpathy/minbpe", goal: "how a message flows", audience: "my cofounder", depth: "working", also: "" });
   assert.match(r.confirm, /starting/i);
 });
 
@@ -49,8 +49,8 @@ test("voice mode answers only requests made on this machine", async () => {
 
 test("a misheard repo name finds the real one among the owner's repos", async () => {
   const { closest } = await import("../lib/reach.ts");
-  assert.deepEqual(closest("openmousebot", ["umami", "OpenMausBot", "example-app", "open-mouse"]).slice(0, 1), ["OpenMausBot"]);
-  assert.deepEqual(closest("explanimate", ["umami", "example-app"]), []);
+  assert.deepEqual(closest("openmousebot", ["umami", "OpenMausBot", "minbpe", "open-mouse"]).slice(0, 1), ["OpenMausBot"]);
+  assert.deepEqual(closest("explanimate", ["umami", "minbpe"]), []);
 });
 
 test("a spoken topic with no link starts a topic video, a spoken link still becomes a URL", async () => {

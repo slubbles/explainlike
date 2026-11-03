@@ -5,8 +5,8 @@ import { getTheme, specFromBrief, DEFAULT_BRIEF } from "@explanimate/core";
 import { compose, loadIconPack, toTldraw, toExcalidraw, checkTldr, checkExcalidraw } from "../src/index.js";
 
 const fx = new URL("./fixtures/", import.meta.url);
-const plan = JSON.parse(fs.readFileSync(new URL("example-app.plan.json", fx), "utf8"));
-const arch = JSON.parse(fs.readFileSync(new URL("example-app.architecture.json", fx), "utf8"));
+const plan = JSON.parse(fs.readFileSync(new URL("clipfeed.plan.json", fx), "utf8"));
+const arch = JSON.parse(fs.readFileSync(new URL("clipfeed.architecture.json", fx), "utf8"));
 const audio = plan.scenes.map((s: any) => ({ sceneId: s.id, duration: 6, words: [] }));
 const theme = getTheme("chalk-dark");
 const boards = async () => {

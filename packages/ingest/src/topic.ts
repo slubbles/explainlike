@@ -9,7 +9,7 @@ import { fetchArticle, withLocate, type Card, type ConceptSource } from "./conce
 import { redact } from "./secrets.js";
 
 const WIKI = "https://en.wikipedia.org/w/api.php";
-const UA = "Explanimate/0.1 (https://github.com/slubbles/explainlike)";
+const UA = "Explanimate/0.1 (https://github.com/slubbles/explanimate)";
 const PER_SOURCE = 14000;
 
 /** The search words: "explain how DNS works like I'm five" -> "how DNS works". */

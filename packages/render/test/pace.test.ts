@@ -5,8 +5,8 @@ import { getTheme, specFromBrief, DEFAULT_BRIEF, type Brief } from "@explanimate
 import { textWidth, captionMismatches, compose, loadIconPack, stillGaps, shotStarts, offFrameTexts, cameraAt, boxOf, readableWidth, READ_KINDS, paceReport } from "../src/index.js";
 
 const fx = new URL("./fixtures/", import.meta.url);
-const plan = JSON.parse(fs.readFileSync(new URL("example-app.plan.json", fx), "utf8"));
-const arch = JSON.parse(fs.readFileSync(new URL("example-app.architecture.json", fx), "utf8"));
+const plan = JSON.parse(fs.readFileSync(new URL("clipfeed.plan.json", fx), "utf8"));
+const arch = JSON.parse(fs.readFileSync(new URL("clipfeed.architecture.json", fx), "utf8"));
 // narration with evenly spaced words, so captions exist
 const audio = plan.scenes.map((s: any) => {
   const ws = s.narration.split(/\s+/);

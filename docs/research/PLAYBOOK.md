@@ -1,8 +1,8 @@
 # Explainer playbook v2: how the best channels explain things (for Explanimate)
 
-Written 2026-11-03 (Asia/Manila). Research only: no repo changes and no paid API calls.
-This builds on `/workspace/metual/docs/explaining-playbook.md` (Nov 1) and **replaces its "one analogy world / analogy first, then real name" rule.**
-The user's v3 feedback rules that out: use real part names, anchor to tools people already use, cover the core, and stop repeating the same visual formula.
+Written 2026-11-03. Research only: no repo changes and no paid API calls.
+This builds on `docs/explaining-playbook.md` (Nov 1) and **replaces its "one analogy world / analogy first, then real name" rule.**
+The maintainer's v3 feedback rules that out: use real part names, anchor to tools people already use, cover the core, and stop repeating the same visual formula.
 
 ## 0. Evidence used
 
@@ -74,7 +74,7 @@ Crayon draws its analogy and labels the drawing with the real term:
 - the balls that spill out are labelled **"Old Data"**
 - the bowl is then relabelled **"9,000 Tokens"** as the narration says "from around 9,000 tokens to 100,000" (`crayon-frames/anth_mem_0.jpg`)
 
-Counter-example: KodeKloud's Kubernetes and Kafka lessons run one analogy for 10 minutes ("cargo ships … control ships"; "I am the producer … the post office"). Even there, each analogy part is mapped back at once: "These relate to the cargo ships … **the control ships relate to the master node**." That format works for a long course. It is exactly what the user said felt wrong in a 90-second repo explainer.
+Counter-example: KodeKloud's Kubernetes and Kafka lessons run one analogy for 10 minutes ("cargo ships … control ships"; "I am the producer … the post office"). Even there, each analogy part is mapped back at once: "These relate to the cargo ships … **the control ships relate to the master node**." That format works for a long course. It is exactly what the maintainer said felt wrong in a 90-second repo explainer.
 
 **Rule:** use at most one or two analogies per video, each a single clause attached to a real name, and only for a *behaviour* that is hard to picture (persistence, a protocol, memory limits). Never use one for a part's name. Never repeat it as a running metaphor.
 
@@ -85,7 +85,7 @@ Counter-example: KodeKloud's Kubernetes and Kafka lessons run one analogy for 10
 - KodeKloud RAG splits the name into its parts, "Retrieval, augmented, and generation", and explains just those three.
 - Crayon's Anthropic video skips most of the company history and picks the three or four decisions that explain "how did it get this big".
 
-**Rule (the user's own words):** "cover everything relevant and necessary, not every feature every time."
+**Rule (the maintainer's own words):** "cover everything relevant and necessary, not every feature every time."
 - Explain the one path a request takes.
 - Explain any part the viewer must know to follow that path.
 - Give side features at most one line, and only if they serve the hook. For a login hook, the auth vault qualifies; the MCP server does not.
@@ -202,13 +202,13 @@ In-shot builds come on top of the hard cuts: a ball drops, a label rewrites, a d
 | Sean | 1 | one canvas that builds per sentence |
 | Alux | 0–1 | stock footage loop; the weakest visually |
 
-Takeaway: **"visual change" doesn't have to mean a hard cut.** Diagram channels change the canvas on every sentence (a new node, a highlighted edge, a new label). What none of the good channels do is show the **same decorative element every video regardless of the words**. That is exactly the v3 title-card icon row (person, λ, laptop, network, browser) the user called formulaic.
+Takeaway: **"visual change" doesn't have to mean a hard cut.** Diagram channels change the canvas on every sentence (a new node, a highlighted edge, a new label). What none of the good channels do is show the **same decorative element every video regardless of the words**. That is exactly the v3 title-card icon row (person, λ, laptop, network, browser) the maintainer called formulaic.
 
 ## 8. Fixed template vs per-video visual freedom (recommendation: hybrid)
 
 **Fixed:** the brand.
 - Palette and chalk-dark board style, fonts.
-- Title card layout: name plus lowercase tagline. Keep the opener the user loved.
+- Title card layout: name plus lowercase tagline. Keep the opener the maintainer loved.
 - Black pivot card style.
 - Board look: node and edge style, real-name labels.
 - Recap layout (the full path lights up in order).

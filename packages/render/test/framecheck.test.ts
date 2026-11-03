@@ -7,8 +7,8 @@ import { getTheme, specFromBrief, DEFAULT_BRIEF, type Brief } from "@explanimate
 import { compose, loadIconPack, sampleTimes, moving, judgeFrames, measureFrames, findChrome, cameraAt, type FrameBoxes, type FrameEl } from "../src/index.js";
 
 const fx = new URL("./fixtures/", import.meta.url);
-const plan = JSON.parse(fs.readFileSync(new URL("example-app.plan.json", fx), "utf8"));
-const arch = JSON.parse(fs.readFileSync(new URL("example-app.architecture.json", fx), "utf8"));
+const plan = JSON.parse(fs.readFileSync(new URL("clipfeed.plan.json", fx), "utf8"));
+const arch = JSON.parse(fs.readFileSync(new URL("clipfeed.architecture.json", fx), "utf8"));
 const audio = plan.scenes.map((s: any) => {
   const ws = s.narration.split(/\s+/);
   return { sceneId: s.id, duration: ws.length * 0.38, words: ws.map((w: string, i: number) => ({ word: w, start: i * 0.38, end: i * 0.38 + 0.3 })) };
@@ -57,7 +57,7 @@ test("judgeFrames flags a cut-off word, overlapping words, a caption over a word
 });
 
 const chrome = (() => { try { return findChrome(); } catch { return ""; } })();
-test("the example-app board reads cleanly at every rest, at every tempo", { skip: !chrome && "no Chrome" }, async () => {
+test("the clipfeed board reads cleanly at every rest, at every tempo", { skip: !chrome && "no Chrome" }, async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "fc-"));
   try {
     for (const cx of ["simple", "moderate", "technical"] as const) {
