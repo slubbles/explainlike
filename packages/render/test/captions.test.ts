@@ -106,6 +106,17 @@ test("'the resulting video' stays whole at real speech speed, where 'Then you wa
   assert.ok(shown.some((p) => p.includes("the resulting video")), `"the resulting video" is split: ${shown.join(" | ")}`);
 });
 
+test("a phrase never starts on a possessive that completes the previous verb", () => {
+  // the live minbpe run showed "your aaabdaaabac to regex, and it waits." alone: the break
+  // before "your" split the verb "feeds" from its object
+  const line = "The trainer takes your file and feeds your aaabdaaabac to regex, and it waits.";
+  const words = line.split(" ").map((word, i) => ({ word, start: i * 0.38, end: i * 0.38 + 0.3 }));
+  const shown = captionsFor("s1", words, 0, 60).map((c) => c.words.map((w) => w.w).join(" "));
+  assert.equal(shown.join(" "), line);
+  assert.ok(shown.some((p) => p.includes("feeds your aaabdaaabac")), `the verb is split from its object: ${shown.join(" | ")}`);
+  assert.ok(!shown.some((p) => /^(a|an|the|your|its|their|my|our|his|her|this|that|these|those|you|we|they|it) /.test(p)), `a phrase starts mid-verb-phrase: ${shown.join(" | ")}`);
+});
+
 test("a compound noun and a relative clause stay whole at real speech speed", () => {
   const cut = (t: readonly (readonly [string, number, number])[]) =>
     captionsFor("s1", t.map(([word, start, end]) => ({ word, start, end })), 0, 60, 4, 26).map((c) => c.words.map((w) => w.w).join(" "));
