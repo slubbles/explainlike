@@ -1,192 +1,172 @@
 {
- "product": "karpathy/nanochat",
- "one_liner": "Train a GPT-2-class model on one GPU node, then chat with it.",
- "components": [
-  {
-   "id": "chat-cli",
-   "name": "Chat CLI",
-   "kind": "client",
-   "layer": "frontend",
-   "keyword": "cli chat",
-   "icon": "chat",
-   "what": "Single-GPU REPL that prompts user, samples with temperature/top-k and prints replies",
-   "evidence": [
-    "scripts/chat_cli.py"
-   ]
+  "product": "karpathy/nanochat",
+  "one_liner": "Train a GPT-2-class model on one GPU node, then chat with it.",
+  "components": [
+    {
+      "id": "chat-cli",
+      "name": "Chat CLI",
+      "kind": "client",
+      "layer": "frontend",
+      "keyword": "cli chat",
+      "icon": "chat",
+      "what": "Single-GPU REPL that prompts user, samples with temperature/top-k and prints replies",
+      "evidence": ["scripts/chat_cli.py"]
+    },
+    {
+      "id": "train-pipeline",
+      "name": "Train Pipeline",
+      "kind": "worker",
+      "layer": "backend",
+      "keyword": "training scripts",
+      "icon": "gear",
+      "what": "base_train plus chat_sft/chat_rl loops for pretrain, finetune and RL with wandb logging",
+      "evidence": ["scripts/base_train.py", "scripts/chat_sft.py", "scripts/chat_rl.py"]
+    },
+    {
+      "id": "data-shards",
+      "name": "Data Shards",
+      "kind": "db",
+      "layer": "data",
+      "keyword": "token shards",
+      "icon": "database",
+      "what": "6542 climbmix parquet shards streamed on demand and tokenized into BOS-bestfit batches",
+      "evidence": ["nanochat/dataset.py", "nanochat/dataloader.py"]
+    },
+    {
+      "id": "gpt-model",
+      "name": "GPT Model",
+      "kind": "ai",
+      "layer": "backend",
+      "keyword": "gpt transformer",
+      "icon": "brain",
+      "what": "Depth-dialed GPT transformer with GQA and flash attention, master weights in fp32",
+      "evidence": ["nanochat/gpt.py"]
+    },
+    {
+      "id": "inference-engine",
+      "name": "Inference Engine",
+      "kind": "worker",
+      "layer": "backend",
+      "keyword": "inference engine",
+      "icon": "gpu",
+      "what": "Token-in token-out decoder with calculator tool, pure token id sequences",
+      "evidence": ["nanochat/engine.py"]
+    },
+    {
+      "id": "checkpoint-store",
+      "name": "Checkpoint Store",
+      "kind": "object-storage",
+      "layer": "storage",
+      "keyword": "checkpoint store",
+      "icon": "bucket",
+      "what": "Versioned model checkpoints and base dir layout under NANOCHAT_BASE_DIR",
+      "evidence": ["nanochat/checkpoint_manager.py", "nanochat/common.py"]
+    },
+    {
+      "id": "eval-suite",
+      "name": "Eval Suite",
+      "kind": "worker",
+      "layer": "backend",
+      "keyword": "eval tasks",
+      "icon": "check",
+      "what": "MMLU ARC GSM8K HumanEval SmolTalk tasks plus CORE/bpb sampling with sandboxed code execution",
+      "evidence": ["tasks/common.py", "tasks/humaneval.py", "nanochat/execution.py"]
+    }
+  ],
+  "connections": [
+    {
+      "from": "train-pipeline",
+      "to": "data-shards",
+      "label": "stream shards",
+      "evidence": "scripts/base_train.py"
+    },
+    {
+      "from": "train-pipeline",
+      "to": "gpt-model",
+      "label": "train transformer",
+      "evidence": "scripts/base_train.py"
+    },
+    {
+      "from": "train-pipeline",
+      "to": "checkpoint-store",
+      "label": "save checkpoint",
+      "evidence": "scripts/base_train.py"
+    },
+    {
+      "from": "chat-cli",
+      "to": "checkpoint-store",
+      "label": "load checkpoint",
+      "evidence": "scripts/chat_cli.py"
+    },
+    {
+      "from": "chat-cli",
+      "to": "inference-engine",
+      "label": "send tokens",
+      "evidence": "scripts/chat_cli.py"
+    },
+    {
+      "from": "inference-engine",
+      "to": "gpt-model",
+      "label": "run forward",
+      "evidence": "nanochat/engine.py"
+    },
+    {
+      "from": "eval-suite",
+      "to": "inference-engine",
+      "label": "request completions",
+      "evidence": "scripts/base_eval.py"
+    }
+  ],
+  "walkthrough": {
+    "name": "Pretrain then chat",
+    "steps": [
+      {
+        "from": "train-pipeline",
+        "to": "data-shards",
+        "label": "stream shards",
+        "evidence": "scripts/base_train.py"
+      },
+      {
+        "from": "train-pipeline",
+        "to": "gpt-model",
+        "label": "train transformer",
+        "evidence": "scripts/base_train.py"
+      },
+      {
+        "from": "train-pipeline",
+        "to": "checkpoint-store",
+        "label": "save checkpoint",
+        "evidence": "scripts/base_train.py"
+      },
+      {
+        "from": "chat-cli",
+        "to": "checkpoint-store",
+        "label": "load checkpoint",
+        "evidence": "scripts/chat_cli.py"
+      },
+      {
+        "from": "chat-cli",
+        "to": "inference-engine",
+        "label": "send tokens",
+        "evidence": "scripts/chat_cli.py"
+      },
+      {
+        "from": "inference-engine",
+        "to": "gpt-model",
+        "label": "run forward",
+        "evidence": "nanochat/engine.py"
+      }
+    ]
   },
-  {
-   "id": "train-pipeline",
-   "name": "Train Pipeline",
-   "kind": "worker",
-   "layer": "backend",
-   "keyword": "training scripts",
-   "icon": "gear",
-   "what": "base_train plus chat_sft/chat_rl loops for pretrain, finetune and RL with wandb logging",
-   "evidence": [
-    "scripts/base_train.py",
-    "scripts/chat_sft.py",
-    "scripts/chat_rl.py"
-   ]
-  },
-  {
-   "id": "data-shards",
-   "name": "Data Shards",
-   "kind": "db",
-   "layer": "data",
-   "keyword": "token shards",
-   "icon": "database",
-   "what": "6542 climbmix parquet shards streamed on demand and tokenized into BOS-bestfit batches",
-   "evidence": [
-    "nanochat/dataset.py",
-    "nanochat/dataloader.py"
-   ]
-  },
-  {
-   "id": "gpt-model",
-   "name": "GPT Model",
-   "kind": "ai",
-   "layer": "backend",
-   "keyword": "gpt transformer",
-   "icon": "brain",
-   "what": "Depth-dialed GPT transformer with GQA and flash attention, master weights in fp32",
-   "evidence": [
-    "nanochat/gpt.py"
-   ]
-  },
-  {
-   "id": "inference-engine",
-   "name": "Inference Engine",
-   "kind": "worker",
-   "layer": "backend",
-   "keyword": "inference engine",
-   "icon": "gpu",
-   "what": "Token-in token-out decoder with calculator tool, pure token id sequences",
-   "evidence": [
-    "nanochat/engine.py"
-   ]
-  },
-  {
-   "id": "checkpoint-store",
-   "name": "Checkpoint Store",
-   "kind": "object-storage",
-   "layer": "storage",
-   "keyword": "checkpoint store",
-   "icon": "bucket",
-   "what": "Versioned model checkpoints and base dir layout under NANOCHAT_BASE_DIR",
-   "evidence": [
-    "nanochat/checkpoint_manager.py",
-    "nanochat/common.py"
-   ]
-  },
-  {
-   "id": "eval-suite",
-   "name": "Eval Suite",
-   "kind": "worker",
-   "layer": "backend",
-   "keyword": "eval tasks",
-   "icon": "check",
-   "what": "MMLU ARC GSM8K HumanEval SmolTalk tasks plus CORE/bpb sampling with sandboxed code execution",
-   "evidence": [
-    "tasks/common.py",
-    "tasks/humaneval.py",
-    "nanochat/execution.py"
-   ]
-  }
- ],
- "connections": [
-  {
-   "from": "train-pipeline",
-   "to": "data-shards",
-   "label": "stream shards",
-   "evidence": "scripts/base_train.py"
-  },
-  {
-   "from": "train-pipeline",
-   "to": "gpt-model",
-   "label": "train transformer",
-   "evidence": "scripts/base_train.py"
-  },
-  {
-   "from": "train-pipeline",
-   "to": "checkpoint-store",
-   "label": "save checkpoint",
-   "evidence": "scripts/base_train.py"
-  },
-  {
-   "from": "chat-cli",
-   "to": "checkpoint-store",
-   "label": "load checkpoint",
-   "evidence": "scripts/chat_cli.py"
-  },
-  {
-   "from": "chat-cli",
-   "to": "inference-engine",
-   "label": "send tokens",
-   "evidence": "scripts/chat_cli.py"
-  },
-  {
-   "from": "inference-engine",
-   "to": "gpt-model",
-   "label": "run forward",
-   "evidence": "nanochat/engine.py"
-  },
-  {
-   "from": "eval-suite",
-   "to": "inference-engine",
-   "label": "request completions",
-   "evidence": "scripts/base_eval.py"
-  }
- ],
- "walkthrough": {
-  "name": "Pretrain then chat",
-  "steps": [
-   {
-    "from": "train-pipeline",
-    "to": "data-shards",
-    "label": "stream shards",
-    "evidence": "scripts/base_train.py"
-   },
-   {
-    "from": "train-pipeline",
-    "to": "gpt-model",
-    "label": "train transformer",
-    "evidence": "scripts/base_train.py"
-   },
-   {
-    "from": "train-pipeline",
-    "to": "checkpoint-store",
-    "label": "save checkpoint",
-    "evidence": "scripts/base_train.py"
-   },
-   {
-    "from": "chat-cli",
-    "to": "checkpoint-store",
-    "label": "load checkpoint",
-    "evidence": "scripts/chat_cli.py"
-   },
-   {
-    "from": "chat-cli",
-    "to": "inference-engine",
-    "label": "send tokens",
-    "evidence": "scripts/chat_cli.py"
-   },
-   {
-    "from": "inference-engine",
-    "to": "gpt-model",
-    "label": "run forward",
-    "evidence": "nanochat/engine.py"
-   }
+  "scale": [
+    {
+      "component": "data-shards",
+      "at": "10x",
+      "problem": "download contention",
+      "why": "Dataset streams climbmix shards on demand from HuggingFace into one DATA_DIR; at 10x ranks concurrent misses, on-demand downloads and parquet scans serialize and starve GPUs.",
+      "fix": "cache shards",
+      "fix_detail": "Pre-mirror all 6542 parquet shards to local NVMe and prefetch with multiprocessing pool to avoid on-demand HuggingFace download stalls during distributed training.",
+      "evidence": "nanochat/dataset.py"
+    }
   ]
- },
- "scale": [
-  {
-   "component": "data-shards",
-   "at": "10x",
-   "problem": "download contention",
-   "why": "Dataset streams climbmix shards on demand from HuggingFace into one DATA_DIR; at 10x ranks concurrent misses, on-demand downloads and parquet scans serialize and starve GPUs.",
-   "fix": "cache shards",
-   "fix_detail": "Pre-mirror all 6542 parquet shards to local NVMe and prefetch with multiprocessing pool to avoid on-demand HuggingFace download stalls during distributed training.",
-   "evidence": "nanochat/dataset.py"
-  }
- ]
 }

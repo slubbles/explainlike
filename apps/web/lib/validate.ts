@@ -10,7 +10,11 @@ export function validInput(s: string): boolean {
     // never let the server fetch its own network: localhost, private ranges and IPv6 literals
     // are refused (URL() already turns 2130706433 or 0x7f.1 into 127.0.0.1, and a public site has a name)
     let h: string;
-    try { h = new URL(s).hostname; } catch { return false; }
+    try {
+      h = new URL(s).hostname;
+    } catch {
+      return false;
+    }
     return !privateHostname(h);
   }
   // a topic in words ("how DNS works"): the engine reads reputable pages about it

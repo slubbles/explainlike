@@ -18,23 +18,46 @@ function Clip({ id }: { id: string }) {
   const mp4 = job.outputs?.mp4;
   return (
     <div className="clip">
-      <a className="screen" href={job.state === "done" ? fileUrl(id, mp4) : undefined} target="_blank" rel="noreferrer" aria-label={`Play ${what}`}>
+      <a
+        className="screen"
+        href={job.state === "done" ? fileUrl(id, mp4) : undefined}
+        target="_blank"
+        rel="noreferrer"
+        aria-label={`Play ${what}`}
+      >
         {job.state === "done" && mp4 && <video src={`${fileUrl(id, mp4)}#t=4`} preload="metadata" muted playsInline tabIndex={-1} />}
-        {job.state === "running" && <span className="mini"><span className="bar"><i style={{ width: `${Math.max(4, job.pct)}%` }} /></span></span>}
+        {job.state === "running" && (
+          <span className="mini">
+            <span className="bar">
+              <i style={{ width: `${Math.max(4, job.pct)}%` }} />
+            </span>
+          </span>
+        )}
       </a>
       <div>
         <b>{what}</b>
         {job.state === "running" && <span>{cap(job.message)}</span>}
         {job.state === "error" && <span className="err">Failed: {job.error}</span>}
-        {job.state === "done" && <span>{secs(job.durationSec)} · <a href={fileUrl(id, mp4, true)}>download</a></span>}
+        {job.state === "done" && (
+          <span>
+            {secs(job.durationSec)} · <a href={fileUrl(id, mp4, true)}>download</a>
+          </span>
+        )}
       </div>
     </div>
   );
 }
 
 type Props = {
-  job: Job; map?: Interactive; picked?: string; expl: Explain | null; explBusy: boolean; clips: string[];
-  pick: (id: string) => void; followUp: (b: { focus?: string; whatIf?: string }) => void; err: string;
+  job: Job;
+  map?: Interactive;
+  picked?: string;
+  expl: Explain | null;
+  explBusy: boolean;
+  clips: string[];
+  pick: (id: string) => void;
+  followUp: (b: { focus?: string; whatIf?: string }) => void;
+  err: string;
 };
 
 export default function ResultView({ job, map, picked, expl, explBusy, clips, pick, followUp, err }: Props) {
@@ -47,17 +70,57 @@ export default function ResultView({ job, map, picked, expl, explBusy, clips, pi
         {o.mp4 && <Player src={fileUrl(job.id, o.mp4)} map={map} selected={picked} onPick={pick} />}
         <div className="under">
           <div className="t">{job.title}</div>
-          <div className="m muted">{secs(job.durationSec)}{job.costUsd ? ` · cost ${money(job.costUsd)}` : null}</div>
-          <div className="dl">
-            {o.mp4 && <a className="btn solid" href={fileUrl(job.id, o.mp4, true)}>Download mp4</a>}
-            {o.tldr && <a className="btn" href={fileUrl(job.id, o.tldr, true)}>Download .tldr</a>}
-            {o.excalidraw && <a className="btn" href={fileUrl(job.id, o.excalidraw, true)}>Download .excalidraw</a>}
-            {o.contactSheet && <a className="link" href={fileUrl(job.id, o.contactSheet)} target="_blank" rel="noreferrer">Contact sheet</a>}
+          <div className="m muted">
+            {secs(job.durationSec)}
+            {job.costUsd ? ` · cost ${money(job.costUsd)}` : null}
           </div>
-          {o.tldr && <div className="note">Keep drawing at <a href="https://www.tldraw.com" target="_blank" rel="noreferrer">tldraw.com</a>: open the site and drag the .tldr file onto the canvas, or open the .excalidraw at <a href="https://excalidraw.com" target="_blank" rel="noreferrer">excalidraw.com</a>.</div>}
+          <div className="dl">
+            {o.mp4 && (
+              <a className="btn solid" href={fileUrl(job.id, o.mp4, true)}>
+                Download mp4
+              </a>
+            )}
+            {o.tldr && (
+              <a className="btn" href={fileUrl(job.id, o.tldr, true)}>
+                Download .tldr
+              </a>
+            )}
+            {o.excalidraw && (
+              <a className="btn" href={fileUrl(job.id, o.excalidraw, true)}>
+                Download .excalidraw
+              </a>
+            )}
+            {o.contactSheet && (
+              <a className="link" href={fileUrl(job.id, o.contactSheet)} target="_blank" rel="noreferrer">
+                Contact sheet
+              </a>
+            )}
+          </div>
+          {o.tldr && (
+            <div className="note">
+              Keep drawing at{" "}
+              <a href="https://www.tldraw.com" target="_blank" rel="noreferrer">
+                tldraw.com
+              </a>
+              : open the site and drag the .tldr file onto the canvas, or open the .excalidraw at{" "}
+              <a href="https://excalidraw.com" target="_blank" rel="noreferrer">
+                excalidraw.com
+              </a>
+              .
+            </div>
+          )}
         </div>
-        {map && <div className="tip"><Info />Tap any box on the diagram to ask Muse Spark what it does. The answer only cites files that box was built from.</div>}
-        {err && <div className="err" role="alert">{err}</div>}
+        {map && (
+          <div className="tip">
+            <Info />
+            Tap any box on the diagram to ask Muse Spark what it does. The answer only cites files that box was built from.
+          </div>
+        )}
+        {err && (
+          <div className="err" role="alert">
+            {err}
+          </div>
+        )}
       </div>
 
       {side && (
@@ -66,7 +129,13 @@ export default function ResultView({ job, map, picked, expl, explBusy, clips, pi
             {!picked && (
               <>
                 <h3>Tap a box to ask about it</h3>
-                <div className="boxes">{map!.nodes.map((n) => <button key={n.id} type="button" className="chip" onClick={() => pick(n.id)}>{n.keyword}</button>)}</div>
+                <div className="boxes">
+                  {map!.nodes.map((n) => (
+                    <button key={n.id} type="button" className="chip" onClick={() => pick(n.id)}>
+                      {n.keyword}
+                    </button>
+                  ))}
+                </div>
               </>
             )}
             {picked && (
@@ -77,18 +146,40 @@ export default function ResultView({ job, map, picked, expl, explBusy, clips, pi
                 {expl && (
                   <>
                     <p className="sum">{firstSentence(expl.summary)}</p>
-                    <ul className="pts">{expl.points.map((p, i) => <li key={i}>{p.text}<br /><code>{p.file}</code></li>)}</ul>
+                    <ul className="pts">
+                      {expl.points.map((p, i) => (
+                        <li key={i}>
+                          {p.text}
+                          <br />
+                          <code>{p.file}</code>
+                        </li>
+                      ))}
+                    </ul>
                   </>
                 )}
-                <button type="button" className="btn wide" disabled={explBusy} onClick={() => followUp({ focus: picked })}>Render a 20 s deep dive on this box</button>
+                <button type="button" className="btn wide" disabled={explBusy} onClick={() => followUp({ focus: picked })}>
+                  Render a 20 s deep dive on this box
+                </button>
               </>
             )}
           </div>
-          <div className="sec"><div className="row2">
-            <button type="button" className="btn" onClick={() => followUp({ whatIf: "10x" })}>What if 10x traffic?</button>
-            <button type="button" className="btn" onClick={() => followUp({ whatIf: "100x" })}>What if 100x?</button>
-          </div></div>
-          {clips.length > 0 && <div className="sec">{clips.map((id) => <Clip key={id} id={id} />)}</div>}
+          <div className="sec">
+            <div className="row2">
+              <button type="button" className="btn" onClick={() => followUp({ whatIf: "10x" })}>
+                What if 10x traffic?
+              </button>
+              <button type="button" className="btn" onClick={() => followUp({ whatIf: "100x" })}>
+                What if 100x?
+              </button>
+            </div>
+          </div>
+          {clips.length > 0 && (
+            <div className="sec">
+              {clips.map((id) => (
+                <Clip key={id} id={id} />
+              ))}
+            </div>
+          )}
         </aside>
       )}
     </div>

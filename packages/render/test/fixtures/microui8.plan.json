@@ -1,112 +1,96 @@
 {
- "title": "rxi/microui",
- "subtitle": "tiny ui rebuilt every frame",
- "scenes": [
-  {
-   "id": "s01-hook",
-   "kind": "hook",
-   "heading": "the forgetful diner",
-   "narration": "What if your buttons forgot you sixty times a second? Microui is a tiny toolkit that rebuilds its windows each frame, so you'd store almost nothing. It works like the forgetful diner where the kitchen re-takes your whole order on every visit, and you'll follow one click with you.",
-   "add_components": [],
-   "add_connections": [],
-   "board_nodes": [],
-   "board_edges": [],
-   "highlights": [],
-   "callouts": [],
-   "items": []
+  "title": "rxi/microui",
+  "subtitle": "tiny ui rebuilt every frame",
+  "scenes": [
+    {
+      "id": "s01-hook",
+      "kind": "hook",
+      "heading": "the forgetful diner",
+      "narration": "What if your buttons forgot you sixty times a second? Microui is a tiny toolkit that rebuilds its windows each frame, so you'd store almost nothing. It works like the forgetful diner where the kitchen re-takes your whole order on every visit, and you'll follow one click with you.",
+      "add_components": [],
+      "add_connections": [],
+      "board_nodes": [],
+      "board_edges": [],
+      "highlights": [],
+      "callouts": [],
+      "items": []
+    },
+    {
+      "id": "s02-layer",
+      "kind": "layer",
+      "heading": "the front counter",
+      "narration": "You stop at the front counter first, where the demo app hands your mouse to the cook. Then the ui core lays out buttons fresh each frame, so stale state can't linger.",
+      "add_components": ["demo-app", "ui-core"],
+      "add_connections": ["demo-app>ui-core"],
+      "board_nodes": [],
+      "board_edges": [],
+      "highlights": [],
+      "callouts": [],
+      "items": []
+    },
+    {
+      "id": "s03-layer",
+      "kind": "layer",
+      "heading": "the kitchen pass",
+      "narration": "Your orders land on the kitchen pass, where the command list holds plain rectangles and text. The sdl window paints them with SDL, a graphics helper, so you'd swap painters easily.",
+      "add_components": ["command-list", "sdl-renderer"],
+      "add_connections": ["ui-core>command-list", "demo-app>command-list", "demo-app>sdl-renderer"],
+      "board_nodes": [],
+      "board_edges": [],
+      "highlights": [],
+      "callouts": [],
+      "items": []
+    },
+    {
+      "id": "s04-walkthrough",
+      "kind": "walkthrough",
+      "heading": "follow one click",
+      "narration": "Follow one click on OK. Inside, the demo app sends the input of your press to the ui core. Next, the ui core queues draws as rectangle plus text. Afterward, the demo app reads commands from the list, then it draws rects through the sdl window, and you'd get a button back.",
+      "add_components": [],
+      "add_connections": [],
+      "board_nodes": [],
+      "board_edges": [],
+      "highlights": [],
+      "callouts": [],
+      "items": []
+    },
+    {
+      "id": "s05-layer",
+      "kind": "layer",
+      "heading": "the recipe drawer",
+      "narration": "Beside the cook sits the recipe drawer, where the font atlas keeps the picture book of letters. The demo app uses it to shape your text.",
+      "add_components": ["font-atlas"],
+      "add_connections": ["demo-app>font-atlas"],
+      "board_nodes": [],
+      "board_edges": [],
+      "highlights": [],
+      "callouts": [],
+      "items": []
+    },
+    {
+      "id": "s06-recap",
+      "kind": "recap",
+      "heading": "the whole trip",
+      "narration": "On the whole trip, you click in the demo app, it reaches the ui core, the ui core fills the command list, the demo app empties the command list, and the demo app paints the sdl window for your pressed button. Forgetting sixty times a second keeps it tiny.",
+      "add_components": [],
+      "add_connections": [],
+      "board_nodes": [],
+      "board_edges": [],
+      "highlights": [],
+      "callouts": [],
+      "items": []
+    }
+  ],
+  "repairs": [],
+  "check": {
+    "first": [],
+    "final": [],
+    "revised": false
   },
-  {
-   "id": "s02-layer",
-   "kind": "layer",
-   "heading": "the front counter",
-   "narration": "You stop at the front counter first, where the demo app hands your mouse to the cook. Then the ui core lays out buttons fresh each frame, so stale state can't linger.",
-   "add_components": [
-    "demo-app",
-    "ui-core"
-   ],
-   "add_connections": [
-    "demo-app>ui-core"
-   ],
-   "board_nodes": [],
-   "board_edges": [],
-   "highlights": [],
-   "callouts": [],
-   "items": []
-  },
-  {
-   "id": "s03-layer",
-   "kind": "layer",
-   "heading": "the kitchen pass",
-   "narration": "Your orders land on the kitchen pass, where the command list holds plain rectangles and text. The sdl window paints them with SDL, a graphics helper, so you'd swap painters easily.",
-   "add_components": [
-    "command-list",
-    "sdl-renderer"
-   ],
-   "add_connections": [
-    "ui-core>command-list",
-    "demo-app>command-list",
-    "demo-app>sdl-renderer"
-   ],
-   "board_nodes": [],
-   "board_edges": [],
-   "highlights": [],
-   "callouts": [],
-   "items": []
-  },
-  {
-   "id": "s04-walkthrough",
-   "kind": "walkthrough",
-   "heading": "follow one click",
-   "narration": "Follow one click on OK. Inside, the demo app sends the input of your press to the ui core. Next, the ui core queues draws as rectangle plus text. Afterward, the demo app reads commands from the list, then it draws rects through the sdl window, and you'd get a button back.",
-   "add_components": [],
-   "add_connections": [],
-   "board_nodes": [],
-   "board_edges": [],
-   "highlights": [],
-   "callouts": [],
-   "items": []
-  },
-  {
-   "id": "s05-layer",
-   "kind": "layer",
-   "heading": "the recipe drawer",
-   "narration": "Beside the cook sits the recipe drawer, where the font atlas keeps the picture book of letters. The demo app uses it to shape your text.",
-   "add_components": [
-    "font-atlas"
-   ],
-   "add_connections": [
-    "demo-app>font-atlas"
-   ],
-   "board_nodes": [],
-   "board_edges": [],
-   "highlights": [],
-   "callouts": [],
-   "items": []
-  },
-  {
-   "id": "s06-recap",
-   "kind": "recap",
-   "heading": "the whole trip",
-   "narration": "On the whole trip, you click in the demo app, it reaches the ui core, the ui core fills the command list, the demo app empties the command list, and the demo app paints the sdl window for your pressed button. Forgetting sixty times a second keeps it tiny.",
-   "add_components": [],
-   "add_connections": [],
-   "board_nodes": [],
-   "board_edges": [],
-   "highlights": [],
-   "callouts": [],
-   "items": []
+  "renames": [],
+  "polish": {
+    "rewritten": 6,
+    "kept": [],
+    "issues": []
   }
- ],
- "repairs": [],
- "check": {
-  "first": [],
-  "final": [],
-  "revised": false
- },
- "renames": [],
- "polish": {
-  "rewritten": 6,
-  "kept": [],
-  "issues": []
- }
 }

@@ -43,18 +43,18 @@ Notes:
 
 ## 3. Architecture
 
-| Package | Owns |
-| --- | --- |
-| `packages/ingest` | Fetches repos, articles, X posts, and cited sources for plain topics. SSRF guard, size limits, timeouts; secret-looking files are never opened. |
-| `packages/planner` | Brief, architecture map plus review, scene plan, self-checks, narration polish, speech gate, per-line beats. |
-| `packages/models` | Muse Spark client: OpenRouter (`meta/muse-spark-1.3`) when `OPENROUTER_API_KEY` is set, else the Meta Model API. Cost ledger, timeouts, retries, hedged calls. |
-| `packages/voice` | Deepgram Aura TTS with word timings; Muse Transcribe voiceover check. |
-| `packages/render` | Board layout, line cards, composition, placement check, Skia frames (Chrome fallback), frame check, ffmpeg, music and sound effects. |
-| `packages/core` | Shared schemas, plain-language rules, pacing, text helpers. |
-| `packages/cli` | `pnpm explanimate <link or topic>`; `pipeline.ts` runs the stages. |
-| `packages/api` | Local job API on 127.0.0.1:7311 (`/v1/jobs`). |
-| `packages/mcp` | `/explanimate` MCP server (`explain`, `explain_status`, `explain_cancel`). |
-| `apps/web` | Next.js app: job queue, gallery (`/gallery`), voice mode, spend guard, rate limits, `/api/health`. |
+| Package            | Owns                                                                                                                                                           |
+| ------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `packages/ingest`  | Fetches repos, articles, X posts, and cited sources for plain topics. SSRF guard, size limits, timeouts; secret-looking files are never opened.                |
+| `packages/planner` | Brief, architecture map plus review, scene plan, self-checks, narration polish, speech gate, per-line beats.                                                   |
+| `packages/models`  | Muse Spark client: OpenRouter (`meta/muse-spark-1.3`) when `OPENROUTER_API_KEY` is set, else the Meta Model API. Cost ledger, timeouts, retries, hedged calls. |
+| `packages/voice`   | Deepgram Aura TTS with word timings; Muse Transcribe voiceover check.                                                                                          |
+| `packages/render`  | Board layout, line cards, composition, placement check, Skia frames (Chrome fallback), frame check, ffmpeg, music and sound effects.                           |
+| `packages/core`    | Shared schemas, plain-language rules, pacing, text helpers.                                                                                                    |
+| `packages/cli`     | `pnpm explanimate <link or topic>`; `pipeline.ts` runs the stages.                                                                                             |
+| `packages/api`     | Local job API on 127.0.0.1:7311 (`/v1/jobs`).                                                                                                                  |
+| `packages/mcp`     | `/explanimate` MCP server (`explain`, `explain_status`, `explain_cancel`).                                                                                     |
+| `apps/web`         | Next.js app: job queue, gallery (`/gallery`), voice mode, spend guard, rate limits, `/api/health`.                                                             |
 
 Pipeline stages (`packages/cli/src/pipeline.ts`): ingest, brief, architecture
 (repos), scene plan, voice, compose, render and encode. Plans (per repo commit),

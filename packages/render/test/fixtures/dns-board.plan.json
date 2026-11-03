@@ -1,152 +1,152 @@
 {
- "title": "how the internet grew",
- "subtitle": "en.wikipedia.org, icann.org, spectrum.ieee.org",
- "scenes": [
-  {
-   "id": "s01-hook",
-   "kind": "hook",
-   "heading": "letters become postcards",
-   "narration": "You send mail every day, so why does the internet survive broken wires. Letters become postcards here, chopped up, sorted alone, then rebuilt for you at the end.",
-   "add_components": [],
-   "add_connections": [],
-   "board_nodes": [],
-   "board_edges": [],
-   "highlights": [],
-   "callouts": [],
-   "items": []
-  },
-  {
-   "id": "s03-board",
-   "kind": "board",
-   "heading": "look it up",
-   "narration": "Your machine asks the book where things live. Thing 0 holds its place in the row and says its name out loud. Thing 1 holds its place in the row and says its name out loud. Thing 2 holds its place in the row and says its name out loud. Thing 3 holds its place in the row and says its name out loud. Thing 4 holds its place in the row and says its name out loud. Thing 5 holds its place in the row and says its name out loud. Thing 6 holds its place in the row and says its name out loud. Thing 7 holds its place in the row and says its name out loud. The book answers with the number of the machine you asked about, and the page opens.",
-   "add_components": [],
-   "add_connections": [],
-   "board_nodes": [
+  "title": "how the internet grew",
+  "subtitle": "en.wikipedia.org, icann.org, spectrum.ieee.org",
+  "scenes": [
     {
-     "id": "book",
-     "keyword": "phone book",
-     "icon": "book",
-     "color": "orange",
-     "evidence": "like a phone book for the internet",
-     "count": 1
+      "id": "s01-hook",
+      "kind": "hook",
+      "heading": "letters become postcards",
+      "narration": "You send mail every day, so why does the internet survive broken wires. Letters become postcards here, chopped up, sorted alone, then rebuilt for you at the end.",
+      "add_components": [],
+      "add_connections": [],
+      "board_nodes": [],
+      "board_edges": [],
+      "highlights": [],
+      "callouts": [],
+      "items": []
     },
     {
-     "id": "n1",
-     "keyword": "thing number 1",
-     "icon": "box",
-     "color": "blue",
-     "evidence": "box number 1 sits in a row",
-     "count": 1
+      "id": "s03-board",
+      "kind": "board",
+      "heading": "look it up",
+      "narration": "Your machine asks the book where things live. Thing 0 holds its place in the row and says its name out loud. Thing 1 holds its place in the row and says its name out loud. Thing 2 holds its place in the row and says its name out loud. Thing 3 holds its place in the row and says its name out loud. Thing 4 holds its place in the row and says its name out loud. Thing 5 holds its place in the row and says its name out loud. Thing 6 holds its place in the row and says its name out loud. Thing 7 holds its place in the row and says its name out loud. The book answers with the number of the machine you asked about, and the page opens.",
+      "add_components": [],
+      "add_connections": [],
+      "board_nodes": [
+        {
+          "id": "book",
+          "keyword": "phone book",
+          "icon": "book",
+          "color": "orange",
+          "evidence": "like a phone book for the internet",
+          "count": 1
+        },
+        {
+          "id": "n1",
+          "keyword": "thing number 1",
+          "icon": "box",
+          "color": "blue",
+          "evidence": "box number 1 sits in a row",
+          "count": 1
+        },
+        {
+          "id": "n2",
+          "keyword": "thing number 2",
+          "icon": "box",
+          "color": "blue",
+          "evidence": "box number 2 sits in a row",
+          "count": 1
+        },
+        {
+          "id": "n3",
+          "keyword": "thing number 3",
+          "icon": "box",
+          "color": "blue",
+          "evidence": "box number 3 sits in a row",
+          "count": 1
+        },
+        {
+          "id": "n4",
+          "keyword": "thing number 4",
+          "icon": "box",
+          "color": "blue",
+          "evidence": "box number 4 sits in a row",
+          "count": 1
+        },
+        {
+          "id": "n5",
+          "keyword": "thing number 5",
+          "icon": "box",
+          "color": "blue",
+          "evidence": "box number 5 sits in a row",
+          "count": 1
+        },
+        {
+          "id": "n6",
+          "keyword": "thing number 6",
+          "icon": "box",
+          "color": "blue",
+          "evidence": "box number 6 sits in a row",
+          "count": 1
+        },
+        {
+          "id": "machine",
+          "keyword": "your machine",
+          "icon": "server",
+          "color": "green",
+          "evidence": "your machine asks where things live",
+          "count": 1
+        }
+      ],
+      "board_edges": [
+        {
+          "from": "book",
+          "to": "machine",
+          "label": "answers with the number of the machine you asked about"
+        },
+        {
+          "from": "book",
+          "to": "n1",
+          "label": "passes it on"
+        },
+        {
+          "from": "n1",
+          "to": "n2",
+          "label": "passes it on"
+        },
+        {
+          "from": "n2",
+          "to": "n3",
+          "label": "passes it on"
+        },
+        {
+          "from": "n3",
+          "to": "n4",
+          "label": "passes it on"
+        },
+        {
+          "from": "n4",
+          "to": "n5",
+          "label": "passes it on"
+        },
+        {
+          "from": "n5",
+          "to": "n6",
+          "label": "passes it on"
+        },
+        {
+          "from": "n6",
+          "to": "machine",
+          "label": "passes it on"
+        }
+      ],
+      "highlights": [],
+      "callouts": [],
+      "items": []
     },
     {
-     "id": "n2",
-     "keyword": "thing number 2",
-     "icon": "box",
-     "color": "blue",
-     "evidence": "box number 2 sits in a row",
-     "count": 1
-    },
-    {
-     "id": "n3",
-     "keyword": "thing number 3",
-     "icon": "box",
-     "color": "blue",
-     "evidence": "box number 3 sits in a row",
-     "count": 1
-    },
-    {
-     "id": "n4",
-     "keyword": "thing number 4",
-     "icon": "box",
-     "color": "blue",
-     "evidence": "box number 4 sits in a row",
-     "count": 1
-    },
-    {
-     "id": "n5",
-     "keyword": "thing number 5",
-     "icon": "box",
-     "color": "blue",
-     "evidence": "box number 5 sits in a row",
-     "count": 1
-    },
-    {
-     "id": "n6",
-     "keyword": "thing number 6",
-     "icon": "box",
-     "color": "blue",
-     "evidence": "box number 6 sits in a row",
-     "count": 1
-    },
-    {
-     "id": "machine",
-     "keyword": "your machine",
-     "icon": "server",
-     "color": "green",
-     "evidence": "your machine asks where things live",
-     "count": 1
+      "id": "s07-recap",
+      "kind": "recap",
+      "heading": "postcards still deliver",
+      "narration": "Postcards still deliver your internet. Chopped data survives breaks, gateways join networks, and shared names keep it open. Remember that trick, and the growth makes sense.",
+      "add_components": [],
+      "add_connections": [],
+      "board_nodes": [],
+      "board_edges": [],
+      "highlights": [],
+      "callouts": [],
+      "items": []
     }
-   ],
-   "board_edges": [
-    {
-     "from": "book",
-     "to": "machine",
-     "label": "answers with the number of the machine you asked about"
-    },
-    {
-     "from": "book",
-     "to": "n1",
-     "label": "passes it on"
-    },
-    {
-     "from": "n1",
-     "to": "n2",
-     "label": "passes it on"
-    },
-    {
-     "from": "n2",
-     "to": "n3",
-     "label": "passes it on"
-    },
-    {
-     "from": "n3",
-     "to": "n4",
-     "label": "passes it on"
-    },
-    {
-     "from": "n4",
-     "to": "n5",
-     "label": "passes it on"
-    },
-    {
-     "from": "n5",
-     "to": "n6",
-     "label": "passes it on"
-    },
-    {
-     "from": "n6",
-     "to": "machine",
-     "label": "passes it on"
-    }
-   ],
-   "highlights": [],
-   "callouts": [],
-   "items": []
-  },
-  {
-   "id": "s07-recap",
-   "kind": "recap",
-   "heading": "postcards still deliver",
-   "narration": "Postcards still deliver your internet. Chopped data survives breaks, gateways join networks, and shared names keep it open. Remember that trick, and the growth makes sense.",
-   "add_components": [],
-   "add_connections": [],
-   "board_nodes": [],
-   "board_edges": [],
-   "highlights": [],
-   "callouts": [],
-   "items": []
-  }
- ],
- "repairs": []
+  ],
+  "repairs": []
 }

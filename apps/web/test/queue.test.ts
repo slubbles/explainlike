@@ -30,7 +30,10 @@ test("past the render slots, every request is accepted and waits its turn, first
     assert.equal(admit("someone"), undefined, `request ${i + 1} is not turned away`);
     ids.push(startJob(`topic number ${i}`, "silent").id);
   }
-  assert.deepEqual(ids.map((id) => getJob(id)!.state), ["running", "running", "queued", "queued", "queued", "queued"]);
+  assert.deepEqual(
+    ids.map((id) => getJob(id)!.state),
+    ["running", "running", "queued", "queued", "queued", "queued"],
+  );
   assert.equal(getJob(ids[2])!.pct, 0);
   assert.equal(getJob(ids[2])!.stage, "start");
 
@@ -40,12 +43,23 @@ test("past the render slots, every request is accepted and waits its turn, first
     // never more than two at once, and a later job never starts while an earlier one still waits
     assert.ok(states.filter((s) => s === "running").length <= 2, states.join());
     const firstWaiting = states.indexOf("queued");
-    if (firstWaiting >= 0) assert.ok(states.slice(firstWaiting).every((s) => s === "queued"), states.join());
+    if (firstWaiting >= 0)
+      assert.ok(
+        states.slice(firstWaiting).every((s) => s === "queued"),
+        states.join(),
+      );
     await sleep(50);
   }
-  assert.deepEqual(ids.map((id) => getJob(id)!.state), Array(6).fill("done"));
+  assert.deepEqual(
+    ids.map((id) => getJob(id)!.state),
+    Array(6).fill("done"),
+  );
   const began = ids.map((id) => getJob(id)!.began!);
-  assert.deepEqual([...began].sort((a, b) => a - b), began, "started in the order they came in");
+  assert.deepEqual(
+    [...began].sort((a, b) => a - b),
+    began,
+    "started in the order they came in",
+  );
 });
 
 test("a waiting job whose page closed is dropped, so it never takes a slot", async () => {
@@ -56,7 +70,11 @@ test("a waiting job whose page closed is dropped, so it never takes a slot", asy
   const gone = startJob("how TCP works", "silent").id; // nobody polls this one
   const watched = startJob("how TLS works", "silent").id;
   assert.equal(getJob(gone)!.state, "queued");
-  for (let i = 0; i < 400 && !settled(watched); i++) { touch(first); touch(watched); await sleep(50); }
+  for (let i = 0; i < 400 && !settled(watched); i++) {
+    touch(first);
+    touch(watched);
+    await sleep(50);
+  }
   assert.equal(getJob(first)!.state, "done");
   assert.equal(getJob(gone)!.state, "error");
   assert.match(getJob(gone)!.error!, /page was closed/);
@@ -73,6 +91,12 @@ test("only a very high, configurable ceiling on waiting jobs refuses a request",
   assert.match(admit("someone") ?? "", /very busy/);
   delete process.env.EXPLANIMATE_QUEUE_MAX;
   assert.equal(admit("someone"), undefined, "the default ceiling is far higher");
-  for (let i = 0; i < 400 && !ids.every(settled); i++) { ids.forEach(touch); await sleep(50); }
-  assert.deepEqual(ids.map((id) => getJob(id)!.state), ["done", "done", "done"]);
+  for (let i = 0; i < 400 && !ids.every(settled); i++) {
+    ids.forEach(touch);
+    await sleep(50);
+  }
+  assert.deepEqual(
+    ids.map((id) => getJob(id)!.state),
+    ["done", "done", "done"],
+  );
 });

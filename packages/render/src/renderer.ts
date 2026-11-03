@@ -20,7 +20,12 @@ export function rendererChoice(env: Record<string, string | undefined> = process
 
 /** Why Skia cannot run here (its native module will not load), or undefined when it can. */
 export async function skiaUnavailable(load: () => Promise<unknown> = () => import("@napi-rs/canvas")): Promise<string | undefined> {
-  try { await load(); return undefined; } catch (e) { return `skia unavailable (${(e as Error).message.split("\n")[0]})`; }
+  try {
+    await load();
+    return undefined;
+  } catch (e) {
+    return `skia unavailable (${(e as Error).message.split("\n")[0]})`;
+  }
 }
 
 let nvencWorks: boolean | undefined;
@@ -28,7 +33,10 @@ let nvencWorks: boolean | undefined;
  * The H.264 settings to use. ffmpeg lists h264_nvenc even on machines without an NVIDIA GPU, so a tiny
  * test encode with the real settings decides, once per process.
  */
-export function videoCodec(env: Record<string, string | undefined> = process.env, probe = nvencProbe): { name: "h264_nvenc" | "libx264"; args: string[] } {
+export function videoCodec(
+  env: Record<string, string | undefined> = process.env,
+  probe = nvencProbe,
+): { name: "h264_nvenc" | "libx264"; args: string[] } {
   const want = env.EXPLANIMATE_ENCODER?.trim().toLowerCase();
   if (want === "x264") return { name: "libx264", args: X264_ARGS };
   if (want === "nvenc" || (probe === nvencProbe ? (nvencWorks ??= probe()) : probe())) return { name: "h264_nvenc", args: NVENC_ARGS };
@@ -36,7 +44,11 @@ export function videoCodec(env: Record<string, string | undefined> = process.env
 }
 
 function nvencProbe() {
-  const r = spawnSync("ffmpeg", ["-v", "error", "-f", "lavfi", "-i", "color=c=black:s=256x144:r=24:d=0.2", ...NVENC_ARGS, "-pix_fmt", "yuv420p", "-f", "null", "-"], { timeout: 15_000 });
+  const r = spawnSync(
+    "ffmpeg",
+    ["-v", "error", "-f", "lavfi", "-i", "color=c=black:s=256x144:r=24:d=0.2", ...NVENC_ARGS, "-pix_fmt", "yuv420p", "-f", "null", "-"],
+    { timeout: 15_000 },
+  );
   return r.status === 0;
 }
 
@@ -54,21 +66,44 @@ export interface RenderedFilm {
  * Draw every frame of `film` and encode it to `mp4` with the narration, music and sound effects. Frames the
  * frame check reads are left in `frameDir` as JPEGs whichever renderer runs.
  */
-export async function renderFilm(film: Film, frameDir: string, mp4: string, o: {
-  renderer?: RendererId; workers?: number; audio?: string; music?: boolean; cues?: SfxCue[];
-  onProgress?: (done: number, total: number) => void;
-}): Promise<RenderedFilm> {
+export async function renderFilm(
+  film: Film,
+  frameDir: string,
+  mp4: string,
+  o: {
+    renderer?: RendererId;
+    workers?: number;
+    audio?: string;
+    music?: boolean;
+    cues?: SfxCue[];
+    onProgress?: (done: number, total: number) => void;
+  },
+): Promise<RenderedFilm> {
   const codec = videoCodec();
   const want = o.renderer ?? rendererChoice();
   let fellBack: string | undefined;
-  const enc = (raw: boolean) => mp4Encoder(film.fps, mp4, { duration: film.duration, workDir: frameDir, audio: o.audio, music: o.music, cues: o.cues, video: codec.args, raw: raw ? { width: film.width, height: film.height } : undefined });
+  const enc = (raw: boolean) =>
+    mp4Encoder(film.fps, mp4, {
+      duration: film.duration,
+      workDir: frameDir,
+      audio: o.audio,
+      music: o.music,
+      cues: o.cues,
+      video: codec.args,
+      raw: raw ? { width: film.width, height: film.height } : undefined,
+    });
   if (want === "skia") {
     fellBack = await skiaUnavailable();
     if (!fellBack) {
       const encoder = enc(true);
       try {
         const { captureFramesSkia } = await import("./skia.js");
-        const cap = await captureFramesSkia(film, frameDir, { workers: o.workers, hardwareEncoder: codec.name === "h264_nvenc", onFrame: encoder.frame, onProgress: o.onProgress });
+        const cap = await captureFramesSkia(film, frameDir, {
+          workers: o.workers,
+          hardwareEncoder: codec.name === "h264_nvenc",
+          onFrame: encoder.frame,
+          onProgress: o.onProgress,
+        });
         return { renderer: "skia", codec: codec.name, cap, encoded: encoder.done() };
       } catch (e) {
         encoder.abort();

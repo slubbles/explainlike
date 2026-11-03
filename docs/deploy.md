@@ -35,7 +35,12 @@ curl -s localhost:3000/api/health
 `GET /api/health` answers `200` when a video can be made and `503` when it cannot:
 
 ```json
-{"ok":true,"checks":{"ffmpeg":true,"chrome":true,"modelKey":true,"voiceKey":true,"jobsDir":true},"paused":false,"problems":[]}
+{
+  "ok": true,
+  "checks": { "ffmpeg": true, "chrome": true, "modelKey": true, "voiceKey": true, "jobsDir": true },
+  "paused": false,
+  "problems": []
+}
 ```
 
 - Keys appear only as `true` or `false`, never their values.
@@ -167,10 +172,10 @@ Caddy gets and renews the certificate itself and sets `X-Forwarded-For`, so `EXP
 
 Add these records for your domain at your registrar or DNS host (using explanimate.co as the example):
 
-| Host | Railway | Fly.io | VPS |
-| --- | --- | --- | --- |
+| Host             | Railway                                                                                           | Fly.io                             | VPS                                 |
+| ---------------- | ------------------------------------------------------------------------------------------------- | ---------------------------------- | ----------------------------------- |
 | `explanimate.co` | `ALIAS`/`ANAME` (or `CNAME` with flattening) to the target Railway gives under Settings → Domains | `A` and `AAAA` from `fly ips list` | `A` (and `AAAA`) to the server's IP |
-| `www` | `CNAME` to the same Railway target | `CNAME` to `explanimate.fly.dev` | `CNAME` to `explanimate.co` |
+| `www`            | `CNAME` to the same Railway target                                                                | `CNAME` to `explanimate.fly.dev`   | `CNAME` to `explanimate.co`         |
 
 Then:
 
@@ -197,26 +202,26 @@ Every setting is listed with its default in [`.env.example`](../.env.example). T
 
 The project used to be called Explain Like. Settings with the old `EXPLAINLIKE_` prefix still work: each one is copied to its `EXPLANIMATE_` name at startup, unless the new name is set too (then the new one wins). Rename them when it is convenient. Folders from before the rename (`explainlike-out`, `~/explainlike-videos`, `~/.cache/explainlike`) are likewise still used when the new ones do not exist.
 
-| Variable | Default | What it does |
-| --- | --- | --- |
-| `OPENROUTER_API_KEY` | (optional) | OpenRouter key. When set, planning and voice mode use Muse Spark 1.3 through OpenRouter. Read only on the server. |
-| `MODEL_API_KEY` | (required without an OpenRouter key) | Meta Muse key: Muse Spark when there is no OpenRouter key, and always doodle icons and the voiceover check. Read only on the server. |
-| `EXPLANIMATE_LLM_PROVIDER` | `openrouter` if its key is set, else `meta` | Which service runs Muse Spark. The health check asks for that service's key. |
-| `DEEPGRAM_API_KEY` | (optional) | Voiceover and voice mode. Read only on the server. |
-| `EXPLANIMATE_META_CAP_USD` | 25 | New work pauses before Muse spend (OpenRouter or Meta) could pass this amount. |
-| `EXPLANIMATE_VOICE_CAP_USD` | 10 | New work pauses before Deepgram spend could pass this amount. |
-| `EXPLANIMATE_REQ_PER_MIN` | 12 | Per-IP limit on the routes that start work or cost money. |
-| `EXPLANIMATE_JOBS_PER_HOUR` | 20 | Videos per hour across everyone. |
-| `EXPLANIMATE_TRUST_PROXY` | 0 | Trust `X-Forwarded-For` for the client IP. |
-| `EXPLANIMATE_CONCURRENCY` | 10 | Videos rendered at once. Past that, new videos wait their turn (first in, first out) and their page shows the first step in progress; nobody is turned away for being busy. Each render is a Chromium plus ffmpeg, so size this to the machine. |
-| `EXPLANIMATE_QUEUE_MAX` | 200 | Safety ceiling on videos waiting for a slot. Only past this is a request refused ("very busy"). |
-| `EXPLANIMATE_WAIT_IDLE_S` | 120 | A waiting video whose page has not polled for this long (the tab was closed) is dropped before it starts. |
-| `EXPLANIMATE_DEMO_ONLY` | 0 | Show the finished examples only and refuse new videos. |
-| `EXPLANIMATE_RESUME` | 1 | After a restart, start the job it cut off once more, if it is under 6 hours old. |
-| `EXPLANIMATE_JOBS_DIR` | `explanimate-out/web` (`/data/jobs` in Docker) | Where jobs and the spend ledger live. Must be on a persistent disk. |
-| `EXPLANIMATE_GALLERY_DIR` | unset (`/data/gallery` in Docker) | Folder of example videos and their `gallery.json`. Unset or empty: no examples. |
-| `EXPLANIMATE_ALLOW_LOCAL` | 0 | Accept folder paths on the server. Leave off in public. |
-| `EXPLANIMATE_ALLOW_PRIVATE_URLS` | 0 | Read links that resolve to private addresses. Leave off in public; set to 1 (or pass `--allow-private` to the CLI) only to read a local intranet. A host whose DNS hands out proxy addresses (198.18.0.0/15, as some sandboxes and "fake-IP" proxies do) fails every link with the guard on; give such a host real DNS rather than turning the guard off. |
+| Variable                         | Default                                        | What it does                                                                                                                                                                                                                                                                                                                                              |
+| -------------------------------- | ---------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `OPENROUTER_API_KEY`             | (optional)                                     | OpenRouter key. When set, planning and voice mode use Muse Spark 1.3 through OpenRouter. Read only on the server.                                                                                                                                                                                                                                         |
+| `MODEL_API_KEY`                  | (required without an OpenRouter key)           | Meta Muse key: Muse Spark when there is no OpenRouter key, and always doodle icons and the voiceover check. Read only on the server.                                                                                                                                                                                                                      |
+| `EXPLANIMATE_LLM_PROVIDER`       | `openrouter` if its key is set, else `meta`    | Which service runs Muse Spark. The health check asks for that service's key.                                                                                                                                                                                                                                                                              |
+| `DEEPGRAM_API_KEY`               | (optional)                                     | Voiceover and voice mode. Read only on the server.                                                                                                                                                                                                                                                                                                        |
+| `EXPLANIMATE_META_CAP_USD`       | 25                                             | New work pauses before Muse spend (OpenRouter or Meta) could pass this amount.                                                                                                                                                                                                                                                                            |
+| `EXPLANIMATE_VOICE_CAP_USD`      | 10                                             | New work pauses before Deepgram spend could pass this amount.                                                                                                                                                                                                                                                                                             |
+| `EXPLANIMATE_REQ_PER_MIN`        | 12                                             | Per-IP limit on the routes that start work or cost money.                                                                                                                                                                                                                                                                                                 |
+| `EXPLANIMATE_JOBS_PER_HOUR`      | 20                                             | Videos per hour across everyone.                                                                                                                                                                                                                                                                                                                          |
+| `EXPLANIMATE_TRUST_PROXY`        | 0                                              | Trust `X-Forwarded-For` for the client IP.                                                                                                                                                                                                                                                                                                                |
+| `EXPLANIMATE_CONCURRENCY`        | 10                                             | Videos rendered at once. Past that, new videos wait their turn (first in, first out) and their page shows the first step in progress; nobody is turned away for being busy. Each render is a Chromium plus ffmpeg, so size this to the machine.                                                                                                           |
+| `EXPLANIMATE_QUEUE_MAX`          | 200                                            | Safety ceiling on videos waiting for a slot. Only past this is a request refused ("very busy").                                                                                                                                                                                                                                                           |
+| `EXPLANIMATE_WAIT_IDLE_S`        | 120                                            | A waiting video whose page has not polled for this long (the tab was closed) is dropped before it starts.                                                                                                                                                                                                                                                 |
+| `EXPLANIMATE_DEMO_ONLY`          | 0                                              | Show the finished examples only and refuse new videos.                                                                                                                                                                                                                                                                                                    |
+| `EXPLANIMATE_RESUME`             | 1                                              | After a restart, start the job it cut off once more, if it is under 6 hours old.                                                                                                                                                                                                                                                                          |
+| `EXPLANIMATE_JOBS_DIR`           | `explanimate-out/web` (`/data/jobs` in Docker) | Where jobs and the spend ledger live. Must be on a persistent disk.                                                                                                                                                                                                                                                                                       |
+| `EXPLANIMATE_GALLERY_DIR`        | unset (`/data/gallery` in Docker)              | Folder of example videos and their `gallery.json`. Unset or empty: no examples.                                                                                                                                                                                                                                                                           |
+| `EXPLANIMATE_ALLOW_LOCAL`        | 0                                              | Accept folder paths on the server. Leave off in public.                                                                                                                                                                                                                                                                                                   |
+| `EXPLANIMATE_ALLOW_PRIVATE_URLS` | 0                                              | Read links that resolve to private addresses. Leave off in public; set to 1 (or pass `--allow-private` to the CLI) only to read a local intranet. A host whose DNS hands out proxy addresses (198.18.0.0/15, as some sandboxes and "fake-IP" proxies do) fails every link with the guard on; give such a host real DNS rather than turning the guard off. |
 
 ## What is already guarded
 

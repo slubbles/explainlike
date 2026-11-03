@@ -8,7 +8,15 @@ import path from "node:path";
  */
 
 export type GalleryKind = "repo" | "X post" | "article" | "topic";
-export interface GalleryVideo { id: string; title: string; kind: GalleryKind; source?: string; durationSec?: number; file: string; poster?: string }
+export interface GalleryVideo {
+  id: string;
+  title: string;
+  kind: GalleryKind;
+  source?: string;
+  durationSec?: number;
+  file: string;
+  poster?: string;
+}
 /** What the page gets: the entry plus the URLs to play it from. */
 export type GalleryItem = Omit<GalleryVideo, "file" | "poster"> & { src: string; poster?: string };
 
@@ -16,7 +24,13 @@ const KINDS: GalleryKind[] = ["repo", "X post", "article", "topic"];
 const ID = /^[a-z0-9][a-z0-9-]{0,63}$/;
 const VIDEO = /^[\w-][\w.-]{0,120}\.mp4$/;
 const IMAGE = /^[\w-][\w.-]{0,120}\.(jpg|jpeg|png|webp)$/;
-export const TYPES: Record<string, string> = { mp4: "video/mp4", jpg: "image/jpeg", jpeg: "image/jpeg", png: "image/png", webp: "image/webp" };
+export const TYPES: Record<string, string> = {
+  mp4: "video/mp4",
+  jpg: "image/jpeg",
+  jpeg: "image/jpeg",
+  png: "image/png",
+  webp: "image/webp",
+};
 
 export const galleryDir = () => process.env.EXPLANIMATE_GALLERY_DIR?.trim() || undefined;
 
@@ -30,13 +44,19 @@ const inside = (dir: string, name: string) => {
 export function loadGallery(dir = galleryDir()): GalleryVideo[] {
   if (!dir) return [];
   let raw: unknown;
-  try { raw = JSON.parse(fs.readFileSync(path.join(dir, "gallery.json"), "utf8")); } catch { return []; }
+  try {
+    raw = JSON.parse(fs.readFileSync(path.join(dir, "gallery.json"), "utf8"));
+  } catch {
+    return [];
+  }
   const list = Array.isArray(raw) ? raw : (raw as { videos?: unknown })?.videos;
   if (!Array.isArray(list)) return [];
   const seen = new Set<string>();
   const out: GalleryVideo[] = [];
   for (const e of list as Record<string, unknown>[]) {
-    const id = str(e?.id), title = str(e?.title, 120), file = str(e?.file);
+    const id = str(e?.id),
+      title = str(e?.title, 120),
+      file = str(e?.file);
     if (!id || !ID.test(id) || seen.has(id) || !title || !file || !VIDEO.test(file) || !inside(dir, file)) continue;
     const poster = str(e.poster);
     const kind = KINDS.includes(e.kind as GalleryKind) ? (e.kind as GalleryKind) : "topic";
@@ -44,7 +64,10 @@ export function loadGallery(dir = galleryDir()): GalleryVideo[] {
     const d = Number(e.durationSec);
     seen.add(id);
     out.push({
-      id, title, kind, file,
+      id,
+      title,
+      kind,
+      file,
       ...(source && /^https:\/\//.test(source) ? { source } : {}),
       ...(Number.isFinite(d) && d > 0 ? { durationSec: d } : {}),
       ...(poster && IMAGE.test(poster) && inside(dir, poster) ? { poster } : {}),

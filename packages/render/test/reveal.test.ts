@@ -9,7 +9,16 @@ import { compose, loadIconPack, wordOpacities, revealWords, stageHtml } from "@e
 const fx = path.join(path.dirname(fileURLToPath(import.meta.url)), "fixtures");
 const plan = JSON.parse(fs.readFileSync(path.join(fx, "clipfeed.plan.json"), "utf8")) as ScenePlan;
 const arch = JSON.parse(fs.readFileSync(path.join(fx, "clipfeed.architecture.json"), "utf8")) as Architecture;
-const composed = compose({ plan, audio: [], theme: getTheme("chalk-dark"), spec: specFromBrief(DEFAULT_BRIEF), pack: loadIconPack(), sourceLabel: "github.com/example/clipfeed", arch, colorOf: (c) => (c.kind === "database" ? "blue" : "white") as any });
+const composed = compose({
+  plan,
+  audio: [],
+  theme: getTheme("chalk-dark"),
+  spec: specFromBrief(DEFAULT_BRIEF),
+  pack: loadIconPack(),
+  sourceLabel: "github.com/example/clipfeed",
+  arch,
+  colorOf: (c) => (c.kind === "database" ? "blue" : "white") as any,
+});
 
 test("text reveals whole words only: every word is either hidden, fading as a unit, or shown", () => {
   for (const n of [1, 2, 4, 9]) {

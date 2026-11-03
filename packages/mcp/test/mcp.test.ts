@@ -27,14 +27,21 @@ test("the server offers explain, explain_status, explain_cancel and the /explani
   assert.deepEqual(tools, ["explain", "explain_cancel", "explain_status"]);
   const status = (await client.listTools()).tools.find((t) => t.name === "explain_status")!;
   assert.equal(status.annotations?.readOnlyHint, true);
-  const p = await client.getPrompt({ name: "explanimate", arguments: { request: "explain what this repo is about https://github.com/a/b" } });
+  const p = await client.getPrompt({
+    name: "explanimate",
+    arguments: { request: "explain what this repo is about https://github.com/a/b" },
+  });
   assert.match((p.messages[0].content as any).text, /https:\/\/github\.com\/a\/b/);
 });
 
 test("explain returns the video and board paths, with progress along the way", async () => {
   const { client } = await connect();
   const progress: string[] = [];
-  const r = await client.callTool({ name: "explain", arguments: { source: "https://github.com/milind-soni/OpenMausBot", voice: "silent" } }, undefined, { onprogress: (p) => progress.push(p.message ?? "") });
+  const r = await client.callTool(
+    { name: "explain", arguments: { source: "https://github.com/milind-soni/OpenMausBot", voice: "silent" } },
+    undefined,
+    { onprogress: (p) => progress.push(p.message ?? "") },
+  );
   assert.equal(r.isError, false);
   const job = JSON.parse((r.content as any)[1].text);
   assert.equal(job.state, "done");
@@ -55,7 +62,10 @@ test("a long job answers with its id first, and explain_status waits for the res
 
 test("a specific question is handed to the engine as the viewer's goal", async () => {
   const { client } = await connect();
-  const r = await client.callTool({ name: "explain", arguments: { source: "https://github.com/a/b", question: "how auth works", depth: "deep" } });
+  const r = await client.callTool({
+    name: "explain",
+    arguments: { source: "https://github.com/a/b", question: "how auth works", depth: "deep" },
+  });
   const job = JSON.parse((r.content as any)[1].text);
   const { argv } = JSON.parse(fs.readFileSync(path.join(job.out, "args.json"), "utf8"));
   assert.equal(argv[argv.indexOf("--goal") + 1], "how auth works");

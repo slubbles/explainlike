@@ -15,20 +15,50 @@ function fakeApi(replies: { content?: string; finish?: string; slow?: boolean }[
     bodies.push(JSON.parse(String(init.body)));
     const r = replies[bodies.length - 1]!;
     if (r.slow) return new Promise<Response>((_, rej) => init.signal!.addEventListener("abort", () => rej(init.signal!.reason)));
-    return new Response(JSON.stringify({ choices: [{ message: { content: r.content ?? "" }, finish_reason: r.finish ?? "stop" }], usage: { prompt_tokens: 10, completion_tokens: 5 } }), { status: 200 });
+    return new Response(
+      JSON.stringify({
+        choices: [{ message: { content: r.content ?? "" }, finish_reason: r.finish ?? "stop" }],
+        usage: { prompt_tokens: 10, completion_tokens: 5 },
+      }),
+      { status: 200 },
+    );
   }) as typeof fetch;
-  return { bodies, restore: () => { globalThis.fetch = saved.fetch; if (saved.key === undefined) delete process.env.MODEL_API_KEY; else process.env.MODEL_API_KEY = saved.key; } };
+  return {
+    bodies,
+    restore: () => {
+      globalThis.fetch = saved.fetch;
+      if (saved.key === undefined) delete process.env.MODEL_API_KEY;
+      else process.env.MODEL_API_KEY = saved.key;
+    },
+  };
 }
-const call = (ledger: CostLedger) => sparkJson({ ledger, step: "architecture", schema: z.object({ a: z.number() }), name: "t", messages: [{ role: "user", content: "x" }], effort: "medium", maxTokens: 16000 });
+const call = (ledger: CostLedger) =>
+  sparkJson({
+    ledger,
+    step: "architecture",
+    schema: z.object({ a: z.number() }),
+    name: "t",
+    messages: [{ role: "user", content: "x" }],
+    effort: "medium",
+    maxTokens: 16000,
+  });
 
 test("an answer the reasoning ran out of room for is tried again with less effort and more room", async () => {
   const api = fakeApi([{ content: "", finish: "length" }, { content: '{"a":1}' }]);
   try {
     const ledger = new CostLedger();
     assert.deepEqual(await call(ledger), { a: 1 });
-    assert.deepEqual(api.bodies.map((b) => [b.reasoning_effort, b.max_tokens]), [["medium", 16000], ["low", 24000]]);
+    assert.deepEqual(
+      api.bodies.map((b) => [b.reasoning_effort, b.max_tokens]),
+      [
+        ["medium", 16000],
+        ["low", 24000],
+      ],
+    );
     assert.equal(ledger.entries.length, 2, "both tries are paid for, so both are counted");
-  } finally { api.restore(); }
+  } finally {
+    api.restore();
+  }
 });
 
 test("a second empty answer fails with a plain reason, without a third paid try", async () => {
@@ -36,35 +66,77 @@ test("a second empty answer fails with a plain reason, without a third paid try"
   try {
     await assert.rejects(call(new CostLedger()), /ran out of room \(24000 tokens\) on architecture, twice/);
     assert.equal(api.bodies.length, 2);
-  } finally { api.restore(); }
+  } finally {
+    api.restore();
+  }
 });
 
 test("a try that does not answer in time is dropped and tried once more with less effort, not four more times", async () => {
   const api = fakeApi([{ slow: true }, { content: '{"a":2}' }]);
   try {
     const ledger = new CostLedger();
-    const r = await sparkJson({ ledger, step: "architecture", schema: z.object({ a: z.number() }), name: "t", messages: [{ role: "user", content: "x" }], effort: "medium", maxTokens: 8000, timeoutMs: 40 });
+    const r = await sparkJson({
+      ledger,
+      step: "architecture",
+      schema: z.object({ a: z.number() }),
+      name: "t",
+      messages: [{ role: "user", content: "x" }],
+      effort: "medium",
+      maxTokens: 8000,
+      timeoutMs: 40,
+    });
     assert.deepEqual(r, { a: 2 });
-    assert.deepEqual(api.bodies.map((b) => b.reasoning_effort), ["medium", "low"]);
-    assert.deepEqual(ledger.entries.map((e) => e.detail?.timedOut ?? false), [true, false], "the dropped try shows in the profile");
-  } finally { api.restore(); }
+    assert.deepEqual(
+      api.bodies.map((b) => b.reasoning_effort),
+      ["medium", "low"],
+    );
+    assert.deepEqual(
+      ledger.entries.map((e) => e.detail?.timedOut ?? false),
+      [true, false],
+      "the dropped try shows in the profile",
+    );
+  } finally {
+    api.restore();
+  }
 });
 
 test("two slow tries fail with a plain timeout instead of hanging", async () => {
   const api = fakeApi([{ slow: true }, { slow: true }]);
   try {
-    await assert.rejects(sparkJson({ ledger: new CostLedger(), step: "architecture", schema: z.object({ a: z.number() }), name: "t", messages: [{ role: "user", content: "x" }], effort: "low", timeoutMs: 30 }), /did not answer within/);
+    await assert.rejects(
+      sparkJson({
+        ledger: new CostLedger(),
+        step: "architecture",
+        schema: z.object({ a: z.number() }),
+        name: "t",
+        messages: [{ role: "user", content: "x" }],
+        effort: "low",
+        timeoutMs: 30,
+      }),
+      /did not answer within/,
+    );
     assert.equal(api.bodies.length, 2);
-  } finally { api.restore(); }
+  } finally {
+    api.restore();
+  }
 });
 
 test("the wire schema carries limits to the API while the answer is parsed with the plain schema", async () => {
   const api = fakeApi([{ content: '{"a":[1,2,3]}' }]);
   try {
-    const r = await sparkJson({ ledger: new CostLedger(), step: "t", schema: z.object({ a: z.array(z.number()) }), wire: z.object({ a: z.array(z.number()).max(2) }), name: "t", messages: [{ role: "user", content: "x" }] });
+    const r = await sparkJson({
+      ledger: new CostLedger(),
+      step: "t",
+      schema: z.object({ a: z.array(z.number()) }),
+      wire: z.object({ a: z.array(z.number()).max(2) }),
+      name: "t",
+      messages: [{ role: "user", content: "x" }],
+    });
     assert.deepEqual(r, { a: [1, 2, 3] }, "an answer over the limit is trimmed by the caller, not thrown away");
     assert.equal(api.bodies[0].response_format.json_schema.schema.properties.a.maxItems, 2);
-  } finally { api.restore(); }
+  } finally {
+    api.restore();
+  }
 });
 
 const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -82,7 +154,13 @@ test("firstOf settles with the first copy that succeeds, even when an earlier on
 });
 
 test("firstOf fails only when every copy fails, with the first copy's error", async () => {
-  await assert.rejects(firstOf(2, async (i) => { await wait(i ? 1 : 10); throw new Error(`copy ${i} failed`); }), /copy 0 failed/);
+  await assert.rejects(
+    firstOf(2, async (i) => {
+      await wait(i ? 1 : 10);
+      throw new Error(`copy ${i} failed`);
+    }),
+    /copy 0 failed/,
+  );
 });
 
 test("firstOf with one copy is the plain call", async () => {
@@ -108,33 +186,66 @@ function timedApi(replies: { ms: number; content: string }[]) {
     bodies.push(JSON.parse(String(init.body)));
     const r = replies[bodies.length - 1]!;
     await wait(r.ms);
-    return new Response(JSON.stringify({ choices: [{ message: { content: r.content }, finish_reason: "stop" }], usage: { prompt_tokens: 10, completion_tokens: 5 } }), { status: 200 });
+    return new Response(
+      JSON.stringify({
+        choices: [{ message: { content: r.content }, finish_reason: "stop" }],
+        usage: { prompt_tokens: 10, completion_tokens: 5 },
+      }),
+      { status: 200 },
+    );
   }) as typeof fetch;
   const restore = () => {
     globalThis.fetch = saved.fetch;
-    for (const [k, v] of [["MODEL_API_KEY", saved.key], ["EXPLANIMATE_HEDGE", saved.hedge]] as const) if (v === undefined) delete process.env[k]; else process.env[k] = v;
+    for (const [k, v] of [
+      ["MODEL_API_KEY", saved.key],
+      ["EXPLANIMATE_HEDGE", saved.hedge],
+    ] as const)
+      if (v === undefined) delete process.env[k];
+      else process.env[k] = v;
   };
   return { bodies, restore };
 }
-const hedged = (ledger: CostLedger) => sparkJson({ ledger, step: "architecture", schema: z.object({ a: z.number() }), name: "t", messages: [{ role: "user", content: "x" }], hedge: true });
+const hedged = (ledger: CostLedger) =>
+  sparkJson({
+    ledger,
+    step: "architecture",
+    schema: z.object({ a: z.number() }),
+    name: "t",
+    messages: [{ role: "user", content: "x" }],
+    hedge: true,
+  });
 
 test("a hedged call sends the same request twice and keeps the first good answer", async () => {
-  const api = timedApi([{ ms: 60, content: '{"a":1}' }, { ms: 5, content: '{"a":2}' }]);
+  const api = timedApi([
+    { ms: 60, content: '{"a":1}' },
+    { ms: 5, content: '{"a":2}' },
+  ]);
   try {
     const ledger = new CostLedger();
     assert.deepEqual(await hedged(ledger), { a: 2 });
     assert.equal(api.bodies.length, 2);
     assert.deepEqual(api.bodies[0], api.bodies[1], "both copies ask exactly the same thing");
     await wait(80);
-    assert.deepEqual(ledger.entries.map((e) => e.step), ["architecture", "architecture-hedge"], "the copy that lost is still paid for and logged apart");
-  } finally { api.restore(); }
+    assert.deepEqual(
+      ledger.entries.map((e) => e.step),
+      ["architecture", "architecture-hedge"],
+      "the copy that lost is still paid for and logged apart",
+    );
+  } finally {
+    api.restore();
+  }
 });
 
 test("a hedged call keeps waiting when the faster copy's answer does not parse", async () => {
-  const api = timedApi([{ ms: 5, content: '{"a":"not a number"}' }, { ms: 30, content: '{"a":3}' }]);
+  const api = timedApi([
+    { ms: 5, content: '{"a":"not a number"}' },
+    { ms: 30, content: '{"a":3}' },
+  ]);
   try {
     assert.deepEqual(await hedged(new CostLedger()), { a: 3 });
-  } finally { api.restore(); }
+  } finally {
+    api.restore();
+  }
 });
 
 test("EXPLANIMATE_HEDGE=1 sends a hedged call once", async () => {
@@ -143,7 +254,9 @@ test("EXPLANIMATE_HEDGE=1 sends a hedged call once", async () => {
   try {
     assert.deepEqual(await hedged(new CostLedger()), { a: 4 });
     assert.equal(api.bodies.length, 1);
-  } finally { api.restore(); }
+  } finally {
+    api.restore();
+  }
 });
 
 test("on OpenRouter the call goes to OpenRouter with its key and model, and the ledger keeps the cost it reports", async () => {
@@ -152,19 +265,47 @@ test("on OpenRouter the call goes to OpenRouter with its key and model, and the 
   process.env.EXPLANIMATE_LLM_PROVIDER = "openrouter";
   process.env.OPENROUTER_API_KEY = "or-test-key";
   globalThis.fetch = (async (u: string, init: RequestInit) => {
-    seen.push({ url: String(u), auth: String((init.headers as Record<string, string>).Authorization), body: JSON.parse(String(init.body)) });
-    return new Response(JSON.stringify({ choices: [{ message: { content: '{"a":5}' }, finish_reason: "stop" }], usage: { prompt_tokens: 10, completion_tokens: 5, cost: 0.0123, completion_tokens_details: { reasoning_tokens: 3 } } }), { status: 200 });
+    seen.push({
+      url: String(u),
+      auth: String((init.headers as Record<string, string>).Authorization),
+      body: JSON.parse(String(init.body)),
+    });
+    return new Response(
+      JSON.stringify({
+        choices: [{ message: { content: '{"a":5}' }, finish_reason: "stop" }],
+        usage: { prompt_tokens: 10, completion_tokens: 5, cost: 0.0123, completion_tokens_details: { reasoning_tokens: 3 } },
+      }),
+      { status: 200 },
+    );
   }) as typeof fetch;
   try {
     const ledger = new CostLedger();
-    assert.deepEqual(await sparkJson({ ledger, step: "scene-plan", schema: z.object({ a: z.number() }), name: "t", messages: [{ role: "user", content: "x" }], effort: "minimal" }), { a: 5 });
+    assert.deepEqual(
+      await sparkJson({
+        ledger,
+        step: "scene-plan",
+        schema: z.object({ a: z.number() }),
+        name: "t",
+        messages: [{ role: "user", content: "x" }],
+        effort: "minimal",
+      }),
+      { a: 5 },
+    );
     assert.equal(seen[0]!.url, "https://openrouter.ai/api/v1/chat/completions");
     assert.equal(seen[0]!.auth, "Bearer or-test-key");
     assert.equal(seen[0]!.body.model, "meta/muse-spark-1.3");
     assert.equal(seen[0]!.body.reasoning_effort, "minimal", "the effort setting goes along");
-    assert.deepEqual([ledger.entries[0]!.model, ledger.entries[0]!.usd, ledger.entries[0]!.detail?.reasoning], ["meta/muse-spark-1.3", 0.0123, 3]);
+    assert.deepEqual(
+      [ledger.entries[0]!.model, ledger.entries[0]!.usd, ledger.entries[0]!.detail?.reasoning],
+      ["meta/muse-spark-1.3", 0.0123, 3],
+    );
   } finally {
     globalThis.fetch = saved.fetch;
-    for (const [k, v] of [["EXPLANIMATE_LLM_PROVIDER", saved.p], ["OPENROUTER_API_KEY", saved.k]] as const) if (v === undefined) delete process.env[k]; else process.env[k] = v;
+    for (const [k, v] of [
+      ["EXPLANIMATE_LLM_PROVIDER", saved.p],
+      ["OPENROUTER_API_KEY", saved.k],
+    ] as const)
+      if (v === undefined) delete process.env[k];
+      else process.env[k] = v;
   }
 });

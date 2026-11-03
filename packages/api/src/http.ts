@@ -1,7 +1,10 @@
 import http from "node:http";
 import { JobError, JobRunner, type JobRequest } from "./jobs.js";
 
-export interface ApiServerOptions { runner?: JobRunner; port?: number }
+export interface ApiServerOptions {
+  runner?: JobRunner;
+  port?: number;
+}
 
 const LOCAL_HOST = /^(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/i;
 const MAX_BODY = 64 * 1024;
@@ -52,21 +55,32 @@ export function createApiServer(o: ApiServerOptions = {}) {
     }
   });
   return {
-    server, runner,
-    listen: (port = o.port ?? 7311) => new Promise<number>((resolve, reject) => {
-      server.once("error", reject);
-      server.listen(port, "127.0.0.1", () => resolve((server.address() as { port: number }).port));
-    }),
-    close: () => new Promise<void>((resolve) => { runner.close(); server.close(() => resolve()); }),
+    server,
+    runner,
+    listen: (port = o.port ?? 7311) =>
+      new Promise<number>((resolve, reject) => {
+        server.once("error", reject);
+        server.listen(port, "127.0.0.1", () => resolve((server.address() as { port: number }).port));
+      }),
+    close: () =>
+      new Promise<void>((resolve) => {
+        runner.close();
+        server.close(() => resolve());
+      }),
   };
 }
 
 function readJson(req: http.IncomingMessage): Promise<unknown> {
   return new Promise((resolve, reject) => {
-    let size = 0; const chunks: Buffer[] = [];
+    let size = 0;
+    const chunks: Buffer[] = [];
     req.on("data", (c: Buffer) => {
       size += c.length;
-      if (size > MAX_BODY) { reject(new JobError("request body too large", 413)); req.destroy(); return; }
+      if (size > MAX_BODY) {
+        reject(new JobError("request body too large", 413));
+        req.destroy();
+        return;
+      }
       chunks.push(c);
     });
     req.on("end", () => {
@@ -74,7 +88,9 @@ function readJson(req: http.IncomingMessage): Promise<unknown> {
         const v = JSON.parse(Buffer.concat(chunks).toString("utf8") || "{}");
         if (!v || typeof v !== "object" || typeof v.input !== "string") throw new Error();
         resolve(v);
-      } catch { reject(new JobError('send JSON like {"input": "https://github.com/owner/repo"}')); }
+      } catch {
+        reject(new JobError('send JSON like {"input": "https://github.com/owner/repo"}'));
+      }
     });
     req.on("error", reject);
   });

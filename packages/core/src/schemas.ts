@@ -25,8 +25,24 @@ const keyword = z.string().describe("1 to 3 lowercase words for the whiteboard")
 // Architecture model (repos). Every component and connection must cite files.
 // ---------------------------------------------------------------------------
 export const ComponentKind = z.enum([
-  "client", "edge", "api", "worker", "db", "object-storage", "cache", "queue",
-  "search", "auth", "third-party", "ai", "realtime", "cron", "cdn", "analytics", "email", "ci",
+  "client",
+  "edge",
+  "api",
+  "worker",
+  "db",
+  "object-storage",
+  "cache",
+  "queue",
+  "search",
+  "auth",
+  "third-party",
+  "ai",
+  "realtime",
+  "cron",
+  "cdn",
+  "analytics",
+  "email",
+  "ci",
 ]);
 export type ComponentKind = z.infer<typeof ComponentKind>;
 
@@ -41,7 +57,10 @@ export const Component = z.object({
   keyword,
   icon: z.string().describe("icon name from the icon pack"),
   what: z.string().describe("one sentence: what it does in THIS repo"),
-  does: z.string().optional().describe("the small line under the box: what it does for the viewer, 2 to 6 everyday words ('clicks and types for your AI')"),
+  does: z
+    .string()
+    .optional()
+    .describe("the small line under the box: what it does for the viewer, 2 to 6 everyday words ('clicks and types for your AI')"),
   evidence: z.array(z.string()).describe("1 to 3 exact repo-relative file paths that prove it exists"),
 });
 export type Component = z.infer<typeof Component>;
@@ -87,7 +106,10 @@ export const BoardNode = z.object({
   icon: z.string(),
   color: Color,
   evidence: z.string().describe("short exact quote (3 to 12 words) copied from the source text"),
-  count: z.number().int().describe("1 normally; 2 to 9 when the idea is 'many of these' (many GPUs, many requests): drawn as a grid of icons"),
+  count: z
+    .number()
+    .int()
+    .describe("1 normally; 2 to 9 when the idea is 'many of these' (many GPUs, many requests): drawn as a grid of icons"),
 });
 export type BoardNode = z.infer<typeof BoardNode>;
 
@@ -104,7 +126,21 @@ export type Highlight = z.infer<typeof Highlight>;
 // ---------------------------------------------------------------------------
 // Scene plan: the core contract between the planner and the renderer.
 // ---------------------------------------------------------------------------
-export const SceneKind = z.enum(["hook", "source", "layer", "walkthrough", "scale", "board", "notes", "chart", "timeline", "map", "establish", "recap", "outro"]);
+export const SceneKind = z.enum([
+  "hook",
+  "source",
+  "layer",
+  "walkthrough",
+  "scale",
+  "board",
+  "notes",
+  "chart",
+  "timeline",
+  "map",
+  "establish",
+  "recap",
+  "outro",
+]);
 export type SceneKind = z.infer<typeof SceneKind>;
 
 export const Callout = z.object({ target: z.string(), text: keyword, color: Color });
@@ -134,9 +170,21 @@ export const Beat = z.object({
   line: z.string().describe("one narration line, one or two short sentences, copied word for word from the narration"),
   visual: VisualType,
   anchor: z.string().describe("1 to 4 consecutive words from this line, copied exactly: the visual appears as they are said"),
-  text: z.string().describe("kinetic: the 2 to 8 spoken words to show; terminal: the exact command; number: the figure with its unit as said ('1 command'); browser: the page address; output: the output's title; chips: a short label over the chips or empty; doodle: the label; contrast: empty; board/title: empty"),
-  items: z.array(z.string()).describe("chips: 2 to 4 product or part names said in the line; output: 2 to 5 short output rows; browser: 2 to 4 page elements ('email box', 'password box', 'button log in'); contrast: exactly [before, after], each 2 to 5 spoken words; otherwise empty"),
-  focus: z.string().describe("board: the component id to highlight, or empty; output: the row text to circle; browser: the element clicked; doodle: an icon name; otherwise empty"),
+  text: z
+    .string()
+    .describe(
+      "kinetic: the 2 to 8 spoken words to show; terminal: the exact command; number: the figure with its unit as said ('1 command'); browser: the page address; output: the output's title; chips: a short label over the chips or empty; doodle: the label; contrast: empty; board/title: empty",
+    ),
+  items: z
+    .array(z.string())
+    .describe(
+      "chips: 2 to 4 product or part names said in the line; output: 2 to 5 short output rows; browser: 2 to 4 page elements ('email box', 'password box', 'button log in'); contrast: exactly [before, after], each 2 to 5 spoken words; otherwise empty",
+    ),
+  focus: z
+    .string()
+    .describe(
+      "board: the component id to highlight, or empty; output: the row text to circle; browser: the element clicked; doodle: an icon name; otherwise empty",
+    ),
 });
 export type Beat = z.infer<typeof Beat>;
 
@@ -171,7 +219,11 @@ export type ScenePlan = z.infer<typeof ScenePlan>;
 /** The plan as a topic planner is asked for it: the same scenes, without per-line beats (strict output makes every field required). */
 export const ConceptPlanWire = z.object({ title: z.string(), subtitle: z.string(), scenes: z.array(SceneShape) });
 /** The plan as the repo planner is asked for it: every scene with its beats. */
-export const RepoPlanWire = z.object({ title: z.string(), subtitle: z.string(), scenes: z.array(SceneShape.extend({ beats: z.array(Beat) })) });
+export const RepoPlanWire = z.object({
+  title: z.string(),
+  subtitle: z.string(),
+  scenes: z.array(SceneShape.extend({ beats: z.array(Beat) })),
+});
 
 // ---------------------------------------------------------------------------
 // Ingested source.
@@ -197,10 +249,25 @@ export interface SourceDoc {
 }
 
 /** Word-level timing for narration, seconds relative to scene start. */
-export interface WordTiming { word: string; start: number; end: number }
-export interface SceneAudio { sceneId: string; file?: string; duration: number; words: WordTiming[] }
+export interface WordTiming {
+  word: string;
+  start: number;
+  end: number;
+}
+export interface SceneAudio {
+  sceneId: string;
+  file?: string;
+  duration: number;
+  words: WordTiming[];
+}
 
-export interface CostEntry { step: string; model: string; seconds: number; usd: number; detail?: Record<string, unknown> }
+export interface CostEntry {
+  step: string;
+  model: string;
+  seconds: number;
+  usd: number;
+  detail?: Record<string, unknown>;
+}
 
 /** usd: running spend so far (Meta models + voice), the per-video cost meter */
 export type Progress = (e: { stage: string; message: string; pct?: number; usd?: { meta: number; voice: number; total: number } }) => void;

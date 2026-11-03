@@ -12,16 +12,32 @@ export const START_TOOL = {
   type: "function",
   function: {
     name: "start_video",
-    description: "Start making the explainer video. Call it only after you know the link or the topic and asked if there's anything else to cover.",
+    description:
+      "Start making the explainer video. Call it only after you know the link or the topic and asked if there's anything else to cover.",
     parameters: {
       type: "object",
       properties: {
-        link: { type: "string", description: "the GitHub repo, X post or article URL, written as a URL (https://github.com/owner/repo); or, when they have no link, the topic in a few words ('how DNS works')" },
+        link: {
+          type: "string",
+          description:
+            "the GitHub repo, X post or article URL, written as a URL (https://github.com/owner/repo); or, when they have no link, the topic in a few words ('how DNS works')",
+        },
         goal: { type: "string", description: "what they want to understand, in a short plain phrase" },
-        audience: { type: "string", description: "who the video is for, as a viewer description: 'a non-technical cofounder', 'a developer new to the project'" },
-        depth: { type: "string", enum: ["overview", "working", "deep"], description: "overview: the big idea; working: how it works, the default; deep: internals and trade-offs" },
+        audience: {
+          type: "string",
+          description: "who the video is for, as a viewer description: 'a non-technical cofounder', 'a developer new to the project'",
+        },
+        depth: {
+          type: "string",
+          enum: ["overview", "working", "deep"],
+          description: "overview: the big idea; working: how it works, the default; deep: internals and trade-offs",
+        },
         also: { type: "string", description: "anything else they asked to cover, or empty" },
-        confirm: { type: "string", description: "one short spoken line saying what you understood, e.g. 'Got it, how a message moves through openmausbot, kept simple for your cofounder. Starting now!'" },
+        confirm: {
+          type: "string",
+          description:
+            "one short spoken line saying what you understood, e.g. 'Got it, how a message moves through openmausbot, kept simple for your cofounder. Starting now!'",
+        },
       },
       required: ["link", "goal", "audience", "depth", "also", "confirm"],
     },
@@ -40,7 +56,9 @@ export function voiceSystem(typed?: string): string {
     "Never say you are starting in your own words: only the confirm line, after start_video works, says that.",
     "If start_video comes back with an error, tell them briefly and ask what you need to fix it. Spoken names get misheard: if a suggestion comes back, offer it; otherwise ask them to type the link in the box under the chat.",
     typed ? `They already typed this link in the box: ${typed}. Don't ask for the link again.` : "",
-  ].filter(Boolean).join("\n");
+  ]
+    .filter(Boolean)
+    .join("\n");
 }
 
 export function greeting(typed?: string): string {
@@ -52,7 +70,11 @@ export function greeting(typed?: string): string {
 /** "github dot com slash slubbles slash ex planimate" and other spoken links, as a URL. */
 export function spokenUrl(s: string): string {
   let t = s.trim().replace(/[.,!?]+$/, "");
-  t = t.replace(/\s+dot\s+/gi, ".").replace(/\s*\bslash\b\s*/gi, "/").replace(/\s*\/\s*/g, "/").replace(/\s*\.\s*/g, ".");
+  t = t
+    .replace(/\s+dot\s+/gi, ".")
+    .replace(/\s*\bslash\b\s*/gi, "/")
+    .replace(/\s*\/\s*/g, "/")
+    .replace(/\s*\.\s*/g, ".");
   if (!/^https?:\/\//i.test(t)) t = `https://${t.replace(/^\/+/, "")}`;
   const [, scheme, rest] = t.match(/^(https?:\/\/)(.*)$/i)!;
   // spaces inside the path come from speech ("ex planimate" for explanimate); drop them
@@ -60,14 +82,25 @@ export function spokenUrl(s: string): string {
 }
 
 /** The tool call as a job request, or what is wrong with it (the model hears the error and asks again). */
-export function readStart(args: unknown, valid: (url: string) => boolean): { ok: true; req: VoiceRequest; confirm: string } | { ok: false; error: string } {
+export function readStart(
+  args: unknown,
+  valid: (url: string) => boolean,
+): { ok: true; req: VoiceRequest; confirm: string } | { ok: false; error: string } {
   const a = (args ?? {}) as Record<string, unknown>;
-  const str = (k: string, max: number) => (typeof a[k] === "string" ? (a[k] as string).replace(/\s+/g, " ").trim().replace(/^-+\s*/, "").slice(0, max) : "");
+  const str = (k: string, max: number) =>
+    typeof a[k] === "string"
+      ? (a[k] as string)
+          .replace(/\s+/g, " ")
+          .trim()
+          .replace(/^-+\s*/, "")
+          .slice(0, max)
+      : "";
   const raw = str("link", 300);
   if (!raw) return { ok: false, error: "no link or topic yet: ask what they want explained" };
   // a topic in words has spaces and no "dot" or "slash"; anything else is a spoken link
   const input = /\s/.test(raw) && !/\b(dot|slash)\b|\.[a-z]{2,}(\/|$)|:\/\//i.test(raw) && valid(raw) ? raw : spokenUrl(raw);
-  if (!valid(input)) return { ok: false, error: `"${raw}" is not a public GitHub, X or article link or a topic: ask them to say or type it again` };
+  if (!valid(input))
+    return { ok: false, error: `"${raw}" is not a public GitHub, X or article link or a topic: ask them to say or type it again` };
   const depth = (["overview", "working", "deep"] as const).find((d) => d === a.depth) ?? "working";
   return {
     ok: true,
@@ -79,7 +112,8 @@ export function readStart(args: unknown, valid: (url: string) => boolean): { ok:
 /** Split streamed text into whole sentences to voice one at a time; the tail waits for more text. */
 export function takeSentences(buf: string): { done: string[]; rest: string } {
   const done: string[] = [];
-  let rest = buf, m: RegExpMatchArray | null;
+  let rest = buf,
+    m: RegExpMatchArray | null;
   // a sentence ends at . ! ? followed by a space, but not inside a link like github.com
   while ((m = rest.match(/^(.*?[.!?])\s+(?=\S)/s))) {
     done.push(m[1].trim());

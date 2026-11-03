@@ -14,7 +14,8 @@ export function fileResponse(req: Request, file: string, headers: Record<string,
     const end = m[1] && m[2] ? Math.min(Number(m[2]), size - 1) : size - 1;
     if (start >= size || start > end) return new Response(null, { status: 416, headers: { ...base, "content-range": `bytes */${size}` } });
     return new Response(fs.createReadStream(file, { start, end }) as unknown as ReadableStream, {
-      status: 206, headers: { ...base, "content-range": `bytes ${start}-${end}/${size}`, "content-length": String(end - start + 1) },
+      status: 206,
+      headers: { ...base, "content-range": `bytes ${start}-${end}/${size}`, "content-length": String(end - start + 1) },
     });
   }
   return new Response(fs.createReadStream(file) as unknown as ReadableStream, { headers: { ...base, "content-length": String(size) } });

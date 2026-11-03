@@ -9,7 +9,12 @@
  */
 export function privateHostname(host: string): boolean {
   const h = host.toLowerCase();
-  return !h.includes(".") || /^(localhost|127\.|10\.|192\.168\.|169\.254\.|172\.(1[6-9]|2\d|3[01])\.|100\.(6[4-9]|[7-9]\d|1[01]\d|12[0-7])\.|0\.|\[|.*\.localhost$|.*\.local$|.*\.internal$)/.test(h);
+  return (
+    !h.includes(".") ||
+    /^(localhost|127\.|10\.|192\.168\.|169\.254\.|172\.(1[6-9]|2\d|3[01])\.|100\.(6[4-9]|[7-9]\d|1[01]\d|12[0-7])\.|0\.|\[|.*\.localhost$|.*\.local$|.*\.internal$)/.test(
+      h,
+    )
+  );
 }
 
 /** Explicit local-dev opt-out for the private-link guard (unset or anything else blocks). */

@@ -11,9 +11,25 @@ test("a link said out loud becomes a real link", () => {
 });
 
 test("the start call becomes a job request with safe defaults", () => {
-  const r = readStart({ link: "github dot com slash karpathy slash minbpe", goal: "  how a message\nflows ", audience: "my cofounder", depth: "bogus", also: "", confirm: "" }, github);
+  const r = readStart(
+    {
+      link: "github dot com slash karpathy slash minbpe",
+      goal: "  how a message\nflows ",
+      audience: "my cofounder",
+      depth: "bogus",
+      also: "",
+      confirm: "",
+    },
+    github,
+  );
   assert.ok(r.ok);
-  assert.deepEqual(r.req, { input: "https://github.com/karpathy/minbpe", goal: "how a message flows", audience: "my cofounder", depth: "working", also: "" });
+  assert.deepEqual(r.req, {
+    input: "https://github.com/karpathy/minbpe",
+    goal: "how a message flows",
+    audience: "my cofounder",
+    depth: "working",
+    also: "",
+  });
   assert.match(r.confirm, /starting/i);
 });
 
@@ -29,7 +45,10 @@ test("a field cannot be read as a command-line flag", () => {
 });
 
 test("sentences are voiced one at a time without splitting a link", () => {
-  assert.deepEqual(takeSentences("Nice, github.com/a/b looks fun! Who is it for? I"), { done: ["Nice, github.com/a/b looks fun!", "Who is it for?"], rest: "I" });
+  assert.deepEqual(takeSentences("Nice, github.com/a/b looks fun! Who is it for? I"), {
+    done: ["Nice, github.com/a/b looks fun!", "Who is it for?"],
+    rest: "I",
+  });
   assert.deepEqual(takeSentences("Almost done."), { done: [], rest: "Almost done." });
 });
 

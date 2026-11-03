@@ -26,15 +26,15 @@ in an in-memory first-in, first-out line and their page shows the first step in 
 
 ## Packages
 
-| Package | Lines | What it owns |
-|---|---|---|
-| `packages/cli` | 1.2k | `pipeline.ts` runs one video start to finish, in order, and writes `manifest.json`. `bin.ts` is the argument parser and progress emitter. |
-| `packages/core` | 2.0k | Shared contracts (`ExplainSpec`, `ScenePlan`, `Architecture`, `Film`), the validators that read narration, the repo digest, URL fetching, plan cache keys. No I/O beyond HTTP and git. |
-| `packages/planner` | 1.9k | Four Muse calls that decide how to explain: `brief` picks analogy, depth, tempo, look; `architecture` finds the components and one request path; `scenes` writes the narration and the boards; `followups` makes the 15 s deep-dive and the what-if-10x clip. |
-| `packages/voice` | 0.6k | Per-scene speech through Deepgram Aura, word timings, the respelling table for words Aura mispronounces, and the silent fallback when there is no key. |
-| `packages/render` | 3.9k | The picture: layout, drawing, camera, captions, music and sound effects, `.tldr`/`.excalidraw` writers, the placement and frame checks, and frames (Skia by default, Chrome fallback) into ffmpeg. |
-| `packages/models` | 0.4k | One client for Muse Spark (on OpenRouter or Meta, picked by `llmProvider` in `packages/core/src/llm.ts`), Meta Muse image, SAM and Transcribe, and Deepgram, with the cost ledger and retries. |
-| `apps/web` | 1.9k | The UI, six job routes, the example gallery (`lib/gallery.ts`, read from `EXPLANIMATE_GALLERY_DIR`), the voice loop, the spend guard, rate limits, health. |
+| Package            | Lines | What it owns                                                                                                                                                                                                                                                  |
+| ------------------ | ----- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `packages/cli`     | 1.2k  | `pipeline.ts` runs one video start to finish, in order, and writes `manifest.json`. `bin.ts` is the argument parser and progress emitter.                                                                                                                     |
+| `packages/core`    | 2.0k  | Shared contracts (`ExplainSpec`, `ScenePlan`, `Architecture`, `Film`), the validators that read narration, the repo digest, URL fetching, plan cache keys. No I/O beyond HTTP and git.                                                                        |
+| `packages/planner` | 1.9k  | Four Muse calls that decide how to explain: `brief` picks analogy, depth, tempo, look; `architecture` finds the components and one request path; `scenes` writes the narration and the boards; `followups` makes the 15 s deep-dive and the what-if-10x clip. |
+| `packages/voice`   | 0.6k  | Per-scene speech through Deepgram Aura, word timings, the respelling table for words Aura mispronounces, and the silent fallback when there is no key.                                                                                                        |
+| `packages/render`  | 3.9k  | The picture: layout, drawing, camera, captions, music and sound effects, `.tldr`/`.excalidraw` writers, the placement and frame checks, and frames (Skia by default, Chrome fallback) into ffmpeg.                                                            |
+| `packages/models`  | 0.4k  | One client for Muse Spark (on OpenRouter or Meta, picked by `llmProvider` in `packages/core/src/llm.ts`), Meta Muse image, SAM and Transcribe, and Deepgram, with the cost ledger and retries.                                                                |
+| `apps/web`         | 1.9k  | The UI, six job routes, the example gallery (`lib/gallery.ts`, read from `EXPLANIMATE_GALLERY_DIR`), the voice loop, the spend guard, rate limits, health.                                                                                                    |
 
 Two other packages carry the packs and the API/MCP surface; they are not on the demo path.
 
@@ -156,17 +156,17 @@ Tests sit in each package's `test/` folder and use Node's built-in test runner. 
 
 ## Checks: what can stop a run
 
-| Check | Where | If it fails |
-|---|---|---|
-| architecture evidence | `planner/src/architecture.ts` | components are dropped and the reviewer's patches applied; never silent |
-| scene self-check | `planner/src/scenes.ts` | structural → replan once; wording → one targeted rewrite |
-| speech (articles, agreement, filler) | `core` + `planner` | the same targeted rewrite |
-| placement | `render/src/placement.ts` | **throws** — no video |
-| captions match narration | `render/src/check.ts` | **throws** |
-| board read-back | `render/src/boardcheck.ts` | **throws** |
-| frame check | `render/src/framecheck.ts` | recorded in `manifest.json` and the notes only |
-| pace (cut rate, holds) | `render/src/pace.ts` | recorded only |
-| voice QA (Muse Transcribe) | `cli/src/pipeline.ts` | recorded only |
+| Check                                | Where                         | If it fails                                                             |
+| ------------------------------------ | ----------------------------- | ----------------------------------------------------------------------- |
+| architecture evidence                | `planner/src/architecture.ts` | components are dropped and the reviewer's patches applied; never silent |
+| scene self-check                     | `planner/src/scenes.ts`       | structural → replan once; wording → one targeted rewrite                |
+| speech (articles, agreement, filler) | `core` + `planner`            | the same targeted rewrite                                               |
+| placement                            | `render/src/placement.ts`     | **throws** — no video                                                   |
+| captions match narration             | `render/src/check.ts`         | **throws**                                                              |
+| board read-back                      | `render/src/boardcheck.ts`    | **throws**                                                              |
+| frame check                          | `render/src/framecheck.ts`    | recorded in `manifest.json` and the notes only                          |
+| pace (cut rate, holds)               | `render/src/pace.ts`          | recorded only                                                           |
+| voice QA (Muse Transcribe)           | `cli/src/pipeline.ts`         | recorded only                                                           |
 
 So "nothing ships unchecked" is true, and "nothing ships broken" is not: a film whose frames slipped
 past the placement model still encodes, with the problem written into the manifest. That is a deliberate
@@ -178,15 +178,15 @@ the place to look, not the exit code.
 A full run of `karpathy/minbpe` on a laptop, everything already cached (plan and voice hit,
 so `$0.00` of model spend):
 
-| Stage | Seconds |
-|---|---|
-| ingest | 0.3 |
-| brief, architecture, scene plan, voice | 0 (cache) |
-| compose | 2.1 |
-| draw 7,643 frames | 333 |
-| frame check | 28.7 |
-| encode tail + contact sheet | 11.2 |
-| **total** | **383** (a 4:14 video) |
+| Stage                                  | Seconds                |
+| -------------------------------------- | ---------------------- |
+| ingest                                 | 0.3                    |
+| brief, architecture, scene plan, voice | 0 (cache)              |
+| compose                                | 2.1                    |
+| draw 7,643 frames                      | 333                    |
+| frame check                            | 28.7                   |
+| encode tail + contact sheet            | 11.2                   |
+| **total**                              | **383** (a 4:14 video) |
 
 Frames draw at roughly 20 per second with the default worker count, so the wall clock is about 1.4×
 the video length. Planning is the cheap part; the drawing is the cost in time. Model spend on a fresh
@@ -197,38 +197,38 @@ overspending. Cached re-runs are genuinely free: `$0.000` on the run above.
 
 ## Outside services (setting names only, never values)
 
-| Service | Used for | Setting |
-| --- | --- | --- |
-| **OpenRouter → Muse Spark 1.3** (`meta/muse-spark-1.3`) | all planning and script writing, plus voice-mode chat. The default when its key is set. | `OPENROUTER_API_KEY` |
-| **Meta Model API** | Muse Spark backup (`muse-spark-1.3-contributor`), doodle icons (Muse Image + SAM, which cuts an image out of its background), and the voiceover check (Muse Transcribe) | `MODEL_API_KEY` |
-| **Deepgram** | Aura voice (`aura-2-arcas-en` for videos, `aura-2-thalia-en` for chat), Nova-3 speech-to-text in voice mode | `DEEPGRAM_API_KEY` |
+| Service                                                 | Used for                                                                                                                                                                | Setting              |
+| ------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------- |
+| **OpenRouter → Muse Spark 1.3** (`meta/muse-spark-1.3`) | all planning and script writing, plus voice-mode chat. The default when its key is set.                                                                                 | `OPENROUTER_API_KEY` |
+| **Meta Model API**                                      | Muse Spark backup (`muse-spark-1.3-contributor`), doodle icons (Muse Image + SAM, which cuts an image out of its background), and the voiceover check (Muse Transcribe) | `MODEL_API_KEY`      |
+| **Deepgram**                                            | Aura voice (`aura-2-arcas-en` for videos, `aura-2-thalia-en` for chat), Nova-3 speech-to-text in voice mode                                                             | `DEEPGRAM_API_KEY`   |
 
 With no Deepgram key, videos render silent with timed captions. Keys live in a gitignored `.env` or `apps/web/.env.local`.
 
 ## Key settings
 
-| Setting | What it does | Default |
-| --- | --- | --- |
-| `EXPLANIMATE_LLM_PROVIDER` | force `openrouter` or `meta` for Muse Spark | OpenRouter if its key is set |
-| `EXPLANIMATE_SPARK_MODEL` | a different model name | per provider |
-| `EXPLANIMATE_HEDGE` | how many copies of long AI calls to race, keeping the first answer | 2 |
-| `EXPLANIMATE_RENDERER` | `skia` or `chrome` | skia |
-| `EXPLANIMATE_ENCODER` | `nvenc` (graphics card) or `x264` | auto |
-| `EXPLANIMATE_VOICE` / `_CHAT_VOICE` / `_STT` | the video voice, chat voice and listening model | arcas / thalia / nova-3 |
-| `EXPLANIMATE_META_CAP_USD` / `_VOICE_CAP_USD` | spend caps; new work pauses before crossing them, with a warning at 80% | 25 / 10 |
-| `EXPLANIMATE_META_RESERVE_USD` / `_VOICE_RESERVE_USD` | room kept free for one more job | 1 / 0.15 |
-| `EXPLANIMATE_REQ_PER_MIN` / `_JOBS_PER_HOUR` | rate limits: per visitor, and for everyone combined | 12 / 20 |
-| `EXPLANIMATE_CONCURRENCY` | videos rendering at once; the rest wait in line | 10 |
-| `EXPLANIMATE_QUEUE_MAX` | most videos allowed to wait | 200 |
-| `EXPLANIMATE_WAIT_IDLE_S` | drop a waiting video this many seconds after its tab closes | 120 |
-| `EXPLANIMATE_DEMO_ONLY` | 1 = show the gallery only, refuse new videos | 0 |
-| `EXPLANIMATE_RESUME` | restart jobs that a crash cut off | 1 |
-| `EXPLANIMATE_TRUST_PROXY` | trust the visitor address from a proxy in front | 0 |
-| `EXPLANIMATE_ALLOW_PRIVATE_URLS` | allow links to private network addresses (refused everywhere by default; 1 only for a local intranet) | 0 |
-| `EXPLANIMATE_JOBS_DIR` / `_GALLERY_DIR` / `_OUT_DIR` | where jobs, gallery videos and CLI output go | repo folders, `/data` in Docker |
-| `EXPLANIMATE_PLAN_CACHE` | 0 turns off the shared plan cache | on |
-| `EXPLANIMATE_CHROME` | Chrome path if it's not in a standard place | auto-found |
-| `EXPLANIMATE_API_PORT` / `_MCP_WAIT_SEC` | local API port, and how long the connector waits per call | 7311 / 50 |
+| Setting                                               | What it does                                                                                          | Default                         |
+| ----------------------------------------------------- | ----------------------------------------------------------------------------------------------------- | ------------------------------- |
+| `EXPLANIMATE_LLM_PROVIDER`                            | force `openrouter` or `meta` for Muse Spark                                                           | OpenRouter if its key is set    |
+| `EXPLANIMATE_SPARK_MODEL`                             | a different model name                                                                                | per provider                    |
+| `EXPLANIMATE_HEDGE`                                   | how many copies of long AI calls to race, keeping the first answer                                    | 2                               |
+| `EXPLANIMATE_RENDERER`                                | `skia` or `chrome`                                                                                    | skia                            |
+| `EXPLANIMATE_ENCODER`                                 | `nvenc` (graphics card) or `x264`                                                                     | auto                            |
+| `EXPLANIMATE_VOICE` / `_CHAT_VOICE` / `_STT`          | the video voice, chat voice and listening model                                                       | arcas / thalia / nova-3         |
+| `EXPLANIMATE_META_CAP_USD` / `_VOICE_CAP_USD`         | spend caps; new work pauses before crossing them, with a warning at 80%                               | 25 / 10                         |
+| `EXPLANIMATE_META_RESERVE_USD` / `_VOICE_RESERVE_USD` | room kept free for one more job                                                                       | 1 / 0.15                        |
+| `EXPLANIMATE_REQ_PER_MIN` / `_JOBS_PER_HOUR`          | rate limits: per visitor, and for everyone combined                                                   | 12 / 20                         |
+| `EXPLANIMATE_CONCURRENCY`                             | videos rendering at once; the rest wait in line                                                       | 10                              |
+| `EXPLANIMATE_QUEUE_MAX`                               | most videos allowed to wait                                                                           | 200                             |
+| `EXPLANIMATE_WAIT_IDLE_S`                             | drop a waiting video this many seconds after its tab closes                                           | 120                             |
+| `EXPLANIMATE_DEMO_ONLY`                               | 1 = show the gallery only, refuse new videos                                                          | 0                               |
+| `EXPLANIMATE_RESUME`                                  | restart jobs that a crash cut off                                                                     | 1                               |
+| `EXPLANIMATE_TRUST_PROXY`                             | trust the visitor address from a proxy in front                                                       | 0                               |
+| `EXPLANIMATE_ALLOW_PRIVATE_URLS`                      | allow links to private network addresses (refused everywhere by default; 1 only for a local intranet) | 0                               |
+| `EXPLANIMATE_JOBS_DIR` / `_GALLERY_DIR` / `_OUT_DIR`  | where jobs, gallery videos and CLI output go                                                          | repo folders, `/data` in Docker |
+| `EXPLANIMATE_PLAN_CACHE`                              | 0 turns off the shared plan cache                                                                     | on                              |
+| `EXPLANIMATE_CHROME`                                  | Chrome path if it's not in a standard place                                                           | auto-found                      |
+| `EXPLANIMATE_API_PORT` / `_MCP_WAIT_SEC`              | local API port, and how long the connector waits per call                                             | 7311 / 50                       |
 
 The full list is in `.env.example`.
 

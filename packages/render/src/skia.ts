@@ -27,7 +27,11 @@ export interface SkiaLayout {
   caps: ({ x: number; y: number; w: number; h: number; xs: number[]; base: number } | null)[];
   end: { title: Word[]; lines: Word[]; credit: { x: number; y: number; w: number; h: number; words: Word[] } | null } | null;
 }
-interface Word { w: string; x: number; y: number }
+interface Word {
+  w: string;
+  x: number;
+  y: number;
+}
 
 /** The TTF files for the film's fonts: the hand font is whichever bundled font the film embeds. */
 export function skiaFonts(film: Film): { hand: string; sans: string } {
@@ -70,15 +74,24 @@ export function skiaWorkers(hardwareEncoder = false, cpus = os.cpus().length) {
  * holds the drawing back instead of frames piling up in memory.
  */
 export async function pumpFrames<B>(o: {
-  frames: number[]; workers: number; limit: number;
+  frames: number[];
+  workers: number;
+  limit: number;
   draw: (worker: number, frame: number) => Promise<B>;
   write: (frame: number, buf: B) => Promise<void> | void;
 }): Promise<{ peakHeld: number }> {
   const limit = Math.max(1, o.limit);
   const ready = new Map<number, B>();
-  let next = 0, written = 0, peakHeld = 0, failed: unknown;
+  let next = 0,
+    written = 0,
+    peakHeld = 0,
+    failed: unknown;
   let waiters: (() => void)[] = [];
-  const wake = () => { const w = waiters; waiters = []; for (const r of w) r(); };
+  const wake = () => {
+    const w = waiters;
+    waiters = [];
+    for (const r of w) r();
+  };
   let flushing = Promise.resolve();
   const flush = async () => {
     while (!failed && ready.has(written)) {
@@ -89,14 +102,25 @@ export async function pumpFrames<B>(o: {
       wake();
     }
   };
-  const fail = (e: unknown) => { failed ??= e; wake(); };
+  const fail = (e: unknown) => {
+    failed ??= e;
+    wake();
+  };
   const run = async (w: number) => {
     while (!failed && next < o.frames.length) {
-      if (next - written >= limit) { await new Promise<void>((r) => waiters.push(r)); continue; }
+      if (next - written >= limit) {
+        await new Promise<void>((r) => waiters.push(r));
+        continue;
+      }
       const i = next++;
       peakHeld = Math.max(peakHeld, next - written);
       let b: B;
-      try { b = await o.draw(w, o.frames[i]); } catch (e) { fail(e); return; }
+      try {
+        b = await o.draw(w, o.frames[i]);
+      } catch (e) {
+        fail(e);
+        return;
+      }
       ready.set(i, b);
       flushing = flushing.then(flush).catch(fail);
     }
@@ -111,11 +135,18 @@ export async function pumpFrames<B>(o: {
  * Render frames with Skia. Each frame's raw RGBA pixels go to `onFrame` in frame order; the frames the
  * frame check reads are also written to `dir` as JPEGs (f000123.jpg), like the Chrome renderer does.
  */
-export async function captureFramesSkia(film: Film, dir: string, opts: {
-  workers?: number; hardwareEncoder?: boolean; only?: number[]; limit?: number;
-  onFrame: (f: number, rgba: Buffer) => Promise<void> | void;
-  onProgress?: (done: number, total: number) => void;
-}) {
+export async function captureFramesSkia(
+  film: Film,
+  dir: string,
+  opts: {
+    workers?: number;
+    hardwareEncoder?: boolean;
+    only?: number[];
+    limit?: number;
+    onFrame: (f: number, rgba: Buffer) => Promise<void> | void;
+    onProgress?: (done: number, total: number) => void;
+  },
+) {
   fs.mkdirSync(dir, { recursive: true });
   const html = path.join(dir, "stage.html");
   fs.writeFileSync(html, stageHtml(film));
@@ -125,27 +156,37 @@ export async function captureFramesSkia(film: Film, dir: string, opts: {
   const jpegFrames = [...new Set(sampleTimes(film).map((t) => Math.round(t * film.fps)))];
   const n = Math.max(1, Math.min(opts.workers ?? skiaWorkers(opts.hardwareEncoder), frames.length));
   const { fonts: _drop, ...plain } = film;
-  const pool = await Promise.all([...Array(n).keys()].map(() => new Promise<Worker>((res, rej) => {
-    const w = new Worker(new URL("./skia/worker.mjs", import.meta.url), { workerData: { film: plain, layout, fonts: skiaFonts(film), jpegFrames } });
-    w.once("message", () => res(w));
-    w.once("error", rej);
-  })));
+  const pool = await Promise.all(
+    [...Array(n).keys()].map(
+      () =>
+        new Promise<Worker>((res, rej) => {
+          const w = new Worker(new URL("./skia/worker.mjs", import.meta.url), {
+            workerData: { film: plain, layout, fonts: skiaFonts(film), jpegFrames },
+          });
+          w.once("message", () => res(w));
+          w.once("error", rej);
+        }),
+    ),
+  );
   let done = 0;
   try {
     const { peakHeld } = await pumpFrames<Buffer>({
-      frames, workers: n, limit: opts.limit ?? n * 2,
-      draw: (i, f) => new Promise((res, rej) => {
-        const w = pool[i];
-        const onErr = (e: unknown) => rej(e);
-        w.once("error", onErr);
-        w.once("message", (m: { f: number; buf?: Uint8Array; jpg?: Uint8Array; error?: string }) => {
-          w.off("error", onErr);
-          if (m.error || !m.buf) return rej(new Error(`skia frame ${f}: ${m.error}`));
-          if (m.jpg) fs.writeFileSync(path.join(dir, `f${String(f).padStart(6, "0")}.jpg`), m.jpg);
-          res(Buffer.from(m.buf.buffer, m.buf.byteOffset, m.buf.byteLength));
-        });
-        w.postMessage({ f });
-      }),
+      frames,
+      workers: n,
+      limit: opts.limit ?? n * 2,
+      draw: (i, f) =>
+        new Promise((res, rej) => {
+          const w = pool[i];
+          const onErr = (e: unknown) => rej(e);
+          w.once("error", onErr);
+          w.once("message", (m: { f: number; buf?: Uint8Array; jpg?: Uint8Array; error?: string }) => {
+            w.off("error", onErr);
+            if (m.error || !m.buf) return rej(new Error(`skia frame ${f}: ${m.error}`));
+            if (m.jpg) fs.writeFileSync(path.join(dir, `f${String(f).padStart(6, "0")}.jpg`), m.jpg);
+            res(Buffer.from(m.buf.buffer, m.buf.byteOffset, m.buf.byteLength));
+          });
+          w.postMessage({ f });
+        }),
       write: async (f, buf) => {
         await opts.onFrame(f, buf);
         done++;

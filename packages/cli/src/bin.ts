@@ -60,49 +60,102 @@ const argv = process.argv.slice(2);
 // localhost and private-network links are refused, the way the web app refuses them;
 // --allow-private (or EXPLANIMATE_ALLOW_PRIVATE_URLS=1) reads them anyway, for local intranet pages
 if (argv.includes("--allow-private")) process.env.EXPLANIMATE_ALLOW_PRIVATE_URLS = "1";
-if (!argv.length || argv.includes("--help") || argv.includes("-h")) { process.stdout.write(HELP); process.exit(0); }
-const opt = (k: string) => { const i = argv.indexOf(k); return i >= 0 ? argv[i + 1] : undefined; };
+if (!argv.length || argv.includes("--help") || argv.includes("-h")) {
+  process.stdout.write(HELP);
+  process.exit(0);
+}
+const opt = (k: string) => {
+  const i = argv.indexOf(k);
+  return i >= 0 ? argv[i + 1] : undefined;
+};
 const many = (k: string) => argv.flatMap((a, i) => (a === k ? [argv[i + 1]] : []));
 const flags = new Set(["--fresh", "--json", "--no-qa", "--no-packs", "--no-music", "--no-sfx", "--vision-review", "--allow-private"]);
 if (argv[0] === "explain") await explain();
 const input = argv.find((a, i) => !a.startsWith("--") && (i === 0 || !argv[i - 1].startsWith("--") || flags.has(argv[i - 1])));
-if (!input) { process.stderr.write(HELP); process.exit(1); }
+if (!input) {
+  process.stderr.write(HELP);
+  process.exit(1);
+}
 const json = argv.includes("--json");
 
 const started = Date.now();
 const whatIf = opt("--what-if");
-if (argv.includes("--export")) process.stderr.write("--export is no longer needed: every run writes both a .tldr and an .excalidraw board\n");
-if (whatIf && whatIf !== "10x" && whatIf !== "100x") { process.stderr.write("--what-if takes 10x or 100x\n"); process.exit(1); }
+if (argv.includes("--export"))
+  process.stderr.write("--export is no longer needed: every run writes both a .tldr and an .excalidraw board\n");
+if (whatIf && whatIf !== "10x" && whatIf !== "100x") {
+  process.stderr.write("--what-if takes 10x or 100x\n");
+  process.exit(1);
+}
 const depth = opt("--depth");
-if (depth && !["overview", "working", "deep"].includes(depth)) { process.stderr.write("--depth takes overview, working or deep\n"); process.exit(1); }
-const ask = { goal: opt("--goal"), audience: opt("--audience"), depth: depth as "overview" | "working" | "deep" | undefined, also: opt("--also") };
+if (depth && !["overview", "working", "deep"].includes(depth)) {
+  process.stderr.write("--depth takes overview, working or deep\n");
+  process.exit(1);
+}
+const ask = {
+  goal: opt("--goal"),
+  audience: opt("--audience"),
+  depth: depth as "overview" | "working" | "deep" | undefined,
+  also: opt("--also"),
+};
 runExplanimate({
-  from: opt("--from") && path.resolve(opt("--from")!), focus: opt("--focus"), whatIf: whatIf as "10x" | "100x" | undefined,
+  from: opt("--from") && path.resolve(opt("--from")!),
+  focus: opt("--focus"),
+  whatIf: whatIf as "10x" | "100x" | undefined,
   input: fs.existsSync(input) ? path.resolve(input) : input,
-  out: opt("--out") && path.resolve(opt("--out")!), name: opt("--name"), voice: opt("--voice"),
+  out: opt("--out") && path.resolve(opt("--out")!),
+  name: opt("--name"),
+  voice: opt("--voice"),
   ask: Object.values(ask).some(Boolean) ? ask : undefined,
-  packs: argv.includes("--no-packs") ? [] : [...many("--pack"), ...many("--icons")].length ? [...many("--pack"), ...many("--icons")].map((d) => (fs.existsSync(d) ? path.resolve(d) : d)) : undefined, fresh: argv.includes("--fresh"), workers: opt("--workers") ? Number(opt("--workers")) : undefined, qa: !argv.includes("--no-qa"), music: !argv.includes("--no-music"), sfx: !argv.includes("--no-sfx"), visionReview: argv.includes("--vision-review"),
+  packs: argv.includes("--no-packs")
+    ? []
+    : [...many("--pack"), ...many("--icons")].length
+      ? [...many("--pack"), ...many("--icons")].map((d) => (fs.existsSync(d) ? path.resolve(d) : d))
+      : undefined,
+  fresh: argv.includes("--fresh"),
+  workers: opt("--workers") ? Number(opt("--workers")) : undefined,
+  qa: !argv.includes("--no-qa"),
+  music: !argv.includes("--no-music"),
+  sfx: !argv.includes("--no-sfx"),
+  visionReview: argv.includes("--vision-review"),
   progress: (e) => {
     if (json) process.stdout.write(JSON.stringify({ type: "progress", ...e }) + "\n");
-    else process.stderr.write(`[${((Date.now() - started) / 1000).toFixed(0).padStart(4)}s] $${(e.usd?.total ?? 0).toFixed(3).padStart(6)}  ${e.stage.padEnd(12)} ${e.message}\n`);
+    else
+      process.stderr.write(
+        `[${((Date.now() - started) / 1000).toFixed(0).padStart(4)}s] $${(e.usd?.total ?? 0).toFixed(3).padStart(6)}  ${e.stage.padEnd(12)} ${e.message}\n`,
+      );
   },
-}).then((m) => {
-  if (json) process.stdout.write(JSON.stringify({ type: "done", manifest: m }) + "\n");
-  else process.stdout.write(`\nvideo      ${m.outputs.mp4}\ntldraw     ${m.outputs.tldr}\nexcalidraw ${m.outputs.excalidraw}\nsheet      ${m.outputs.contactSheet}\nmeta spend $${m.cost.metaUsd.toFixed(3)}  voice $${m.cost.voiceUsd.toFixed(3)}  (${m.seconds}s)\n`);
-}).catch((e) => {
-  // a service failure already reads as a sentence a person can act on; the raw detail is for logs only
-  const plain = e?.name === "ServiceError";
-  if (json) process.stdout.write(JSON.stringify({ type: "error", message: String(e?.message ?? e), service: plain ? e.service : undefined }) + "\n");
-  else process.stderr.write(plain ? `explanimate failed: ${e.message}\n  (${e.detail ?? "no detail"})\n` : `explanimate failed: ${e?.stack ?? e}\n`);
-  process.exit(1);
-});
+})
+  .then((m) => {
+    if (json) process.stdout.write(JSON.stringify({ type: "done", manifest: m }) + "\n");
+    else
+      process.stdout.write(
+        `\nvideo      ${m.outputs.mp4}\ntldraw     ${m.outputs.tldr}\nexcalidraw ${m.outputs.excalidraw}\nsheet      ${m.outputs.contactSheet}\nmeta spend $${m.cost.metaUsd.toFixed(3)}  voice $${m.cost.voiceUsd.toFixed(3)}  (${m.seconds}s)\n`,
+      );
+  })
+  .catch((e) => {
+    // a service failure already reads as a sentence a person can act on; the raw detail is for logs only
+    const plain = e?.name === "ServiceError";
+    if (json)
+      process.stdout.write(
+        JSON.stringify({ type: "error", message: String(e?.message ?? e), service: plain ? e.service : undefined }) + "\n",
+      );
+    else
+      process.stderr.write(
+        plain ? `explanimate failed: ${e.message}\n  (${e.detail ?? "no detail"})\n` : `explanimate failed: ${e?.stack ?? e}\n`,
+      );
+    process.exit(1);
+  });
 
 async function explain() {
   const { CostLedger } = await import("@explanimate/models");
   const { explainComponent, evidencePack } = await import("@explanimate/planner");
   const { digestRepo } = await import("@explanimate/ingest");
-  const from = opt("--from"), id = opt("--component");
-  const out = (o: unknown) => { process.stdout.write(JSON.stringify(o) + "\n"); process.exit(0); };
+  const from = opt("--from"),
+    id = opt("--component");
+  const out = (o: unknown) => {
+    process.stdout.write(JSON.stringify(o) + "\n");
+    process.exit(0);
+  };
   try {
     if (!from || !id) throw new Error("explain needs --from <dir> and --component <id>");
     const m = JSON.parse(fs.readFileSync(path.join(from, "manifest.json"), "utf8"));
@@ -113,8 +166,20 @@ async function explain() {
     const read = repoDir ? digestRepo(repoDir).read : () => "";
     const evidence = evidencePack({ ...arch, components: [c], connections: [], scale: [] }, read, 12000);
     const ledger = new CostLedger();
-    const r = await explainComponent({ ledger, arch, id, evidence, audience: m.brief?.audience ?? "a developer new to this codebase", question: opt("--question") });
-    out({ type: "explain", component: { id: c.id, name: c.name, keyword: c.keyword, evidence: c.evidence }, ...r, usd: Number(ledger.total.toFixed(4)) });
+    const r = await explainComponent({
+      ledger,
+      arch,
+      id,
+      evidence,
+      audience: m.brief?.audience ?? "a developer new to this codebase",
+      question: opt("--question"),
+    });
+    out({
+      type: "explain",
+      component: { id: c.id, name: c.name, keyword: c.keyword, evidence: c.evidence },
+      ...r,
+      usd: Number(ledger.total.toFixed(4)),
+    });
   } catch (e) {
     process.stdout.write(JSON.stringify({ type: "error", message: String((e as Error)?.message ?? e) }) + "\n");
     process.exit(1);

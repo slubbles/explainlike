@@ -12,7 +12,9 @@ export async function POST(req: Request) {
   if (!b.ok) return Response.json({ error: b.error }, { status: 429 });
   if (!key) return Response.json({ error: "DEEPGRAM_API_KEY is not set on the server" }, { status: 500 });
   const r = await fetch("https://api.deepgram.com/v1/auth/grant", {
-    method: "POST", headers: { Authorization: `Token ${key}`, "content-type": "application/json" }, body: JSON.stringify({ ttl_seconds: 30 }),
+    method: "POST",
+    headers: { Authorization: `Token ${key}`, "content-type": "application/json" },
+    body: JSON.stringify({ ttl_seconds: 30 }),
   }).catch(() => null);
   if (!r?.ok) return Response.json({ error: `could not get a voice token (${r?.status ?? "network"})` }, { status: 502 });
   const j = await r.json();

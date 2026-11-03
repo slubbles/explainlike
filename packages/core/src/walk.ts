@@ -14,7 +14,8 @@ export function walkCues(spoken: string[], arch: Architecture): number[] {
   let at = 0;
   return arch.walkthrough.steps.map((st) => {
     let k = phraseAt(spoken, st.label, at);
-    const to = kw(st.to), from = kw(st.from);
+    const to = kw(st.to),
+      from = kw(st.from);
     if (k < 0 && to) {
       const f = from ? phraseAt(spoken, from, at) : -1;
       k = f >= 0 ? phraseAt(spoken, to, f + 1) : -1;

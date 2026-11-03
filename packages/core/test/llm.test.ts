@@ -4,9 +4,15 @@ import { llmProvider, chatUsd } from "@explanimate/core";
 
 test("the chat provider is OpenRouter when its key is set, else Meta", () => {
   const or = llmProvider({ OPENROUTER_API_KEY: "k" });
-  assert.deepEqual([or.id, or.base, or.keyVar, or.model], ["openrouter", "https://openrouter.ai/api/v1", "OPENROUTER_API_KEY", "meta/muse-spark-1.3"]);
+  assert.deepEqual(
+    [or.id, or.base, or.keyVar, or.model],
+    ["openrouter", "https://openrouter.ai/api/v1", "OPENROUTER_API_KEY", "meta/muse-spark-1.3"],
+  );
   const meta = llmProvider({ MODEL_API_KEY: "k" });
-  assert.deepEqual([meta.id, meta.base, meta.keyVar, meta.model], ["meta", "https://api.meta.ai/v1", "MODEL_API_KEY", "muse-spark-1.3-contributor"]);
+  assert.deepEqual(
+    [meta.id, meta.base, meta.keyVar, meta.model],
+    ["meta", "https://api.meta.ai/v1", "MODEL_API_KEY", "muse-spark-1.3-contributor"],
+  );
 });
 
 test("EXPLANIMATE_LLM_PROVIDER wins over the key check, and the model and address can be overridden", () => {

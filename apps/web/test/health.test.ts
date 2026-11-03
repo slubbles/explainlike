@@ -33,7 +33,11 @@ test("demo-only mode or a spent cap reads as paused, not unhealthy", () => {
 });
 
 test("EXPLANIMATE_CHROME points at a Chrome in an unusual place", () => {
-  const h = checkHealth("/j", true, probe({ env: { MODEL_API_KEY: "k", EXPLANIMATE_CHROME: "/opt/chrome/chrome" }, has: (f) => f === "/opt/chrome/chrome" }));
+  const h = checkHealth(
+    "/j",
+    true,
+    probe({ env: { MODEL_API_KEY: "k", EXPLANIMATE_CHROME: "/opt/chrome/chrome" }, has: (f) => f === "/opt/chrome/chrome" }),
+  );
   assert.equal(h.checks.chrome, true);
 });
 

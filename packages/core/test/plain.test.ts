@@ -1,6 +1,15 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { plainSlips, practitionerTerm, PLAIN_LANGUAGE, PLAIN_LABELS, PLAIN_SUBTITLE, PLAIN_HEADINGS, figurative, subtitleSlip } from "../src/index.js";
+import {
+  plainSlips,
+  practitionerTerm,
+  PLAIN_LANGUAGE,
+  PLAIN_LABELS,
+  PLAIN_SUBTITLE,
+  PLAIN_HEADINGS,
+  figurative,
+  subtitleSlip,
+} from "../src/index.js";
 
 test("a sentence with unexplained jargon is flagged with the word it stumbles on", () => {
   const slips = plainSlips("The rust cli sends the send cdp instruction onward.");
@@ -19,7 +28,8 @@ test("box names the board already shows are not counted as jargon", () => {
 });
 
 test("a sentence too long to follow by ear is flagged", () => {
-  const long = "It goes to the fast command program written in Rust, a quick systems language, that reads what your assistant asked for and turns it into steps for the browser.";
+  const long =
+    "It goes to the fast command program written in Rust, a quick systems language, that reads what your assistant asked for and turns it into steps for the browser.";
   assert.ok(plainSlips(long).some((s) => /has \d+ words; split it/.test(s)));
 });
 

@@ -13,8 +13,18 @@ export function privateAddress(ip: string): boolean {
   const v4 = ip.replace(/^::ffff:/i, "");
   if (net.isIPv4(v4)) {
     const [a, b] = v4.split(".").map(Number) as [number, number];
-    return a === 0 || a === 10 || a === 127 || a >= 224 || (a === 169 && b === 254) || (a === 172 && b >= 16 && b <= 31)
-      || (a === 192 && b === 168) || (a === 100 && b >= 64 && b <= 127) || (a === 192 && b === 0) || (a === 198 && (b === 18 || b === 19));
+    return (
+      a === 0 ||
+      a === 10 ||
+      a === 127 ||
+      a >= 224 ||
+      (a === 169 && b === 254) ||
+      (a === 172 && b >= 16 && b <= 31) ||
+      (a === 192 && b === 168) ||
+      (a === 100 && b >= 64 && b <= 127) ||
+      (a === 192 && b === 0) ||
+      (a === 198 && (b === 18 || b === 19))
+    );
   }
   if (!net.isIPv6(ip)) return true;
   const h = ip.toLowerCase();
@@ -23,12 +33,16 @@ export function privateAddress(ip: string): boolean {
 }
 
 async function assertPublic(url: URL, isPrivate: (ip: string) => boolean): Promise<void> {
-  if (url.protocol !== "https:" && url.protocol !== "http:") throw new PrivateAddressError(`Only http and https links can be read (got ${url.protocol}).`);
+  if (url.protocol !== "https:" && url.protocol !== "http:")
+    throw new PrivateAddressError(`Only http and https links can be read (got ${url.protocol}).`);
   if (process.env.EXPLANIMATE_ALLOW_PRIVATE_URLS === "1") return;
   const host = url.hostname.replace(/^\[|\]$/g, "");
   const addrs = net.isIP(host) ? [host] : (await dns.lookup(host, { all: true }).catch(() => [])).map((a) => a.address);
   if (!addrs.length) throw new Error(`Could not find the site ${host}. Check the link.`);
-  if (addrs.some(isPrivate)) throw new PrivateAddressError(`That link points at a private network address (${host}), which is not read by default. To read a local intranet, set EXPLANIMATE_ALLOW_PRIVATE_URLS=1 (or pass --allow-private to the CLI). If every site fails like this, the host's DNS answers with proxy addresses; give such a host real DNS instead.`);
+  if (addrs.some(isPrivate))
+    throw new PrivateAddressError(
+      `That link points at a private network address (${host}), which is not read by default. To read a local intranet, set EXPLANIMATE_ALLOW_PRIVATE_URLS=1 (or pass --allow-private to the CLI). If every site fails like this, the host's DNS answers with proxy addresses; give such a host real DNS instead.`,
+    );
 }
 
 /** fetch() that checks each hop's address and follows at most `hops` redirects itself. The response's url is the final one. */
@@ -38,7 +52,10 @@ export async function publicFetch(link: string, init: RequestInit = {}, hops = 5
     await assertPublic(url, isPrivate);
     const r = await fetch(url, { ...init, redirect: "manual" });
     const loc = r.status >= 300 && r.status < 400 ? r.headers.get("location") : null;
-    if (!loc) { Object.defineProperty(r, "url", { value: url.href }); return r; }
+    if (!loc) {
+      Object.defineProperty(r, "url", { value: url.href });
+      return r;
+    }
     if (i >= hops) throw new Error("That link redirects too many times. Link to the page itself.");
     await r.body?.cancel().catch(() => {});
     url = new URL(loc, url);

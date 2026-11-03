@@ -18,7 +18,10 @@ const stage = await makeSkiaStage(film, layout, lib, { hand: family(fonts.hand),
 const jpeg = new Set(jpegFrames);
 
 parentPort.on("message", (m) => {
-  if (m === "exit") { parentPort.close(); return; }
+  if (m === "exit") {
+    parentPort.close();
+    return;
+  }
   try {
     stage.render(m.f / film.fps);
     const px = stage.canvas.data();
@@ -27,7 +30,12 @@ parentPort.on("message", (m) => {
     buf.set(px);
     const transfer = [buf.buffer];
     let jpg;
-    if (jpeg.has(m.f)) { const j = stage.canvas.encodeSync("jpeg", 92); jpg = new Uint8Array(j.length); jpg.set(j); transfer.push(jpg.buffer); }
+    if (jpeg.has(m.f)) {
+      const j = stage.canvas.encodeSync("jpeg", 92);
+      jpg = new Uint8Array(j.length);
+      jpg.set(j);
+      transfer.push(jpg.buffer);
+    }
     parentPort.postMessage({ f: m.f, buf, jpg }, transfer);
   } catch (e) {
     parentPort.postMessage({ f: m.f, error: String(e?.stack ?? e) });

@@ -4,6 +4,7 @@ How two channels that explain hard tech well actually do it, and what Explanimat
 These notes come from the auto-captions of 10 videos. Each quote is short and backs one pattern.
 
 Sources:
+
 - Caleb Writes Code (C):
   - [Inference Engines explained in 10min](https://www.youtube.com/watch?v=_xM8scs4_x4)
   - [Jev explained in 7min](https://www.youtube.com/watch?v=vj7hysh0mOI)
@@ -71,6 +72,7 @@ I also counted cuts in the first 2 minutes with ffmpeg scene detection (`scene >
 Nothing from these videos is reused. Only the techniques are.
 
 Sources:
+
 - Fireship: [Did the AI bubble just pop?](https://www.youtube.com/watch?v=nEaJMdM1djM), [The runtime wars are over... and Node won](https://www.youtube.com/watch?v=l3L_lETiSzc), [China just dropped a new frontier model...](https://www.youtube.com/watch?v=G_em1hHPnXY)
 - Crayon Capital: [The Rise of Anthropic ELI5](https://www.youtube.com/watch?v=H5GYXhpE5yI), [TSMC ELI5](https://www.youtube.com/watch?v=aDCKVS8aA8E)
 - SeanAIStories: [Pi coding agent harness in 22 min](https://www.youtube.com/watch?v=0sI0MbCt4f4), [Agent observability & eval in 20 min](https://www.youtube.com/watch?v=YkhmBOctzWE)
@@ -100,7 +102,7 @@ Sources:
 
 ### Script
 
-- No warm-up and no "in this video". Sentence one is already the story. (Sean is the exception: he opens with "Hi everyone", but straight away lists what the tool *doesn't* have, and that is the surprise.)
+- No warm-up and no "in this video". Sentence one is already the story. (Sean is the exception: he opens with "Hi everyone", but straight away lists what the tool _doesn't_ have, and that is the surprise.)
 - **One analogy world, kept all the way through.** KodeKloud's post office: envelope → producer, post office → broker, sorting shelves → topics, the friend in Berlin → consumer. Every new term lands on a place already drawn.
 - **Humour comes in small, dry asides, not as a set piece.**
   - "Kibitz is the Yiddish word for that guy standing behind you at a chess game... the perfect analogy for a coding agent." (Fireship)
@@ -118,19 +120,20 @@ Sources:
 
 - **Two families of cut rate.** Average cuts per minute in the first 2 minutes:
 
-  | Channel | Cuts/min |
-  |---|---|
-  | Crayon | 20–33 |
-  | Vox | 26 |
-  | BI | 11–20 |
-  | Fireship | 13–18 |
-  | CNBC | 11–14 |
-  | Caleb | 4 |
-  | KodeKloud | 1–3 |
-  | Sean | 1 |
-  | Alux | 0–1 |
+  | Channel   | Cuts/min |
+  | --------- | -------- |
+  | Crayon    | 20–33    |
+  | Vox       | 26       |
+  | BI        | 11–20    |
+  | Fireship  | 13–18    |
+  | CNBC      | 11–14    |
+  | Caleb     | 4        |
+  | KodeKloud | 1–3      |
+  | Sean      | 1        |
+  | Alux      | 0–1      |
 
   The channels that draw or build a diagram (KodeKloud, Caleb, Sean, Alux) barely cut. Instead they **add to one canvas** and move attention with an arrow, a marker stroke or a highlight. That is the family Explanimate belongs to. Motion comes from things being drawn and the camera moving, not from cuts.
+
 - **Kinetic and title type.**
   - Alux uses full-screen chapter cards ("STAGE 1 · ENOUGH TO LEAVE YOUR JOB") in the brand colour.
   - KodeKloud uses a full-screen title card.

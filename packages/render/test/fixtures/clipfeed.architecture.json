@@ -1,305 +1,270 @@
 {
- "product": "Clipfeed",
- "one_liner": "Bisaya meme-music TikTok feed plus Spotify home, hosted on Cloudflare.",
- "components": [
-  {
-   "id": "browser-client",
-   "name": "Next.js Browser App",
-   "kind": "client",
-   "layer": "frontend",
-   "keyword": "fyp app",
-   "icon": "browser",
-   "what": "TikTok-style FYP feed plus Spotify-like Home that plays video and audio.",
-   "evidence": [
-    "components/fyp-feed.tsx",
-    "components/player-provider.tsx"
-   ]
+  "product": "Clipfeed",
+  "one_liner": "Bisaya meme-music TikTok feed plus Spotify home, hosted on Cloudflare.",
+  "components": [
+    {
+      "id": "browser-client",
+      "name": "Next.js Browser App",
+      "kind": "client",
+      "layer": "frontend",
+      "keyword": "fyp app",
+      "icon": "browser",
+      "what": "TikTok-style FYP feed plus Spotify-like Home that plays video and audio.",
+      "evidence": ["components/fyp-feed.tsx", "components/player-provider.tsx"]
+    },
+    {
+      "id": "edge-middleware",
+      "name": "Next.js Edge Middleware",
+      "kind": "edge",
+      "layer": "edge",
+      "keyword": "edge guard",
+      "icon": "shield",
+      "what": "Blocks public /admin and /inbox, validates CSRF origin and captures invite codes.",
+      "evidence": ["middleware.ts"]
+    },
+    {
+      "id": "worker-host",
+      "name": "Cloudflare Worker via OpenNext",
+      "kind": "worker",
+      "layer": "edge",
+      "keyword": "worker host",
+      "icon": "box",
+      "what": "Serves the Next.js build, document cache and WebSocket fanout on clipfeed.com.",
+      "evidence": ["scripts/cf-worker.mjs", "wrangler.jsonc"]
+    },
+    {
+      "id": "next-api",
+      "name": "Next.js Route Handlers",
+      "kind": "api",
+      "layer": "backend",
+      "keyword": "ingest api",
+      "icon": "server",
+      "what": "81 /api/* routes for clips, chat, FYP likes, auth and uploads.",
+      "evidence": ["app/api/hosted-clips/route.ts", "app/api/chat/route.ts"]
+    },
+    {
+      "id": "d1-db",
+      "name": "Cloudflare D1 via FEEDBACK_DB",
+      "kind": "db",
+      "layer": "data",
+      "keyword": "d1 database",
+      "icon": "database",
+      "what": "Stores hosted_clips and chat_messages while likes live in ClipLikes DO and chat reads come from KV snapshot.",
+      "evidence": ["migrations/0009_hosted_clips.sql", "migrations/0022_chat.sql"]
+    },
+    {
+      "id": "r2-storage",
+      "name": "Cloudflare R2 CLIPS Bucket",
+      "kind": "object-storage",
+      "layer": "storage",
+      "keyword": "clip blobs",
+      "icon": "bucket",
+      "what": "Stores hosted mp4 bytes and cover stills written via writeHostedBlob.",
+      "evidence": ["app/api/hosted-clips/route.ts", "lib/cf.ts", "lib/hosted-clips.ts"]
+    },
+    {
+      "id": "chat-live-do",
+      "name": "ChatLive Durable Object",
+      "kind": "realtime",
+      "layer": "async",
+      "keyword": "live chat",
+      "icon": "chat",
+      "what": "Fans out POST /api/chat messages persisted first then POSTed to chat.internal for WebSocket broadcast.",
+      "evidence": ["lib/chat-live-do.ts", "scripts/cf-worker.mjs"]
+    },
+    {
+      "id": "clip-likes-do",
+      "name": "ClipLikes Durable Object",
+      "kind": "realtime",
+      "layer": "async",
+      "keyword": "like counter",
+      "icon": "bolt",
+      "what": "Counts FYP hearts via likesDelta and rejects floods via resolveLikeActor.",
+      "evidence": ["scripts/cf-worker.mjs", "lib/clip-likes.ts", "lib/clip-likes-do.ts"]
+    },
+    {
+      "id": "google-auth",
+      "name": "Google OAuth + Cloudflare Access",
+      "kind": "auth",
+      "layer": "auth",
+      "keyword": "google login",
+      "icon": "lock",
+      "what": "Google sign-in for users and Access-gated admin on admin.clipfeed.com.",
+      "evidence": ["app/api/auth/google/route.ts", "lib/admin-auth.ts"]
+    },
+    {
+      "id": "clips-cdn",
+      "name": "Cloudflare CDN clips.clipfeed.com",
+      "kind": "cdn",
+      "layer": "edge",
+      "keyword": "edge cache",
+      "icon": "cloud",
+      "what": "Caches immutable clip bytes for a year with prefix purge on delete.",
+      "evidence": ["lib/clip-cdn-cache.ts", "lib/clip-cdn-purge.ts"]
+    },
+    {
+      "id": "inbound-email",
+      "name": "Cloudflare Email Routing",
+      "kind": "email",
+      "layer": "backend",
+      "keyword": "inbound mail",
+      "icon": "mail",
+      "what": "Receives inbound mail and forwards previews into the Worker inbox.",
+      "evidence": ["scripts/cf-worker.mjs"]
+    },
+    {
+      "id": "elevenlabs-transcribe",
+      "name": "ElevenLabs Scribe",
+      "kind": "ai",
+      "layer": "third-party",
+      "keyword": "voice text",
+      "icon": "brain",
+      "what": "Turns uploads into transcripts with Scribe speech-to-text plus language refine.",
+      "evidence": ["app/api/transcribe/route.ts"]
+    }
+  ],
+  "connections": [
+    {
+      "from": "browser-client",
+      "to": "edge-middleware",
+      "label": "load page",
+      "evidence": "middleware.ts"
+    },
+    {
+      "from": "edge-middleware",
+      "to": "worker-host",
+      "label": "render app",
+      "evidence": "scripts/cf-worker.mjs"
+    },
+    {
+      "from": "browser-client",
+      "to": "next-api",
+      "label": "fetch catalog",
+      "evidence": "app/api/hosted-clips/route.ts"
+    },
+    {
+      "from": "next-api",
+      "to": "d1-db",
+      "label": "read writes",
+      "evidence": "app/api/hosted-clips/route.ts"
+    },
+    {
+      "from": "next-api",
+      "to": "r2-storage",
+      "label": "store bytes",
+      "evidence": "app/api/hosted-clips/route.ts"
+    },
+    {
+      "from": "browser-client",
+      "to": "clips-cdn",
+      "label": "stream video",
+      "evidence": "lib/hosted-clip-ui.ts"
+    },
+    {
+      "from": "clips-cdn",
+      "to": "r2-storage",
+      "label": "origin fetch",
+      "evidence": "lib/clip-cdn-cache.ts"
+    },
+    {
+      "from": "next-api",
+      "to": "chat-live-do",
+      "label": "broadcast chat",
+      "evidence": "app/api/chat/route.ts"
+    },
+    {
+      "from": "next-api",
+      "to": "clip-likes-do",
+      "label": "tally likes",
+      "evidence": "lib/clip-likes.ts"
+    },
+    {
+      "from": "browser-client",
+      "to": "google-auth",
+      "label": "sign in",
+      "evidence": "app/api/auth/google/route.ts"
+    },
+    {
+      "from": "next-api",
+      "to": "elevenlabs-transcribe",
+      "label": "transcribe audio",
+      "evidence": "app/api/transcribe/route.ts"
+    },
+    {
+      "from": "inbound-email",
+      "to": "worker-host",
+      "label": "forward mail",
+      "evidence": "scripts/cf-worker.mjs"
+    }
+  ],
+  "walkthrough": {
+    "name": "open the fyp feed",
+    "steps": [
+      {
+        "from": "browser-client",
+        "to": "edge-middleware",
+        "label": "load page",
+        "evidence": "middleware.ts"
+      },
+      {
+        "from": "edge-middleware",
+        "to": "worker-host",
+        "label": "render app",
+        "evidence": "scripts/cf-worker.mjs"
+      },
+      {
+        "from": "browser-client",
+        "to": "next-api",
+        "label": "fetch catalog",
+        "evidence": "app/api/hosted-clips/route.ts"
+      },
+      {
+        "from": "next-api",
+        "to": "d1-db",
+        "label": "read writes",
+        "evidence": "app/api/hosted-clips/route.ts"
+      },
+      {
+        "from": "browser-client",
+        "to": "clips-cdn",
+        "label": "stream video",
+        "evidence": "lib/hosted-clip-ui.ts"
+      },
+      {
+        "from": "clips-cdn",
+        "to": "r2-storage",
+        "label": "origin fetch",
+        "evidence": "lib/clip-cdn-cache.ts"
+      }
+    ]
   },
-  {
-   "id": "edge-middleware",
-   "name": "Next.js Edge Middleware",
-   "kind": "edge",
-   "layer": "edge",
-   "keyword": "edge guard",
-   "icon": "shield",
-   "what": "Blocks public /admin and /inbox, validates CSRF origin and captures invite codes.",
-   "evidence": [
-    "middleware.ts"
-   ]
-  },
-  {
-   "id": "worker-host",
-   "name": "Cloudflare Worker via OpenNext",
-   "kind": "worker",
-   "layer": "edge",
-   "keyword": "worker host",
-   "icon": "box",
-   "what": "Serves the Next.js build, document cache and WebSocket fanout on clipfeed.com.",
-   "evidence": [
-    "scripts/cf-worker.mjs",
-    "wrangler.jsonc"
-   ]
-  },
-  {
-   "id": "next-api",
-   "name": "Next.js Route Handlers",
-   "kind": "api",
-   "layer": "backend",
-   "keyword": "ingest api",
-   "icon": "server",
-   "what": "81 /api/* routes for clips, chat, FYP likes, auth and uploads.",
-   "evidence": [
-    "app/api/hosted-clips/route.ts",
-    "app/api/chat/route.ts"
-   ]
-  },
-  {
-   "id": "d1-db",
-   "name": "Cloudflare D1 via FEEDBACK_DB",
-   "kind": "db",
-   "layer": "data",
-   "keyword": "d1 database",
-   "icon": "database",
-   "what": "Stores hosted_clips and chat_messages while likes live in ClipLikes DO and chat reads come from KV snapshot.",
-   "evidence": [
-    "migrations/0009_hosted_clips.sql",
-    "migrations/0022_chat.sql"
-   ]
-  },
-  {
-   "id": "r2-storage",
-   "name": "Cloudflare R2 CLIPS Bucket",
-   "kind": "object-storage",
-   "layer": "storage",
-   "keyword": "clip blobs",
-   "icon": "bucket",
-   "what": "Stores hosted mp4 bytes and cover stills written via writeHostedBlob.",
-   "evidence": [
-    "app/api/hosted-clips/route.ts",
-    "lib/cf.ts",
-    "lib/hosted-clips.ts"
-   ]
-  },
-  {
-   "id": "chat-live-do",
-   "name": "ChatLive Durable Object",
-   "kind": "realtime",
-   "layer": "async",
-   "keyword": "live chat",
-   "icon": "chat",
-   "what": "Fans out POST /api/chat messages persisted first then POSTed to chat.internal for WebSocket broadcast.",
-   "evidence": [
-    "lib/chat-live-do.ts",
-    "scripts/cf-worker.mjs"
-   ]
-  },
-  {
-   "id": "clip-likes-do",
-   "name": "ClipLikes Durable Object",
-   "kind": "realtime",
-   "layer": "async",
-   "keyword": "like counter",
-   "icon": "bolt",
-   "what": "Counts FYP hearts via likesDelta and rejects floods via resolveLikeActor.",
-   "evidence": [
-    "scripts/cf-worker.mjs",
-    "lib/clip-likes.ts",
-    "lib/clip-likes-do.ts"
-   ]
-  },
-  {
-   "id": "google-auth",
-   "name": "Google OAuth + Cloudflare Access",
-   "kind": "auth",
-   "layer": "auth",
-   "keyword": "google login",
-   "icon": "lock",
-   "what": "Google sign-in for users and Access-gated admin on admin.clipfeed.com.",
-   "evidence": [
-    "app/api/auth/google/route.ts",
-    "lib/admin-auth.ts"
-   ]
-  },
-  {
-   "id": "clips-cdn",
-   "name": "Cloudflare CDN clips.clipfeed.com",
-   "kind": "cdn",
-   "layer": "edge",
-   "keyword": "edge cache",
-   "icon": "cloud",
-   "what": "Caches immutable clip bytes for a year with prefix purge on delete.",
-   "evidence": [
-    "lib/clip-cdn-cache.ts",
-    "lib/clip-cdn-purge.ts"
-   ]
-  },
-  {
-   "id": "inbound-email",
-   "name": "Cloudflare Email Routing",
-   "kind": "email",
-   "layer": "backend",
-   "keyword": "inbound mail",
-   "icon": "mail",
-   "what": "Receives inbound mail and forwards previews into the Worker inbox.",
-   "evidence": [
-    "scripts/cf-worker.mjs"
-   ]
-  },
-  {
-   "id": "elevenlabs-transcribe",
-   "name": "ElevenLabs Scribe",
-   "kind": "ai",
-   "layer": "third-party",
-   "keyword": "voice text",
-   "icon": "brain",
-   "what": "Turns uploads into transcripts with Scribe speech-to-text plus language refine.",
-   "evidence": [
-    "app/api/transcribe/route.ts"
-   ]
-  }
- ],
- "connections": [
-  {
-   "from": "browser-client",
-   "to": "edge-middleware",
-   "label": "load page",
-   "evidence": "middleware.ts"
-  },
-  {
-   "from": "edge-middleware",
-   "to": "worker-host",
-   "label": "render app",
-   "evidence": "scripts/cf-worker.mjs"
-  },
-  {
-   "from": "browser-client",
-   "to": "next-api",
-   "label": "fetch catalog",
-   "evidence": "app/api/hosted-clips/route.ts"
-  },
-  {
-   "from": "next-api",
-   "to": "d1-db",
-   "label": "read writes",
-   "evidence": "app/api/hosted-clips/route.ts"
-  },
-  {
-   "from": "next-api",
-   "to": "r2-storage",
-   "label": "store bytes",
-   "evidence": "app/api/hosted-clips/route.ts"
-  },
-  {
-   "from": "browser-client",
-   "to": "clips-cdn",
-   "label": "stream video",
-   "evidence": "lib/hosted-clip-ui.ts"
-  },
-  {
-   "from": "clips-cdn",
-   "to": "r2-storage",
-   "label": "origin fetch",
-   "evidence": "lib/clip-cdn-cache.ts"
-  },
-  {
-   "from": "next-api",
-   "to": "chat-live-do",
-   "label": "broadcast chat",
-   "evidence": "app/api/chat/route.ts"
-  },
-  {
-   "from": "next-api",
-   "to": "clip-likes-do",
-   "label": "tally likes",
-   "evidence": "lib/clip-likes.ts"
-  },
-  {
-   "from": "browser-client",
-   "to": "google-auth",
-   "label": "sign in",
-   "evidence": "app/api/auth/google/route.ts"
-  },
-  {
-   "from": "next-api",
-   "to": "elevenlabs-transcribe",
-   "label": "transcribe audio",
-   "evidence": "app/api/transcribe/route.ts"
-  },
-  {
-   "from": "inbound-email",
-   "to": "worker-host",
-   "label": "forward mail",
-   "evidence": "scripts/cf-worker.mjs"
-  }
- ],
- "walkthrough": {
-  "name": "open the fyp feed",
-  "steps": [
-   {
-    "from": "browser-client",
-    "to": "edge-middleware",
-    "label": "load page",
-    "evidence": "middleware.ts"
-   },
-   {
-    "from": "edge-middleware",
-    "to": "worker-host",
-    "label": "render app",
-    "evidence": "scripts/cf-worker.mjs"
-   },
-   {
-    "from": "browser-client",
-    "to": "next-api",
-    "label": "fetch catalog",
-    "evidence": "app/api/hosted-clips/route.ts"
-   },
-   {
-    "from": "next-api",
-    "to": "d1-db",
-    "label": "read writes",
-    "evidence": "app/api/hosted-clips/route.ts"
-   },
-   {
-    "from": "browser-client",
-    "to": "clips-cdn",
-    "label": "stream video",
-    "evidence": "lib/hosted-clip-ui.ts"
-   },
-   {
-    "from": "clips-cdn",
-    "to": "r2-storage",
-    "label": "origin fetch",
-    "evidence": "lib/clip-cdn-cache.ts"
-   }
+  "scale": [
+    {
+      "component": "d1-db",
+      "at": "10x",
+      "problem": "d1 read overload",
+      "why": "Catalog GET loads all hosted-clip rows from D1 on every feed open, so concurrent users spike reads and Worker CPU.",
+      "fix": "snapshot cache",
+      "fix_detail": "Cache listPublicCatalogHostedClips in KV / FYP snapshots with pagination instead of full scan per request.",
+      "evidence": "app/api/hosted-clips/route.ts"
+    },
+    {
+      "component": "chat-live-do",
+      "at": "100x",
+      "problem": "single room fanout",
+      "why": "All shards hear same broadcasts and one hibernatable DO fans out to every socket, exhausting isolate memory and CPU.",
+      "fix": "shard rooms",
+      "fix_detail": "Split ChatLive by CHAT_LIVE_SHARDS with sticky routing and cross-shard gossip to bound per-isolate sockets.",
+      "evidence": "lib/chat-live-do.ts"
+    },
+    {
+      "component": "clips-cdn",
+      "at": "100x",
+      "problem": "purge rate limits",
+      "why": "One-year immutable cache means every delete needs Cloudflare prefix purge via CLOUDFLARE_API_TOKEN, which throttles and stalls.",
+      "fix": "versioned keys",
+      "fix_detail": "Never overwrite R2 keys; write content-hashed keys with ?v= busters so deletes need no Cloudflare prefix purge.",
+      "evidence": "lib/clip-cdn-purge.ts"
+    }
   ]
- },
- "scale": [
-  {
-   "component": "d1-db",
-   "at": "10x",
-   "problem": "d1 read overload",
-   "why": "Catalog GET loads all hosted-clip rows from D1 on every feed open, so concurrent users spike reads and Worker CPU.",
-   "fix": "snapshot cache",
-   "fix_detail": "Cache listPublicCatalogHostedClips in KV / FYP snapshots with pagination instead of full scan per request.",
-   "evidence": "app/api/hosted-clips/route.ts"
-  },
-  {
-   "component": "chat-live-do",
-   "at": "100x",
-   "problem": "single room fanout",
-   "why": "All shards hear same broadcasts and one hibernatable DO fans out to every socket, exhausting isolate memory and CPU.",
-   "fix": "shard rooms",
-   "fix_detail": "Split ChatLive by CHAT_LIVE_SHARDS with sticky routing and cross-shard gossip to bound per-isolate sockets.",
-   "evidence": "lib/chat-live-do.ts"
-  },
-  {
-   "component": "clips-cdn",
-   "at": "100x",
-   "problem": "purge rate limits",
-   "why": "One-year immutable cache means every delete needs Cloudflare prefix purge via CLOUDFLARE_API_TOKEN, which throttles and stalls.",
-   "fix": "versioned keys",
-   "fix_detail": "Never overwrite R2 keys; write content-hashed keys with ?v= busters so deletes need no Cloudflare prefix purge.",
-   "evidence": "lib/clip-cdn-purge.ts"
-  }
- ]
 }

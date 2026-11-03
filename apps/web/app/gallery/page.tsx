@@ -16,7 +16,16 @@ export default function Gallery() {
           <div className="wrap">
             <h1>Examples</h1>
             <p className="lead">Videos run about 85 to 175 seconds, at 1080p.</p>
-            {videos.length > 0 ? <GalleryGrid videos={videos} /> : <p className="muted">No example videos on this server yet. <a className="more" href="/">Make one</a></p>}
+            {videos.length > 0 ? (
+              <GalleryGrid videos={videos} />
+            ) : (
+              <p className="muted">
+                No example videos on this server yet.{" "}
+                <a className="more" href="/">
+                  Make one
+                </a>
+              </p>
+            )}
           </div>
         </section>
       </main>

@@ -13,7 +13,13 @@ export interface Health {
   problems: string[];
 }
 
-const CHROME = ["/usr/bin/google-chrome", "/usr/bin/google-chrome-stable", "/usr/bin/chromium", "/usr/bin/chromium-browser", "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"];
+const CHROME = [
+  "/usr/bin/google-chrome",
+  "/usr/bin/google-chrome-stable",
+  "/usr/bin/chromium",
+  "/usr/bin/chromium-browser",
+  "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+];
 
 /** Chrome's usual Windows install folders, so a fresh machine is healthy without EXPLANIMATE_CHROME. */
 function windowsChrome(env: NodeJS.ProcessEnv): string[] {
@@ -46,14 +52,21 @@ export const realProbe: Probe = {
       fs.writeFileSync(/*turbopackIgnore: true*/ f, String(Date.now()));
       fs.rmSync(/*turbopackIgnore: true*/ f);
       return true;
-    } catch { return false; }
+    } catch {
+      return false;
+    }
   },
 };
 
 /** Healthy means a video can be made: ffmpeg, Chrome, the key for the Muse Spark provider (OpenRouter or Meta) and a writable jobs folder. Voice is optional. */
 export function checkHealth(jobsDir: string, budgetOk: boolean, p: Probe = realProbe): Health {
-  let llm: LlmProvider | undefined, badProvider = "";
-  try { llm = llmProvider(p.env); } catch (e) { badProvider = (e as Error).message; }
+  let llm: LlmProvider | undefined,
+    badProvider = "";
+  try {
+    llm = llmProvider(p.env);
+  } catch (e) {
+    badProvider = (e as Error).message;
+  }
   const checks = {
     ffmpeg: p.runs("ffmpeg"),
     chrome: [p.env.EXPLANIMATE_CHROME, ...CHROME, ...windowsChrome(p.env)].some((f) => !!f && p.has(f)),
