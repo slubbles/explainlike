@@ -13,8 +13,11 @@ export default function Gallery() {
       <Nav />
       <main className="page">
         <section className="gallery all">
-          <h1>Examples</h1>
-          {videos.length > 0 ? <GalleryGrid videos={videos} /> : <p className="muted">No example videos on this server yet. <a className="back" href="/">Make one</a></p>}
+          <div className="wrap">
+            <h1>Examples</h1>
+            <p className="lead">Videos run about 85 to 175 seconds, at 1080p.</p>
+            {videos.length > 0 ? <GalleryGrid videos={videos} /> : <p className="muted">No example videos on this server yet. <a className="more" href="/">Make one</a></p>}
+          </div>
         </section>
       </main>
     </>
