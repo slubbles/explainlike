@@ -67,7 +67,7 @@ export function createExplanimateServer(runner = new JobRunner()) {
     description: "Make a narrated, hand-drawn whiteboard explainer video of a GitHub repo, an X post, an article, a local repo folder, or a plain topic (\"how DNS works\": it reads and cites a few reputable pages about it). The engine reads the source and decides the explaining style, depth and length itself. Writes an mp4, a .tldr (tldraw) and an .excalidraw board to a folder on this machine and returns their paths. Uses the Meta Model API and Deepgram keys from the environment, so each new video costs a little (usually well under $0.50); re-running the same source into the same folder reuses the cached plan.",
     inputSchema: {
       source: z.string().min(1).describe("A GitHub repo URL, an x.com post URL, an article URL, an absolute path to a local repo folder, or a topic in a few words ('how DNS works') when there is no link."),
-      outDir: z.string().optional().describe("Folder to write the files to. Default: ~/explainlike-videos/<name> (or $EXPLANIMATE_OUT_DIR)."),
+      outDir: z.string().optional().describe("Folder to write the files to. Default: ~/explanimate-videos/<name> (or $EXPLANIMATE_OUT_DIR)."),
       voice: z.enum(["deepgram", "silent"]).optional().describe("deepgram narrates (default when DEEPGRAM_API_KEY is set); silent keeps captions only."),
       fresh: z.boolean().optional().describe("Re-plan from scratch instead of reusing a plan cached in outDir or for this repo commit."),
       followUpOf: z.string().optional().describe("For a follow-up clip on a finished repo video: that video's output folder. Use with focus or whatIf."),

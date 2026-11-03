@@ -1,6 +1,6 @@
 # Running Explanimate on a server
 
-> Current state (Nov 3, 2026): production is the `explanimate` container on the Tokyo Contabo VPS, serving https://explanimate.co. The live setup is in [AGENTS.md](../AGENTS.md#deployment).
+> This page covers any host: your own server, Railway, Fly.io, or plain Docker behind Caddy or Cloudflare.
 
 Explanimate is built to run on your own machine. This page is what to check before you put the web app anywhere other people can reach it. Nothing here deploys anything for you.
 
@@ -163,9 +163,9 @@ explanimate.co, www.explanimate.co {
 
 Caddy gets and renews the certificate itself and sets `X-Forwarded-For`, so `EXPLANIMATE_TRUST_PROXY=1` is right here. The `docker run` above publishes the port on `127.0.0.1` only, so nobody can skip the proxy and fake the header. Keep it that way.
 
-## Point explanimate.co at it
+## Point your domain at it
 
-explanimate.co is bought, but its DNS is on hold until the user says to point it. When they do, add these records at the registrar or DNS host:
+Add these records for your domain at your registrar or DNS host (using explanimate.co as the example):
 
 | Host | Railway | Fly.io | VPS |
 | --- | --- | --- | --- |
@@ -195,7 +195,7 @@ Put it behind a reverse proxy that terminates TLS and sets `X-Forwarded-For`. Th
 
 Every setting is listed with its default in [`.env.example`](../.env.example). The ones that matter in public are:
 
-The project used to be called Explain Like. Settings with the old `EXPLAINLIKE_` prefix still work: each one is copied to its `EXPLANIMATE_` name at startup, unless the new name is set too (then the new one wins). Rename them when it is convenient.
+The project used to be called Explain Like. Settings with the old `EXPLAINLIKE_` prefix still work: each one is copied to its `EXPLANIMATE_` name at startup, unless the new name is set too (then the new one wins). Rename them when it is convenient. Folders from before the rename (`explainlike-out`, `~/explainlike-videos`, `~/.cache/explainlike`) are likewise still used when the new ones do not exist.
 
 | Variable | Default | What it does |
 | --- | --- | --- |
@@ -213,7 +213,7 @@ The project used to be called Explain Like. Settings with the old `EXPLAINLIKE_`
 | `EXPLANIMATE_WAIT_IDLE_S` | 120 | A waiting video whose page has not polled for this long (the tab was closed) is dropped before it starts. |
 | `EXPLANIMATE_DEMO_ONLY` | 0 | Show the finished examples only and refuse new videos. |
 | `EXPLANIMATE_RESUME` | 1 | After a restart, start the job it cut off once more, if it is under 6 hours old. |
-| `EXPLANIMATE_JOBS_DIR` | `explainlike-out/web` (`/data/jobs` in Docker) | Where jobs and the spend ledger live. Must be on a persistent disk. |
+| `EXPLANIMATE_JOBS_DIR` | `explanimate-out/web` (`/data/jobs` in Docker) | Where jobs and the spend ledger live. Must be on a persistent disk. |
 | `EXPLANIMATE_GALLERY_DIR` | unset (`/data/gallery` in Docker) | Folder of example videos and their `gallery.json`. Unset or empty: no examples. |
 | `EXPLANIMATE_ALLOW_LOCAL` | 0 | Accept folder paths on the server. Leave off in public. |
 | `EXPLANIMATE_ALLOW_PRIVATE_URLS` | 0 | Read links that resolve to private addresses. Leave off in public; set to 1 (or pass `--allow-private` to the CLI) only to read a local intranet. A host whose DNS hands out proxy addresses (198.18.0.0/15, as some sandboxes and "fake-IP" proxies do) fails every link with the guard on; give such a host real DNS rather than turning the guard off. |

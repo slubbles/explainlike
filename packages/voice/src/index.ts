@@ -5,16 +5,15 @@
  */
 import fs from "node:fs";
 import path from "node:path";
-import os from "node:os";
 import crypto from "node:crypto";
-import { fetchRetry, type SceneAudio, type WordTiming } from "@explanimate/core";
+import { fetchRetry, userCacheDir, type SceneAudio, type WordTiming } from "@explanimate/core";
 
 export interface VoiceProvider {
   id: string;
   synthesize(sceneId: string, text: string, outDir: string): Promise<SceneAudio>;
 }
 
-const CACHE = process.env.EXPLANIMATE_TTS_CACHE ?? path.join(os.homedir(), ".cache", "explainlike", "tts");
+const CACHE = process.env.EXPLANIMATE_TTS_CACHE ?? userCacheDir("tts");
 const tokens = (s: string) => s.replace(/\s+/g, " ").trim().split(" ").filter(Boolean);
 const normW = (w: string) => w.toLowerCase().replace(/[^a-z0-9]/g, "");
 

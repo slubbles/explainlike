@@ -49,13 +49,13 @@ export function greeting(typed?: string): string {
     : "Hey! What do you want explained today? A repo, a post, an article, or just a topic?";
 }
 
-/** "github dot com slash slubbles slash explain like" and other spoken links, as a URL. */
+/** "github dot com slash slubbles slash ex planimate" and other spoken links, as a URL. */
 export function spokenUrl(s: string): string {
   let t = s.trim().replace(/[.,!?]+$/, "");
   t = t.replace(/\s+dot\s+/gi, ".").replace(/\s*\bslash\b\s*/gi, "/").replace(/\s*\/\s*/g, "/").replace(/\s*\.\s*/g, ".");
   if (!/^https?:\/\//i.test(t)) t = `https://${t.replace(/^\/+/, "")}`;
   const [, scheme, rest] = t.match(/^(https?:\/\/)(.*)$/i)!;
-  // spaces inside the path come from speech ("explain like" for explainlike); drop them
+  // spaces inside the path come from speech ("ex planimate" for explanimate); drop them
   return scheme.toLowerCase() + rest.replace(/\s+/g, "");
 }
 
