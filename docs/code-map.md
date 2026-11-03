@@ -32,7 +32,7 @@ in an in-memory first-in, first-out line and their page shows the first step in 
 | `packages/core` | 2.0k | Shared contracts (`ExplainSpec`, `ScenePlan`, `Architecture`, `Film`), the validators that read narration, the repo digest, URL fetching, plan cache keys. No I/O beyond HTTP and git. |
 | `packages/planner` | 1.9k | Four Muse calls that decide how to explain: `brief` picks analogy, depth, tempo, look; `architecture` finds the components and one request path; `scenes` writes the narration and the boards; `followups` makes the 15 s deep-dive and the what-if-10x clip. |
 | `packages/voice` | 0.6k | Per-scene speech through Deepgram Aura, word timings, the respelling table for words Aura mispronounces, and the silent fallback when there is no key. |
-| `packages/render` | 3.9k | The picture: layout, drawing, camera, captions, music and sound effects, `.tldr`/`.excalidraw` writers, the placement and frame checks, and the Chrome → ffmpeg capture. |
+| `packages/render` | 3.9k | The picture: layout, drawing, camera, captions, music and sound effects, `.tldr`/`.excalidraw` writers, the placement and frame checks, and frames (Skia by default, Chrome fallback) into ffmpeg. |
 | `packages/models` | 0.4k | One client for Muse Spark (on OpenRouter or Meta, picked by `llmProvider` in `packages/core/src/llm.ts`), Meta Muse image, SAM and Transcribe, and Deepgram, with the cost ledger and retries. |
 | `apps/web` | 1.9k | The UI, six job routes, the example gallery (`lib/gallery.ts`, read from `EXPLANIMATE_GALLERY_DIR`), the voice loop, the spend guard, rate limits, health. |
 
@@ -57,7 +57,7 @@ Two other packages carry the packs and the API/MCP surface; they are not on the 
 7. **Placement.** The film is checked against its own geometry — 7 rules, up to 8 fix passes, then a
    fallback pass that may widen the shot past the readable size.
 8. **Boards.** `.tldr` and `.excalidraw` are written, read back, and compared to the sketch.
-9. **Frames.** Chrome opens `stage.html`, seeks to each frame time, and screenshots 1080p JPEGs into a
+9. **Frames.** Skia draws each 1080p frame on a few threads (headless Chrome is the fallback), into a
    queue that ffmpeg is already encoding from stdin.
 10. **Frame check.** A fresh Chrome seeks the same stage, asks where every element actually landed, and
     decodes the written JPEGs to catch blank frames.
@@ -132,7 +132,7 @@ cold compile, which reads as "Thinking…" hanging. Pre-warm it, or run `next bu
 - **CLI:** `pnpm explanimate <url>`, keys in a `.env` or `.env.local` in the working directory
   (`packages/cli/src/bin.ts:7-13`). The CLI does not read `apps/web/.env.local`, so a fresh clone needs
   its own file at the root.
-- **Tests:** `pnpm test` (220 tests, node:test, includes a synthetic Chrome+ffmpeg render).
+- **Tests:** `pnpm test` (328 tests, node:test, includes a synthetic render through Skia with a Chrome fallback).
 
 ## Two warts worth knowing
 
