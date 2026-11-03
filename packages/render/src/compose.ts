@@ -408,6 +408,8 @@ const DETERMINER = /^(a|an|the|its|their|your|my|our|his|her|this|these|those|ev
 const AUX = /^(is|was|are|were|has|have|had|does|did|can|will|would|could|should|gets|got)$/;
 /** Words a phrase can start on: a break just before one falls between two parts of a sentence. */
 const OPENS = /^(a|an|the|and|or|but|so|then|to|on|in|at|for|with|by|from|into|onto|about|where|which|who|when|while|because|if|against|without|citing|its|their|your|this|that|these|those|every|each|any|it|you|we|they)$/;
+/** Possessives and pronouns: one completes the verb behind it ("feeds your file", "teaches you"), so no phrase starts on one mid-clause. Articles stay cheap: "the back of the envelope math" reads fine on its own. */
+const VERB_OBJECT = /^(its|their|your|my|our|his|her|you|we|they|it|he|she)$/;
 
 /** Shortest time a short phrase can stay up and still be read (the demo's caption check uses the same bound). */
 const READ_S = 0.7;
@@ -424,6 +426,8 @@ function breakCost(words: WordTiming[], from: number, j: number) {
   if (LEADS_ON.test(bare(lw))) return 15;
   // "the back | of the envelope", "a piece | of code": "of" binds the two nouns into one thing
   if (nw === "of") return 10;
+  // "feeds your aaabdaaabac": no phrase starts on a possessive or pronoun mid-clause (after a comma or sentence end the break is already free above)
+  if (VERB_OBJECT.test(nw)) return 10;
   // "the files | that box was built from.": alone, "that box was built from" reads as a sentence about a box, so
   // a relative clause like it stays whole and with the noun it describes
   const relative = (k: number) => k + 2 < words.length && bare(words[k].word) === "that" && !OPENS.test(bare(words[k + 1].word)) && AUX.test(bare(words[k + 2].word));
