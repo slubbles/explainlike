@@ -12,5 +12,5 @@ process.stdout.write("a stray line that is not JSON\n");
 say({ type: "progress", stage: "render", message: "drawing frames 10/10", pct: 90, usd });
 const files = Object.fromEntries(["mp4", "tldr", "excalidraw"].map((k) => [k, path.join(out, `demo.${k}`)]));
 for (const f of Object.values(files)) fs.writeFileSync(f, "x");
-fs.writeFileSync(path.join(out, "args.json"), JSON.stringify({ argv, cwd: process.cwd() }));
+fs.writeFileSync(path.join(out, "args.json"), JSON.stringify({ argv, cwd: process.cwd(), allowPrivate: process.env.EXPLANIMATE_ALLOW_PRIVATE_URLS ?? "unset" }));
 say({ type: "done", manifest: { title: "Demo", durationSec: 61.5, brief: { approach: "analogy" }, outputs: { ...files, contactSheet: path.join(out, "demo.contact.jpg") }, cost: { metaUsd: 0.01, voiceUsd: 0.02 } } });

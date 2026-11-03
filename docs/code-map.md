@@ -137,9 +137,9 @@ cold compile, which reads as "Thinking…" hanging. Pre-warm it, or run `next bu
 ## Two warts worth knowing
 
 - The private-address guard is on for the web app (`apps/web/lib/jobs.ts` passes
-  `EXPLANIMATE_ALLOW_PRIVATE_URLS=0`) but the CLI defaults it *off* (`packages/cli/src/bin.ts:55`), and the
-  API and MCP server spawn that CLI — so a URL sent through those entry points is not guarded. Keep the
-  flag at `0` in anything that takes links from strangers.
+  `EXPLANIMATE_ALLOW_PRIVATE_URLS=0`), and the local API, the MCP connector and the CLI refuse
+  localhost and private-network links by default too. `EXPLANIMATE_ALLOW_PRIVATE_URLS=1` (or the CLI's
+  `--allow-private`) lifts it for local intranet pages only; keep it off in anything that takes links from strangers.
 - Chrome is looked for in three places (`packages/render/src/capture.ts`, `packages/ingest/src/concept.ts`,
   `apps/web/lib/health.ts`). All three now know the Windows folders, but the lists can drift again; if one
   starts a video and another reports the machine unhealthy, this is why.

@@ -62,6 +62,13 @@ test("a specific question is handed to the engine as the viewer's goal", async (
   assert.equal(argv[argv.indexOf("--depth") + 1], "deep");
 });
 
+test("a localhost link is refused as a tool error, with local use named as the way back", async () => {
+  const { client } = await connect();
+  const r = await client.callTool({ name: "explain", arguments: { source: "http://127.0.0.1:7311/v1/jobs" } });
+  assert.equal(r.isError, true);
+  assert.match(text(r), /private network/);
+});
+
 test("a missing folder and a failed render come back as tool errors, not crashes", async () => {
   const { client } = await connect();
   const t = await client.callTool({ name: "explain", arguments: { source: "./no-such-folder-here" } });

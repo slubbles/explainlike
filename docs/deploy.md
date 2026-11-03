@@ -216,7 +216,7 @@ The project used to be called Explain Like. Settings with the old `EXPLAINLIKE_`
 | `EXPLANIMATE_JOBS_DIR` | `explainlike-out/web` (`/data/jobs` in Docker) | Where jobs and the spend ledger live. Must be on a persistent disk. |
 | `EXPLANIMATE_GALLERY_DIR` | unset (`/data/gallery` in Docker) | Folder of example videos and their `gallery.json`. Unset or empty: no examples. |
 | `EXPLANIMATE_ALLOW_LOCAL` | 0 | Accept folder paths on the server. Leave off in public. |
-| `EXPLANIMATE_ALLOW_PRIVATE_URLS` | 0 (web), 1 (CLI) | Read links that resolve to private addresses. Leave off in public. A host whose DNS hands out proxy addresses (198.18.0.0/15, as some sandboxes and "fake-IP" proxies do) fails every link with the guard on; give such a host real DNS rather than turning the guard off. |
+| `EXPLANIMATE_ALLOW_PRIVATE_URLS` | 0 | Read links that resolve to private addresses. Leave off in public; set to 1 (or pass `--allow-private` to the CLI) only to read a local intranet. A host whose DNS hands out proxy addresses (198.18.0.0/15, as some sandboxes and "fake-IP" proxies do) fails every link with the guard on; give such a host real DNS rather than turning the guard off. |
 
 ## What is already guarded
 
