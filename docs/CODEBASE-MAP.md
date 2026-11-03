@@ -128,7 +128,7 @@ explanimate/
     └── handoff/              old unmerged work saved as a patch (v3, for ideas only)
 ```
 
-Tests sit in each package's `test/` folder and use Node's built-in test runner. Run them with `pnpm test`. AGENTS.md says 317 tests were passing at the last count.
+Tests sit in each package's `test/` folder and use Node's built-in test runner. Run them with `pnpm test`. AGENTS.md says 328 tests were passing at the last count.
 
 ## 4. Outside services (setting names only, never values)
 
@@ -159,7 +159,7 @@ With no Deepgram key, videos render silent with timed captions. Keys live in a g
 | `EXPLANIMATE_DEMO_ONLY` | 1 = show the gallery only, refuse new videos | 0 |
 | `EXPLANIMATE_RESUME` | restart jobs that a crash cut off | 1 |
 | `EXPLANIMATE_TRUST_PROXY` | trust the visitor address from a proxy in front | 0 |
-| `EXPLANIMATE_ALLOW_PRIVATE_URLS` | allow links to private network addresses (keep at 0 in public) | 0 in web |
+| `EXPLANIMATE_ALLOW_PRIVATE_URLS` | allow links to private network addresses (refused everywhere by default; 1 only for a local intranet) | 0 |
 | `EXPLANIMATE_JOBS_DIR` / `_GALLERY_DIR` / `_OUT_DIR` | where jobs, gallery videos and CLI output go | repo folders, `/data` in Docker |
 | `EXPLANIMATE_PLAN_CACHE` | 0 turns off the shared plan cache | on |
 | `EXPLANIMATE_CHROME` | Chrome path if it's not in a standard place | auto-found |
@@ -191,7 +191,7 @@ The full list is in `.env.example` and in AGENTS.md section 9.
 
 **Videos:**
 - Drive folder "Explain Like samples" (id `15F_jFp0e1AAlowNfRg4N870naIOBoSdm`) holds the latest sample, `agent-browser-v5.mp4` (2:24).
-- Its subfolder "Explanimate gallery" holds 6 re-rendered gallery videos: openmausbot, karpathy-minbpe, rxi-microui, how-the-internet-grew, silk-road, pallets-itsdangerous. The DNS sample failed and is missing.
+- Its subfolder "Explanimate gallery" holds 6 re-rendered gallery videos: openmausbot, karpathy-minbpe, rxi-microui, how-the-internet-grew, silk-road, pallets-itsdangerous. The DNS sample failed and is missing; the cut is fixed, it still needs a re-render from cache.
 
 **Spend (latest in AGENTS.md):** about **$11.85 of $25** Meta/Muse and **$2.60 of $10** Deepgram.
 
@@ -204,16 +204,12 @@ The full list is in `.env.example` and in AGENTS.md section 9.
    - One daemon line repeats.
    - The password promise is said but has no contrast card. "Chrome fills the saved password" is looser than the README.
    - The fix: make the promise check a hard fail before polishing, and keep the walkthrough why-first.
-2. **Fix the "how DNS works" gallery sample.** One arrow gets cut off at the frame edge at 46.6 s. Re-render it from cache after the fix.
+2. **Re-render the "how DNS works" gallery sample from cache.** The cut wire (book>machine at 46.6 s) is fixed: closeups now hold the wide shot when they would cut a wire no readable widening can take back in. Check the frames before calling it done.
 3. **Hosting decision:** redeploy on Tokyo, or move to Contabo VPS 6 ($7.99/mo, which can run about 3–4 renders at once). Deploy only with the user's OK. Needs to be live before Thursday 10 AM, so ideally by Wednesday.
 4. **Ask the user** whether to test the cheaper `muse-spark-1.3-contributor` model against OpenRouter.
 5. **Submission:** the hackathon write-up, the demo video and X post drafts (`docs/hackathon.md`, `docs/demo-video.md`). Never post for the user.
 
 **Small things that are out of date or worth knowing:**
-- README's quick start still says to add `MODEL_API_KEY` first. The default path is now `OPENROUTER_API_KEY`.
-- `docs/code-map.md` still says "220 tests" and describes Chrome as the frame drawer. AGENTS.md says 317 tests, and Skia is now the default.
-- `docs/deploy.md` says "one video renders at a time", but the queue default is 10 at once.
-- The CLI turns the private-address guard off by default. The web app turns it on. So links sent through the API or MCP connector aren't guarded.
 - A waiting job in the queue is lost if the server restarts.
 - Voice mode only works on localhost.
 - A result page opened cold starts paused, because browsers block sound until you click.
