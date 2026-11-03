@@ -262,3 +262,16 @@ test("each walkthrough step fires on the words that tell it, not on a recited la
   // the first dot leaves as the scene opens (the board never waits on an empty walk) and never after its step is said
   assert.ok(dots[0] <= lead + ws[cues[0]].start + 0.01 && dots[0] >= walk.start, `step 1 at ${dots[0].toFixed(2)}`);
 });
+
+test("a wire spanning a wide board stays whole: later shots hold wide instead of cutting it", async () => {
+  // how-dns-works: the wire from the book to the machine spans the whole row, and a later
+  // closeup cut it at the frame edge past what any readable widening could take back in
+  const dnsPlan = JSON.parse(fs.readFileSync(new URL("dns-board.plan.json", fx), "utf8"));
+  const dnsAudio = dnsPlan.scenes.map((s: any) => {
+    const ws = s.narration.split(/\s+/);
+    return { sceneId: s.id, duration: ws.length * 0.38, words: ws.map((w: string, i: number) => ({ word: w, start: i * 0.38, end: i * 0.38 + 0.3 })) };
+  });
+  const r = await compose({ plan: dnsPlan, audio: dnsAudio, theme: getTheme("chalk-dark"), spec: specFromBrief({ ...DEFAULT_BRIEF }), pack: loadIconPack(), sourceLabel: "x" });
+  assert.ok(r.placement.ok, JSON.stringify(r.placement.issues));
+  assert.deepEqual(r.placement.issues, []);
+});

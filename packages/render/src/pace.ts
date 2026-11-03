@@ -216,6 +216,9 @@ export function applyTempo(film: Film, scenes: Span[], tempo: TempoLimits = DEFA
   // 2. wide shots stay readable: rest a moment on the overview, then glide in to a readable
   // framing that follows what is being drawn, or sweeps across the board when nothing new appears
   const RW = readableWidth(film);
+  // placement can widen a shot past a cut mark only up to 1.5x readable width: a lit mark
+  // spanning more than that can never be fixed into a closeup, so new shots keep it whole
+  const tooWideToFix = (b: Box) => Math.max(b.w, (b.h * film.width) / film.height) > RW * 1.5;
   const keys = [...film.camera];
   for (let i = 0; i < keys.length; i++) {
     const k = keys[i];
@@ -225,6 +228,8 @@ export function applyTempo(film: Film, scenes: Span[], tempo: TempoLimits = DEFA
     const hold = keys[i + 1]?.t ?? sc.end, end = Math.min(hold, sc.end);
     const wide: Box = { x: k.x, y: k.y, w: k.w, h: k.h };
     const shown = (until: number) => boxes.filter(({ e, b }) => e.k !== "path" && e.k !== "dot" && e.t0 < until && overlaps(b, wide));
+    // a lit mark the overview keeps whole but no readable widening can take in: a glide that would cut it holds the wide shot instead
+    const cutsLitMark = (v: Box, until: number) => boxes.some(({ e, b }) => e.k === "path" && e.mark && tooWideToFix(b) && visibleAt(film, e, until) && overlaps(b, wide) && overlaps(b, v) && !inside(b, v));
     // the glides from t on: each frames what is drawn next, readably, and holds at least a beat
     const glides = (from: number): CamKey[] => {
       const out: CamKey[] = [], done = new Set<FElement>();
@@ -261,6 +266,7 @@ export function applyTempo(film: Film, scenes: Span[], tempo: TempoLimits = DEFA
           if (g.w > RW * 1.15) break;
           v = g;
         }
+        if (cutsLitMark(v, tn)) { t = tn; continue; }
         out.push({ t, ...within(v, wide), move: tempo.move });
         t = tn;
       }
@@ -299,8 +305,8 @@ export function applyTempo(film: Film, scenes: Span[], tempo: TempoLimits = DEFA
       const drawn = (t0: number, t1: number) => boxes.filter(({ e }) => e.k !== "dot" && e.t0 >= t0 && e.t0 < t1).map((x) => x.b);
       const f = union(drawn(m, b)) ?? union(drawn(a, m).filter((x) => overlaps(x, cur)));
       if (!f) break;
-      // the tightest framing around it that slices no visible box or word
-      const vis = boxes.filter(({ e }) => e.k !== "path" && e.k !== "dot" && (visibleAt(film, e, m + tempo.move) || visibleAt(film, e, b - 0.1))).map((x) => x.b);
+      // the tightest framing around it that slices no visible box, word, or unfixably wide ring, arrow or wire
+      const vis = boxes.filter(({ e, b: box }) => (e.k !== "path" || (e.mark && tooWideToFix(box))) && e.k !== "dot" && (visibleAt(film, e, m + tempo.move) || visibleAt(film, e, b - 0.1))).map((x) => x.b);
       const base = fitView(film, f, Math.max(cur.w * 0.6, film.width * 0.8)), cx = base.x + base.w / 2, cy = base.y + base.h / 2;
       let v: Box | undefined;
       for (let w = base.w; !v && w <= Math.max(cur.w, RW) * 1.05; w *= 1.06) {
