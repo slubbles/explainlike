@@ -27,7 +27,9 @@ You need Node 20+, pnpm, ffmpeg on your PATH and Chrome or Chromium.
 ```bash
 git clone https://github.com/slubbles/explanimate && cd explanimate
 pnpm install
-cp .env.example .env                    # add MODEL_API_KEY (Meta); DEEPGRAM_API_KEY adds the voice
+cp .env.example .env                    # add OPENROUTER_API_KEY (Muse Spark plans through OpenRouter)
+                                        # MODEL_API_KEY is still needed for doodle icons and the voiceover check;
+                                        # DEEPGRAM_API_KEY adds the voice
 npx playwright-core install chromium    # or point EXPLANIMATE_CHROME at an installed Chrome
 
 pnpm explanimate https://github.com/milind-soni/OpenMausBot
