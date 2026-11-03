@@ -96,11 +96,16 @@ Plans (per repo commit), voice, repos and icons are cached. See [`docs/code-map.
 - **The README head grounds the core story.** Feature bullets support why-lines only.
 
 ## 8. Deployment
-- **Production today:** the Tokyo VPS runs a Docker container named `explainlike`, built from the old commit `a5100c3`. That build predates the rename, the queue, the gallery, Skia and OpenRouter. **Today's main is not deployed.**
-- **How it was deployed:** with the repo's Docker flow in [`docs/deploy.md`](docs/deploy.md): `docker build`, then `docker run` with a `/data` volume, keys passed as `-e NAME` with no values, the port bound to 127.0.0.1, and a TLS reverse proxy (Caddy) in front. The repo holds no Tokyo-specific scripts; host details stay out of the repo.
-- **Domain:** explanimate.co is bought. **Its DNS is on hold until the user says.** Record recipes are in `docs/deploy.md`.
-- **Candidate host:** Contabo VPS 6 ($7.99/mo, 6 vCPU, 12 GB RAM, about 3-4 renders at once). The user hasn't decided between that and redeploying on Tokyo.
-- Deploy prep is in main: Dockerfile, `/api/health`, rate limits, spend guard and job resume. **No deploy without the user's OK.**
+- **Live URL:** https://explanimate.co (`www.explanimate.co` redirects to it).
+- **Server:** a Contabo VPS in Tokyo at 84.247.153.238, shared with another project (OpenBot). Never touch OpenBot's containers, folders or its Caddy block.
+- **Container:** `explanimate`, published on 127.0.0.1:3001 (the app listens on 3000 inside). Docker volume `explanimate-data` mounted at `/data`: jobs in `/data/jobs`, gallery in `/data/gallery` (`EXPLANIMATE_GALLERY_DIR=/data/gallery`) holding `gallery.json` plus each sample's `.mp4` and `.jpg` poster.
+- **Caddy** (system service, `/etc/caddy/Caddyfile`) serves explanimate.co and www, reverse-proxying to 127.0.0.1:3001.
+- **Cloudflare:** zone explanimate.co, nameservers jakub.ns.cloudflare.com and lola.ns.cloudflare.com set at the Spaceship registrar (DNSSEC off), proxied A records for the apex and www pointing at the server, SSL mode Full.
+- **Redeploy:** run `/root/deploy-explanimate.sh` on the server; it resets the server's checkout to origin/main, rebuilds the image and restarts the container, then health-checks `/api/health`.
+- **Roll back:** stop `explanimate` and start the old `explainlike` container (kept stopped on purpose; do not delete it).
+- **Gotcha:** the app runs as uid 1000, so anything copied into the volume (`/var/lib/docker/volumes/explanimate-data/_data`) must be `chown -R 1000:1000`, or jobs and the gallery fail with permission errors.
+- **Secrets** live only in a server-side env file; never name its values in docs.
+- Repo how-to (Docker flow, Caddy recipes, DNS record shapes) stays in [`docs/deploy.md`](docs/deploy.md).
 
 ## 9. Environment variables (names only; never print, commit or send values)
 - **Keys:** `MODEL_API_KEY`, `OPENROUTER_API_KEY`, `DEEPGRAM_API_KEY`
