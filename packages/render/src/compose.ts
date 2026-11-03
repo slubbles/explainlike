@@ -401,9 +401,9 @@ function spaceEvents(raw: (number | null)[], start: number, end: number, gap: nu
 }
 
 /** Words that lead into what follows; a caption phrase does not end on one. */
-const LEADS_ON = /^(how|why|what|which|because|than|not|a|an|the|of|on|to|in|at|for|with|by|from|into|onto|about|just|and|or|but|its|their|your|my|our|his|her|this|that|these|those|every|each)$/;
+const LEADS_ON = /^(how|why|what|which|because|than|not|a|an|the|of|on|to|in|at|for|with|by|from|into|onto|about|against|through|across|after|before|between|during|under|over|along|around|behind|beyond|toward|towards|upon|within|without|despite|except|since|until|just|and|or|but|its|their|your|my|our|his|her|this|that|these|those|every|each)$/;
 /** Words that open a noun phrase (or a number in one): a break between one of them and its noun splits the thing being named. */
-const DETERMINER = /^(a|an|the|its|their|your|my|our|his|her|this|these|those|every|each|any|some|with|of|for|from|into|one|two|three|four|five|six|seven|eight|nine|ten|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|hundred|thousand|million)$/;
+const DETERMINER = /^(a|an|the|its|their|your|my|our|his|her|this|these|those|every|each|any|some|with|of|for|from|into|one|two|three|four|five|six|seven|eight|nine|ten|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|hundred|thousand|million|first|last|next|previous|main|whole|entire|other|same|such|no|many|few|several|most|own|dozen|another)$/;
 /** Helper verbs: "that box was", "that it is". */
 const AUX = /^(is|was|are|were|has|have|had|does|did|can|will|would|could|should|gets|got)$/;
 /** Words a phrase can start on: a break just before one falls between two parts of a sentence. */
@@ -428,6 +428,12 @@ function breakCost(words: WordTiming[], from: number, j: number) {
   if (nw === "of") return 10;
   // "feeds your aaabdaaabac": no phrase starts on a possessive or pronoun mid-clause (after a comma or sentence end the break is already free above)
   if (VERB_OBJECT.test(nw)) return 10;
+  // "Muse Spark maps", "Deepgram Aura reads": a proper name stays whole
+  if (/^[A-Z]/.test(words[j].word) && /^[A-Z]/.test(words[j + 1].word)) return 12;
+  // "ask ChatLive what", "into D1 and": a code identifier keeps the word before it
+  if (/[a-z][A-Z]|_|\/|\.[a-z]{2,}$|^[A-Z\d]{2,}$|[a-zA-Z]\d|\d[a-zA-Z]/.test(words[j + 1].word)) return 10;
+  // "the clip lasts 20 s": a number keeps its unit
+  if (/\d/.test(words[j].word) && /^(s|sec|secs|second|seconds|ms|min|mins|hr|hrs|x|px|fps|gb|mb|kb|k)$/.test(nw)) return 12;
   // "the files | that box was built from.": alone, "that box was built from" reads as a sentence about a box, so
   // a relative clause like it stays whole and with the noun it describes
   const relative = (k: number) => k + 2 < words.length && bare(words[k].word) === "that" && !OPENS.test(bare(words[k + 1].word)) && AUX.test(bare(words[k + 2].word));
