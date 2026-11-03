@@ -111,7 +111,7 @@ Patterns that work:
 2. tagline "ai clicks real web pages"
 3. the line "What if your AI could really click around the web?"
 
-The user loved it. It is a CNBC/Crayon-style "this is X" combined with a "what if" question. Within the next two lines, follow it with the real name, a one-clause definition and the product anchors, as Fireship does.
+The maintainer loved it. It is a CNBC/Crayon-style "this is X" combined with a "what if" question. Within the next two lines, follow it with the real name, a one-clause definition and the product anchors, as Fireship does.
 
 ## 6. Pacing, sentence length, humour, recaps
 
