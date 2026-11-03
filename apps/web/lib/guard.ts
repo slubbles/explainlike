@@ -19,7 +19,10 @@ const hits = new Map<string, number[]>();
 /** A sliding-window limit per key. Returns the seconds to wait when over, or 0. */
 export function rateLimit(key: string, limit: number, windowMs: number, now = Date.now()): number {
   const recent = (hits.get(key) ?? []).filter((t) => now - t < windowMs);
-  if (recent.length >= limit) { hits.set(key, recent); return Math.ceil((recent[0] + windowMs - now) / 1000); }
+  if (recent.length >= limit) {
+    hits.set(key, recent);
+    return Math.ceil((recent[0] + windowMs - now) / 1000);
+  }
   recent.push(now);
   hits.set(key, recent);
   if (hits.size > 10_000) for (const [k, v] of hits) if (!v.some((t) => now - t < windowMs)) hits.delete(k);
@@ -30,7 +33,9 @@ export function rateLimit(key: string, limit: number, windowMs: number, now = Da
 export function limitRequest(req: Request, route: string): Response | undefined {
   const perMin = Number(process.env.EXPLANIMATE_REQ_PER_MIN ?? 12);
   const wait = rateLimit(`${route}:${clientIp(req)}`, perMin, 60_000);
-  return wait ? Response.json({ error: `Too many requests. Try again in ${wait} s.` }, { status: 429, headers: { "retry-after": String(wait) } }) : undefined;
+  return wait
+    ? Response.json({ error: `Too many requests. Try again in ${wait} s.` }, { status: 429, headers: { "retry-after": String(wait) } })
+    : undefined;
 }
 
 export const MAX_BODY_BYTES = 16 * 1024;
@@ -40,7 +45,9 @@ export const MAX_FIELD_CHARS = 300;
 /** Read a JSON body of at most MAX_BODY_BYTES; anything larger or unparsable is refused with a plain message. */
 export async function readBody(req: Request, max = MAX_BODY_BYTES): Promise<{ body: Record<string, unknown> } | { error: Response }> {
   const len = Number(req.headers.get("content-length") ?? 0);
-  const tooBig = () => ({ error: Response.json({ error: `That request is too large (over ${Math.round(max / 1024)} KB).` }, { status: 413 }) });
+  const tooBig = () => ({
+    error: Response.json({ error: `That request is too large (over ${Math.round(max / 1024)} KB).` }, { status: 413 }),
+  });
   if (len > max) return tooBig();
   const text = await req.text().catch(() => "");
   if (Buffer.byteLength(text) > max) return tooBig();
@@ -58,10 +65,19 @@ export const field = (v: unknown, max = MAX_FIELD_CHARS) => (typeof v === "strin
 
 // ---- spend guard ----
 
-export interface Spend { meta: number; voice: number }
-export const caps = (): Spend => ({ meta: Number(process.env.EXPLANIMATE_META_CAP_USD ?? 25), voice: Number(process.env.EXPLANIMATE_VOICE_CAP_USD ?? 10) });
+export interface Spend {
+  meta: number;
+  voice: number;
+}
+export const caps = (): Spend => ({
+  meta: Number(process.env.EXPLANIMATE_META_CAP_USD ?? 25),
+  voice: Number(process.env.EXPLANIMATE_VOICE_CAP_USD ?? 10),
+});
 /** what one more video can cost, kept free under each cap so a job never starts that would cross it */
-export const reserve = (): Spend => ({ meta: Number(process.env.EXPLANIMATE_META_RESERVE_USD ?? 1), voice: Number(process.env.EXPLANIMATE_VOICE_RESERVE_USD ?? 0.15) });
+export const reserve = (): Spend => ({
+  meta: Number(process.env.EXPLANIMATE_META_RESERVE_USD ?? 1),
+  voice: Number(process.env.EXPLANIMATE_VOICE_RESERVE_USD ?? 0.15),
+});
 /** share of a cap at which a warning goes out */
 export const WARN_AT = 0.8;
 
@@ -77,16 +93,31 @@ export function recordSpend(dir: string, s: Partial<Spend>, what: string) {
 /** Everything recorded so far: each job's live or final meter, plus the ledger of side calls. */
 export function spent(dir: string, jobs: { usd?: { meta?: number; voice?: number } }[]): Spend {
   const s: Spend = { meta: 0, voice: 0 };
-  for (const j of jobs) { s.meta += j.usd?.meta ?? 0; s.voice += j.usd?.voice ?? 0; }
+  for (const j of jobs) {
+    s.meta += j.usd?.meta ?? 0;
+    s.voice += j.usd?.voice ?? 0;
+  }
   if (fs.existsSync(ledgerFile(dir))) {
     for (const line of fs.readFileSync(ledgerFile(dir), "utf8").split("\n")) {
-      try { const e = JSON.parse(line); s.meta += Number(e.meta) || 0; s.voice += Number(e.voice) || 0; } catch { /* blank or torn line */ }
+      try {
+        const e = JSON.parse(line);
+        s.meta += Number(e.meta) || 0;
+        s.voice += Number(e.voice) || 0;
+      } catch {
+        /* blank or torn line */
+      }
     }
   }
   return s;
 }
 
-export interface Budget { ok: boolean; error?: string; warnings: string[]; spent: Spend; caps: Spend }
+export interface Budget {
+  ok: boolean;
+  error?: string;
+  warnings: string[];
+  spent: Spend;
+  caps: Spend;
+}
 
 /** Whether there is room for another paid job, and a warning once either service passes 80% of its cap. */
 export function budget(s: Spend, c = caps(), r = reserve()): Budget {
@@ -94,7 +125,8 @@ export function budget(s: Spend, c = caps(), r = reserve()): Budget {
   const name = { meta: "Meta (Muse)", voice: "Deepgram" } as const;
   let error: string | undefined;
   for (const k of ["meta", "voice"] as const) {
-    if (s[k] + r[k] > c[k]) error ??= `The ${name[k]} budget is nearly used up ($${s[k].toFixed(2)} of $${c[k].toFixed(2)}), so new videos are paused. Raise EXPLANIMATE_${k === "meta" ? "META" : "VOICE"}_CAP_USD to allow more.`;
+    if (s[k] + r[k] > c[k])
+      error ??= `The ${name[k]} budget is nearly used up ($${s[k].toFixed(2)} of $${c[k].toFixed(2)}), so new videos are paused. Raise EXPLANIMATE_${k === "meta" ? "META" : "VOICE"}_CAP_USD to allow more.`;
     else if (s[k] >= c[k] * WARN_AT) warnings.push(`${name[k]} spend is at $${s[k].toFixed(2)} of a $${c[k].toFixed(2)} cap.`);
   }
   return { ok: !error, error, warnings, spent: s, caps: c };

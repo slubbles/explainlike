@@ -8,7 +8,8 @@ import { fileResponse } from "../lib/serve.ts";
 test("files stream in byte ranges so a video can seek", async () => {
   const f = path.join(fs.mkdtempSync(path.join(os.tmpdir(), "serve-")), "v.mp4");
   fs.writeFileSync(f, "0123456789");
-  const get = (range?: string) => fileResponse(new Request("http://x/v.mp4", { headers: range ? { range } : {} }), f, { "content-type": "video/mp4" });
+  const get = (range?: string) =>
+    fileResponse(new Request("http://x/v.mp4", { headers: range ? { range } : {} }), f, { "content-type": "video/mp4" });
 
   const whole = get();
   assert.equal(whole.status, 200);

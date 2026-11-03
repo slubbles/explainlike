@@ -4,10 +4,30 @@
  * and check the quote really contains it, so a bar or a date on screen is never made up.
  */
 
-export interface Figure { label: string; value: number; shown: string; unit: string }
-export interface Dated { label: string; when: string; key: number }
+export interface Figure {
+  label: string;
+  value: number;
+  shown: string;
+  unit: string;
+}
+export interface Dated {
+  label: string;
+  when: string;
+  key: number;
+}
 
-const SCALE: Record<string, number> = { k: 1e3, thousand: 1e3, m: 1e6, million: 1e6, mn: 1e6, b: 1e9, bn: 1e9, billion: 1e9, trillion: 1e12, t: 1e12 };
+const SCALE: Record<string, number> = {
+  k: 1e3,
+  thousand: 1e3,
+  m: 1e6,
+  million: 1e6,
+  mn: 1e6,
+  b: 1e9,
+  bn: 1e9,
+  billion: 1e9,
+  trillion: 1e12,
+  t: 1e12,
+};
 const NUM = /(\$|€|£)?(\d[\d,]*(?:\.\d+)?)\s*(%|percent\b|trillion\b|billion\b|million\b|thousand\b|bn\b|mn\b|[kmbt]\b)?/i;
 const digits = (s: string) => s.replace(/,/g, "");
 
@@ -28,7 +48,8 @@ export function parseFigure(text: string): Figure | undefined {
 
 const MONTHS = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"];
 // "1983", "march 1985", "jan 5, 1985", "1 october 2016", "1990s", "300 bc"
-const DATE = /\b(?:(?:\d{1,2}\s+)?(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?\s+(?:\d{1,2},?\s+)?)?(\d{3,4})(s)?\s*(bce?|ad|ce)?\b/i;
+const DATE =
+  /\b(?:(?:\d{1,2}\s+)?(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?\s+(?:\d{1,2},?\s+)?)?(\d{3,4})(s)?\s*(bce?|ad|ce)?\b/i;
 
 /** "1983 dns is invented" -> { label: "dns is invented", when: "1983", key: 1983 }; BC years sort before AD ones. */
 export function parseDated(text: string): Dated | undefined {

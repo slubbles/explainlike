@@ -3,24 +3,124 @@
   "description": "Generic public-cloud building blocks (the AWS / GCP / Azure shapes everyone draws). Names stay generic unless the repo names the product. Doodle icons only, no vendor logos.",
   "icons": {},
   "components": [
-    { "id": "object-store", "name": "Object storage (S3-style)", "kind": "object-storage", "layer": "storage", "keyword": "object store", "icon": "bucket",
-      "detect": { "contains": [{ "file": "(^|/)(package\\.json|requirements[^/]*\\.txt|pyproject\\.toml|go\\.mod)$", "pattern": "@aws-sdk/client-s3|\"aws-sdk\"|boto3|minio|@google-cloud/storage|@azure/storage-blob|aws-sdk-go" }, { "file": "\\.tf$", "pattern": "aws_s3_bucket|google_storage_bucket|azurerm_storage_account" }] } },
-    { "id": "serverless-fn", "name": "Serverless function (Lambda-style)", "kind": "worker", "layer": "backend", "keyword": "serverless fn", "icon": "function",
-      "detect": { "files": ["(^|/)serverless\\.ya?ml$", "(^|/)template\\.ya?ml$", "(^|/)sam\\.ya?ml$"], "contains": [{ "file": "\\.tf$", "pattern": "aws_lambda_function|google_cloudfunctions" }, { "file": "(^|/)package\\.json$", "pattern": "@types/aws-lambda|@aws-sdk/client-lambda" }] } },
-    { "id": "managed-queue", "name": "Managed queue (SQS / PubSub-style)", "kind": "queue", "layer": "async", "keyword": "managed queue", "icon": "queue",
-      "detect": { "contains": [{ "file": "(^|/)(package\\.json|requirements[^/]*\\.txt|pyproject\\.toml|go\\.mod)$", "pattern": "@aws-sdk/client-sqs|@aws-sdk/client-sns|@google-cloud/pubsub|@azure/service-bus" }, { "file": "\\.tf$", "pattern": "aws_sqs_queue|aws_sns_topic|google_pubsub" }] } },
-    { "id": "kv-table", "name": "Key-value table (DynamoDB-style)", "kind": "db", "layer": "data", "keyword": "kv table", "icon": "database",
-      "detect": { "contains": [{ "file": "(^|/)(package\\.json|requirements[^/]*\\.txt|pyproject\\.toml|go\\.mod)$", "pattern": "@aws-sdk/client-dynamodb|@aws-sdk/lib-dynamodb|@google-cloud/firestore" }, { "file": "\\.tf$", "pattern": "aws_dynamodb_table" }] } },
-    { "id": "managed-sql", "name": "Managed SQL (RDS-style)", "kind": "db", "layer": "data", "keyword": "managed sql", "icon": "database",
-      "detect": { "contains": [{ "file": "\\.tf$", "pattern": "aws_db_instance|aws_rds_cluster|google_sql_database_instance|azurerm_postgresql" }] } },
-    { "id": "cdn", "name": "CDN (CloudFront-style)", "kind": "cdn", "layer": "edge", "keyword": "cdn", "icon": "globe",
-      "detect": { "contains": [{ "file": "\\.tf$", "pattern": "aws_cloudfront_distribution|google_compute_backend_bucket" }] } },
-    { "id": "load-balancer", "name": "Load balancer", "kind": "edge", "layer": "edge", "keyword": "load balancer", "icon": "scale",
-      "detect": { "contains": [{ "file": "\\.tf$", "pattern": "aws_lb\\b|aws_alb|google_compute_forwarding_rule" }, { "file": "\\.ya?ml$", "pattern": "kind:\\s*Ingress" }] } },
-    { "id": "container", "name": "Container service", "kind": "api", "layer": "backend", "keyword": "container", "icon": "box",
+    {
+      "id": "object-store",
+      "name": "Object storage (S3-style)",
+      "kind": "object-storage",
+      "layer": "storage",
+      "keyword": "object store",
+      "icon": "bucket",
+      "detect": {
+        "contains": [
+          {
+            "file": "(^|/)(package\\.json|requirements[^/]*\\.txt|pyproject\\.toml|go\\.mod)$",
+            "pattern": "@aws-sdk/client-s3|\"aws-sdk\"|boto3|minio|@google-cloud/storage|@azure/storage-blob|aws-sdk-go"
+          },
+          { "file": "\\.tf$", "pattern": "aws_s3_bucket|google_storage_bucket|azurerm_storage_account" }
+        ]
+      }
+    },
+    {
+      "id": "serverless-fn",
+      "name": "Serverless function (Lambda-style)",
+      "kind": "worker",
+      "layer": "backend",
+      "keyword": "serverless fn",
+      "icon": "function",
+      "detect": {
+        "files": ["(^|/)serverless\\.ya?ml$", "(^|/)template\\.ya?ml$", "(^|/)sam\\.ya?ml$"],
+        "contains": [
+          { "file": "\\.tf$", "pattern": "aws_lambda_function|google_cloudfunctions" },
+          { "file": "(^|/)package\\.json$", "pattern": "@types/aws-lambda|@aws-sdk/client-lambda" }
+        ]
+      }
+    },
+    {
+      "id": "managed-queue",
+      "name": "Managed queue (SQS / PubSub-style)",
+      "kind": "queue",
+      "layer": "async",
+      "keyword": "managed queue",
+      "icon": "queue",
+      "detect": {
+        "contains": [
+          {
+            "file": "(^|/)(package\\.json|requirements[^/]*\\.txt|pyproject\\.toml|go\\.mod)$",
+            "pattern": "@aws-sdk/client-sqs|@aws-sdk/client-sns|@google-cloud/pubsub|@azure/service-bus"
+          },
+          { "file": "\\.tf$", "pattern": "aws_sqs_queue|aws_sns_topic|google_pubsub" }
+        ]
+      }
+    },
+    {
+      "id": "kv-table",
+      "name": "Key-value table (DynamoDB-style)",
+      "kind": "db",
+      "layer": "data",
+      "keyword": "kv table",
+      "icon": "database",
+      "detect": {
+        "contains": [
+          {
+            "file": "(^|/)(package\\.json|requirements[^/]*\\.txt|pyproject\\.toml|go\\.mod)$",
+            "pattern": "@aws-sdk/client-dynamodb|@aws-sdk/lib-dynamodb|@google-cloud/firestore"
+          },
+          { "file": "\\.tf$", "pattern": "aws_dynamodb_table" }
+        ]
+      }
+    },
+    {
+      "id": "managed-sql",
+      "name": "Managed SQL (RDS-style)",
+      "kind": "db",
+      "layer": "data",
+      "keyword": "managed sql",
+      "icon": "database",
+      "detect": {
+        "contains": [{ "file": "\\.tf$", "pattern": "aws_db_instance|aws_rds_cluster|google_sql_database_instance|azurerm_postgresql" }]
+      }
+    },
+    {
+      "id": "cdn",
+      "name": "CDN (CloudFront-style)",
+      "kind": "cdn",
+      "layer": "edge",
+      "keyword": "cdn",
+      "icon": "globe",
+      "detect": { "contains": [{ "file": "\\.tf$", "pattern": "aws_cloudfront_distribution|google_compute_backend_bucket" }] }
+    },
+    {
+      "id": "load-balancer",
+      "name": "Load balancer",
+      "kind": "edge",
+      "layer": "edge",
+      "keyword": "load balancer",
+      "icon": "scale",
+      "detect": {
+        "contains": [
+          { "file": "\\.tf$", "pattern": "aws_lb\\b|aws_alb|google_compute_forwarding_rule" },
+          { "file": "\\.ya?ml$", "pattern": "kind:\\s*Ingress" }
+        ]
+      }
+    },
+    {
+      "id": "container",
+      "name": "Container service",
+      "kind": "api",
+      "layer": "backend",
+      "keyword": "container",
+      "icon": "box",
       "detect": { "files": ["(^|/)Dockerfile$", "(^|/)docker-compose\\.ya?ml$", "(^|/)compose\\.ya?ml$"] },
-      "hint": "a Dockerfile says it ships as a container; it does not say where it runs" },
-    { "id": "infra-as-code", "name": "Infrastructure as code", "kind": "ci", "layer": "ops", "keyword": "infra code", "icon": "gear",
-      "detect": { "files": ["\\.tf$", "(^|/)cdk\\.json$", "(^|/)Pulumi\\.ya?ml$"] } }
+      "hint": "a Dockerfile says it ships as a container; it does not say where it runs"
+    },
+    {
+      "id": "infra-as-code",
+      "name": "Infrastructure as code",
+      "kind": "ci",
+      "layer": "ops",
+      "keyword": "infra code",
+      "icon": "gear",
+      "detect": { "files": ["\\.tf$", "(^|/)cdk\\.json$", "(^|/)Pulumi\\.ya?ml$"] }
+    }
   ]
 }

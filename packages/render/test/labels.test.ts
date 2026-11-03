@@ -36,22 +36,43 @@ test("box sublabels are big and dark enough to read in a wide shot, and still fi
   const arch = JSON.parse(fs.readFileSync(new URL("clipfeed.architecture.json", fx), "utf8"));
   const audio = plan.scenes.map((s: any) => {
     const ws = s.narration.split(/\s+/);
-    return { sceneId: s.id, duration: ws.length * 0.38, words: ws.map((w: string, i: number) => ({ word: w, start: i * 0.38, end: i * 0.38 + 0.3 })) };
+    return {
+      sceneId: s.id,
+      duration: ws.length * 0.38,
+      words: ws.map((w: string, i: number) => ({ word: w, start: i * 0.38, end: i * 0.38 + 0.3 })),
+    };
   });
   const theme = getTheme("pen-light");
-  const { film } = await compose({ plan, audio, theme, spec: specFromBrief(DEFAULT_BRIEF), pack: loadIconPack(), sourceLabel: "x", arch, pace: "lively" });
+  const { film } = await compose({
+    plan,
+    audio,
+    theme,
+    spec: specFromBrief(DEFAULT_BRIEF),
+    pack: loadIconPack(),
+    sourceLabel: "x",
+    arch,
+    pace: "lively",
+  });
   const lum = (hex: string) => {
-    const c = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255).map((v) => (v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4));
+    const c = [1, 3, 5]
+      .map((i) => parseInt(hex.slice(i, i + 2), 16) / 255)
+      .map((v) => (v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4));
     return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2];
   };
-  const contrast = (a: string, b: string) => { const [x, y] = [lum(a), lum(b)].sort((p, q) => q - p); return (x + 0.05) / (y + 0.05); };
+  const contrast = (a: string, b: string) => {
+    const [x, y] = [lum(a), lum(b)].sort((p, q) => q - p);
+    return (x + 0.05) / (y + 0.05);
+  };
   // a sublabel is the text drawn centred under a box name, 34 units lower
   const names = film.elements.filter((e: any) => e.k === "text" && e.size === 36);
   const subs = film.elements.filter((e: any) => e.k === "text" && names.some((n: any) => n.x === e.x && Math.abs(e.y - n.y - 34) < 0.01));
   assert.ok(subs.length >= 3, `found ${subs.length} sublabels`);
   for (const e of subs as any[]) {
     assert.ok(e.size >= 26, `"${e.text}" is ${e.size}px`);
-    assert.ok(contrast(e.color, theme.background) >= 4.5, `"${e.text}" color ${e.color} contrast ${contrast(e.color, theme.background).toFixed(2)}`);
+    assert.ok(
+      contrast(e.color, theme.background) >= 4.5,
+      `"${e.text}" color ${e.color} contrast ${contrast(e.color, theme.background).toFixed(2)}`,
+    );
   }
   // and it still fits: the box grows to hold it, and descenders stay above its bottom edge
   const { NODE } = await import("../src/layout.js");
@@ -61,10 +82,13 @@ test("box sublabels are big and dark enough to read in a wide shot, and still fi
 test("a two-way wire keeps both labels, so the way back is on the board", async () => {
   const { layoutGraph } = await import("../src/layout.js");
   const n = (id: string) => ({ id, keyword: id, color: "blue" });
-  const g = await layoutGraph([n("app"), n("api")], [
-    { from: "app", to: "api", label: "send message" },
-    { from: "api", to: "app", label: "show reply" },
-  ]);
+  const g = await layoutGraph(
+    [n("app"), n("api")],
+    [
+      { from: "app", to: "api", label: "send message" },
+      { from: "api", to: "app", label: "show reply" },
+    ],
+  );
   assert.equal(g.edges.length, 1);
   assert.equal(g.edges[0].label, "send message / show reply");
   assert.equal(g.edges[0].both, true);

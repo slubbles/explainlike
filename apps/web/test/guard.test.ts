@@ -33,8 +33,15 @@ test("oversized and broken bodies are refused with a plain message", async () =>
 });
 
 test("the spend guard warns past 80% of a cap and pauses before a job could cross it", () => {
-  const caps = { meta: 25, voice: 3 }, reserve = { meta: 1, voice: 0.15 };
-  assert.deepEqual(budget({ meta: 5, voice: 0.5 }, caps, reserve), { ok: true, error: undefined, warnings: [], spent: { meta: 5, voice: 0.5 }, caps });
+  const caps = { meta: 25, voice: 3 },
+    reserve = { meta: 1, voice: 0.15 };
+  assert.deepEqual(budget({ meta: 5, voice: 0.5 }, caps, reserve), {
+    ok: true,
+    error: undefined,
+    warnings: [],
+    spent: { meta: 5, voice: 0.5 },
+    caps,
+  });
   const warn = budget({ meta: 21, voice: 0.5 }, caps, reserve);
   assert.ok(warn.ok);
   assert.match(warn.warnings[0], /Meta \(Muse\) spend is at \$21\.00 of a \$25\.00 cap/);
@@ -55,7 +62,9 @@ test("spend adds every job's meter to the ledger of side calls", () => {
 
 test("no client code reads a server secret", () => {
   const root = path.resolve(import.meta.dirname, "..");
-  const files = ["app", "components", "lib"].flatMap((d) => fs.readdirSync(path.join(root, d), { recursive: true }).map((f) => path.join(root, d, String(f)))).filter((f) => /\.tsx?$/.test(f));
+  const files = ["app", "components", "lib"]
+    .flatMap((d) => fs.readdirSync(path.join(root, d), { recursive: true }).map((f) => path.join(root, d, String(f))))
+    .filter((f) => /\.tsx?$/.test(f));
   const client = files.filter((f) => /^["']use client["']/m.test(fs.readFileSync(f, "utf8")));
   assert.ok(client.length > 3);
   for (const f of client) assert.doesNotMatch(fs.readFileSync(f, "utf8"), /process\.env|API_KEY/, path.relative(root, f));

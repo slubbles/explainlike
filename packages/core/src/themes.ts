@@ -28,8 +28,16 @@ const dark: Theme = {
   caption: { color: "#e9e9e9", highlight: "#ffd23f", background: "rgba(0,0,0,0.72)" },
   accent: "#0866FF",
   colors: {
-    white: "#f2f2f2", red: "#ff4d5e", orange: "#ff9f1c", yellow: "#ffd23f", green: "#3ddc84",
-    blue: "#5aa9ff", purple: "#b47cff", teal: "#3fd0c9", pink: "#f78fb3", gray: "#a0a4a8",
+    white: "#f2f2f2",
+    red: "#ff4d5e",
+    orange: "#ff9f1c",
+    yellow: "#ffd23f",
+    green: "#3ddc84",
+    blue: "#5aa9ff",
+    purple: "#b47cff",
+    teal: "#3fd0c9",
+    pink: "#f78fb3",
+    gray: "#a0a4a8",
   },
   invertIcons: false,
 };
@@ -44,8 +52,16 @@ const light: Theme = {
   caption: { color: "#1e1e1e", highlight: "#0064E0", background: "rgba(255,255,255,0.85)" },
   accent: "#0064E0",
   colors: {
-    white: "#1e1e1e", red: "#e03131", orange: "#e8590c", yellow: "#b08900", green: "#2f9e44",
-    blue: "#1971c2", purple: "#7048e8", teal: "#0c8599", pink: "#c2255c", gray: "#666666",
+    white: "#1e1e1e",
+    red: "#e03131",
+    orange: "#e8590c",
+    yellow: "#b08900",
+    green: "#2f9e44",
+    blue: "#1971c2",
+    purple: "#7048e8",
+    teal: "#0c8599",
+    pink: "#c2255c",
+    gray: "#666666",
   },
   invertIcons: true,
 };
@@ -61,8 +77,16 @@ const pen: Theme = {
   caption: { color: "#1d1d1d", highlight: "#0064E0", background: "rgba(249,250,251,0.9)" },
   accent: "#0064E0",
   colors: {
-    white: "#1d1d1d", red: "#e03131", orange: "#e16919", yellow: "#f1ac4b", green: "#099268",
-    blue: "#4465e9", purple: "#ae3ec9", teal: "#4ba1f1", pink: "#e085f4", gray: "#868e96",
+    white: "#1d1d1d",
+    red: "#e03131",
+    orange: "#e16919",
+    yellow: "#f1ac4b",
+    green: "#099268",
+    blue: "#4465e9",
+    purple: "#ae3ec9",
+    teal: "#4ba1f1",
+    pink: "#e085f4",
+    gray: "#868e96",
   },
   invertIcons: true,
   hand: "shantell",
@@ -70,11 +94,17 @@ const pen: Theme = {
 };
 
 export const DEFAULT_THEME = pen.id;
-const registry = new Map<string, Theme>([[pen.id, pen], [dark.id, dark], [light.id, light]]);
+const registry = new Map<string, Theme>([
+  [pen.id, pen],
+  [dark.id, dark],
+  [light.id, light],
+]);
 export function getTheme(id = DEFAULT_THEME): Theme {
   const t = registry.get(id);
   if (!t) throw new Error(`unknown theme "${id}". Known: ${[...registry.keys()].join(", ")}`);
   return t;
 }
 
-export function listThemes() { return [...registry.keys()]; }
+export function listThemes() {
+  return [...registry.keys()];
+}

@@ -19,8 +19,22 @@ type Env = Record<string, string | undefined>;
 
 export function llmProvider(env: Env = process.env): LlmProvider {
   const pick = (env.EXPLANIMATE_LLM_PROVIDER ?? "").trim().toLowerCase() || (env.OPENROUTER_API_KEY ? "openrouter" : "meta");
-  if (pick === "openrouter") return { id: "openrouter", service: "OpenRouter", base: env.OPENROUTER_API_BASE ?? "https://openrouter.ai/api/v1", keyVar: "OPENROUTER_API_KEY", model: env.EXPLANIMATE_SPARK_MODEL ?? "meta/muse-spark-1.3" };
-  if (pick === "meta") return { id: "meta", service: "Meta Muse", base: env.META_API_BASE ?? "https://api.meta.ai/v1", keyVar: "MODEL_API_KEY", model: env.EXPLANIMATE_SPARK_MODEL ?? "muse-spark-1.3-contributor" };
+  if (pick === "openrouter")
+    return {
+      id: "openrouter",
+      service: "OpenRouter",
+      base: env.OPENROUTER_API_BASE ?? "https://openrouter.ai/api/v1",
+      keyVar: "OPENROUTER_API_KEY",
+      model: env.EXPLANIMATE_SPARK_MODEL ?? "meta/muse-spark-1.3",
+    };
+  if (pick === "meta")
+    return {
+      id: "meta",
+      service: "Meta Muse",
+      base: env.META_API_BASE ?? "https://api.meta.ai/v1",
+      keyVar: "MODEL_API_KEY",
+      model: env.EXPLANIMATE_SPARK_MODEL ?? "muse-spark-1.3-contributor",
+    };
   throw new Error(`EXPLANIMATE_LLM_PROVIDER must be "openrouter" or "meta", not "${env.EXPLANIMATE_LLM_PROVIDER}".`);
 }
 

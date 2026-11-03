@@ -22,25 +22,37 @@ export function stepsFor(job: { kind: string; input: string; voice: string; focu
   const qa = job.voice === "silent" ? [] : [QA];
   // the brief comes right after reading: it picks the approach, depth and tempo before anything is mapped or planned
   const brief: Step = { stage: "brief", label: "deciding how to explain it" };
-  if (sourceKind(job.input) === "repo") return [
-    { stage: "ingest", label: "reading the repository" }, brief,
-    { stage: "architecture", label: "Muse Spark is mapping the architecture" },
-    { stage: "review", label: "second pass: checking every box against the code" },
-    { stage: "plan", label: "writing the scene plan" },
-    ...TAIL(job.voice), ...qa,
-  ];
+  if (sourceKind(job.input) === "repo")
+    return [
+      { stage: "ingest", label: "reading the repository" },
+      brief,
+      { stage: "architecture", label: "Muse Spark is mapping the architecture" },
+      { stage: "review", label: "second pass: checking every box against the code" },
+      { stage: "plan", label: "writing the scene plan" },
+      ...TAIL(job.voice),
+      ...qa,
+    ];
   return [
-    { stage: "ingest", label: { "X post": "reading the post", topic: "finding reputable sources on the topic" }[sourceKind(job.input) as string] ?? "reading the article" },
+    {
+      stage: "ingest",
+      label:
+        { "X post": "reading the post", topic: "finding reputable sources on the topic" }[sourceKind(job.input) as string] ??
+        "reading the article",
+    },
     brief,
     { stage: "plan", label: "Muse Spark is planning the explainer" },
-    ...TAIL(job.voice), ...qa,
+    ...TAIL(job.voice),
+    ...qa,
   ];
 }
 
 /** Where each step stands, given the stage the job last reported. Steps before it are done; a failed job marks its stage as failed. */
 export function stepStates(steps: Step[], stage: string, state: "queued" | "running" | "done" | "error"): StepState[] {
   if (state === "done") return steps.map(() => "ok");
-  const at = Math.max(0, steps.findIndex((s) => s.stage === stage));
+  const at = Math.max(
+    0,
+    steps.findIndex((s) => s.stage === stage),
+  );
   return steps.map((_, i) => (i < at ? "ok" : i > at ? "todo" : state === "error" ? "fail" : "now"));
 }
 

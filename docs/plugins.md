@@ -4,8 +4,8 @@ Explanimate has one plugin point, the icon pack. It is a plain folder; no fork n
 
 There are no levels or themes to pick any more. Muse Spark reads the source first and writes a brief (`packages/core/src/brief.ts`): the audience, the approach (analogy, story, step by step, build-up, compare, problem then solution), the depth, the tempo and the look. See [How the engine decides](#how-the-engine-decides).
 
-| plugin | what it changes | how you add one |
-| --- | --- | --- |
+| plugin   | what it changes                                                                          | how you add one                                                    |
+| -------- | ---------------------------------------------------------------------------------------- | ------------------------------------------------------------------ |
 | **pack** | which building blocks Explanimate recognises in a repo, and the icons it draws them with | a folder with `manifest.json` (+ PNGs), passed with `--pack <dir>` |
 
 ## Packs

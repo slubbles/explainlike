@@ -11,12 +11,24 @@ const plan = JSON.parse(fs.readFileSync(new URL("clipfeed.plan.json", fx), "utf8
 const arch = JSON.parse(fs.readFileSync(new URL("clipfeed.architecture.json", fx), "utf8"));
 const audio = plan.scenes.map((s: any) => {
   const ws = s.narration.split(/\s+/);
-  return { sceneId: s.id, duration: ws.length * 0.38, words: ws.map((w: string, i: number) => ({ word: w, start: i * 0.38, end: i * 0.38 + 0.3 })) };
+  return {
+    sceneId: s.id,
+    duration: ws.length * 0.38,
+    words: ws.map((w: string, i: number) => ({ word: w, start: i * 0.38, end: i * 0.38 + 0.3 })),
+  };
 });
 
 test("captions sit in one fixed spot at the bottom, on one line, and never cover the drawing at rest", { timeout: 120_000 }, async () => {
   for (const theme of ["pen-light", "chalk-dark"]) {
-    const { film } = await compose({ plan, audio, theme: getTheme(theme), spec: specFromBrief(DEFAULT_BRIEF), pack: loadIconPack(), sourceLabel: "x", arch });
+    const { film } = await compose({
+      plan,
+      audio,
+      theme: getTheme(theme),
+      spec: specFromBrief(DEFAULT_BRIEF),
+      pack: loadIconPack(),
+      sourceLabel: "x",
+      arch,
+    });
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), "explanimate-cap-"));
     const { captions } = await captureFrames(film, dir, { only: [0], workers: 1 });
     fs.rmSync(dir, { recursive: true, force: true });
@@ -45,7 +57,10 @@ test("a caption phrase never reads as a grammar slip on its own: 'a pasted link 
 });
 
 test("a sentence's last word stays with its phrase instead of opening the next one alone", () => {
-  const said = "This box is you, the viewer, pasting a link into the web app. You paste and watch here. You paste a GitHub, X, or article link.".split(" ");
+  const said =
+    "This box is you, the viewer, pasting a link into the web app. You paste and watch here. You paste a GitHub, X, or article link.".split(
+      " ",
+    );
   const words = said.map((word, i) => ({ word, start: i * 0.3, end: i * 0.3 + 0.25 }));
   const shown = captionsFor("s1", words, 0, 20, 4, 26).map((c) => c.words.map((w) => w.w).join(" "));
   assert.equal(shown.join(" "), said.join(" "));
@@ -55,7 +70,23 @@ test("a sentence's last word stays with its phrase instead of opening the next o
 
 test("a phrase spoken fast is not flashed on its own: it takes the next words, so every phrase stays up long enough to read", () => {
   // real timings from the voiceover: "the back of the" was spoken in under half a second
-  const t = [["and", 3.44, 3.52], ["it", 3.52, 3.68], ["does", 3.68, 3.92], ["the", 3.92, 4], ["back", 4, 4.24], ["of", 4.24, 4.4], ["the", 4.4, 4.48], ["envelope", 4.48, 4.96], ["math,", 4.96, 5.68], ["and", 5.76, 6], ["shows", 6, 6.32], ["where", 6.32, 6.56], ["the", 6.56, 6.72], ["design", 6.72, 7.04], ["breaks.", 7.04, 7.44]] as const;
+  const t = [
+    ["and", 3.44, 3.52],
+    ["it", 3.52, 3.68],
+    ["does", 3.68, 3.92],
+    ["the", 3.92, 4],
+    ["back", 4, 4.24],
+    ["of", 4.24, 4.4],
+    ["the", 4.4, 4.48],
+    ["envelope", 4.48, 4.96],
+    ["math,", 4.96, 5.68],
+    ["and", 5.76, 6],
+    ["shows", 6, 6.32],
+    ["where", 6.32, 6.56],
+    ["the", 6.56, 6.72],
+    ["design", 6.72, 7.04],
+    ["breaks.", 7.04, 7.44],
+  ] as const;
   const words = t.map(([word, start, end]) => ({ word, start, end }));
   const caps = captionsFor("s1", words, 0, 20, 4, 26);
   assert.equal(caps.flatMap((c) => c.words.map((w) => w.w)).join(" "), t.map((x) => x[0]).join(" "));
@@ -68,8 +99,34 @@ test("a phrase spoken fast is not flashed on its own: it takes the next words, s
 
 test("a phrase does not end on a word that leads into the next, and is not replaced before its last word is said", () => {
   // the real voiceover timings ("just" was said 0.08 s after the next phrase replaced it), and a faster read
-  const t = [["Want", 0.16, 0.48], ["more?", 0.48, 1.12], ["Render", 1.12, 1.44], ["a", 1.76, 1.92], ["twenty", 1.92, 2.16], ["second", 2.16, 2.4], ["deep", 2.4, 2.72], ["dive", 2.72, 2.96], ["on", 2.96, 3.12], ["just", 3.12, 3.28], ["that", 3.28, 3.52], ["box.", 3.52, 3.92]] as const;
-  const fast = [["Want", 0, 0.2], ["more?", 0.2, 0.6], ["Render", 0.9, 1.2], ["a", 1.2, 1.28], ["twenty", 1.28, 1.6], ["second", 1.6, 1.96], ["deep", 1.96, 2.2], ["dive", 2.2, 2.5], ["on", 2.5, 2.62], ["just", 2.62, 2.92], ["that", 2.84, 3.04], ["box.", 3.04, 3.5]] as const;
+  const t = [
+    ["Want", 0.16, 0.48],
+    ["more?", 0.48, 1.12],
+    ["Render", 1.12, 1.44],
+    ["a", 1.76, 1.92],
+    ["twenty", 1.92, 2.16],
+    ["second", 2.16, 2.4],
+    ["deep", 2.4, 2.72],
+    ["dive", 2.72, 2.96],
+    ["on", 2.96, 3.12],
+    ["just", 3.12, 3.28],
+    ["that", 3.28, 3.52],
+    ["box.", 3.52, 3.92],
+  ] as const;
+  const fast = [
+    ["Want", 0, 0.2],
+    ["more?", 0.2, 0.6],
+    ["Render", 0.9, 1.2],
+    ["a", 1.2, 1.28],
+    ["twenty", 1.28, 1.6],
+    ["second", 1.6, 1.96],
+    ["deep", 1.96, 2.2],
+    ["dive", 2.2, 2.5],
+    ["on", 2.5, 2.62],
+    ["just", 2.62, 2.92],
+    ["that", 2.84, 3.04],
+    ["box.", 3.04, 3.5],
+  ] as const;
   for (const tt of [t, fast]) check(tt);
 });
 function check(t: readonly (readonly [string, number, number])[]) {
@@ -77,33 +134,65 @@ function check(t: readonly (readonly [string, number, number])[]) {
   const caps = captionsFor("s1", words, 0, 20, 4, 26);
   const shown = caps.map((c) => c.words.map((w) => w.w).join(" "));
   assert.equal(shown.join(" "), t.map((x) => x[0]).join(" "));
-  for (const p of shown.slice(0, -1)) assert.ok(!/ (a|the|of|on|to|just)$/i.test(p), `a phrase ends on a leading word: "${p}" (${shown.join(" | ")})`);
-  for (const c of caps) for (const w of c.words) assert.ok(c.t0 <= w.s + 1e-9 && c.t1 >= w.e - 1e-9, `"${w.w}" is said ${w.s}-${w.e} but its phrase is up ${c.t0.toFixed(2)}-${c.t1.toFixed(2)}`);
+  for (const p of shown.slice(0, -1))
+    assert.ok(!/ (a|the|of|on|to|just)$/i.test(p), `a phrase ends on a leading word: "${p}" (${shown.join(" | ")})`);
+  for (const c of caps)
+    for (const w of c.words)
+      assert.ok(
+        c.t0 <= w.s + 1e-9 && c.t1 >= w.e - 1e-9,
+        `"${w.w}" is said ${w.s}-${w.e} but its phrase is up ${c.t0.toFixed(2)}-${c.t1.toFixed(2)}`,
+      );
   // moving the leading words on must not leave a phrase that flashes by ("deep dive" for half a second)
-  for (const c of caps) assert.ok(c.t1 - c.t0 >= 0.7, `"${c.words.map((w) => w.w).join(" ")}" is up only ${(c.t1 - c.t0).toFixed(2)} s (${shown.join(" | ")})`);
+  for (const c of caps)
+    assert.ok(c.t1 - c.t0 >= 0.7, `"${c.words.map((w) => w.w).join(" ")}" is up only ${(c.t1 - c.t0).toFixed(2)} s (${shown.join(" | ")})`);
 }
 
 test("a phrase does not break inside a noun phrase: 'the back of the envelope math' and 'the resulting video' stay whole", () => {
   for (const [line, whole] of [
-    ["Point it at a real app, at interview level, and it does the back of the envelope math, and shows where the design breaks.", "the back of the envelope math,"],
-    ["You paste a GitHub, X, or article link into the box to start a video. Then you watch the resulting video in the player.", "the resulting video"],
+    [
+      "Point it at a real app, at interview level, and it does the back of the envelope math, and shows where the design breaks.",
+      "the back of the envelope math,",
+    ],
+    [
+      "You paste a GitHub, X, or article link into the box to start a video. Then you watch the resulting video in the player.",
+      "the resulting video",
+    ],
     ["A few minutes later, you get a narrated whiteboard video, drawn piece by piece.", "a narrated whiteboard video,"],
   ]) {
-    for (const [maxWords, maxChars] of [[4, 26], [8, 46]]) {
+    for (const [maxWords, maxChars] of [
+      [4, 26],
+      [8, 46],
+    ]) {
       const said = line.split(" ");
       const words = said.map((word, i) => ({ word, start: i * 0.3, end: i * 0.3 + 0.25 }));
       const shown = captionsFor("s1", words, 0, 30, maxWords, maxChars).map((c) => c.words.map((w) => w.w).join(" "));
       assert.equal(shown.join(" "), line);
-      assert.ok(shown.some((p) => p.includes(whole)), `"${whole}" is split: ${shown.join(" | ")}`);
+      assert.ok(
+        shown.some((p) => p.includes(whole)),
+        `"${whole}" is split: ${shown.join(" | ")}`,
+      );
     }
   }
 });
 
 test("'the resulting video' stays whole at real speech speed, where 'Then you watch' alone is too quick to read", () => {
-  const t = [["Then", 10.38, 10.62], ["you", 10.62, 10.7], ["watch", 10.7, 10.94], ["the", 10.94, 11.18], ["resulting", 11.18, 11.5], ["video", 11.5, 11.82], ["in", 11.82, 11.98], ["the", 11.98, 12.06], ["player.", 12.06, 12.7]] as const;
+  const t = [
+    ["Then", 10.38, 10.62],
+    ["you", 10.62, 10.7],
+    ["watch", 10.7, 10.94],
+    ["the", 10.94, 11.18],
+    ["resulting", 11.18, 11.5],
+    ["video", 11.5, 11.82],
+    ["in", 11.82, 11.98],
+    ["the", 11.98, 12.06],
+    ["player.", 12.06, 12.7],
+  ] as const;
   const words = t.map(([word, start, end]) => ({ word, start, end }));
   const shown = captionsFor("s1", words, 0, 14, 4, 26).map((c) => c.words.map((w) => w.w).join(" "));
-  assert.ok(shown.some((p) => p.includes("the resulting video")), `"the resulting video" is split: ${shown.join(" | ")}`);
+  assert.ok(
+    shown.some((p) => p.includes("the resulting video")),
+    `"the resulting video" is split: ${shown.join(" | ")}`,
+  );
 });
 
 test("a phrase never starts on a possessive that completes the previous verb", () => {
@@ -113,23 +202,75 @@ test("a phrase never starts on a possessive that completes the previous verb", (
   const words = line.split(" ").map((word, i) => ({ word, start: i * 0.38, end: i * 0.38 + 0.3 }));
   const shown = captionsFor("s1", words, 0, 60).map((c) => c.words.map((w) => w.w).join(" "));
   assert.equal(shown.join(" "), line);
-  assert.ok(shown.some((p) => p.includes("feeds your aaabdaaabac")), `the verb is split from its object: ${shown.join(" | ")}`);
-  assert.ok(!shown.some((p) => /^(a|an|the|your|its|their|my|our|his|her|this|that|these|those|you|we|they|it) /.test(p)), `a phrase starts mid-verb-phrase: ${shown.join(" | ")}`);
+  assert.ok(
+    shown.some((p) => p.includes("feeds your aaabdaaabac")),
+    `the verb is split from its object: ${shown.join(" | ")}`,
+  );
+  assert.ok(
+    !shown.some((p) => /^(a|an|the|your|its|their|my|our|his|her|this|that|these|those|you|we|they|it) /.test(p)),
+    `a phrase starts mid-verb-phrase: ${shown.join(" | ")}`,
+  );
 });
 
 test("a compound noun and a relative clause stay whole at real speech speed", () => {
   const cut = (t: readonly (readonly [string, number, number])[]) =>
-    captionsFor("s1", t.map(([word, start, end]) => ({ word, start, end })), 0, 60, 4, 26).map((c) => c.words.map((w) => w.w).join(" "));
-  const recipe = cut([["Think", 33.14, 33.38], ["of", 33.38, 33.54], ["it", 33.54, 33.7], ["as", 33.7, 33.86], ["a", 33.86, 33.94], ["recipe", 33.94, 34.26], ["card", 34.26, 34.5], ["for", 34.5, 34.66], ["a", 34.66, 34.82], ["language", 34.82, 35.06], ["model.", 35.06, 35.46]]);
-  assert.ok(recipe.some((p) => p.includes("recipe card")), `"recipe card" is split: ${recipe.join(" | ")}`);
-  const files = cut([["and", 3.2, 3.44], ["Muse", 3.44, 3.76], ["Spark", 3.76, 4], ["explains", 4, 4.48], ["it,", 4.48, 4.96], ["citing", 5.12, 5.44], ["only", 5.44, 5.76], ["the", 5.76, 5.92], ["files", 5.92, 6.16], ["that", 6.16, 6.32], ["box", 6.32, 6.64], ["was", 6.64, 6.8], ["built", 6.8, 7.04], ["from.", 7.04, 7.36]]);
-  assert.ok(files.some((p) => p.includes("files that box was built from.")), `the relative clause is split from its noun: ${files.join(" | ")}`);
+    captionsFor(
+      "s1",
+      t.map(([word, start, end]) => ({ word, start, end })),
+      0,
+      60,
+      4,
+      26,
+    ).map((c) => c.words.map((w) => w.w).join(" "));
+  const recipe = cut([
+    ["Think", 33.14, 33.38],
+    ["of", 33.38, 33.54],
+    ["it", 33.54, 33.7],
+    ["as", 33.7, 33.86],
+    ["a", 33.86, 33.94],
+    ["recipe", 33.94, 34.26],
+    ["card", 34.26, 34.5],
+    ["for", 34.5, 34.66],
+    ["a", 34.66, 34.82],
+    ["language", 34.82, 35.06],
+    ["model.", 35.06, 35.46],
+  ]);
+  assert.ok(
+    recipe.some((p) => p.includes("recipe card")),
+    `"recipe card" is split: ${recipe.join(" | ")}`,
+  );
+  const files = cut([
+    ["and", 3.2, 3.44],
+    ["Muse", 3.44, 3.76],
+    ["Spark", 3.76, 4],
+    ["explains", 4, 4.48],
+    ["it,", 4.48, 4.96],
+    ["citing", 5.12, 5.44],
+    ["only", 5.44, 5.76],
+    ["the", 5.76, 5.92],
+    ["files", 5.92, 6.16],
+    ["that", 6.16, 6.32],
+    ["box", 6.32, 6.64],
+    ["was", 6.64, 6.8],
+    ["built", 6.8, 7.04],
+    ["from.", 7.04, 7.36],
+  ]);
+  assert.ok(
+    files.some((p) => p.includes("files that box was built from.")),
+    `the relative clause is split from its noun: ${files.join(" | ")}`,
+  );
 });
 
 test("phrases break at phrase boundaries: prepositions keep their object, numbers keep their unit, names and code stay whole", () => {
   const cut = (line: string, maxWords = 8, maxChars = 46) =>
-    captionsFor("s1", line.split(" ").map((word, i) => ({ word, start: i * 0.38, end: i * 0.38 + 0.3 })), 0, 60, maxWords, maxChars)
-      .map((c) => c.words.map((w) => w.w).join(" "));
+    captionsFor(
+      "s1",
+      line.split(" ").map((word, i) => ({ word, start: i * 0.38, end: i * 0.38 + 0.3 })),
+      0,
+      60,
+      maxWords,
+      maxChars,
+    ).map((c) => c.words.map((w) => w.w).join(" "));
   // a preposition strands its object when the break falls between them
   for (const [line, whole] of [
     ["It walks through the door of the fyp app and waves it into the worker host.", "through the door"],
@@ -137,48 +278,97 @@ test("phrases break at phrase boundaries: prepositions keep their object, number
   ]) {
     const shown = cut(line);
     assert.equal(shown.join(" "), line);
-    assert.ok(shown.some((p) => p.includes(whole)), `"${whole}" is split: ${shown.join(" | ")}`);
+    assert.ok(
+      shown.some((p) => p.includes(whole)),
+      `"${whole}" is split: ${shown.join(" | ")}`,
+    );
   }
   // a number and its unit name one thing
   const fast = cut("The clip lasts 20 s on screen and the recap runs 10 s over the credits.", 4, 26);
-  assert.ok(fast.some((p) => p.includes("20 s")), `"20 s" is split: ${fast.join(" | ")}`);
+  assert.ok(
+    fast.some((p) => p.includes("20 s")),
+    `"20 s" is split: ${fast.join(" | ")}`,
+  );
   // proper names are not broken up
   for (const [line, whole] of [
     ["A second Muse Spark pass checks each one against the code.", "Muse Spark"],
     ["Deepgram Aura reads the script and the captions stay in sync.", "Deepgram Aura"],
   ]) {
     const shown = cut(line, 4, 26);
-    assert.ok(shown.some((p) => p.includes(whole)), `"${whole}" is split: ${shown.join(" | ")}`);
+    assert.ok(
+      shown.some((p) => p.includes(whole)),
+      `"${whole}" is split: ${shown.join(" | ")}`,
+    );
   }
   // a verb keeps its code object, an ordinal keeps its noun
   const code = cut("Tap the chat box and ask ChatLive what it does with your file.", 4, 26);
-  assert.ok(code.some((p) => p.includes("ask ChatLive")), `"ask ChatLive" is split: ${code.join(" | ")}`);
+  assert.ok(
+    code.some((p) => p.includes("ask ChatLive")),
+    `"ask ChatLive" is split: ${code.join(" | ")}`,
+  );
   const ord = cut("First dot leaves when its step is said and the walk moves on.", 4, 26);
-  assert.ok(ord.some((p) => p.includes("First dot")), `"First dot" is split: ${ord.join(" | ")}`);
+  assert.ok(
+    ord.some((p) => p.includes("First dot")),
+    `"First dot" is split: ${ord.join(" | ")}`,
+  );
 });
 
 test("the hook's first line is drawn word by word as it is said, and the subtitle bar skips those words", async () => {
   const hook = plan.scenes.find((s: any) => s.kind === "hook");
-  const p2 = { ...plan, scenes: plan.scenes.map((s: any) => (s === hook ? { ...s, narration: `What if every song came from a robot? ${s.narration}` } : s)) };
+  const p2 = {
+    ...plan,
+    scenes: plan.scenes.map((s: any) => (s === hook ? { ...s, narration: `What if every song came from a robot? ${s.narration}` } : s)),
+  };
   const a2 = p2.scenes.map((s: any) => {
     const ws = s.narration.split(/\s+/);
-    return { sceneId: s.id, duration: ws.length * 0.38, words: ws.map((w: string, i: number) => ({ word: w, start: i * 0.38, end: i * 0.38 + 0.3 })) };
+    return {
+      sceneId: s.id,
+      duration: ws.length * 0.38,
+      words: ws.map((w: string, i: number) => ({ word: w, start: i * 0.38, end: i * 0.38 + 0.3 })),
+    };
   });
-  const { film } = await compose({ plan: p2, audio: a2, theme: getTheme("pen-light"), spec: specFromBrief(DEFAULT_BRIEF), pack: loadIconPack(), sourceLabel: "x", arch });
+  const { film } = await compose({
+    plan: p2,
+    audio: a2,
+    theme: getTheme("pen-light"),
+    spec: specFromBrief(DEFAULT_BRIEF),
+    pack: loadIconPack(),
+    sourceLabel: "x",
+    arch,
+  });
   // each row is built in stages, centred on the words said so far; the last stage of each row is the finished line
   const texts = film.elements.filter((e) => e.k === "text" && /^hookline\/r\d+\/s\d+$/.test(e.g ?? "")) as any[];
-  const stage = (e: any) => e.g.split("/").slice(1).map((x: string) => Number(x.slice(1)));
+  const stage = (e: any) =>
+    e.g
+      .split("/")
+      .slice(1)
+      .map((x: string) => Number(x.slice(1)));
   const rows = [...new Set(texts.map((e) => stage(e)[0]))].sort();
   const last = (r: number) => Math.max(...texts.filter((e) => stage(e)[0] === r).map((e) => stage(e)[1]));
   const line = rows.flatMap((r) => texts.filter((e) => stage(e)[0] === r && stage(e)[1] === last(r)).map((e) => e.text));
   assert.deepEqual(line, "What if every song came from a robot?".split(" "));
   const first = (r: number, s: number) => texts.find((e) => stage(e)[0] === r && stage(e)[1] === s)!.x;
   assert.ok(first(rows[0], 1) > first(rows[0], last(rows[0])), "the first word starts centred and moves left as the row fills");
-  assert.ok(texts.some((e) => e.t0 < 5), "the hook line starts within five seconds");
+  assert.ok(
+    texts.some((e) => e.t0 < 5),
+    "the hook line starts within five seconds",
+  );
   const caps = film.captions.filter((c) => c.scene === hook.id);
-  assert.equal(caps.filter((c) => c.hidden).map((c) => c.words.map((w) => w.w).join(" ")).join(" "), line.join(" "));
+  assert.equal(
+    caps
+      .filter((c) => c.hidden)
+      .map((c) => c.words.map((w) => w.w).join(" "))
+      .join(" "),
+    line.join(" "),
+  );
   // every spoken word is still in the captions, so the caption check still sees the whole narration
-  assert.equal(caps.flatMap((c) => c.words.map((w) => w.w)).join(" "), a2.find((x: any) => x.sceneId === hook.id).words.map((w: any) => w.word).join(" "));
+  assert.equal(
+    caps.flatMap((c) => c.words.map((w) => w.w)).join(" "),
+    a2
+      .find((x: any) => x.sceneId === hook.id)
+      .words.map((w: any) => w.word)
+      .join(" "),
+  );
 });
 
 test("only a short first sentence the voice said word for word becomes the kinetic line", () => {
@@ -194,19 +384,35 @@ test("only a short first sentence the voice said word for word becomes the kinet
 
 test("the recap sends a dot along wires already drawn, after the camera settles, one part to the next as each is named", async () => {
   // a recap that names the first parts with room between them, as a real one does
-  const said = "So a tap starts in the fyp app on your phone, which knocks on the edge guard at the door, which waves it through to the worker host that runs everything. The ingest api files the clip into the d1 database and clip blobs, live chat and the like counter keep score, google login, edge cache, inbound mail and voice text do the rest.";
+  const said =
+    "So a tap starts in the fyp app on your phone, which knocks on the edge guard at the door, which waves it through to the worker host that runs everything. The ingest api files the clip into the d1 database and clip blobs, live chat and the like counter keep score, google login, edge cache, inbound mail and voice text do the rest.";
   const p2 = { ...plan, scenes: plan.scenes.map((s: any) => (s.kind === "recap" ? { ...s, narration: said } : s)) };
   const a2 = p2.scenes.map((s: any) => {
     const ws = s.narration.split(/\s+/);
-    return { sceneId: s.id, duration: ws.length * 0.38, words: ws.map((w: string, i: number) => ({ word: w, start: i * 0.38, end: i * 0.38 + 0.3 })) };
+    return {
+      sceneId: s.id,
+      duration: ws.length * 0.38,
+      words: ws.map((w: string, i: number) => ({ word: w, start: i * 0.38, end: i * 0.38 + 0.3 })),
+    };
   });
-  const { film, timeline } = await compose({ plan: p2, audio: a2, theme: getTheme("pen-light"), spec: specFromBrief(DEFAULT_BRIEF), pack: loadIconPack(), sourceLabel: "x", arch });
+  const { film, timeline } = await compose({
+    plan: p2,
+    audio: a2,
+    theme: getTheme("pen-light"),
+    spec: specFromBrief(DEFAULT_BRIEF),
+    pack: loadIconPack(),
+    sourceLabel: "x",
+    arch,
+  });
   const recap = timeline.find((s: any) => s.kind === "recap")!;
   const dots = film.elements.filter((e) => e.g === "recap-dot");
   assert.ok(dots.length > 0, "no recap dot");
   for (const d of dots) {
     assert.equal(d.k, "dot");
     assert.equal(d.cue, "whoosh");
-    assert.ok(d.t0 >= recap.start + 1.4 && d.t0 + d.dur <= recap.end, `dot at ${d.t0}..${d.t0 + d.dur} outside the settled recap ${recap.start}..${recap.end}`);
+    assert.ok(
+      d.t0 >= recap.start + 1.4 && d.t0 + d.dur <= recap.end,
+      `dot at ${d.t0}..${d.t0 + d.dur} outside the settled recap ${recap.start}..${recap.end}`,
+    );
   }
 });

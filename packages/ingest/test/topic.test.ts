@@ -5,7 +5,17 @@ import { topicQuery, topicWords, reputable, relevance, topicText } from "../src/
 
 test("a topic in words is told apart from links and folders", () => {
   for (const t of ["how DNS works", "why is the sky blue?", "inflation"]) assert.ok(looksLikeTopic(t), t);
-  for (const l of ["https://example.com/a", "github.com/a/b", "blog.vllm.ai/2023/06/20/vllm.html", "./repo", "/home/me/repo", "~/code", "", "  "]) assert.ok(!looksLikeTopic(l), l);
+  for (const l of [
+    "https://example.com/a",
+    "github.com/a/b",
+    "blog.vllm.ai/2023/06/20/vllm.html",
+    "./repo",
+    "/home/me/repo",
+    "~/code",
+    "",
+    "  ",
+  ])
+    assert.ok(!looksLikeTopic(l), l);
 });
 
 test("the search words drop the asking and keep the subject", () => {
@@ -32,6 +42,12 @@ test("a page about the subject outranks one that only mentions it", () => {
 });
 
 test("each source is numbered and named in the planner's text", () => {
-  const t = topicText([{ title: "Domain Name System", url: "https://en.wikipedia.org/wiki/DNS", site: "en.wikipedia.org", text: "DNS maps names." }, { title: "RFC 1034", url: "https://www.rfc-editor.org/rfc/rfc1034", site: "rfc-editor.org", text: "Domain concepts." }]);
-  assert.match(t, /^\[Source 1: Domain Name System \(en\.wikipedia\.org\)\]\nDNS maps names\.\n\n\[Source 2: RFC 1034 \(rfc-editor\.org\)\]/);
+  const t = topicText([
+    { title: "Domain Name System", url: "https://en.wikipedia.org/wiki/DNS", site: "en.wikipedia.org", text: "DNS maps names." },
+    { title: "RFC 1034", url: "https://www.rfc-editor.org/rfc/rfc1034", site: "rfc-editor.org", text: "Domain concepts." },
+  ]);
+  assert.match(
+    t,
+    /^\[Source 1: Domain Name System \(en\.wikipedia\.org\)\]\nDNS maps names\.\n\n\[Source 2: RFC 1034 \(rfc-editor\.org\)\]/,
+  );
 });

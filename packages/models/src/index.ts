@@ -22,13 +22,19 @@ export class CostLedger {
   entries: CostEntry[] = [];
   private t0 = Date.now();
   /** each entry also records when its call started, in seconds from the ledger's start, so overlapping calls show up in the profile */
-  add(e: CostEntry) { this.entries.push({ ...e, detail: { ...e.detail, startedAt: Number(((Date.now() - this.t0) / 1000 - e.seconds).toFixed(1)) } }); }
-  get total() { return this.entries.reduce((a, e) => a + e.usd, 0); }
+  add(e: CostEntry) {
+    this.entries.push({ ...e, detail: { ...e.detail, startedAt: Number(((Date.now() - this.t0) / 1000 - e.seconds).toFixed(1)) } });
+  }
+  get total() {
+    return this.entries.reduce((a, e) => a + e.usd, 0);
+  }
   byModel() {
     const m: Record<string, { calls: number; usd: number; seconds: number }> = {};
     for (const e of this.entries) {
       const r = (m[e.model] ??= { calls: 0, usd: 0, seconds: 0 });
-      r.calls++; r.usd += e.usd; r.seconds += e.seconds;
+      r.calls++;
+      r.usd += e.usd;
+      r.seconds += e.seconds;
     }
     return m;
   }
@@ -43,16 +49,35 @@ function key() {
 const MUSE = { service: "Meta Muse", keyVar: "MODEL_API_KEY", baseMs: 1500 };
 
 async function post(path: string, body: unknown, timeoutMs = 300_000, retryTimeouts = true): Promise<any> {
-  return postTo({ id: "meta", service: MUSE.service, base: BASE, keyVar: "MODEL_API_KEY", model: "" }, path, body, timeoutMs, retryTimeouts);
+  return postTo(
+    { id: "meta", service: MUSE.service, base: BASE, keyVar: "MODEL_API_KEY", model: "" },
+    path,
+    body,
+    timeoutMs,
+    retryTimeouts,
+  );
 }
 
 async function postTo(p: LlmProvider, path: string, body: unknown, timeoutMs: number, retryTimeouts: boolean): Promise<any> {
   const k = process.env[p.keyVar];
-  if (!k) throw new Error(p.keyVar === "MODEL_API_KEY" ? "MODEL_API_KEY is not set. Get one at https://dev.meta.ai and put it in .env" : `${p.keyVar} is not set. Put your ${p.service} key in .env, or set EXPLANIMATE_LLM_PROVIDER=meta`);
+  if (!k)
+    throw new Error(
+      p.keyVar === "MODEL_API_KEY"
+        ? "MODEL_API_KEY is not set. Get one at https://dev.meta.ai and put it in .env"
+        : `${p.keyVar} is not set. Put your ${p.service} key in .env, or set EXPLANIMATE_LLM_PROVIDER=meta`,
+    );
   const json = JSON.stringify(body);
-  const r = await fetchRetry(p.base + path, () => ({ method: "POST", headers: { Authorization: `Bearer ${k}`, "Content-Type": "application/json" }, body: json }), { service: p.service, keyVar: p.keyVar, baseMs: MUSE.baseMs, timeoutMs, attempts: 4, retryTimeouts });
+  const r = await fetchRetry(
+    p.base + path,
+    () => ({ method: "POST", headers: { Authorization: `Bearer ${k}`, "Content-Type": "application/json" }, body: json }),
+    { service: p.service, keyVar: p.keyVar, baseMs: MUSE.baseMs, timeoutMs, attempts: 4, retryTimeouts },
+  );
   const text = await r.text();
-  try { return JSON.parse(text); } catch { throw new ServiceError(`${p.service} sent back an answer that was not JSON. Try again.`, p.service, r.status, text.slice(0, 200)); }
+  try {
+    return JSON.parse(text);
+  } catch {
+    throw new ServiceError(`${p.service} sent back an answer that was not JSON. Try again.`, p.service, r.status, text.slice(0, 200));
+  }
 }
 
 export type ChatMessage = { role: "system" | "user" | "assistant"; content: string | unknown[] };
@@ -68,16 +93,26 @@ const LOWER = { high: "medium", medium: "low", low: "minimal", minimal: "minimal
  * `hedge` sends the same request more than once side by side (see hedgeCopies) and keeps the first good answer.
  */
 export async function sparkJson<T extends z.ZodType>(opts: {
-  ledger: CostLedger; step: string; schema: T; name: string; messages: ChatMessage[];
-  effort?: "minimal" | "low" | "medium" | "high"; maxTokens?: number; timeoutMs?: number; wire?: z.ZodType; hedge?: boolean;
+  ledger: CostLedger;
+  step: string;
+  schema: T;
+  name: string;
+  messages: ChatMessage[];
+  effort?: "minimal" | "low" | "medium" | "high";
+  maxTokens?: number;
+  timeoutMs?: number;
+  wire?: z.ZodType;
+  hedge?: boolean;
 }): Promise<z.infer<T>> {
   const copies = opts.hedge ? hedgeCopies() : 1;
-  const llm = llmProvider(), SPARK = llm.model;
+  const llm = llmProvider(),
+    SPARK = llm.model;
   let won: number | undefined;
   // a copy that answers after another copy already won is still paid for, so it is logged under its own step name
   const stepOf = (i: number) => (won !== undefined && won !== i ? `${opts.step}-hedge` : opts.step);
   return firstOf(copies, async (i) => {
-    let effort = opts.effort ?? "low", maxTokens = opts.maxTokens ?? 12000;
+    let effort = opts.effort ?? "low",
+      maxTokens = opts.maxTokens ?? 12000;
     for (let attempt = 0; ; attempt++) {
       // a copy that lost does not pay for a retry nobody is waiting on
       if (attempt && won !== undefined) throw new Error(`another copy of ${opts.step} already answered`);
@@ -87,7 +122,10 @@ export async function sparkJson<T extends z.ZodType>(opts: {
         messages: opts.messages,
         reasoning_effort: effort,
         max_tokens: maxTokens,
-        response_format: { type: "json_schema", json_schema: { name: opts.name, strict: true, schema: strictJsonSchema(opts.wire ?? opts.schema) } },
+        response_format: {
+          type: "json_schema",
+          json_schema: { name: opts.name, strict: true, schema: strictJsonSchema(opts.wire ?? opts.schema) },
+        },
       };
       let out;
       try {
@@ -105,11 +143,31 @@ export async function sparkJson<T extends z.ZodType>(opts: {
       const cutOff = out.choices?.[0]?.finish_reason === "length";
       let parsed: { ok: true; value: z.infer<T> } | { ok: false; error: unknown } | undefined;
       if (content && !cutOff) {
-        try { parsed = { ok: true, value: opts.schema.parse(JSON.parse(content)) }; } catch (error) { parsed = { ok: false, error }; }
+        try {
+          parsed = { ok: true, value: opts.schema.parse(JSON.parse(content)) };
+        } catch (error) {
+          parsed = { ok: false, error };
+        }
         if (parsed.ok && won === undefined) won = i;
       }
-      opts.ledger.add({ step: stepOf(i), model: SPARK, seconds: (Date.now() - t) / 1000, usd, detail: { prompt: u.prompt_tokens, completion: u.completion_tokens, reasoning: u.completion_tokens_details?.reasoning_tokens, effort, ...(attempt ? { retry: attempt } : {}), ...(copies > 1 ? { copy: i + 1, of: copies } : {}) } });
-      if (parsed) { if (parsed.ok) return parsed.value; throw parsed.error; }
+      opts.ledger.add({
+        step: stepOf(i),
+        model: SPARK,
+        seconds: (Date.now() - t) / 1000,
+        usd,
+        detail: {
+          prompt: u.prompt_tokens,
+          completion: u.completion_tokens,
+          reasoning: u.completion_tokens_details?.reasoning_tokens,
+          effort,
+          ...(attempt ? { retry: attempt } : {}),
+          ...(copies > 1 ? { copy: i + 1, of: copies } : {}),
+        },
+      });
+      if (parsed) {
+        if (parsed.ok) return parsed.value;
+        throw parsed.error;
+      }
       const why = cutOff ? `ran out of room (${maxTokens} tokens)` : "returned no content";
       if (attempt >= 1) throw new Error(`Muse Spark ${why} on ${opts.step}, twice`);
       effort = LOWER[effort];
@@ -136,7 +194,9 @@ export function hedgeCopies(env: Record<string, string | undefined> = process.en
  */
 export function firstOf<T>(n: number, run: (i: number) => Promise<T>): Promise<T> {
   if (n <= 1) return run(0);
-  return Promise.any([...Array(n).keys()].map((i) => run(i))).catch((e: unknown) => { throw e instanceof AggregateError ? e.errors[0] : e; });
+  return Promise.any([...Array(n).keys()].map((i) => run(i))).catch((e: unknown) => {
+    throw e instanceof AggregateError ? e.errors[0] : e;
+  });
 }
 
 /** Muse Image: returns image bytes. */
@@ -147,29 +207,67 @@ export async function museImage(opts: { ledger: CostLedger; step: string; prompt
   return Buffer.from(out.data[0].b64_json, "base64");
 }
 
-export interface SamBox { x1: number; y1: number; x2: number; y2: number; w: number; h: number; confidence: number }
+export interface SamBox {
+  x1: number;
+  y1: number;
+  x2: number;
+  y2: number;
+  w: number;
+  h: number;
+  confidence: number;
+}
 
 /** SAM 3.1: open-vocabulary detection. Returns boxes in source-image pixels, best first. */
-export async function samDetect(opts: { ledger: CostLedger; step: string; image: Buffer; mime: string; phrase: string }): Promise<SamBox[]> {
+export async function samDetect(opts: {
+  ledger: CostLedger;
+  step: string;
+  image: Buffer;
+  mime: string;
+  phrase: string;
+}): Promise<SamBox[]> {
   const t = Date.now();
   const url = `data:${opts.mime};base64,${opts.image.toString("base64")}`;
   const out = await post("/responses", {
     model: SAM,
-    input: [{ type: "message", role: "user", content: [{ type: "input_text", text: opts.phrase }, { type: "input_image", image_url: url }] }],
+    input: [
+      {
+        type: "message",
+        role: "user",
+        content: [
+          { type: "input_text", text: opts.phrase },
+          { type: "input_image", image_url: url },
+        ],
+      },
+    ],
     metadata: { include_confidence: "true" },
   });
   opts.ledger.add({ step: opts.step, model: SAM, seconds: (Date.now() - t) / 1000, usd: PRICE.sam });
-  const text: string = (out.output ?? []).flatMap((o: any) => o.content ?? []).filter((c: any) => c.type === "output_text").map((c: any) => c.text).join("");
+  const text: string = (out.output ?? [])
+    .flatMap((o: any) => o.content ?? [])
+    .filter((c: any) => c.type === "output_text")
+    .map((c: any) => c.text)
+    .join("");
   const boxes: SamBox[] = [];
   for (const m of text.matchAll(/<\|box;([^|]*)\|>/g)) {
-    const kv = Object.fromEntries(m[1].split(";").map((p) => p.split("=")).map(([k, v]) => [k, Number(v)]));
+    const kv = Object.fromEntries(
+      m[1]
+        .split(";")
+        .map((p) => p.split("="))
+        .map(([k, v]) => [k, Number(v)]),
+    );
     boxes.push({ x1: kv.x1, y1: kv.y1, x2: kv.x2, y2: kv.y2, w: kv.w, h: kv.h, confidence: kv.c ?? 0 });
   }
   return boxes.sort((a, b) => b.confidence - a.confidence);
 }
 
 /** Muse Voice Transcribe on a mono 16/24 kHz WAV. Turn-level only. */
-export async function museTranscribe(opts: { ledger: CostLedger; step: string; wav: Buffer; keywords?: string[]; durationSec?: number }): Promise<{ transcript: string; turns: { startMs: number; endMs: number; transcript: string }[] }> {
+export async function museTranscribe(opts: {
+  ledger: CostLedger;
+  step: string;
+  wav: Buffer;
+  keywords?: string[];
+  durationSec?: number;
+}): Promise<{ transcript: string; turns: { startMs: number; endMs: number; transcript: string }[] }> {
   const t = Date.now();
   const fd = new FormData();
   const req: Record<string, unknown> = { model: TRANSCRIBE, audioEncoding: "WAV", mode: "ENDPOINTING" };
@@ -177,7 +275,11 @@ export async function museTranscribe(opts: { ledger: CostLedger; step: string; w
   fd.append("request", new Blob([JSON.stringify(req)], { type: "application/json" }));
   fd.append("audio", new Blob([new Uint8Array(opts.wav)], { type: "audio/wav" }), "narration.wav");
   const k = key();
-  const r = await fetchRetry(`${BASE}/asr/transcribe`, () => ({ method: "POST", headers: { Authorization: `Bearer ${k}` }, body: fd }), { ...MUSE, timeoutMs: 180_000, attempts: 3 });
+  const r = await fetchRetry(`${BASE}/asr/transcribe`, () => ({ method: "POST", headers: { Authorization: `Bearer ${k}` }, body: fd }), {
+    ...MUSE,
+    timeoutMs: 180_000,
+    attempts: 3,
+  });
   const out = JSON.parse(await r.text());
   const mins = (out.audioDurationMs ?? (opts.durationSec ?? 0) * 1000) / 60000;
   opts.ledger.add({ step: opts.step, model: TRANSCRIBE, seconds: (Date.now() - t) / 1000, usd: mins * PRICE.transcribePerMin });
@@ -185,10 +287,12 @@ export async function museTranscribe(opts: { ledger: CostLedger; step: string; w
 }
 
 const FrameReview = z.object({
-  frames: z.array(z.object({
-    t: z.number(),
-    problems: z.array(z.object({ kind: z.enum(["cropped", "overlap", "covered", "unreadable", "blank", "other"]), where: z.string() })),
-  })),
+  frames: z.array(
+    z.object({
+      t: z.number(),
+      problems: z.array(z.object({ kind: z.enum(["cropped", "overlap", "covered", "unreadable", "blank", "other"]), where: z.string() })),
+    }),
+  ),
 });
 export type FrameReviewResult = z.infer<typeof FrameReview>;
 
@@ -197,15 +301,26 @@ export type FrameReviewResult = z.infer<typeof FrameReview>;
  * Off by default (it costs money); the bounding-box check runs first and is free.
  */
 export async function reviewFrames(opts: { ledger: CostLedger; frames: { t: number; jpeg: Buffer }[] }): Promise<FrameReviewResult> {
-  const content: unknown[] = [{
-    type: "text",
-    text: "These are frames from an explainer video drawn on a whiteboard. For each frame, list only problems a viewer would notice: "
-      + "text or drawings cut off by the frame edge, labels overlapping lines or other text, the caption bar covering something important, "
-      + "text too small to read, or an empty frame. Use an empty list when a frame is fine. Each frame is preceded by its time in seconds.",
-  }];
+  const content: unknown[] = [
+    {
+      type: "text",
+      text:
+        "These are frames from an explainer video drawn on a whiteboard. For each frame, list only problems a viewer would notice: " +
+        "text or drawings cut off by the frame edge, labels overlapping lines or other text, the caption bar covering something important, " +
+        "text too small to read, or an empty frame. Use an empty list when a frame is fine. Each frame is preceded by its time in seconds.",
+    },
+  ];
   for (const f of opts.frames) {
     content.push({ type: "text", text: `t=${f.t.toFixed(2)}` });
     content.push({ type: "image_url", image_url: { url: `data:image/jpeg;base64,${f.jpeg.toString("base64")}` } });
   }
-  return sparkJson({ ledger: opts.ledger, step: "frame-review", name: "frame_review", schema: FrameReview, messages: [{ role: "user", content }], effort: "low", maxTokens: 4000 });
+  return sparkJson({
+    ledger: opts.ledger,
+    step: "frame-review",
+    name: "frame_review",
+    schema: FrameReview,
+    messages: [{ role: "user", content }],
+    effort: "low",
+    maxTokens: 4000,
+  });
 }

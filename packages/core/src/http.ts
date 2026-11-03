@@ -44,7 +44,8 @@ export const retryable = (status: number) => RETRY_STATUS.has(status) || status 
 
 /** A sentence a person can act on for a failed HTTP status. */
 export function serviceMessage(service: string, status: number, keyVar?: string): string {
-  if (status === 401 || status === 403) return `${service} rejected the API key${keyVar ? `: check that ${keyVar} is set to a valid key` : ""}.`;
+  if (status === 401 || status === 403)
+    return `${service} rejected the API key${keyVar ? `: check that ${keyVar} is set to a valid key` : ""}.`;
   if (status === 402) return `${service} says the account is out of credit. Add credit or lower the spend, then try again.`;
   if (status === 429) return `${service} is rate-limiting requests right now. Wait a minute and try again.`;
   if (status === 413) return `The request was too large for ${service}. Try a shorter input.`;
@@ -67,19 +68,28 @@ const scrub = (s: string) => s.replace(/(Bearer|Token)\s+[\w.-]+/gi, "$1 ***").r
  * function, so streamed bodies (FormData, Blob) are fresh every time. Resolves with an ok Response.
  */
 export async function fetchRetry(url: string, init: () => RequestInit, o: RetryOptions): Promise<Response> {
-  const attempts = o.attempts ?? 4, base = o.baseMs ?? 1000, maxWait = o.maxWaitMs ?? 30_000, timeout = o.timeoutMs ?? 120_000;
+  const attempts = o.attempts ?? 4,
+    base = o.baseMs ?? 1000,
+    maxWait = o.maxWaitMs ?? 30_000,
+    timeout = o.timeoutMs ?? 120_000;
   const sleep = o.sleep ?? ((ms: number) => new Promise<void>((r) => setTimeout(r, ms)));
   const f = o.fetchImpl ?? fetch;
   let last: ServiceError | undefined;
   for (let a = 0; a < attempts; a++) {
     let wait = Math.min(maxWait, base * 2 ** a * (0.75 + Math.random() * 0.5));
     // a ref'd timer (AbortSignal.timeout's is not), so a hung call cannot let the process exit mid-job
-    const ctl = new AbortController(), timer = setTimeout(() => ctl.abort(Object.assign(new Error("timed out"), { name: "TimeoutError" })), timeout);
+    const ctl = new AbortController(),
+      timer = setTimeout(() => ctl.abort(Object.assign(new Error("timed out"), { name: "TimeoutError" })), timeout);
     try {
       const r = await f(url, { ...init(), signal: ctl.signal });
       if (r.ok) return r;
       const body = scrub((await r.text().catch(() => "")).slice(0, 300));
-      last = new ServiceError(serviceMessage(o.service, r.status, o.keyVar), o.service, r.status, `HTTP ${r.status} ${new URL(url).pathname}: ${body}`);
+      last = new ServiceError(
+        serviceMessage(o.service, r.status, o.keyVar),
+        o.service,
+        r.status,
+        `HTTP ${r.status} ${new URL(url).pathname}: ${body}`,
+      );
       if (!retryable(r.status)) throw last;
       const ra = retryAfterMs(r.headers.get("retry-after"));
       if (ra !== undefined) wait = Math.min(maxWait, Math.max(wait, ra));
@@ -88,8 +98,13 @@ export async function fetchRetry(url: string, init: () => RequestInit, o: RetryO
       const err = e as Error;
       const timedOut = err?.name === "TimeoutError" || err?.name === "AbortError";
       last = new ServiceError(
-        timedOut ? `${o.service} did not answer within ${Math.round(timeout / 1000)} s. Try again in a few minutes.` : `Could not reach ${o.service} (${scrub(String(err?.message ?? err))}). Check the internet connection and try again.`,
-        o.service, undefined, scrub(String(err?.message ?? err)), timedOut,
+        timedOut
+          ? `${o.service} did not answer within ${Math.round(timeout / 1000)} s. Try again in a few minutes.`
+          : `Could not reach ${o.service} (${scrub(String(err?.message ?? err))}). Check the internet connection and try again.`,
+        o.service,
+        undefined,
+        scrub(String(err?.message ?? err)),
+        timedOut,
       );
       if (timedOut && o.retryTimeouts === false) throw last;
     } finally {

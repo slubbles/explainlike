@@ -3,12 +3,17 @@ import assert from "node:assert/strict";
 import { formFromJob, sourceKind, shortLink } from "../lib/form.ts";
 
 test("reopening a saved job brings back its own link and voice", () => {
-  assert.deepEqual(formFromJob({ input: "https://github.com/karpathy/minbpe", voice: "silent" }),
-    { input: "https://github.com/karpathy/minbpe", voice: "silent" });
+  assert.deepEqual(formFromJob({ input: "https://github.com/karpathy/minbpe", voice: "silent" }), {
+    input: "https://github.com/karpathy/minbpe",
+    voice: "silent",
+  });
 });
 
 test("an old or broken job falls back to the defaults, and an old level is ignored", () => {
-  assert.deepEqual(formFromJob({ input: "https://blog.vllm.ai/x", level: "senior", voice: "wizard" } as never), { input: "https://blog.vllm.ai/x", voice: "deepgram" });
+  assert.deepEqual(formFromJob({ input: "https://blog.vllm.ai/x", level: "senior", voice: "wizard" } as never), {
+    input: "https://blog.vllm.ai/x",
+    voice: "deepgram",
+  });
   assert.deepEqual(formFromJob({}), { input: "", voice: "deepgram" });
 });
 

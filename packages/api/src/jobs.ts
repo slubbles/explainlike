@@ -40,7 +40,13 @@ export interface JobRequest {
 
 export type JobState = "running" | "done" | "error" | "cancelled";
 
-export interface JobOutputs { mp4?: string; tldr?: string; excalidraw?: string; contactSheet?: string; manifest?: string }
+export interface JobOutputs {
+  mp4?: string;
+  tldr?: string;
+  excalidraw?: string;
+  contactSheet?: string;
+  manifest?: string;
+}
 
 export interface Job {
   id: string;
@@ -76,11 +82,21 @@ export interface RunnerOptions {
 }
 
 export class JobError extends Error {
-  constructor(message: string, readonly status = 400) { super(message); }
+  constructor(
+    message: string,
+    readonly status = 400,
+  ) {
+    super(message);
+  }
 }
 
 const DEFAULT_CLI = fileURLToPath(new URL("../../cli/bin/explanimate.mjs", import.meta.url));
-const slug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 60);
+const slug = (s: string) =>
+  s
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "")
+    .slice(0, 60);
 
 /** A folder name a person recognises: owner-repo for GitHub, host-path for anything else. */
 export function nameFor(input: string): string {
@@ -89,7 +105,15 @@ export function nameFor(input: string): string {
   const u = new URL(input);
   const host = u.hostname.replace(/^www\./, "");
   const parts = u.pathname.split("/").filter(Boolean);
-  if (/^github\.com$/i.test(host)) return slug(parts.slice(0, 2).join("-").replace(/\.git$/, "")) || "explanimate";
+  if (/^github\.com$/i.test(host))
+    return (
+      slug(
+        parts
+          .slice(0, 2)
+          .join("-")
+          .replace(/\.git$/, ""),
+      ) || "explanimate"
+    );
   if (/^(x|twitter)\.com$/i.test(host)) return slug(`x-${parts[0] ?? ""}-${parts.at(-1) ?? ""}`);
   return slug(`${host}-${parts.join("-")}`) || "explanimate";
 }
@@ -99,10 +123,17 @@ export function checkInput(input: string, env: NodeJS.ProcessEnv = process.env):
   const s = input.trim();
   if (/^https?:\/\/\S+$/i.test(s)) {
     let host: string;
-    try { host = new URL(s).hostname; } catch { throw new JobError(`not a valid link: ${s}`); }
+    try {
+      host = new URL(s).hostname;
+    } catch {
+      throw new JobError(`not a valid link: ${s}`);
+    }
     // localhost and private-network links are refused, the way the web app refuses them (the fetch
     // checks every redirect hop again). EXPLANIMATE_ALLOW_PRIVATE_URLS=1 opts local use back out.
-    if (!allowPrivateUrls(env) && privateHostname(host)) throw new JobError(`that link points at a private network address (${host}), which this server does not read. Set EXPLANIMATE_ALLOW_PRIVATE_URLS=1 to allow it for local use.`);
+    if (!allowPrivateUrls(env) && privateHostname(host))
+      throw new JobError(
+        `that link points at a private network address (${host}), which this server does not read. Set EXPLANIMATE_ALLOW_PRIVATE_URLS=1 to allow it for local use.`,
+      );
     return s;
   }
   const p = path.resolve(s.replace(/^~(?=\/|$)/, os.homedir()));
@@ -130,7 +161,11 @@ export class JobRunner extends EventEmitter {
 
   constructor(o: RunnerOptions = {}) {
     super();
-    this.outRoot = path.resolve(o.outRoot ?? process.env.EXPLANIMATE_OUT_DIR ?? withLegacyDir(path.join(os.homedir(), "explanimate-videos"), path.join(os.homedir(), "explainlike-videos")));
+    this.outRoot = path.resolve(
+      o.outRoot ??
+        process.env.EXPLANIMATE_OUT_DIR ??
+        withLegacyDir(path.join(os.homedir(), "explanimate-videos"), path.join(os.homedir(), "explainlike-videos")),
+    );
     this.cli = o.cliPath ?? DEFAULT_CLI;
     this.maxRunning = o.maxRunning ?? 1;
     // renders spawned here never read private-network links unless local use explicitly allows it
@@ -138,22 +173,31 @@ export class JobRunner extends EventEmitter {
     this.env = { EXPLANIMATE_ALLOW_PRIVATE_URLS: "0", ...process.env, ...o.env };
   }
 
-  get(id: string): Job | undefined { const j = this.jobs.get(id); return j && { ...j }; }
-  list(): Job[] { return [...this.jobs.values()].sort((a, b) => b.started - a.started).map((j) => ({ ...j })); }
+  get(id: string): Job | undefined {
+    const j = this.jobs.get(id);
+    return j && { ...j };
+  }
+  list(): Job[] {
+    return [...this.jobs.values()].sort((a, b) => b.started - a.started).map((j) => ({ ...j }));
+  }
 
   start(req: JobRequest): Job {
     const input = checkInput(req.input, this.env);
-    if ((req.focus || req.whatIf) && !req.from) throw new JobError("focus and whatIf need `from`: the output folder of an earlier repo run");
+    if ((req.focus || req.whatIf) && !req.from)
+      throw new JobError("focus and whatIf need `from`: the output folder of an earlier repo run");
     if (req.focus && req.whatIf) throw new JobError("pick one of focus or whatIf");
-    if (req.focus && !/^[a-z0-9-]{1,60}$/.test(req.focus)) throw new JobError("focus is a component id from architecture.json, like `api` or `job-queue`");
+    if (req.focus && !/^[a-z0-9-]{1,60}$/.test(req.focus))
+      throw new JobError("focus is a component id from architecture.json, like `api` or `job-queue`");
     if (req.whatIf && req.whatIf !== "10x" && req.whatIf !== "100x") throw new JobError("whatIf takes 10x or 100x");
     if (req.voice && req.voice !== "deepgram" && req.voice !== "silent") throw new JobError("voice is deepgram or silent");
     if (req.depth && !["overview", "working", "deep"].includes(req.depth)) throw new JobError("depth is overview, working or deep");
     for (const k of ["goal", "audience", "also"] as const) {
-      if (req[k] !== undefined && (typeof req[k] !== "string" || req[k]!.length > 500)) throw new JobError(`${k} is text of at most 500 characters`);
+      if (req[k] !== undefined && (typeof req[k] !== "string" || req[k]!.length > 500))
+        throw new JobError(`${k} is text of at most 500 characters`);
     }
     const running = [...this.jobs.values()].filter((j) => j.state === "running");
-    if (running.length >= this.maxRunning) throw new JobError(`another video is still rendering (job ${running[0].id}); wait for it or cancel it`, 409);
+    if (running.length >= this.maxRunning)
+      throw new JobError(`another video is still rendering (job ${running[0].id}); wait for it or cancel it`, 409);
     // an ask changes the brief and the plan, so it gets its own folder instead of reusing a plain run's cache
     const ask = [req.goal, req.audience, req.depth, req.also].map((v) => v?.trim() ?? "");
     const askTag = ask.some(Boolean) ? "-ask-" + crypto.createHash("sha1").update(ask.join("\n")).digest("hex").slice(0, 8) : "";
@@ -162,7 +206,16 @@ export class JobRunner extends EventEmitter {
     if (running.some((j) => j.out === out)) throw new JobError(`a job is already writing to ${out}`, 409);
     fs.mkdirSync(out, { recursive: true });
 
-    const job: Job = { id: crypto.randomBytes(6).toString("hex"), input, out, state: "running", stage: "start", message: "starting", pct: 0, started: Date.now() };
+    const job: Job = {
+      id: crypto.randomBytes(6).toString("hex"),
+      input,
+      out,
+      state: "running",
+      stage: "start",
+      message: "starting",
+      pct: 0,
+      started: Date.now(),
+    };
     this.jobs.set(job.id, job);
     const args = [this.cli, input, "--out", out, "--json"];
     if (req.name) args.push("--name", req.name);
@@ -201,24 +254,38 @@ export class JobRunner extends EventEmitter {
     const j = this.jobs.get(id);
     if (!j || j.state !== "running" || ms <= 0) return Promise.resolve(j && { ...j });
     return new Promise((resolve) => {
-      const done = (u: Job) => { if (u.id === id && u.state !== "running") finish(); };
-      const finish = () => { clearTimeout(timer); this.off("update", done); resolve(this.get(id)); };
+      const done = (u: Job) => {
+        if (u.id === id && u.state !== "running") finish();
+      };
+      const finish = () => {
+        clearTimeout(timer);
+        this.off("update", done);
+        resolve(this.get(id));
+      };
       const timer = setTimeout(finish, ms);
       this.on("update", done);
     });
   }
 
   /** Stop every render, e.g. when the MCP client goes away. */
-  close() { for (const id of this.children.keys()) this.cancel(id); }
+  close() {
+    for (const id of this.children.keys()) this.cancel(id);
+  }
 
   private follow(job: Job, child: ChildProcess) {
-    let buf = "", errTail = "";
+    let buf = "",
+      errTail = "";
     child.stdout!.on("data", (d: Buffer) => {
       buf += d.toString();
       for (let i = buf.indexOf("\n"); i >= 0; i = buf.indexOf("\n")) {
-        const line = buf.slice(0, i); buf = buf.slice(i + 1);
+        const line = buf.slice(0, i);
+        buf = buf.slice(i + 1);
         let e: any;
-        try { e = JSON.parse(line); } catch { continue; }
+        try {
+          e = JSON.parse(line);
+        } catch {
+          continue;
+        }
         if (job.state !== "running") continue;
         if (e.type === "progress") Object.assign(job, { stage: e.stage, message: e.message, pct: e.pct ?? job.pct, usd: e.usd ?? job.usd });
         else if (e.type === "done") this.finish(job, e.manifest);
@@ -226,7 +293,9 @@ export class JobRunner extends EventEmitter {
         this.emit("update", { ...job });
       }
     });
-    child.stderr!.on("data", (d: Buffer) => { errTail = (errTail + d.toString()).slice(-2000); });
+    child.stderr!.on("data", (d: Buffer) => {
+      errTail = (errTail + d.toString()).slice(-2000);
+    });
     const end = (code: number | null, err?: Error) => {
       this.children.delete(job.id);
       if (job.state !== "running") return;
@@ -240,12 +309,26 @@ export class JobRunner extends EventEmitter {
 
   private finish(job: Job, m: any) {
     const o = m?.outputs ?? {};
-    const meta = Number(m?.cost?.metaUsd ?? 0), voice = Number(m?.cost?.voiceUsd ?? 0);
+    const meta = Number(m?.cost?.metaUsd ?? 0),
+      voice = Number(m?.cost?.voiceUsd ?? 0);
     Object.assign(job, {
-      state: "done", stage: "done", message: "done", pct: 100, finished: Date.now(),
-      title: m?.title, durationSec: m?.durationSec, approach: m?.brief?.approach, why: m?.brief?.why,
+      state: "done",
+      stage: "done",
+      message: "done",
+      pct: 100,
+      finished: Date.now(),
+      title: m?.title,
+      durationSec: m?.durationSec,
+      approach: m?.brief?.approach,
+      why: m?.brief?.why,
       usd: { meta, voice, total: Number((meta + voice).toFixed(4)) },
-      outputs: { mp4: o.mp4, tldr: o.tldr, excalidraw: o.excalidraw, contactSheet: o.contactSheet, manifest: path.join(job.out, "manifest.json") },
+      outputs: {
+        mp4: o.mp4,
+        tldr: o.tldr,
+        excalidraw: o.excalidraw,
+        contactSheet: o.contactSheet,
+        manifest: path.join(job.out, "manifest.json"),
+      },
     });
   }
 }

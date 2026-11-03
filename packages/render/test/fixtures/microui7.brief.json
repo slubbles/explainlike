@@ -1,12 +1,12 @@
 {
- "topic": "a tiny immediate-mode UI library in ANSI C that turns UI code re-run every frame plus input into rectangle and text draw commands",
- "complexity": "simple",
- "audience": "a C developer new to immediate-mode UI",
- "depth": "overview",
- "approach": "story",
- "analogy": "a short-order restaurant kitchen that forgets everything each loop and rebuilds the whole order from your shouts, then hands simple cook tickets for rectangles and text to whoever does the drawing",
- "why": "story with a kitchen analogy fits because the core flow is one frame's journey from input to draw commands, and overview depth fits a 1100-line tool where the big idea is the point",
- "look": "whiteboard-light",
- "style": "whiteboard",
- "extras": []
+  "topic": "a tiny immediate-mode UI library in ANSI C that turns UI code re-run every frame plus input into rectangle and text draw commands",
+  "complexity": "simple",
+  "audience": "a C developer new to immediate-mode UI",
+  "depth": "overview",
+  "approach": "story",
+  "analogy": "a short-order restaurant kitchen that forgets everything each loop and rebuilds the whole order from your shouts, then hands simple cook tickets for rectangles and text to whoever does the drawing",
+  "why": "story with a kitchen analogy fits because the core flow is one frame's journey from input to draw commands, and overview depth fits a 1100-line tool where the big idea is the point",
+  "look": "whiteboard-light",
+  "style": "whiteboard",
+  "extras": []
 }

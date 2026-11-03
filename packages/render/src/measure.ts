@@ -14,7 +14,9 @@ const loaded = new Map<HandFont, opentype.Font>();
 let current: HandFont = "excalifont";
 
 /** Pick the handwriting font every later measurement uses (set once per video). */
-export function useHandFont(f: HandFont) { current = f; }
+export function useHandFont(f: HandFont) {
+  current = f;
+}
 
 /** Width of text set in the current handwriting font at a given size, measured from the real font. */
 export function textWidth(text: string, size: number): number {

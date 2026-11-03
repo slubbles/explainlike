@@ -1,126 +1,113 @@
 {
- "title": "rxi/microui",
- "subtitle": "tiny interface redrawn every frame",
- "scenes": [
-  {
-   "id": "s01-hook",
-   "kind": "hook",
-   "heading": "the cafe board",
-   "narration": "What if the buttons forgot you between clicks? This tiny toolbox redraws the screen for you each frame. It acts like a cafe board that's wiped clean. Come follow one click with me.",
-   "add_components": [],
-   "add_connections": [],
-   "board_nodes": [],
-   "board_edges": [],
-   "highlights": [],
-   "callouts": [],
-   "items": []
-  },
-  {
-   "id": "s02-layer",
-   "kind": "layer",
-   "heading": "the cafe counter",
-   "narration": "You tap at the cafe counter. The demo app, the loop running it, feeds click inward and lists widgets again. Inside the ui context, the desk tracking state, holds hover and focus.",
-   "add_components": [
-    "demo-app",
-    "microui-ctx"
-   ],
-   "add_connections": [
-    "demo-app>microui-ctx"
-   ],
-   "board_nodes": [],
-   "board_edges": [],
-   "highlights": [],
-   "callouts": [],
-   "items": []
-  },
-  {
-   "id": "s03-layer",
-   "kind": "layer",
-   "heading": "the back wall",
-   "narration": "The back wall rewrites boxes for you. Your built in controls, the widget kit, rebuild buttons and return presses. That fixed memory, the notebook, stores notes without allocation.",
-   "add_components": [
-    "ui-controls",
-    "cmd-pool"
-   ],
-   "add_connections": [
-    "demo-app>ui-controls",
-    "ui-controls>microui-ctx",
-    "ui-controls>cmd-pool",
-    "ui-controls>demo-app",
-    "cmd-pool>demo-app"
-   ],
-   "board_nodes": [],
-   "board_edges": [],
-   "highlights": [],
-   "callouts": [],
-   "items": []
-  },
-  {
-   "id": "s04-layer",
-   "kind": "layer",
-   "heading": "the front window",
-   "narration": "Pixels appear at the front window for you. The host renderer, the screen painter you supply, paints queued rectangles and text.",
-   "add_components": [
-    "host-renderer"
-   ],
-   "add_connections": [
-    "demo-app>host-renderer",
-    "host-renderer>demo-app"
-   ],
-   "board_nodes": [],
-   "board_edges": [],
-   "highlights": [],
-   "callouts": [],
-   "items": []
-  },
-  {
-   "id": "s05-walkthrough",
-   "kind": "walkthrough",
-   "heading": "the lunch rush",
-   "narration": "During the lunch rush you click the OK box. The demo app feeds the input as a pressed mouse. Next the ui context with built in controls declares the widgets as one OK button. It queues the draws in fixed memory as gray box plus text and reports the press as true, then sends the queue onward. The host renderer draws the rects as pixels and shows the frame with lit OK.",
-   "add_components": [],
-   "add_connections": [],
-   "board_nodes": [],
-   "board_edges": [],
-   "highlights": [],
-   "callouts": [],
-   "items": []
-  },
-  {
-   "id": "s06-recap",
-   "kind": "recap",
-   "heading": "the whole trip",
-   "narration": "That whole trip moves your click from demo app through ui context and built in controls into fixed memory to host renderer as lit OK. Forgetting each frame keeps your buttons tiny and fresh.",
-   "add_components": [],
-   "add_connections": [],
-   "board_nodes": [],
-   "board_edges": [],
-   "highlights": [],
-   "callouts": [],
-   "items": []
-  }
- ],
- "repairs": [],
- "check": {
-  "first": [
-   "the core flow starts 58% of the way in; it should start before the halfway mark",
-   "s05-walkthrough: the heading \"follow one click\" is spoken as if it were a part; name the actual part or say it in plain words",
-   "\"clerk\" (s05-walkthrough) is used without a plain-words explanation; explain it in the same sentence or drop it",
-   "\"writer\" (s05-walkthrough) is used without a plain-words explanation; explain it in the same sentence or drop it",
-   "\"hand\" (s05-walkthrough) is used without a plain-words explanation; explain it in the same sentence or drop it",
-   "\"checker\" (s05-walkthrough) is used without a plain-words explanation; explain it in the same sentence or drop it",
-   "\"aide\" (s05-walkthrough) is used without a plain-words explanation; explain it in the same sentence or drop it",
-   "\"painter\" (s05-walkthrough) is used without a plain-words explanation; explain it in the same sentence or drop it",
-   "\"glass\" (s05-walkthrough) is used without a plain-words explanation; explain it in the same sentence or drop it",
-   "a newcomer could not retell the flow: s05 replaces demo app / ui context / built in controls / fixed memory / host renderer with clerk / writer / hand / checker / aide / painter / glass without mapping them, so the handoffs from click to pixels cannot be retold in order."
+  "title": "rxi/microui",
+  "subtitle": "tiny interface redrawn every frame",
+  "scenes": [
+    {
+      "id": "s01-hook",
+      "kind": "hook",
+      "heading": "the cafe board",
+      "narration": "What if the buttons forgot you between clicks? This tiny toolbox redraws the screen for you each frame. It acts like a cafe board that's wiped clean. Come follow one click with me.",
+      "add_components": [],
+      "add_connections": [],
+      "board_nodes": [],
+      "board_edges": [],
+      "highlights": [],
+      "callouts": [],
+      "items": []
+    },
+    {
+      "id": "s02-layer",
+      "kind": "layer",
+      "heading": "the cafe counter",
+      "narration": "You tap at the cafe counter. The demo app, the loop running it, feeds click inward and lists widgets again. Inside the ui context, the desk tracking state, holds hover and focus.",
+      "add_components": ["demo-app", "microui-ctx"],
+      "add_connections": ["demo-app>microui-ctx"],
+      "board_nodes": [],
+      "board_edges": [],
+      "highlights": [],
+      "callouts": [],
+      "items": []
+    },
+    {
+      "id": "s03-layer",
+      "kind": "layer",
+      "heading": "the back wall",
+      "narration": "The back wall rewrites boxes for you. Your built in controls, the widget kit, rebuild buttons and return presses. That fixed memory, the notebook, stores notes without allocation.",
+      "add_components": ["ui-controls", "cmd-pool"],
+      "add_connections": [
+        "demo-app>ui-controls",
+        "ui-controls>microui-ctx",
+        "ui-controls>cmd-pool",
+        "ui-controls>demo-app",
+        "cmd-pool>demo-app"
+      ],
+      "board_nodes": [],
+      "board_edges": [],
+      "highlights": [],
+      "callouts": [],
+      "items": []
+    },
+    {
+      "id": "s04-layer",
+      "kind": "layer",
+      "heading": "the front window",
+      "narration": "Pixels appear at the front window for you. The host renderer, the screen painter you supply, paints queued rectangles and text.",
+      "add_components": ["host-renderer"],
+      "add_connections": ["demo-app>host-renderer", "host-renderer>demo-app"],
+      "board_nodes": [],
+      "board_edges": [],
+      "highlights": [],
+      "callouts": [],
+      "items": []
+    },
+    {
+      "id": "s05-walkthrough",
+      "kind": "walkthrough",
+      "heading": "the lunch rush",
+      "narration": "During the lunch rush you click the OK box. The demo app feeds the input as a pressed mouse. Next the ui context with built in controls declares the widgets as one OK button. It queues the draws in fixed memory as gray box plus text and reports the press as true, then sends the queue onward. The host renderer draws the rects as pixels and shows the frame with lit OK.",
+      "add_components": [],
+      "add_connections": [],
+      "board_nodes": [],
+      "board_edges": [],
+      "highlights": [],
+      "callouts": [],
+      "items": []
+    },
+    {
+      "id": "s06-recap",
+      "kind": "recap",
+      "heading": "the whole trip",
+      "narration": "That whole trip moves your click from demo app through ui context and built in controls into fixed memory to host renderer as lit OK. Forgetting each frame keeps your buttons tiny and fresh.",
+      "add_components": [],
+      "add_connections": [],
+      "board_nodes": [],
+      "board_edges": [],
+      "highlights": [],
+      "callouts": [],
+      "items": []
+    }
   ],
-  "final": [],
-  "revised": true
- },
- "renames": [],
- "polish": {
-  "rewritten": 6,
-  "kept": [],
-  "issues": []
- }
+  "repairs": [],
+  "check": {
+    "first": [
+      "the core flow starts 58% of the way in; it should start before the halfway mark",
+      "s05-walkthrough: the heading \"follow one click\" is spoken as if it were a part; name the actual part or say it in plain words",
+      "\"clerk\" (s05-walkthrough) is used without a plain-words explanation; explain it in the same sentence or drop it",
+      "\"writer\" (s05-walkthrough) is used without a plain-words explanation; explain it in the same sentence or drop it",
+      "\"hand\" (s05-walkthrough) is used without a plain-words explanation; explain it in the same sentence or drop it",
+      "\"checker\" (s05-walkthrough) is used without a plain-words explanation; explain it in the same sentence or drop it",
+      "\"aide\" (s05-walkthrough) is used without a plain-words explanation; explain it in the same sentence or drop it",
+      "\"painter\" (s05-walkthrough) is used without a plain-words explanation; explain it in the same sentence or drop it",
+      "\"glass\" (s05-walkthrough) is used without a plain-words explanation; explain it in the same sentence or drop it",
+      "a newcomer could not retell the flow: s05 replaces demo app / ui context / built in controls / fixed memory / host renderer with clerk / writer / hand / checker / aide / painter / glass without mapping them, so the handoffs from click to pixels cannot be retold in order."
+    ],
+    "final": [],
+    "revised": true
+  },
+  "renames": [],
+  "polish": {
+    "rewritten": 6,
+    "kept": [],
+    "issues": []
+  }
 }

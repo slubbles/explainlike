@@ -2,63 +2,161 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import { getTheme, specFromBrief, DEFAULT_BRIEF, walkCues, type Brief } from "@explanimate/core";
-import { compose, loadIconPack, checkPlacement, placementPass, textWidth, cameraAt, readableWidth, shotStarts, EDGE_PX, type Film, type FText, type Mark, type Sketch } from "../src/index.js";
+import {
+  compose,
+  loadIconPack,
+  checkPlacement,
+  placementPass,
+  textWidth,
+  cameraAt,
+  readableWidth,
+  shotStarts,
+  EDGE_PX,
+  type Film,
+  type FText,
+  type Mark,
+  type Sketch,
+} from "../src/index.js";
 
 const fx = new URL("./fixtures/", import.meta.url);
 const plan = JSON.parse(fs.readFileSync(new URL("clipfeed.plan.json", fx), "utf8"));
 const arch = JSON.parse(fs.readFileSync(new URL("clipfeed.architecture.json", fx), "utf8"));
 const audio = plan.scenes.map((s: any) => {
   const ws = s.narration.split(/\s+/);
-  return { sceneId: s.id, duration: ws.length * 0.38, words: ws.map((w: string, i: number) => ({ word: w, start: i * 0.38, end: i * 0.38 + 0.3 })) };
+  return {
+    sceneId: s.id,
+    duration: ws.length * 0.38,
+    words: ws.map((w: string, i: number) => ({ word: w, start: i * 0.38, end: i * 0.38 + 0.3 })),
+  };
 });
 
 test("every tempo: every ring, arrow and label passes the placement check before render", async () => {
   for (const complexity of ["simple", "moderate", "technical"] as Brief["complexity"][]) {
-    const r = await compose({ plan, audio, theme: getTheme("chalk-dark"), spec: specFromBrief({ ...DEFAULT_BRIEF, complexity }), pack: loadIconPack(), sourceLabel: "x", arch });
+    const r = await compose({
+      plan,
+      audio,
+      theme: getTheme("chalk-dark"),
+      spec: specFromBrief({ ...DEFAULT_BRIEF, complexity }),
+      pack: loadIconPack(),
+      sourceLabel: "x",
+      arch,
+    });
     assert.deepEqual([r.placement.issues, r.placement.warnings], [[], []], complexity);
     assert.ok(r.placement.ok);
     // the check really looked: rings, arrows, wires, labels and the frame
-    for (const rule of ["ring-pad", "ring-centre", "ring-crosses", "label-overlap", "arrow-touch", "cropped", "text-small"]) assert.ok((r.placement.checked[rule] ?? 0) > 0, `${complexity}: nothing checked for ${rule}`);
+    for (const rule of ["ring-pad", "ring-centre", "ring-crosses", "label-overlap", "arrow-touch", "cropped", "text-small"])
+      assert.ok((r.placement.checked[rule] ?? 0) > 0, `${complexity}: nothing checked for ${rule}`);
     assert.deepEqual(checkPlacement(r), [], `${complexity}: a fresh check after the fixes still finds problems`);
   }
 });
 
 // a tiny hand-made board, one fault at a time
 const film = (elements: FText[], cam = { x: 0, y: 0, w: 1920, h: 1080 }, groups: Film["groups"] = {}): Film => ({
-  width: 1920, height: 1080, fps: 30, duration: 10, elements, groups, headings: [], captions: [], fades: [], brand: "",
+  width: 1920,
+  height: 1080,
+  fps: 30,
+  duration: 10,
+  elements,
+  groups,
+  headings: [],
+  captions: [],
+  fades: [],
+  brand: "",
   camera: [{ t: 0, ...cam, move: 0 }],
-  theme: { background: "#000", ink: "#fff", accent: "#f00", caption: { color: "#fff", highlight: "#ff0", background: "#000" } }, fonts: { hand: "", sans: "" },
+  theme: { background: "#000", ink: "#fff", accent: "#f00", caption: { color: "#fff", highlight: "#ff0", background: "#000" } },
+  fonts: { hand: "", sans: "" },
 });
 const sketch = (nodes: Sketch["nodes"] = []): Sketch => ({ nodes, edges: [], ellipses: [], polygons: [], texts: [], images: [] });
-const text = (s: string, x: number, y: number, size = 40): FText => ({ k: "text", id: s, text: s, x, y, size, color: "#fff", t0: 0.5, dur: 0.5 });
+const text = (s: string, x: number, y: number, size = 40): FText => ({
+  k: "text",
+  id: s,
+  text: s,
+  x,
+  y,
+  size,
+  color: "#fff",
+  t0: 0.5,
+  dur: 0.5,
+});
 const box = { x: 400, y: 400, w: 300, h: 200 };
 const rules = (marks: Mark[], els: FText[] = [], nodes: Sketch["nodes"] = [], cam?: { x: number; y: number; w: number; h: number }) =>
   checkPlacement({ film: film(els, cam), sketch: sketch(nodes), marks }).map((i) => i.rule);
 
 test("a ring that hugs its box, sits off centre or runs through a word is caught", () => {
-  assert.deepEqual(rules([{ kind: "ring", t0: 1, dur: 0.5, shape: { k: "rect", box: { x: 390, y: 390, w: 320, h: 220 } }, target: box }]), []);
-  assert.deepEqual(rules([{ kind: "ring", t0: 1, dur: 0.5, shape: { k: "rect", box: { x: 400, y: 400, w: 300, h: 200 } }, target: box }]), ["ring-pad"]);
-  assert.ok(rules([{ kind: "ring", t0: 1, dur: 0.5, shape: { k: "circle", cx: 580, cy: 500, r: 260 }, target: box }]).includes("ring-centre"));
-  assert.deepEqual(rules([{ kind: "ring", t0: 1, dur: 0.5, shape: { k: "rect", box: { x: 390, y: 390, w: 320, h: 220 } }, target: box }], [text("crossed", 300, 400)]), ["ring-crosses"]);
+  assert.deepEqual(
+    rules([{ kind: "ring", t0: 1, dur: 0.5, shape: { k: "rect", box: { x: 390, y: 390, w: 320, h: 220 } }, target: box }]),
+    [],
+  );
+  assert.deepEqual(rules([{ kind: "ring", t0: 1, dur: 0.5, shape: { k: "rect", box: { x: 400, y: 400, w: 300, h: 200 } }, target: box }]), [
+    "ring-pad",
+  ]);
+  assert.ok(
+    rules([{ kind: "ring", t0: 1, dur: 0.5, shape: { k: "circle", cx: 580, cy: 500, r: 260 }, target: box }]).includes("ring-centre"),
+  );
+  assert.deepEqual(
+    rules(
+      [{ kind: "ring", t0: 1, dur: 0.5, shape: { k: "rect", box: { x: 390, y: 390, w: 320, h: 220 } }, target: box }],
+      [text("crossed", 300, 400)],
+    ),
+    ["ring-crosses"],
+  );
 });
 
 test("labels on a line or an arrow, and arrows short of what they join, are caught", () => {
-  const wire: Mark = { kind: "wire", t0: 0, dur: 0.5, points: [[100, 300], [900, 300]] };
+  const wire: Mark = {
+    kind: "wire",
+    t0: 0,
+    dur: 0.5,
+    points: [
+      [100, 300],
+      [900, 300],
+    ],
+  };
   assert.deepEqual(rules([wire], [text("on the line", 300, 315)]), ["label-overlap"]);
   assert.deepEqual(rules([wire], [text("clear of it", 300, 260)]), []);
   const arrow = (gap: number): Mark => {
-    const x0 = 700 + gap, tip = 1000;
-    return { kind: "arrow", t0: 1, dur: 0.5, points: [[tip, 500], [tip - 60, 450], [tip - 60, 480], [x0, 480], [x0, 520], [tip - 60, 520], [tip - 60, 550]], fromBox: { x: 400, y: 400, w: 300, h: 200 }, toBox: { x: 1006, y: 400, w: 200, h: 200 } };
+    const x0 = 700 + gap,
+      tip = 1000;
+    return {
+      kind: "arrow",
+      t0: 1,
+      dur: 0.5,
+      points: [
+        [tip, 500],
+        [tip - 60, 450],
+        [tip - 60, 480],
+        [x0, 480],
+        [x0, 520],
+        [tip - 60, 520],
+        [tip - 60, 550],
+      ],
+      fromBox: { x: 400, y: 400, w: 300, h: 200 },
+      toBox: { x: 1006, y: 400, w: 200, h: 200 },
+    };
   };
-  assert.deepEqual(rules([{ ...arrow(4), line: false } as Mark].map((m) => ({ ...m, fromBox: undefined, fromShape: { k: "rect", box: { x: 400, y: 400, w: 304, h: 200 } } }) as Mark)), []);
-  assert.deepEqual(rules([{ ...arrow(60), fromBox: undefined, fromShape: { k: "rect", box: { x: 400, y: 400, w: 300, h: 200 } } } as Mark]), ["arrow-touch"]);
+  assert.deepEqual(
+    rules(
+      [{ ...arrow(4), line: false } as Mark].map(
+        (m) => ({ ...m, fromBox: undefined, fromShape: { k: "rect", box: { x: 400, y: 400, w: 304, h: 200 } } }) as Mark,
+      ),
+    ),
+    [],
+  );
+  assert.deepEqual(
+    rules([{ ...arrow(60), fromBox: undefined, fromShape: { k: "rect", box: { x: 400, y: 400, w: 300, h: 200 } } } as Mark]),
+    ["arrow-touch"],
+  );
 });
 
 test("words cut off by the frame or too small to read are caught, and the fix passes mend what they can", () => {
   assert.deepEqual(rules([], [text("half out", 1850, 500)]), ["cropped"]);
   assert.deepEqual(rules([], [text("tiny", 500, 500, 20)], [], { x: 0, y: 0, w: 3840, h: 2160 }), ["text-small"]);
   // a free label too small in a wide shot is enlarged; a label off the edge widens the shot
-  const p = { film: film([text("tiny", 500, 500, 20), text("half out", 1850, 500)], { x: 0, y: 0, w: 3840, h: 2160 }), sketch: sketch(), marks: [] as Mark[] };
+  const p = {
+    film: film([text("tiny", 500, 500, 20), text("half out", 1850, 500)], { x: 0, y: 0, w: 3840, h: 2160 }),
+    sketch: sketch(),
+    marks: [] as Mark[],
+  };
   p.film.elements[1] = { ...(p.film.elements[1] as FText), x: 3790 };
   const rep = placementPass(p);
   assert.ok(rep.ok, JSON.stringify(rep.issues));
@@ -68,15 +166,32 @@ test("words cut off by the frame or too small to read are caught, and the fix pa
 // a box with its name written in it (so the name cannot be enlarged), and a line arrow joining two spots
 const named = (cam: { x: number; y: number; w: number; h: number }, size = 34) => {
   const f = film([{ ...text("background queue", 550, 560, size), anchor: "middle", t0: 0, dur: 0.5 }], cam);
-  return { f, nodes: [{ id: "q", box: { x: 400, y: 400, w: 300, h: 200 }, color: "#fff", keyword: "background queue", t0: 0 }] as Sketch["nodes"] };
+  return {
+    f,
+    nodes: [{ id: "q", box: { x: 400, y: 400, w: 300, h: 200 }, color: "#fff", keyword: "background queue", t0: 0 }] as Sketch["nodes"],
+  };
 };
-const line = (x0: number, x1: number, t0 = 2): Mark => ({ kind: "arrow", t0, dur: 0.5, line: true, points: [[x0, 1000], [x1, 1000]], fromBox: { x: x0 - 200, y: 950, w: 200, h: 100 }, toBox: { x: x1, y: 950, w: 200, h: 100 } });
+const line = (x0: number, x1: number, t0 = 2): Mark => ({
+  kind: "arrow",
+  t0,
+  dur: 0.5,
+  line: true,
+  points: [
+    [x0, 1000],
+    [x1, 1000],
+  ],
+  fromBox: { x: x0 - 200, y: 950, w: 200, h: 100 },
+  toBox: { x: x1, y: 950, w: 200, h: 100 },
+});
 
 test("an arrow past the frame edge is panned into view, not fixed by widening until the box names are too small", () => {
   // widening to take the arrow in would drop the box name under 17 px; sliding the shot keeps it at full size
   const { f, nodes } = named({ x: 0, y: 0, w: 3800, h: 2137.5 });
   const p = { film: f, sketch: sketch(nodes), marks: [line(3500, 3820)] };
-  assert.deepEqual(checkPlacement(p).map((i) => i.rule), ["cropped"]);
+  assert.deepEqual(
+    checkPlacement(p).map((i) => i.rule),
+    ["cropped"],
+  );
   const rep = placementPass(p);
   assert.ok(rep.ok);
   assert.deepEqual([rep.issues, rep.warnings], [[], []]);
@@ -90,18 +205,35 @@ test("a board arrow whose source box is out of shot is caught, and the fix bring
     { id: "a", box: { x: -440, y: 400, w: 400, h: 200 }, color: "#fff", keyword: "a", t0: 0 },
     { id: "b", box: { x: 800, y: 400, w: 400, h: 200 }, color: "#fff", keyword: "b", t0: 0 },
   ];
-  const wire = (g: string): Mark => ({ kind: "wire", t0: 1, dur: 0.5, g, from: "a", to: "b", points: [[-40, 500], [800, 500]] });
+  const wire = (g: string): Mark => ({
+    kind: "wire",
+    t0: 1,
+    dur: 0.5,
+    g,
+    from: "a",
+    to: "b",
+    points: [
+      [-40, 500],
+      [800, 500],
+    ],
+  });
   // the out-of-shot part and its keyword are dimmed, the way compose dims context off screen
   const ownedA = { ...text("a", -240, 510), g: "n:a" };
   const dimGroups: Film["groups"] = { "n:a": [[0, 0.2]] };
   const p = { film: film([ownedA], { x: -60, y: 0, w: 1920, h: 1080 }, dimGroups), sketch: sketch(nodes), marks: [wire("b:s01-board")] };
-  assert.deepEqual(checkPlacement(p).map((i) => i.rule), ["cropped"]);
+  assert.deepEqual(
+    checkPlacement(p).map((i) => i.rule),
+    ["cropped"],
+  );
   assert.ok(placementPass(p).ok);
   assert.ok(cameraAt(p.film, 2).x <= -150, "a piece of the source box is in shot");
   // a system wire dimmed with the part out of shot may still lead off screen
   const dimmed = film([ownedA], { x: -60, y: 0, w: 1920, h: 1080 }, { ...dimGroups, "e:a>b": [[0, 0.2]] });
   const dim = { film: dimmed, sketch: sketch(nodes), marks: [wire("e:a>b")] };
-  assert.deepEqual(checkPlacement(dim).map((i) => i.rule), []);
+  assert.deepEqual(
+    checkPlacement(dim).map((i) => i.rule),
+    [],
+  );
 });
 
 test("a lit node box and a lit wire sliced by a closeup are caught, and the fix takes them in", () => {
@@ -111,11 +243,27 @@ test("a lit node box and a lit wire sliced by a closeup are caught, and the fix 
     { id: "regex", box: { x: 400, y: 400, w: 300, h: 200 }, color: "#fff", keyword: "regex", t0: 0 },
     { id: "counts", box: { x: 900, y: 400, w: 300, h: 200 }, color: "#fff", keyword: "counts", t0: 0 },
   ];
-  const marks: Mark[] = [{ kind: "wire", t0: 1, dur: 0.5, g: "e:regex>counts", from: "regex", to: "counts", points: [[400, 500], [900, 500]] }];
+  const marks: Mark[] = [
+    {
+      kind: "wire",
+      t0: 1,
+      dur: 0.5,
+      g: "e:regex>counts",
+      from: "regex",
+      to: "counts",
+      points: [
+        [400, 500],
+        [900, 500],
+      ],
+    },
+  ];
   const wide = film([], { x: 0, y: 0, w: 1920, h: 1080 });
   wide.camera.push({ t: 4, x: 560, y: 0, w: 1920, h: 1080, move: 0.5 });
   const p = { film: wide, sketch: sketch(nodes), marks };
-  assert.deepEqual(checkPlacement(p).map((i) => i.rule), ["cropped", "cropped"]);
+  assert.deepEqual(
+    checkPlacement(p).map((i) => i.rule),
+    ["cropped", "cropped"],
+  );
   const rep = placementPass(p);
   assert.ok(rep.ok, JSON.stringify(rep.issues));
   assert.deepEqual(checkPlacement(p), []);
@@ -145,7 +293,10 @@ test("a slow pan that drags a lit word half off the frame is caught and fixed, t
   };
   const p = mk(1.66);
   const found = checkPlacement(p);
-  assert.deepEqual(found.map((i) => i.rule), ["cropped"]);
+  assert.deepEqual(
+    found.map((i) => i.rule),
+    ["cropped"],
+  );
   assert.match(found[0].what, /while the camera moves/);
   const rep = placementPass(p);
   assert.ok(rep.ok);
@@ -169,11 +320,17 @@ test("text just under the minimum is a warning that does not stop the video; tex
   const ok = placementPass({ film: slip.f, sketch: sketch(slip.nodes), marks: [] });
   assert.ok(ok.ok);
   assert.deepEqual(ok.issues, []);
-  assert.deepEqual(ok.warnings.map((w) => w.rule), ["text-small"]);
+  assert.deepEqual(
+    ok.warnings.map((w) => w.rule),
+    ["text-small"],
+  );
   const broken = named({ x: 0, y: 0, w: 1920 * 4, h: 1080 * 4 });
   const bad = placementPass({ film: broken.f, sketch: sketch(broken.nodes), marks: [] });
   assert.equal(bad.ok, false);
-  assert.deepEqual(bad.issues.map((w) => w.rule), ["text-small"]);
+  assert.deepEqual(
+    bad.issues.map((w) => w.rule),
+    ["text-small"],
+  );
 });
 
 test("an arrow too long for any readable shot falls back to a wider one and the video goes on, with warnings", () => {
@@ -191,14 +348,34 @@ test("widening a shot to reach one word never slices another lit word at the fra
   // widened the walk's shot through "built in controls"
   const mplan = JSON.parse(fs.readFileSync(new URL("microui.plan.json", fx), "utf8"));
   const march = JSON.parse(fs.readFileSync(new URL("microui.architecture.json", fx), "utf8"));
-  const secs: Record<string, number> = { "s01-hook": 10.64, "s02-layer": 11.2, "s03-layer": 11.96, "s04-layer": 7.96, "s05-walkthrough": 21.28, "s06-recap": 10.32 };
+  const secs: Record<string, number> = {
+    "s01-hook": 10.64,
+    "s02-layer": 11.2,
+    "s03-layer": 11.96,
+    "s04-layer": 7.96,
+    "s05-walkthrough": 21.28,
+    "s06-recap": 10.32,
+  };
   const maudio = mplan.scenes.map((s: any) => {
-    const ws = s.narration.split(/\s+/), st = secs[s.id] / ws.length;
-    return { sceneId: s.id, duration: secs[s.id], words: ws.map((w: string, i: number) => ({ word: w, start: i * st, end: i * st + st * 0.8 })) };
+    const ws = s.narration.split(/\s+/),
+      st = secs[s.id] / ws.length;
+    return {
+      sceneId: s.id,
+      duration: secs[s.id],
+      words: ws.map((w: string, i: number) => ({ word: w, start: i * st, end: i * st + st * 0.8 })),
+    };
   });
   const brief: Brief = JSON.parse(fs.readFileSync(new URL("microui.brief.json", fx), "utf8"));
   const spec = specFromBrief(brief);
-  const { film } = await compose({ plan: mplan, audio: maudio, theme: getTheme(spec.look), spec, pack: loadIconPack(), sourceLabel: "x", arch: march });
+  const { film } = await compose({
+    plan: mplan,
+    audio: maudio,
+    theme: getTheme(spec.look),
+    spec,
+    pack: loadIconPack(),
+    sourceLabel: "x",
+    arch: march,
+  });
   const op = (g: string | undefined, t: number) => {
     const k = g ? film.groups[g] : undefined;
     if (!k?.length) return 1;
@@ -212,8 +389,11 @@ test("widening a shot to reach one word never slices another lit word at the fra
     if (r >= end) continue;
     for (const e of film.elements) {
       if (e.k !== "text" || e.t0 + e.dur > r || op(e.g, r) < 0.6 || (e as FText).size < 20) continue;
-      const t = e as FText, w = textWidth(t.text, t.size), x = t.anchor === "middle" ? t.x - w / 2 : t.anchor === "end" ? t.x - w : t.x;
-      const inside = x >= k.x && x + w <= k.x + k.w, outside = x + w <= k.x || x >= k.x + k.w;
+      const t = e as FText,
+        w = textWidth(t.text, t.size),
+        x = t.anchor === "middle" ? t.x - w / 2 : t.anchor === "end" ? t.x - w : t.x;
+      const inside = x >= k.x && x + w <= k.x + k.w,
+        outside = x + w <= k.x || x >= k.x + k.w;
       assert.ok(inside || outside, `"${t.text}" sliced by the shot at ${k.t.toFixed(1)}s`);
     }
   }
@@ -223,20 +403,45 @@ test("the walkthrough follows the walk up close instead of showing the whole boa
   // rxi/microui (run microui7): the last step runs back across the whole board, and that one wide shot
   // used to pull the entire 19 s walk out to an unreadable full-board view
   const read = (n: string) => JSON.parse(fs.readFileSync(new URL(`microui7.${n}.json`, fx), "utf8"));
-  const mplan = read("plan"), march = read("architecture"), brief: Brief = read("brief");
-  const secs: Record<string, number> = { "s01-hook": 10.82, "s02-layer": 10.02, "s03-layer": 13.98, "s04-layer": 8.66, "s05-walkthrough": 19.42, "s06-recap": 14.74 };
+  const mplan = read("plan"),
+    march = read("architecture"),
+    brief: Brief = read("brief");
+  const secs: Record<string, number> = {
+    "s01-hook": 10.82,
+    "s02-layer": 10.02,
+    "s03-layer": 13.98,
+    "s04-layer": 8.66,
+    "s05-walkthrough": 19.42,
+    "s06-recap": 14.74,
+  };
   const maudio = mplan.scenes.map((s: any) => {
-    const ws = s.narration.split(/\s+/), st = (secs[s.id] - 1.2) / ws.length;
-    return { sceneId: s.id, duration: secs[s.id] - 1.2, words: ws.map((w: string, i: number) => ({ word: w, start: i * st, end: i * st + st * 0.8 })) };
+    const ws = s.narration.split(/\s+/),
+      st = (secs[s.id] - 1.2) / ws.length;
+    return {
+      sceneId: s.id,
+      duration: secs[s.id] - 1.2,
+      words: ws.map((w: string, i: number) => ({ word: w, start: i * st, end: i * st + st * 0.8 })),
+    };
   });
   const spec = specFromBrief(brief);
-  const { film, pace, timeline } = await compose({ plan: mplan, audio: maudio, theme: getTheme(spec.look), spec, pack: loadIconPack(), sourceLabel: "x", arch: march });
+  const { film, pace, timeline } = await compose({
+    plan: mplan,
+    audio: maudio,
+    theme: getTheme(spec.look),
+    spec,
+    pack: loadIconPack(),
+    sourceLabel: "x",
+    arch: march,
+  });
   const walk = timeline.find((s) => s.kind === "walkthrough")!;
   const RW = readableWidth(film);
   let close = 0;
   for (let t = walk.start + 0.05; t < walk.end; t += 0.1) if (cameraAt(film, t).w <= RW) close += 0.1;
   assert.ok(close / (walk.end - walk.start) >= 0.6, `readable for ${close.toFixed(1)} of ${(walk.end - walk.start).toFixed(1)} s`);
-  assert.ok(shotStarts(film).filter((t) => t > walk.start - 0.01 && t < walk.end).length >= 2, "the walk gets a shot per stretch of steps (adjacent closeups may merge when the check keeps a sliced subject whole)");
+  assert.ok(
+    shotStarts(film).filter((t) => t > walk.start - 0.01 && t < walk.end).length >= 2,
+    "the walk gets a shot per stretch of steps (adjacent closeups may merge when the check keeps a sliced subject whole)",
+  );
   assert.ok(pace.shortestHold >= 4 - 0.05, `no shot under 4 s: shortest hold ${pace.shortestHold}`);
   assert.ok(pace.cutsPerMin >= 6.5 && pace.cutsPerMin <= 9, `${pace.cutsPerMin} cuts a minute`);
 });
@@ -245,42 +450,93 @@ test("a long repo recap moves through the trip instead of holding one wide frame
   // rxi/microui (run microui8): a small five-part board sat on one frame for the last 30 s, the recipe
   // drawer scene and the whole 16 s recap, at 3.7 cuts a minute
   const read = (n: string) => JSON.parse(fs.readFileSync(new URL(`microui8.${n}.json`, fx), "utf8"));
-  const mplan = read("plan"), march = read("architecture"), brief: Brief = read("brief");
-  const secs: Record<string, number> = { "s01-hook": 15.82, "s02-layer": 10.78, "s03-layer": 12.3, "s04-walkthrough": 17.5, "s05-layer": 8.54, "s06-recap": 16.3 };
+  const mplan = read("plan"),
+    march = read("architecture"),
+    brief: Brief = read("brief");
+  const secs: Record<string, number> = {
+    "s01-hook": 15.82,
+    "s02-layer": 10.78,
+    "s03-layer": 12.3,
+    "s04-walkthrough": 17.5,
+    "s05-layer": 8.54,
+    "s06-recap": 16.3,
+  };
   const maudio = mplan.scenes.map((s: any) => {
-    const ws = s.narration.split(/\s+/), st = (secs[s.id] - 1.2) / ws.length;
-    return { sceneId: s.id, duration: secs[s.id] - 1.2, words: ws.map((w: string, i: number) => ({ word: w, start: i * st, end: i * st + st * 0.8 })) };
+    const ws = s.narration.split(/\s+/),
+      st = (secs[s.id] - 1.2) / ws.length;
+    return {
+      sceneId: s.id,
+      duration: secs[s.id] - 1.2,
+      words: ws.map((w: string, i: number) => ({ word: w, start: i * st, end: i * st + st * 0.8 })),
+    };
   });
   const spec = specFromBrief(brief);
-  const { film, pace, timeline } = await compose({ plan: mplan, audio: maudio, theme: getTheme(spec.look), spec, pack: loadIconPack(), sourceLabel: "x", arch: march });
-  const recap = timeline.find((s) => s.kind === "recap")!, layer = timeline.find((s) => s.id === "s05-layer")!;
+  const { film, pace, timeline } = await compose({
+    plan: mplan,
+    audio: maudio,
+    theme: getTheme(spec.look),
+    spec,
+    pack: loadIconPack(),
+    sourceLabel: "x",
+    arch: march,
+  });
+  const recap = timeline.find((s) => s.kind === "recap")!;
   const inRecap = shotStarts(film).filter((t) => t > recap.start - 0.01 && t < recap.end);
   assert.ok(inRecap.length >= 2, `recap shots at ${inRecap.join(", ")}`);
   assert.ok(pace.shortestHold >= 4 - 0.05, `no shot under 4 s: shortest hold ${pace.shortestHold}`);
   assert.ok(pace.cutsPerMin >= 5, `${pace.cutsPerMin} cuts a minute`);
   // the 15.8 s opening was one shot; it is now the hook line, a push-in on the title, and a pull back at a sentence end
-  const hook = timeline[0], inHook = shotStarts(film).filter((t) => t < hook.end - 0.01);
+  const hook = timeline[0],
+    inHook = shotStarts(film).filter((t) => t < hook.end - 0.01);
   assert.equal(inHook.length, 2, `hook shots at ${inHook.join(", ")}`);
-  const words = maudio[0].words, said = (t: number) => words.filter((w: any) => w.end + 0.3 <= t).pop();
+  const words = maudio[0].words,
+    said = (t: number) => words.filter((w: any) => w.end + 0.3 <= t).pop();
   assert.match(said(inHook[1])!.word, /[.!?]$/, `the pull back at ${inHook[1]} s comes after a full sentence`);
   const icons = film.elements.filter((e) => e.g === "hook" && e.k === "img");
-  assert.ok(icons.every((e) => e.t0 > inHook[1]), "the preview icons are drawn after the reveal starts, not off frame");
+  assert.ok(
+    icons.every((e) => e.t0 > inHook[1]),
+    "the preview icons are drawn after the reveal starts, not off frame",
+  );
 });
 
 test("each walkthrough step fires on the words that tell it, not on a recited label", async () => {
   // the clipfeed walk is told in plain sentences; every dot must leave when its step is said
-  const { film, timeline } = await compose({ plan, audio, theme: getTheme("chalk-dark"), spec: specFromBrief(DEFAULT_BRIEF), pack: loadIconPack(), sourceLabel: "x", arch });
+  const { film, timeline } = await compose({
+    plan,
+    audio,
+    theme: getTheme("chalk-dark"),
+    spec: specFromBrief(DEFAULT_BRIEF),
+    pack: loadIconPack(),
+    sourceLabel: "x",
+    arch,
+  });
   const walk = timeline.find((s) => s.kind === "walkthrough")!;
   const scene = plan.scenes.find((s: any) => s.kind === "walkthrough");
   const ws = audio.find((a: any) => a.sceneId === scene.id).words;
-  const cues = walkCues(ws.map((w: any) => w.word), arch);
-  assert.ok(cues.every((k) => k >= 0), `every step is told: ${cues}`);
-  const dots = film.elements.filter((e: any) => e.k === "dot" && e.g === "walk").map((e) => e.t0).sort((a, b) => a - b);
+  const cues = walkCues(
+    ws.map((w: any) => w.word),
+    arch,
+  );
+  assert.ok(
+    cues.every((k) => k >= 0),
+    `every step is told: ${cues}`,
+  );
+  const dots = film.elements
+    .filter((e: any) => e.k === "dot" && e.g === "walk")
+    .map((e) => e.t0)
+    .sort((a, b) => a - b);
   assert.equal(dots.length, arch.walkthrough.steps.length);
   // the said word's time in the film is the scene's voice start plus its offset; spacing may push a step back by under a second
   const lead = Math.min(...dots.slice(1).map((t, i) => t - ws[cues[i + 1]].start));
   assert.ok(lead >= walk.start - 0.01 && lead < walk.start + 1, `voice starts ${(lead - walk.start).toFixed(2)} s into the walk`);
-  dots.slice(1).forEach((t, i) => assert.ok(t - lead - ws[cues[i + 1]].start < 1.0, `step ${i + 2} at ${t.toFixed(2)}, said at ${(lead + ws[cues[i + 1]].start).toFixed(2)}`));
+  dots
+    .slice(1)
+    .forEach((t, i) =>
+      assert.ok(
+        t - lead - ws[cues[i + 1]].start < 1.0,
+        `step ${i + 2} at ${t.toFixed(2)}, said at ${(lead + ws[cues[i + 1]].start).toFixed(2)}`,
+      ),
+    );
   // the first dot leaves as the scene opens (the board never waits on an empty walk) and never after its step is said
   assert.ok(dots[0] <= lead + ws[cues[0]].start + 0.01 && dots[0] >= walk.start, `step 1 at ${dots[0].toFixed(2)}`);
 });
@@ -291,9 +547,20 @@ test("a wire spanning a wide board stays whole: later shots hold wide instead of
   const dnsPlan = JSON.parse(fs.readFileSync(new URL("dns-board.plan.json", fx), "utf8"));
   const dnsAudio = dnsPlan.scenes.map((s: any) => {
     const ws = s.narration.split(/\s+/);
-    return { sceneId: s.id, duration: ws.length * 0.38, words: ws.map((w: string, i: number) => ({ word: w, start: i * 0.38, end: i * 0.38 + 0.3 })) };
+    return {
+      sceneId: s.id,
+      duration: ws.length * 0.38,
+      words: ws.map((w: string, i: number) => ({ word: w, start: i * 0.38, end: i * 0.38 + 0.3 })),
+    };
   });
-  const r = await compose({ plan: dnsPlan, audio: dnsAudio, theme: getTheme("chalk-dark"), spec: specFromBrief({ ...DEFAULT_BRIEF }), pack: loadIconPack(), sourceLabel: "x" });
+  const r = await compose({
+    plan: dnsPlan,
+    audio: dnsAudio,
+    theme: getTheme("chalk-dark"),
+    spec: specFromBrief({ ...DEFAULT_BRIEF }),
+    pack: loadIconPack(),
+    sourceLabel: "x",
+  });
   assert.ok(r.placement.ok, JSON.stringify(r.placement.issues));
   assert.deepEqual(r.placement.issues, []);
 });
@@ -304,14 +571,20 @@ function edgeClear(film: Film, items: { box: { x: number; y: number; w: number; 
     const k = g ? film.groups[g] : undefined;
     if (!k?.length) return 1;
     if (t <= k[0][0]) return k[0][1];
-    for (let i = 1; i < k.length; i++) if (t < k[i][0]) { const [t0, v0] = k[i - 1], [t1, v1] = k[i]; return v0 + ((v1 - v0) * (t - t0)) / Math.max(1e-6, t1 - t0); }
+    for (let i = 1; i < k.length; i++)
+      if (t < k[i][0]) {
+        const [t0, v0] = k[i - 1],
+          [t1, v1] = k[i];
+        return v0 + ((v1 - v0) * (t - t0)) / Math.max(1e-6, t1 - t0);
+      }
     return k[k.length - 1][1];
   };
   const end = film.end?.t0 ?? film.duration;
   for (const k of film.camera) {
     const r = k.t + k.move + 0.01;
     if (r >= end) continue;
-    const c = cameraAt(film, r), s = film.width / c.w;
+    const c = cameraAt(film, r),
+      s = film.width / c.w;
     for (const it of items) {
       if ((it.t0 ?? 0) > r || op(it.g, r) < 0.6) continue;
       const b = it.box;
@@ -333,7 +606,10 @@ test("a box touching the frame edge is caught even when no edge cuts through it,
   wide.camera.push({ t: 4, x: 400, y: 0, w: 1920, h: 1080, move: 0.5 });
   const p = { film: wide, sketch: sketch(nodes), marks: [] as Mark[] };
   const found = checkPlacement(p);
-  assert.ok(found.some((i) => i.rule === "cropped" && /frame edge/.test(i.what)), `touching the edge passes: ${JSON.stringify(found)}`);
+  assert.ok(
+    found.some((i) => i.rule === "cropped" && /frame edge/.test(i.what)),
+    `touching the edge passes: ${JSON.stringify(found)}`,
+  );
   const rep = placementPass(p);
   assert.ok(rep.ok, JSON.stringify(rep.issues));
   assert.deepEqual(checkPlacement(p), []);
@@ -342,42 +618,98 @@ test("a box touching the frame edge is caught even when no edge cuts through it,
 
 test("every fixture and tempo: every lit box sits a margin inside the frame or fully outside it, at every settled shot", async () => {
   // the guarantee, measured directly on finished films across board layouts and pacing, not only via the check
-  const voiced = (p: any, scale = 0.38) => p.scenes.map((s: any) => {
-    const ws = s.narration.split(/\s+/);
-    return { sceneId: s.id, duration: ws.length * scale, words: ws.map((w: string, i: number) => ({ word: w, start: i * scale, end: i * scale + scale * 0.8 })) };
-  });
+  const voiced = (p: any, scale = 0.38) =>
+    p.scenes.map((s: any) => {
+      const ws = s.narration.split(/\s+/);
+      return {
+        sceneId: s.id,
+        duration: ws.length * scale,
+        words: ws.map((w: string, i: number) => ({ word: w, start: i * scale, end: i * scale + scale * 0.8 })),
+      };
+    });
   const read = (n: string, ext: string) => JSON.parse(fs.readFileSync(new URL(`${n}.${ext}.json`, fx), "utf8"));
   const cases: { name: string; plan: any; arch?: any; audio: any; theme: any; spec: any }[] = [];
   for (const complexity of ["simple", "moderate", "technical"] as Brief["complexity"][]) {
-    cases.push({ name: `clipfeed/${complexity}`, plan, arch, audio, theme: getTheme("chalk-dark"), spec: specFromBrief({ ...DEFAULT_BRIEF, complexity }) });
+    cases.push({
+      name: `clipfeed/${complexity}`,
+      plan,
+      arch,
+      audio,
+      theme: getTheme("chalk-dark"),
+      spec: specFromBrief({ ...DEFAULT_BRIEF, complexity }),
+    });
   }
   for (const n of ["microui", "nanochat"]) {
     const p = read(n, "plan");
-    cases.push({ name: n, plan: p, arch: read(n, "architecture"), audio: voiced(p), theme: getTheme("chalk-dark"), spec: specFromBrief(DEFAULT_BRIEF) });
+    cases.push({
+      name: n,
+      plan: p,
+      arch: read(n, "architecture"),
+      audio: voiced(p),
+      theme: getTheme("chalk-dark"),
+      spec: specFromBrief(DEFAULT_BRIEF),
+    });
   }
   for (const n of ["microui7", "microui8"]) {
-    const p = read(n, "plan"), brief = read(n, "brief");
-    const secs: Record<string, number> = n === "microui7"
-      ? { "s01-hook": 10.82, "s02-layer": 10.02, "s03-layer": 13.98, "s04-layer": 8.66, "s05-walkthrough": 19.42, "s06-recap": 14.74 }
-      : { "s01-hook": 15.82, "s02-layer": 10.78, "s03-layer": 12.3, "s04-walkthrough": 17.5, "s05-layer": 8.54, "s06-recap": 16.3 };
+    const p = read(n, "plan"),
+      brief = read(n, "brief");
+    const secs: Record<string, number> =
+      n === "microui7"
+        ? { "s01-hook": 10.82, "s02-layer": 10.02, "s03-layer": 13.98, "s04-layer": 8.66, "s05-walkthrough": 19.42, "s06-recap": 14.74 }
+        : { "s01-hook": 15.82, "s02-layer": 10.78, "s03-layer": 12.3, "s04-walkthrough": 17.5, "s05-layer": 8.54, "s06-recap": 16.3 };
     const au = p.scenes.map((s: any) => {
-      const ws = s.narration.split(/\s+/), st = (secs[s.id] - 1.2) / ws.length;
-      return { sceneId: s.id, duration: secs[s.id] - 1.2, words: ws.map((w: string, i: number) => ({ word: w, start: i * st, end: i * st + st * 0.8 })) };
+      const ws = s.narration.split(/\s+/),
+        st = (secs[s.id] - 1.2) / ws.length;
+      return {
+        sceneId: s.id,
+        duration: secs[s.id] - 1.2,
+        words: ws.map((w: string, i: number) => ({ word: w, start: i * st, end: i * st + st * 0.8 })),
+      };
     });
-    cases.push({ name: n, plan: p, arch: read(n, "architecture"), audio: au, theme: getTheme(specFromBrief(brief).look), spec: specFromBrief(brief) });
+    cases.push({
+      name: n,
+      plan: p,
+      arch: read(n, "architecture"),
+      audio: au,
+      theme: getTheme(specFromBrief(brief).look),
+      spec: specFromBrief(brief),
+    });
   }
   const dns = read("dns-board", "plan");
-  cases.push({ name: "dns-board", plan: dns, audio: voiced(dns), theme: getTheme("chalk-dark"), spec: specFromBrief({ ...DEFAULT_BRIEF }) });
+  cases.push({
+    name: "dns-board",
+    plan: dns,
+    audio: voiced(dns),
+    theme: getTheme("chalk-dark"),
+    spec: specFromBrief({ ...DEFAULT_BRIEF }),
+  });
   const cutins = read("internet-cutins", "plan");
-  cases.push({ name: "internet-cutins", plan: cutins, audio: voiced(cutins), theme: getTheme("whiteboard-light"), spec: specFromBrief({ ...DEFAULT_BRIEF, style: "explainer" }) });
+  cases.push({
+    name: "internet-cutins",
+    plan: cutins,
+    audio: voiced(cutins),
+    theme: getTheme("whiteboard-light"),
+    spec: specFromBrief({ ...DEFAULT_BRIEF, style: "explainer" }),
+  });
   let boxes = 0;
   for (const c of cases) {
-    const { film, sketch, placement } = await compose({ plan: c.plan, audio: c.audio, theme: c.theme, spec: c.spec, pack: loadIconPack(), sourceLabel: "x", arch: c.arch });
+    const { film, sketch, placement } = await compose({
+      plan: c.plan,
+      audio: c.audio,
+      theme: c.theme,
+      spec: c.spec,
+      pack: loadIconPack(),
+      sourceLabel: "x",
+      arch: c.arch,
+    });
     assert.ok(placement.ok, `${c.name}: ${JSON.stringify(placement.issues)}`);
     const ns = sketch.nodes.filter((x) => !x.board);
     if (c.name !== "internet-cutins" && c.name !== "dns-board") assert.ok(ns.length > 0, `${c.name} has no boxes to measure`);
     boxes += ns.length;
-    edgeClear(film, ns.map((x) => ({ box: x.box, t0: x.t0, g: `n:${x.id}` })));
+    edgeClear(
+      film,
+      ns.map((x) => ({ box: x.box, t0: x.t0, g: `n:${x.id}` })),
+    );
   }
   assert.ok(boxes > 20, `only ${boxes} boxes measured`);
 });
@@ -390,7 +722,10 @@ test("a slow pan that drags a lit box half off the frame is caught and fixed, th
   f.duration = 8;
   const p = { film: f, sketch: sketch(nodes), marks: [] as Mark[] };
   const found = checkPlacement(p);
-  assert.deepEqual(found.map((i) => i.rule), ["cropped"]);
+  assert.deepEqual(
+    found.map((i) => i.rule),
+    ["cropped"],
+  );
   assert.match(found[0].what, /while the camera moves/);
   const rep = placementPass(p);
   assert.ok(rep.ok, JSON.stringify(rep));

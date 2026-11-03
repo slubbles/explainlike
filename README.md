@@ -6,8 +6,7 @@ Give it a GitHub repo, an article, an X post, or just a topic ("how DNS works").
 
 There is no public demo of the current build yet: the only deployment runs an older build (see [AGENTS.md](AGENTS.md#deployment)).
 
-
-*Above: 12 seconds from a 2-minute video about [milind-soni/OpenMausBot](https://github.com/milind-soni/OpenMausBot). A run like this costs well under $0.20 in models and voice.*
+_Above: 12 seconds from a 2-minute video about [milind-soni/OpenMausBot](https://github.com/milind-soni/OpenMausBot). A run like this costs well under $0.20 in models and voice._
 
 ## What it does
 
@@ -16,8 +15,8 @@ There is no public demo of the current build yet: the only deployment runs an ol
 - **Nothing to configure.** Muse Spark reads the source first and picks how to explain it (an analogy, a story, step by step...), how deep to go, how fast and which look.
 - **Checked before you see it.** Labels and arrows are checked against the camera before rendering, the finished frames are checked for cut-off words, overlaps and blank frames, and both boards are read back to make sure they open.
 
-| A request, start to end | What breaks at 10x | The fix |
-| --- | --- | --- |
+| A request, start to end                                                        | What breaks at 10x                                                                  | The fix                                                                    |
+| ------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------- | -------------------------------------------------------------------------- |
 | ![a chat message walking through OpenMausBot](docs/media/openmausbot-walk.jpg) | ![the chat transcripts store circled in red at 10x](docs/media/openmausbot-10x.jpg) | ![a write queue drawn in green as the fix](docs/media/openmausbot-fix.jpg) |
 
 ## Quick start

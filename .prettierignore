@@ -9,3 +9,5 @@ coverage
 explainlike-out
 explanimate-out
 packages/core/data/naturalearth.json
+*.css
+docs/design/landing-v2/index.html

@@ -9,18 +9,25 @@ import { fileURLToPath } from "node:url";
 const bin = fileURLToPath(new URL("../src/bin.ts", import.meta.url));
 const root = fileURLToPath(new URL("../../../", import.meta.url));
 
-const run = (args: string[]) => new Promise<{ code: number; out: string }>((resolve, reject) => {
-  // the guard flag must not leak in from the test runner's own environment
-  const env = { ...process.env } as Record<string, string | undefined>;
-  delete env.EXPLANIMATE_ALLOW_PRIVATE_URLS;
-  const scratch = fs.mkdtempSync(path.join(os.tmpdir(), "explanimate-cli-guard-"));
-  env.TEMP = scratch; env.TMP = scratch;
-  execFile(process.execPath, ["--import", "tsx", bin, ...args], { env: env as NodeJS.ProcessEnv, cwd: root, timeout: 120_000 }, (err, stdout, stderr) => {
-    fs.rmSync(scratch, { recursive: true, force: true });
-    if (err && typeof (err as NodeJS.ErrnoException).code !== "number") return reject(err);
-    resolve({ code: (err as { code?: number })?.code ?? 0, out: String(stdout) + String(stderr) });
+const run = (args: string[]) =>
+  new Promise<{ code: number; out: string }>((resolve, reject) => {
+    // the guard flag must not leak in from the test runner's own environment
+    const env = { ...process.env } as Record<string, string | undefined>;
+    delete env.EXPLANIMATE_ALLOW_PRIVATE_URLS;
+    const scratch = fs.mkdtempSync(path.join(os.tmpdir(), "explanimate-cli-guard-"));
+    env.TEMP = scratch;
+    env.TMP = scratch;
+    execFile(
+      process.execPath,
+      ["--import", "tsx", bin, ...args],
+      { env: env as NodeJS.ProcessEnv, cwd: root, timeout: 120_000 },
+      (err, stdout, stderr) => {
+        fs.rmSync(scratch, { recursive: true, force: true });
+        if (err && typeof (err as NodeJS.ErrnoException).code !== "number") return reject(err);
+        resolve({ code: (err as { code?: number })?.code ?? 0, out: String(stdout) + String(stderr) });
+      },
+    );
   });
-});
 
 test("the CLI names --allow-private in its help", async () => {
   const r = await run(["--help"]);

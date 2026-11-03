@@ -1,139 +1,124 @@
 {
- "product": "rxi/microui",
- "one_liner": "A tiny ANSI C immediate-mode UI library that turns per-frame widget code plus input into rectangle and text draw commands.",
- "components": [
-  {
-   "id": "app-user",
-   "name": "User",
-   "kind": "client",
-   "layer": "frontend",
-   "keyword": "app user",
-   "icon": "user",
-   "what": "Presses keys and clicks, then sees the drawn UI frame.",
-   "evidence": [
-    "README.md",
-    "doc/usage.md"
-   ]
+  "product": "rxi/microui",
+  "one_liner": "A tiny ANSI C immediate-mode UI library that turns per-frame widget code plus input into rectangle and text draw commands.",
+  "components": [
+    {
+      "id": "app-user",
+      "name": "User",
+      "kind": "client",
+      "layer": "frontend",
+      "keyword": "app user",
+      "icon": "user",
+      "what": "Presses keys and clicks, then sees the drawn UI frame.",
+      "evidence": ["README.md", "doc/usage.md"]
+    },
+    {
+      "id": "demo-app",
+      "name": "SDL Demo App",
+      "kind": "worker",
+      "layer": "backend",
+      "keyword": "demo app",
+      "icon": "laptop",
+      "what": "Runs the per-frame loop, feeds SDL input and declares widgets each frame.",
+      "evidence": ["demo/main.c", "README.md"]
+    },
+    {
+      "id": "microui",
+      "name": "microui",
+      "kind": "api",
+      "layer": "backend",
+      "keyword": "ui core",
+      "icon": "gear",
+      "what": "Tracks windows and widgets in fixed memory and emits draw commands.",
+      "evidence": ["src/microui.c", "src/microui.h"]
+    },
+    {
+      "id": "command-list",
+      "name": "mu_Command buffer",
+      "kind": "queue",
+      "layer": "async",
+      "keyword": "command list",
+      "icon": "queue",
+      "what": "Holds rect, text, clip and jump commands for the current frame.",
+      "evidence": ["src/microui.h", "src/microui.c"]
+    },
+    {
+      "id": "renderer",
+      "name": "SDL Renderer",
+      "kind": "third-party",
+      "layer": "third-party",
+      "keyword": "sdl renderer",
+      "icon": "gpu",
+      "what": "Draws rectangles and atlas text for each command then presents the frame.",
+      "evidence": ["demo/main.c", "demo/atlas.inl"]
+    }
+  ],
+  "connections": [
+    {
+      "from": "app-user",
+      "to": "demo-app",
+      "label": "press keys",
+      "evidence": "demo/main.c"
+    },
+    {
+      "from": "demo-app",
+      "to": "microui",
+      "label": "declare widgets",
+      "evidence": "demo/main.c"
+    },
+    {
+      "from": "microui",
+      "to": "command-list",
+      "label": "record commands",
+      "evidence": "src/microui.c"
+    },
+    {
+      "from": "renderer",
+      "to": "app-user",
+      "label": "show frame",
+      "evidence": "demo/main.c"
+    },
+    {
+      "from": "renderer",
+      "to": "command-list",
+      "label": "read commands",
+      "evidence": "demo/main.c"
+    }
+  ],
+  "walkthrough": {
+    "name": "press button in window",
+    "steps": [
+      {
+        "from": "app-user",
+        "to": "demo-app",
+        "label": "press keys",
+        "evidence": "demo/main.c"
+      },
+      {
+        "from": "demo-app",
+        "to": "microui",
+        "label": "declare widgets",
+        "evidence": "demo/main.c"
+      },
+      {
+        "from": "microui",
+        "to": "command-list",
+        "label": "record commands",
+        "evidence": "src/microui.c"
+      },
+      {
+        "from": "renderer",
+        "to": "command-list",
+        "label": "read commands",
+        "evidence": "demo/main.c"
+      },
+      {
+        "from": "renderer",
+        "to": "app-user",
+        "label": "show frame",
+        "evidence": "demo/main.c"
+      }
+    ]
   },
-  {
-   "id": "demo-app",
-   "name": "SDL Demo App",
-   "kind": "worker",
-   "layer": "backend",
-   "keyword": "demo app",
-   "icon": "laptop",
-   "what": "Runs the per-frame loop, feeds SDL input and declares widgets each frame.",
-   "evidence": [
-    "demo/main.c",
-    "README.md"
-   ]
-  },
-  {
-   "id": "microui",
-   "name": "microui",
-   "kind": "api",
-   "layer": "backend",
-   "keyword": "ui core",
-   "icon": "gear",
-   "what": "Tracks windows and widgets in fixed memory and emits draw commands.",
-   "evidence": [
-    "src/microui.c",
-    "src/microui.h"
-   ]
-  },
-  {
-   "id": "command-list",
-   "name": "mu_Command buffer",
-   "kind": "queue",
-   "layer": "async",
-   "keyword": "command list",
-   "icon": "queue",
-   "what": "Holds rect, text, clip and jump commands for the current frame.",
-   "evidence": [
-    "src/microui.h",
-    "src/microui.c"
-   ]
-  },
-  {
-   "id": "renderer",
-   "name": "SDL Renderer",
-   "kind": "third-party",
-   "layer": "third-party",
-   "keyword": "sdl renderer",
-   "icon": "gpu",
-   "what": "Draws rectangles and atlas text for each command then presents the frame.",
-   "evidence": [
-    "demo/main.c",
-    "demo/atlas.inl"
-   ]
-  }
- ],
- "connections": [
-  {
-   "from": "app-user",
-   "to": "demo-app",
-   "label": "press keys",
-   "evidence": "demo/main.c"
-  },
-  {
-   "from": "demo-app",
-   "to": "microui",
-   "label": "declare widgets",
-   "evidence": "demo/main.c"
-  },
-  {
-   "from": "microui",
-   "to": "command-list",
-   "label": "record commands",
-   "evidence": "src/microui.c"
-  },
-  {
-   "from": "renderer",
-   "to": "app-user",
-   "label": "show frame",
-   "evidence": "demo/main.c"
-  },
-  {
-   "from": "renderer",
-   "to": "command-list",
-   "label": "read commands",
-   "evidence": "demo/main.c"
-  }
- ],
- "walkthrough": {
-  "name": "press button in window",
-  "steps": [
-   {
-    "from": "app-user",
-    "to": "demo-app",
-    "label": "press keys",
-    "evidence": "demo/main.c"
-   },
-   {
-    "from": "demo-app",
-    "to": "microui",
-    "label": "declare widgets",
-    "evidence": "demo/main.c"
-   },
-   {
-    "from": "microui",
-    "to": "command-list",
-    "label": "record commands",
-    "evidence": "src/microui.c"
-   },
-   {
-    "from": "renderer",
-    "to": "command-list",
-    "label": "read commands",
-    "evidence": "demo/main.c"
-   },
-   {
-    "from": "renderer",
-    "to": "app-user",
-    "label": "show frame",
-    "evidence": "demo/main.c"
-   }
-  ]
- },
- "scale": []
+  "scale": []
 }

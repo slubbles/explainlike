@@ -10,7 +10,15 @@ const arch = JSON.parse(fs.readFileSync(new URL("clipfeed.architecture.json", fx
 const audio = plan.scenes.map((s: any) => ({ sceneId: s.id, duration: 6, words: [] }));
 const theme = getTheme("chalk-dark");
 const board = async () => {
-  const { sketch } = await compose({ plan, audio, theme, spec: specFromBrief(DEFAULT_BRIEF), pack: loadIconPack(), sourceLabel: "x", arch });
+  const { sketch } = await compose({
+    plan,
+    audio,
+    theme,
+    spec: specFromBrief(DEFAULT_BRIEF),
+    pack: loadIconPack(),
+    sourceLabel: "x",
+    arch,
+  });
   const colorNames = Object.fromEntries(Object.entries(theme.colors).map(([k, v]) => [v.toLowerCase(), k]));
   return { sketch, doc: await toTldraw(sketch, { colorNames, darkIcons: true }) };
 };
@@ -25,7 +33,8 @@ test(".tldr board: one page, every box, arrow and note, and arrows tied to their
   const { sketch, doc } = await board();
   assert.equal(doc.tldrawFileFormatVersion, 1);
   assert.equal(doc.schema, TLDR_SCHEMA);
-  const recs = doc.records, byId = new Map(recs.map((r: any) => [r.id, r]));
+  const recs = doc.records,
+    byId = new Map(recs.map((r: any) => [r.id, r]));
   assert.equal(byId.size, recs.length, "ids are unique");
   assert.ok(byId.has("document:document") && byId.has("page:page"));
   const shapes = recs.filter((r: any) => r.typeName === "shape");
@@ -42,7 +51,21 @@ test(".tldr board: one page, every box, arrow and note, and arrows tied to their
     for (const v of [b.props.normalizedAnchor.x, b.props.normalizedAnchor.y]) assert.ok(v >= 0 && v <= 1);
   }
   // everything uses tldraw's own colour names and fonts, so its light and dark modes both work
-  const names = new Set(["black", "grey", "light-violet", "violet", "blue", "light-blue", "yellow", "orange", "green", "light-green", "light-red", "red", "white"]);
+  const names = new Set([
+    "black",
+    "grey",
+    "light-violet",
+    "violet",
+    "blue",
+    "light-blue",
+    "yellow",
+    "orange",
+    "green",
+    "light-green",
+    "light-red",
+    "red",
+    "white",
+  ]);
   for (const s of shapes) if (s.props.color) assert.ok(names.has(s.props.color), s.props.color);
   for (const s of shapes) if (s.props.font) assert.equal(s.props.font, "draw");
 });

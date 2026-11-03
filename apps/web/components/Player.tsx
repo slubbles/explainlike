@@ -3,7 +3,14 @@ import { useEffect, useRef, useState } from "react";
 
 type Box = { x: number; y: number; w: number; h: number };
 type Key = Box & { t: number; move: number };
-export type Interactive = { width: number; height: number; duration: number; endAt: number; camera: Key[]; nodes: { id: string; keyword: string; box: Box; t0: number }[] };
+export type Interactive = {
+  width: number;
+  height: number;
+  duration: number;
+  endAt: number;
+  camera: Key[];
+  nodes: { id: string; keyword: string; box: Box; t0: number }[];
+};
 
 // Same camera maths as the renderer's stage.js, so the tap targets sit on the drawn boxes.
 const ease = (p: number) => (p < 0.5 ? 4 * p * p * p : 1 - Math.pow(-2 * p + 2, 3) / 2);
@@ -18,7 +25,17 @@ function camera(K: Key[], t: number): Box {
   return cur;
 }
 
-export default function Player({ src, map, selected, onPick }: { src: string; map?: Interactive; selected?: string; onPick: (id: string) => void }) {
+export default function Player({
+  src,
+  map,
+  selected,
+  onPick,
+}: {
+  src: string;
+  map?: Interactive;
+  selected?: string;
+  onPick: (id: string) => void;
+}) {
   const video = useRef<HTMLVideoElement>(null);
   const [t, setT] = useState(0);
   // The first frame is an empty whiteboard. When the browser blocks autoplay, show a frame from the middle
@@ -27,16 +44,37 @@ export default function Player({ src, map, selected, onPick }: { src: string; ma
   useEffect(() => {
     const v = video.current;
     if (!v) return;
-    const still = () => { if (v.paused && v.currentTime === 0 && v.duration) { preview.current = true; v.currentTime = v.duration * 0.55; } };
+    const still = () => {
+      if (v.paused && v.currentTime === 0 && v.duration) {
+        preview.current = true;
+        v.currentTime = v.duration * 0.55;
+      }
+    };
     const start = () => v.play().catch(() => (v.readyState >= 1 ? still() : v.addEventListener("loadedmetadata", still, { once: true })));
-    if (v.readyState >= 1) start(); else v.addEventListener("loadedmetadata", start, { once: true });
-    return () => { v.removeEventListener("loadedmetadata", start); v.removeEventListener("loadedmetadata", still); };
+    if (v.readyState >= 1) start();
+    else v.addEventListener("loadedmetadata", start, { once: true });
+    return () => {
+      v.removeEventListener("loadedmetadata", start);
+      v.removeEventListener("loadedmetadata", still);
+    };
   }, [src]);
-  const onPlay = () => { const v = video.current; if (v && preview.current) { preview.current = false; v.currentTime = 0; } };
-  const onSeeked = () => { const v = video.current; if (v && preview.current && Math.abs(v.currentTime - v.duration * 0.55) > 0.05) preview.current = false; };
+  const onPlay = () => {
+    const v = video.current;
+    if (v && preview.current) {
+      preview.current = false;
+      v.currentTime = 0;
+    }
+  };
+  const onSeeked = () => {
+    const v = video.current;
+    if (v && preview.current && Math.abs(v.currentTime - v.duration * 0.55) > 0.05) preview.current = false;
+  };
   useEffect(() => {
     let raf = 0;
-    const tick = () => { if (video.current) setT(video.current.currentTime); raf = requestAnimationFrame(tick); };
+    const tick = () => {
+      if (video.current) setT(video.current.currentTime);
+      raf = requestAnimationFrame(tick);
+    };
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
   }, []);
@@ -45,12 +83,19 @@ export default function Player({ src, map, selected, onPick }: { src: string; ma
   if (map && t < map.endAt) {
     const cam = camera(map.camera, t);
     const s = Math.min(map.width / cam.w, map.height / cam.h);
-    const ox = (map.width - cam.w * s) / 2, oy = (map.height - cam.h * s) / 2;
-    boxes = map.nodes.filter((n) => t >= n.t0 + 0.4).map((n) => ({
-      id: n.id, keyword: n.keyword,
-      l: ((n.box.x - cam.x) * s + ox) / map.width * 100, tp: ((n.box.y - cam.y) * s + oy) / map.height * 100,
-      w: (n.box.w * s) / map.width * 100, h: (n.box.h * s) / map.height * 100,
-    })).filter((b) => b.l < 100 && b.tp < 100 && b.l + b.w > 0 && b.tp + b.h > 0);
+    const ox = (map.width - cam.w * s) / 2,
+      oy = (map.height - cam.h * s) / 2;
+    boxes = map.nodes
+      .filter((n) => t >= n.t0 + 0.4)
+      .map((n) => ({
+        id: n.id,
+        keyword: n.keyword,
+        l: (((n.box.x - cam.x) * s + ox) / map.width) * 100,
+        tp: (((n.box.y - cam.y) * s + oy) / map.height) * 100,
+        w: ((n.box.w * s) / map.width) * 100,
+        h: ((n.box.h * s) / map.height) * 100,
+      }))
+      .filter((b) => b.l < 100 && b.tp < 100 && b.l + b.w > 0 && b.tp + b.h > 0);
   }
 
   return (
@@ -59,9 +104,19 @@ export default function Player({ src, map, selected, onPick }: { src: string; ma
       {map && (
         <div className="overlay">
           {boxes.map((b) => (
-            <button key={b.id} type="button" aria-label={`Explain ${b.keyword}`} className={`hit ${selected === b.id ? "on" : ""}`}
+            <button
+              key={b.id}
+              type="button"
+              aria-label={`Explain ${b.keyword}`}
+              className={`hit ${selected === b.id ? "on" : ""}`}
               style={{ left: `${b.l}%`, top: `${b.tp}%`, width: `${b.w}%`, height: `${b.h}%` }}
-              onClick={() => { video.current?.pause(); onPick(b.id); }}><span className="tipchip">Explain {b.keyword}</span></button>
+              onClick={() => {
+                video.current?.pause();
+                onPick(b.id);
+              }}
+            >
+              <span className="tipchip">Explain {b.keyword}</span>
+            </button>
           ))}
         </div>
       )}

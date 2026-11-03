@@ -21,8 +21,15 @@ function windowsChromePaths(): string[] {
 }
 
 export function findChrome(): string {
-  const c = [process.env.EXPLANIMATE_CHROME, "/usr/bin/google-chrome", "/usr/bin/google-chrome-stable", "/usr/bin/chromium", "/usr/bin/chromium-browser",
-    "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome", ...windowsChromePaths()].filter(Boolean) as string[];
+  const c = [
+    process.env.EXPLANIMATE_CHROME,
+    "/usr/bin/google-chrome",
+    "/usr/bin/google-chrome-stable",
+    "/usr/bin/chromium",
+    "/usr/bin/chromium-browser",
+    "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+    ...windowsChromePaths(),
+  ].filter(Boolean) as string[];
   const f = c.find((p) => fs.existsSync(p));
   if (!f) throw new Error("Chrome/Chromium not found. Set EXPLANIMATE_CHROME to a Chrome binary.");
   return f;
@@ -41,45 +48,67 @@ export function run(cmd: string, args: string[]): Promise<void> {
  * Where the stage put one caption. overlapPx: average pixels of drawing it covers on still frames (0 = clear);
  * movingPx: the same while the camera glides, when a brief brush matters less.
  */
-export interface CaptionSpot { t0: number; text: string; spot: string; stacked: boolean; small?: boolean; overlapPx: number; movingPx: number; rect?: { x: number; y: number; w: number; h: number } }
+export interface CaptionSpot {
+  t0: number;
+  text: string;
+  spot: string;
+  stacked: boolean;
+  small?: boolean;
+  overlapPx: number;
+  movingPx: number;
+  rect?: { x: number; y: number; w: number; h: number };
+}
 
 /**
  * Render frames with N headless Chromes, one page each, pulling frame numbers from a shared queue.
  * Separate browsers scale far better than pages in one browser, which all wait on that browser's single compositor.
  * Each frame is handed to `onFrame` as soon as it is drawn (frames arrive out of order) and written to `dir`.
  */
-export async function captureFrames(film: Film, dir: string, opts: { workers?: number; onProgress?: (done: number, total: number) => void; only?: number[]; onFrame?: (f: number, jpeg: Buffer) => Promise<void> | void } = {}) {
+export async function captureFrames(
+  film: Film,
+  dir: string,
+  opts: {
+    workers?: number;
+    onProgress?: (done: number, total: number) => void;
+    only?: number[];
+    onFrame?: (f: number, jpeg: Buffer) => Promise<void> | void;
+  } = {},
+) {
   fs.mkdirSync(dir, { recursive: true });
   const html = path.join(dir, "stage.html");
   fs.writeFileSync(html, stageHtml(film));
   const total = Math.ceil(film.duration * film.fps);
   const frames = opts.only ?? [...Array(total).keys()];
   const workers = Math.max(1, Math.min(opts.workers ?? defaultWorkers(), frames.length));
-  let next = 0, done = 0, failed = false;
+  let next = 0,
+    done = 0,
+    failed = false;
   let captions: CaptionSpot[] = [];
-  await Promise.all([...Array(workers).keys()].map(async (w) => {
-    const browser = await chromium.launch({ executablePath: findChrome(), args: chromiumArgs() });
-    try {
-      const page = await browser.newPage({ viewport: { width: film.width, height: film.height }, deviceScaleFactor: 1 });
-      await page.goto("file://" + html);
-      await page.evaluate(() => (window as any).ready);
-      if (w === 0) captions = await page.evaluate(() => (window as any).captionReport ?? []);
-      while (next < frames.length && !failed) {
-        const f = frames[next++];
-        await page.evaluate((t) => (window as any).render(t), f / film.fps);
-        const jpeg = await page.screenshot({ type: "jpeg", quality: 92 });
-        fs.writeFileSync(path.join(dir, `f${String(f).padStart(6, "0")}.jpg`), jpeg);
-        await opts.onFrame?.(f, jpeg);
-        done++;
-        if (done % 30 === 0) opts.onProgress?.(done, frames.length);
+  await Promise.all(
+    [...Array(workers).keys()].map(async (w) => {
+      const browser = await chromium.launch({ executablePath: findChrome(), args: chromiumArgs() });
+      try {
+        const page = await browser.newPage({ viewport: { width: film.width, height: film.height }, deviceScaleFactor: 1 });
+        await page.goto("file://" + html);
+        await page.evaluate(() => (window as any).ready);
+        if (w === 0) captions = await page.evaluate(() => (window as any).captionReport ?? []);
+        while (next < frames.length && !failed) {
+          const f = frames[next++];
+          await page.evaluate((t) => (window as any).render(t), f / film.fps);
+          const jpeg = await page.screenshot({ type: "jpeg", quality: 92 });
+          fs.writeFileSync(path.join(dir, `f${String(f).padStart(6, "0")}.jpg`), jpeg);
+          await opts.onFrame?.(f, jpeg);
+          done++;
+          if (done % 30 === 0) opts.onProgress?.(done, frames.length);
+        }
+      } catch (e) {
+        failed = true; // the other workers stop at their next frame
+        throw e;
+      } finally {
+        await browser.close();
       }
-    } catch (e) {
-      failed = true; // the other workers stop at their next frame
-      throw e;
-    } finally {
-      await browser.close();
-    }
-  }));
+    }),
+  );
   return { html, total, captions };
 }
 
@@ -118,11 +147,19 @@ export function mixNarration(parts: { file: string; at: number }[], duration: nu
   const pcm = Buffer.alloc(Math.ceil(duration * rate) * 2);
   for (const p of parts) {
     const wav = fs.readFileSync(p.file);
-    let off = 12, data = 44, len = wav.length - 44, sr = rate;
+    let off = 12,
+      data = 44,
+      len = wav.length - 44,
+      sr = rate;
     while (off + 8 <= wav.length) {
-      const id = wav.toString("ascii", off, off + 4), l = wav.readUInt32LE(off + 4);
+      const id = wav.toString("ascii", off, off + 4),
+        l = wav.readUInt32LE(off + 4);
       if (id === "fmt ") sr = wav.readUInt32LE(off + 12);
-      if (id === "data") { data = off + 8; len = Math.min(l, wav.length - data); break; }
+      if (id === "data") {
+        data = off + 8;
+        len = Math.min(l, wav.length - data);
+        break;
+      }
       off += 8 + l + (l % 2);
     }
     if (sr !== rate) throw new Error(`unexpected sample rate ${sr}`);
@@ -130,9 +167,19 @@ export function mixNarration(parts: { file: string; at: number }[], duration: nu
     wav.copy(pcm, start, data, Math.min(data + len, data + pcm.length - start));
   }
   const h = Buffer.alloc(44);
-  h.write("RIFF", 0); h.writeUInt32LE(36 + pcm.length, 4); h.write("WAVE", 8); h.write("fmt ", 12);
-  h.writeUInt32LE(16, 16); h.writeUInt16LE(1, 20); h.writeUInt16LE(1, 22); h.writeUInt32LE(rate, 24); h.writeUInt32LE(rate * 2, 28); h.writeUInt16LE(2, 32); h.writeUInt16LE(16, 34);
-  h.write("data", 36); h.writeUInt32LE(pcm.length, 40);
+  h.write("RIFF", 0);
+  h.writeUInt32LE(36 + pcm.length, 4);
+  h.write("WAVE", 8);
+  h.write("fmt ", 12);
+  h.writeUInt32LE(16, 16);
+  h.writeUInt16LE(1, 20);
+  h.writeUInt16LE(1, 22);
+  h.writeUInt32LE(rate, 24);
+  h.writeUInt32LE(rate * 2, 28);
+  h.writeUInt16LE(2, 32);
+  h.writeUInt16LE(16, 34);
+  h.write("data", 36);
+  h.writeUInt32LE(pcm.length, 40);
   fs.writeFileSync(out, Buffer.concat([h, pcm]));
 }
 
@@ -142,7 +189,16 @@ export const X264_ARGS = ["-c:v", "libx264", "-preset", "veryfast", "-crf", "20"
 /** NVIDIA's hardware H.264 at about the same quality as X264_ARGS (constant quality 20, high-quality tuning). */
 export const NVENC_ARGS = ["-c:v", "h264_nvenc", "-preset", "p5", "-tune", "hq", "-rc", "vbr", "-cq", "20", "-b:v", "0"];
 
-function mp4Args(fps: number, duration: number, out: string, bedDir: string, audio: string | undefined, music: boolean | undefined, cues: SfxCue[] = [], video: string[] = X264_ARGS) {
+function mp4Args(
+  fps: number,
+  duration: number,
+  out: string,
+  bedDir: string,
+  audio: string | undefined,
+  music: boolean | undefined,
+  cues: SfxCue[] = [],
+  video: string[] = X264_ARGS,
+) {
   const args: string[] = [];
   let bed: string | undefined, fx: string | undefined;
   if (music !== false) {
@@ -167,10 +223,25 @@ function mp4Args(fps: number, duration: number, out: string, bedDir: string, aud
  * Frames on disk, the narration (if any), the music bed (unless `music` is false) and soft sound effects at
  * `cues` into one mp4. The bed sits well under the voice and ducks while it speaks (see music.ts).
  */
-export async function encodeMp4(frameDir: string, fps: number, out: string, audio?: string, opts: { music?: boolean; duration?: number; cues?: SfxCue[] } = {}) {
+export async function encodeMp4(
+  frameDir: string,
+  fps: number,
+  out: string,
+  audio?: string,
+  opts: { music?: boolean; duration?: number; cues?: SfxCue[] } = {},
+) {
   const frames = fs.readdirSync(frameDir).filter((f) => /^f\d+\.jpg$/.test(f)).length;
   const duration = opts.duration ?? frames / fps;
-  await run("ffmpeg", ["-y", "-loglevel", "error", "-framerate", String(fps), "-i", path.join(frameDir, "f%06d.jpg"), ...mp4Args(fps, duration, out, frameDir, audio, opts.music, opts.cues)]);
+  await run("ffmpeg", [
+    "-y",
+    "-loglevel",
+    "error",
+    "-framerate",
+    String(fps),
+    "-i",
+    path.join(frameDir, "f%06d.jpg"),
+    ...mp4Args(fps, duration, out, frameDir, audio, opts.music, opts.cues),
+  ]);
 }
 
 /**
@@ -178,14 +249,37 @@ export async function encodeMp4(frameDir: string, fps: number, out: string, audi
  * in any order (it is fed to ffmpeg in frame order), then await `done`. With `raw`, frames are raw RGBA
  * pixels of that size instead of JPEGs (the Skia renderer). `video` swaps the H.264 encoder settings.
  */
-export function mp4Encoder(fps: number, out: string, opts: { duration: number; workDir: string; audio?: string; music?: boolean; cues?: SfxCue[]; raw?: { width: number; height: number }; video?: string[] }) {
+export function mp4Encoder(
+  fps: number,
+  out: string,
+  opts: {
+    duration: number;
+    workDir: string;
+    audio?: string;
+    music?: boolean;
+    cues?: SfxCue[];
+    raw?: { width: number; height: number };
+    video?: string[];
+  },
+) {
   fs.mkdirSync(opts.workDir, { recursive: true });
   const input = opts.raw
     ? ["-f", "rawvideo", "-pix_fmt", "rgba", "-s", `${opts.raw.width}x${opts.raw.height}`]
     : ["-f", "image2pipe", "-c:v", "mjpeg"];
-  const args = ["-y", "-loglevel", "error", ...input, "-framerate", String(fps), "-i", "pipe:0", ...mp4Args(fps, opts.duration, out, opts.workDir, opts.audio, opts.music, opts.cues, opts.video)];
+  const args = [
+    "-y",
+    "-loglevel",
+    "error",
+    ...input,
+    "-framerate",
+    String(fps),
+    "-i",
+    "pipe:0",
+    ...mp4Args(fps, opts.duration, out, opts.workDir, opts.audio, opts.music, opts.cues, opts.video),
+  ];
   const p = spawn("ffmpeg", args, { stdio: ["pipe", "ignore", "pipe"] });
-  let err = "", failure: Error | undefined;
+  let err = "",
+    failure: Error | undefined;
   p.stderr.on("data", (d) => (err = (err + d).slice(-4000)));
   p.stdin.on("error", () => {}); // a dead ffmpeg is reported by `closed` below
   const closed = new Promise<void>((res, rej) => {
@@ -202,7 +296,11 @@ export function mp4Encoder(fps: number, out: string, opts: { duration: number; w
       while (waiting.has(nextFrame)) {
         const buf = waiting.get(nextFrame)!;
         waiting.delete(nextFrame++);
-        if (!p.stdin.write(buf)) await new Promise<void>((res) => { p.stdin.once("drain", res); closed.catch(res); });
+        if (!p.stdin.write(buf))
+          await new Promise<void>((res) => {
+            p.stdin.once("drain", res);
+            closed.catch(res);
+          });
       }
     },
     async done() {
@@ -210,10 +308,23 @@ export function mp4Encoder(fps: number, out: string, opts: { duration: number; w
       p.stdin.end();
       await closed;
     },
-    abort() { p.kill("SIGKILL"); },
+    abort() {
+      p.kill("SIGKILL");
+    },
   };
 }
 
 export async function contactSheet(video: string, out: string, every = 3) {
-  await run("ffmpeg", ["-y", "-loglevel", "error", "-i", video, "-vf", `fps=1/${every},scale=480:-1,tile=5x8:padding=6:color=0x222222`, "-frames:v", "1", out]);
+  await run("ffmpeg", [
+    "-y",
+    "-loglevel",
+    "error",
+    "-i",
+    video,
+    "-vf",
+    `fps=1/${every},scale=480:-1,tile=5x8:padding=6:color=0x222222`,
+    "-frames:v",
+    "1",
+    out,
+  ]);
 }

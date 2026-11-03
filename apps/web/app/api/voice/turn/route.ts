@@ -7,7 +7,6 @@ import { START_TOOL, readStart, takeSentences, voiceSystem, type Turn } from "..
 
 export const runtime = "nodejs";
 
-
 type Msg = { role: string; content: string | null; tool_calls?: unknown[]; tool_call_id?: string };
 
 /**
@@ -28,7 +27,8 @@ export async function POST(req: Request) {
   const body = read.body as { turns?: unknown; typed?: unknown; voice?: unknown };
   const turns: Turn[] = (Array.isArray(body.turns) ? body.turns : [])
     .filter((t: Turn) => (t?.role === "user" || t?.role === "assistant") && typeof t.content === "string" && t.content.trim())
-    .slice(-30).map((t: Turn) => ({ role: t.role, content: t.content.slice(0, 2000) }));
+    .slice(-30)
+    .map((t: Turn) => ({ role: t.role, content: t.content.slice(0, 2000) }));
   const typed = typeof body.typed === "string" && validInput(body.typed.trim()) ? body.typed.trim() : undefined;
   const voice = body.voice === "silent" ? "silent" : "deepgram";
   const messages: Msg[] = [{ role: "system", content: voiceSystem(typed) }, ...turns];
@@ -37,7 +37,11 @@ export async function POST(req: Request) {
   const stream = new ReadableStream({
     async start(ctl) {
       const send = (event: string, data: unknown) => {
-        try { ctl.enqueue(enc.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`)); } catch { /* the browser hung up (barge-in) */ }
+        try {
+          ctl.enqueue(enc.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`));
+        } catch {
+          /* the browser hung up (barge-in) */
+        }
       };
       let usd = 0;
       try {
@@ -46,11 +50,21 @@ export async function POST(req: Request) {
           const r = await spark(messages, req.signal);
           usd += r.usd;
           // a round that ends in start_video speaks only its confirm line, once the job really starts
-          if (!r.call) { for (const s of r.sentences) send("say", { text: s }); break; }
+          if (!r.call) {
+            for (const s of r.sentences) send("say", { text: s });
+            break;
+          }
           const call = r.call;
-          if (round === 1) { send("say", { text: "I couldn't start that one. Could you type the link in the box under the chat?" }); break; }
+          if (round === 1) {
+            send("say", { text: "I couldn't start that one. Could you type the link in the box under the chat?" });
+            break;
+          }
           let args: unknown = {};
-          try { args = JSON.parse(call.args || "{}"); } catch { /* handled as no link */ }
+          try {
+            args = JSON.parse(call.args || "{}");
+          } catch {
+            /* handled as no link */
+          }
           const read = readStart(args, validInput);
           let result: string;
           if (read.ok) {
@@ -59,21 +73,37 @@ export async function POST(req: Request) {
             if (missing) result = `error: ${missing}`;
             else if (busy) result = `error: ${busy}`;
             else {
-              const job = startJob(read.req.input, voice, { goal: read.req.goal, audience: read.req.audience, depth: read.req.depth, also: read.req.also }, "voice");
+              const job = startJob(
+                read.req.input,
+                voice,
+                { goal: read.req.goal, audience: read.req.audience, depth: read.req.depth, also: read.req.also },
+                "voice",
+              );
               send("say", { text: read.confirm });
               send("job", { id: job.id, ...read.req });
               break;
             }
           } else result = `error: ${read.error}`;
-          messages.push({ role: "assistant", content: r.text || null, tool_calls: [{ id: call.id, type: "function", function: { name: call.name, arguments: call.args } }] });
+          messages.push({
+            role: "assistant",
+            content: r.text || null,
+            tool_calls: [{ id: call.id, type: "function", function: { name: call.name, arguments: call.args } }],
+          });
           messages.push({ role: "tool", tool_call_id: call.id, content: result });
         }
       } catch (e) {
-        if (!req.signal.aborted) send("error", { message: e instanceof Error ? e.message.replace(/Bearer\s+\S+/g, "Bearer …").slice(0, 200) : "the assistant stopped" });
+        if (!req.signal.aborted)
+          send("error", {
+            message: e instanceof Error ? e.message.replace(/Bearer\s+\S+/g, "Bearer …").slice(0, 200) : "the assistant stopped",
+          });
       }
       noteSpend({ meta: usd }, "voice turn");
       if (!req.signal.aborted) send("done", { usd });
-      try { ctl.close(); } catch { /* already closed */ }
+      try {
+        ctl.close();
+      } catch {
+        /* already closed */
+      }
     },
   });
   return new Response(stream, { headers: { "content-type": "text/event-stream", "cache-control": "no-store", connection: "keep-alive" } });
@@ -83,12 +113,24 @@ export async function POST(req: Request) {
 async function spark(messages: Msg[], signal: AbortSignal) {
   const llm = llmProvider();
   const r = await fetch(`${llm.base}/chat/completions`, {
-    method: "POST", signal,
+    method: "POST",
+    signal,
     headers: { Authorization: `Bearer ${process.env[llm.keyVar]}`, "content-type": "application/json" },
-    body: JSON.stringify({ model: llm.model, messages, tools: [START_TOOL], stream: true, stream_options: { include_usage: true }, reasoning_effort: "minimal", max_tokens: 1500 }),
+    body: JSON.stringify({
+      model: llm.model,
+      messages,
+      tools: [START_TOOL],
+      stream: true,
+      stream_options: { include_usage: true },
+      reasoning_effort: "minimal",
+      max_tokens: 1500,
+    }),
   });
   if (!r.ok || !r.body) throw new Error(`Muse Spark (${llm.service}) HTTP ${r.status}`);
-  let text = "", pending = "", sse = "", usd = 0;
+  let text = "",
+    pending = "",
+    sse = "",
+    usd = 0;
   const sentences: string[] = [];
   let call: { id: string; name: string; args: string } | undefined;
   const flush = (all: boolean) => {
@@ -105,13 +147,22 @@ async function spark(messages: Msg[], signal: AbortSignal) {
     sse += dec.decode(value, { stream: true });
     let i: number;
     while ((i = sse.indexOf("\n")) >= 0) {
-      const line = sse.slice(0, i).trim(); sse = sse.slice(i + 1);
+      const line = sse.slice(0, i).trim();
+      sse = sse.slice(i + 1);
       if (!line.startsWith("data:") || line === "data: [DONE]") continue;
       let c: any;
-      try { c = JSON.parse(line.slice(5)); } catch { continue; }
+      try {
+        c = JSON.parse(line.slice(5));
+      } catch {
+        continue;
+      }
       if (c.usage) usd = chatUsd(c.usage);
       const d = c.choices?.[0]?.delta;
-      if (d?.content) { text += d.content; pending += d.content; flush(false); }
+      if (d?.content) {
+        text += d.content;
+        pending += d.content;
+        flush(false);
+      }
       for (const t of d?.tool_calls ?? []) {
         call ??= { id: t.id ?? "call", name: "", args: "" };
         if (t.id) call.id = t.id;

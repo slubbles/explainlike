@@ -13,7 +13,10 @@ export async function GET(req: Request) {
   if (!text) return new Response("no text", { status: 400 });
   if (!budgetNow().ok) return new Response("voice budget used up", { status: 429 });
   const r = await fetch(`https://api.deepgram.com/v1/speak?model=${VOICE}&encoding=mp3`, {
-    method: "POST", headers: { Authorization: `Token ${process.env.DEEPGRAM_API_KEY}`, "content-type": "application/json" }, body: JSON.stringify({ text }), signal: req.signal,
+    method: "POST",
+    headers: { Authorization: `Token ${process.env.DEEPGRAM_API_KEY}`, "content-type": "application/json" },
+    body: JSON.stringify({ text }),
+    signal: req.signal,
   }).catch(() => null);
   if (!r?.ok || !r.body) return new Response("no speech", { status: 502 });
   // Aura-2 bills per character ($0.030 per 1,000)

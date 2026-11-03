@@ -16,15 +16,49 @@ test("built-in packs load and every component icon exists in the base doodle pac
 });
 
 test("a broken pack lists every problem at once", () => {
-  const bad = { id: "My Pack", icons: { db: { file: "missing.png" } }, components: [{ id: "x", name: "X", kind: "db", layer: "data", keyword: "Too Many Words Here", icon: "database", detect: { files: ["("] } }] };
+  const bad = {
+    id: "My Pack",
+    icons: { db: { file: "missing.png" } },
+    components: [
+      { id: "x", name: "X", kind: "db", layer: "data", keyword: "Too Many Words Here", icon: "database", detect: { files: ["("] } },
+    ],
+  };
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "pack-"));
-  assert.throws(() => parsePack(bad, dir), (e: Error) => /kebab-case/.test(e.message) && /missing\.png not found/.test(e.message) && /lowercase words/.test(e.message) && /bad regex/.test(e.message));
-  assert.throws(() => parsePack({ id: "ok", components: [{ id: "a", name: "A", kind: "db", layer: "data", keyword: "a", icon: "database", detect: {} }] }, dir), /needs files or contains/);
+  assert.throws(
+    () => parsePack(bad, dir),
+    (e: Error) =>
+      /kebab-case/.test(e.message) &&
+      /missing\.png not found/.test(e.message) &&
+      /lowercase words/.test(e.message) &&
+      /bad regex/.test(e.message),
+  );
+  assert.throws(
+    () =>
+      parsePack(
+        { id: "ok", components: [{ id: "a", name: "A", kind: "db", layer: "data", keyword: "a", icon: "database", detect: {} }] },
+        dir,
+      ),
+    /needs files or contains/,
+  );
 });
 
 test("later packs override icons and components by id", () => {
-  const a = parsePack({ id: "a", icons: {}, components: [{ id: "q", name: "Queue A", kind: "queue", layer: "async", keyword: "queue", icon: "queue", detect: { files: ["a"] } }] }, "");
-  const b = parsePack({ id: "b", icons: {}, components: [{ id: "q", name: "Queue B", kind: "queue", layer: "async", keyword: "queue", icon: "queue", detect: { files: ["b"] } }] }, "");
+  const a = parsePack(
+    {
+      id: "a",
+      icons: {},
+      components: [{ id: "q", name: "Queue A", kind: "queue", layer: "async", keyword: "queue", icon: "queue", detect: { files: ["a"] } }],
+    },
+    "",
+  );
+  const b = parsePack(
+    {
+      id: "b",
+      icons: {},
+      components: [{ id: "q", name: "Queue B", kind: "queue", layer: "async", keyword: "queue", icon: "queue", detect: { files: ["b"] } }],
+    },
+    "",
+  );
   const m = mergePacks([a, b]);
   assert.equal(m.components.length, 1);
   assert.equal(m.components[0].name, "Queue B");
@@ -32,13 +66,21 @@ test("later packs override icons and components by id", () => {
 
 test("detection reads only matching files and returns evidence paths", () => {
   const repo: Record<string, string> = {
-    "wrangler.toml": 'main = "src/index.ts"\n[[d1_databases]]\nbinding = "DB"\n[[r2_buckets]]\nbinding = "FILES"\n[triggers]\ncrons = ["0 * * * *"]\n',
+    "wrangler.toml":
+      'main = "src/index.ts"\n[[d1_databases]]\nbinding = "DB"\n[[r2_buckets]]\nbinding = "FILES"\n[triggers]\ncrons = ["0 * * * *"]\n',
     "src/index.ts": "export class Room extends DurableObject {}",
     "README.md": "we might use kv_namespaces later",
-    "Dockerfile": "FROM node:22",
+    Dockerfile: "FROM node:22",
   };
   const reads: string[] = [];
-  const found = detectComponents(builtinPackIds().map((id) => loadIconPack(id)), Object.keys(repo), (f) => { reads.push(f); return repo[f]; });
+  const found = detectComponents(
+    builtinPackIds().map((id) => loadIconPack(id)),
+    Object.keys(repo),
+    (f) => {
+      reads.push(f);
+      return repo[f];
+    },
+  );
   const ids = found.map((d) => d.component.id).sort();
   assert.deepEqual(ids, ["cf-cron", "cf-d1", "cf-durable-object", "cf-r2", "cf-worker", "container"]);
   assert.deepEqual(found.find((d) => d.component.id === "cf-durable-object")!.evidence, ["src/index.ts"]);

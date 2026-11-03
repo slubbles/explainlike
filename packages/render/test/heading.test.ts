@@ -9,7 +9,16 @@ import { compose, loadIconPack, spokenHeading, unspokenWords } from "@explanimat
 const fx = path.join(path.dirname(fileURLToPath(import.meta.url)), "fixtures");
 const plan = JSON.parse(fs.readFileSync(path.join(fx, "clipfeed.plan.json"), "utf8")) as ScenePlan;
 const arch = JSON.parse(fs.readFileSync(path.join(fx, "clipfeed.architecture.json"), "utf8")) as Architecture;
-const composed = compose({ plan, audio: [], theme: getTheme("chalk-dark"), spec: specFromBrief(DEFAULT_BRIEF), pack: loadIconPack(), sourceLabel: "github.com/example/clipfeed", arch, colorOf: (c) => (c.kind === "database" ? "blue" : "white") as any });
+const composed = compose({
+  plan,
+  audio: [],
+  theme: getTheme("chalk-dark"),
+  spec: specFromBrief(DEFAULT_BRIEF),
+  pack: loadIconPack(),
+  sourceLabel: "github.com/example/clipfeed",
+  arch,
+  colorOf: (c) => (c.kind === "database" ? "blue" : "white") as any,
+});
 
 test("the heading uses words the narrator says", () => {
   const n = "At ten times traffic, d1 read overload hits because every feed scans all rows.";

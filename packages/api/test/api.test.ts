@@ -47,7 +47,11 @@ test("a job runs to the end and hands back the paths of the video and both board
 test("what the viewer asked for reaches the engine and gets its own folder", async () => {
   const root = tmp();
   const runner = new JobRunner({ cliPath, outRoot: root });
-  const job = runner.start({ input: "https://github.com/milind-soni/OpenMausBot", goal: "how a chat message reaches the tools", depth: "overview" });
+  const job = runner.start({
+    input: "https://github.com/milind-soni/OpenMausBot",
+    goal: "how a chat message reaches the tools",
+    depth: "overview",
+  });
   assert.match(path.basename(job.out), /^milind-soni-openmausbot-ask-[0-9a-f]{8}$/);
   const done = await runner.wait(job.id, 10_000);
   const { argv } = JSON.parse(fs.readFileSync(path.join(done!.out, "args.json"), "utf8"));
@@ -67,7 +71,14 @@ test("a failed render reports the reason, and only one render runs at a time", a
 });
 
 test("links to localhost and private networks are refused unless local use allows them", () => {
-  for (const u of ["http://127.0.0.1:8080/x", "http://localhost:3000/", "http://10.0.0.5/", "http://192.168.1.1/", "http://[::1]/", "http://169.254.169.254/latest/meta-data/"]) {
+  for (const u of [
+    "http://127.0.0.1:8080/x",
+    "http://localhost:3000/",
+    "http://10.0.0.5/",
+    "http://192.168.1.1/",
+    "http://[::1]/",
+    "http://169.254.169.254/latest/meta-data/",
+  ]) {
     assert.throws(() => checkInput(u), /private network/, u);
   }
   assert.equal(checkInput("https://github.com/owner/repo"), "https://github.com/owner/repo");
@@ -81,7 +92,9 @@ test("a job for a private link is refused before anything renders", () => {
   try {
     const runner = new JobRunner({ cliPath, outRoot: tmp() });
     assert.throws(() => runner.start({ input: "http://127.0.0.1:8080/x" }), /private network/);
-  } finally { if (had !== undefined) process.env.EXPLANIMATE_ALLOW_PRIVATE_URLS = had; }
+  } finally {
+    if (had !== undefined) process.env.EXPLANIMATE_ALLOW_PRIVATE_URLS = had;
+  }
 });
 
 test("the opt-out lets a local render start, and renders see the guard is off", async () => {
@@ -101,7 +114,9 @@ test("renders spawned by default see the guard is on", async () => {
     const done = await runner.wait(runner.start({ input: "https://github.com/owner/repo" }).id, 10_000);
     const { allowPrivate } = JSON.parse(fs.readFileSync(path.join(done!.out, "args.json"), "utf8"));
     assert.equal(allowPrivate, "0");
-  } finally { if (had !== undefined) process.env.EXPLANIMATE_ALLOW_PRIVATE_URLS = had; }
+  } finally {
+    if (had !== undefined) process.env.EXPLANIMATE_ALLOW_PRIVATE_URLS = had;
+  }
 });
 
 test("the HTTP API creates a job, waits on it, and refuses other hosts and web pages", async () => {
@@ -118,7 +133,13 @@ test("the HTTP API creates a job, waits on it, and refuses other hosts and web p
     assert.equal(done.state, "done");
     assert.ok(fs.existsSync(done.outputs.mp4));
     assert.equal((await fetch(`${base}/v1/jobs`)).status, 200);
-    const web = await fetch(`${base}/v1/jobs`, { method: "POST", headers: { origin: "https://evil.example" }, body: JSON.stringify({ input: "https://github.com/a/b" }) });
+    const web = await fetch(`${base}/v1/jobs`, {
+      method: "POST",
+      headers: { origin: "https://evil.example" },
+      body: JSON.stringify({ input: "https://github.com/a/b" }),
+    });
     assert.equal(web.status, 403);
-  } finally { await api.close(); }
+  } finally {
+    await api.close();
+  }
 });

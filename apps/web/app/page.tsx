@@ -37,23 +37,32 @@ export default function Home() {
     return () => removeEventListener("popstate", sync);
   }, []);
   useEffect(() => {
-    setMap(undefined); setPicked(undefined); setExpl(null); setStarted([]); setErr("");
+    setMap(undefined);
+    setPicked(undefined);
+    setExpl(null);
+    setStarted([]);
+    setErr("");
     if (!jobId) setForm(DEFAULT_FORM);
   }, [jobId]);
   // the job is the truth for what is on screen: a reopened job shows the link and voice it was made with
   useEffect(() => {
     if (job) setForm(formFromJob(job));
-  }, [job?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [job?.id]);
   useEffect(() => {
     if (job?.state === "done") setBump((b) => b + 1);
-    if (job?.state === "done" && job.interactive && !map) fetch(fileUrl(job.id, "interactive.json")).then((r) => r.json()).then(setMap).catch(() => {});
+    if (job?.state === "done" && job.interactive && !map)
+      fetch(fileUrl(job.id, "interactive.json"))
+        .then((r) => r.json())
+        .then(setMap)
+        .catch(() => {});
   }, [job?.state, job?.interactive, job?.id, map]);
 
   const busy = job?.state === "running";
 
   async function go() {
     if (posting) return;
-    setErr(""); setPosting(true);
+    setErr("");
+    setPosting(true);
     const r = await postJson<{ id: string; warnings?: string[] }>("/api/jobs", { ...form, input: form.input.trim() });
     setPosting(false);
     if (!r.ok) return setErr(r.error);
@@ -73,7 +82,10 @@ export default function Home() {
 
   async function pick(id: string) {
     if (!job) return;
-    setPicked(id); setExpl(null); setExplBusy(true); setErr("");
+    setPicked(id);
+    setExpl(null);
+    setExplBusy(true);
+    setErr("");
     const r = await postJson<Explain>(`/api/jobs/${job.id}/explain`, { component: id });
     setExplBusy(false);
     if (!r.ok) return setErr(r.error);
@@ -94,23 +106,76 @@ export default function Home() {
     <>
       <Nav />
       <main className={jobId ? "page job" : "page"}>
-        {!jobId && <InputScreen form={form} set={set} go={go} busy={posting} err={err} examples={examples} talking={talking} talk={setTalking} onVoiceJob={voiceJob} />}
+        {!jobId && (
+          <InputScreen
+            form={form}
+            set={set}
+            go={go}
+            busy={posting}
+            err={err}
+            examples={examples}
+            talking={talking}
+            talk={setTalking}
+            onVoiceJob={voiceJob}
+          />
+        )}
         {jobId && (
           <>
-            <JobBar form={form} set={set} go={go} busy={busy || posting} fold={job?.state === "done"} quiet={job?.state === "done" && form.input.trim() === job.input && form.voice === job.voice} />
-            {notes.map((n) => <p className="note" role="status" key={n}>{n}</p>)}
-            {!job && <div className="main solo"><div className="screen wait" aria-busy="true">Loading…</div></div>}
-            {job?.stage === "missing" && <div className="main solo"><div className="screen wait" role="alert">{job.error}</div></div>}
+            <JobBar
+              form={form}
+              set={set}
+              go={go}
+              busy={busy || posting}
+              fold={job?.state === "done"}
+              quiet={job?.state === "done" && form.input.trim() === job.input && form.voice === job.voice}
+            />
+            {notes.map((n) => (
+              <p className="note" role="status" key={n}>
+                {n}
+              </p>
+            ))}
+            {!job && (
+              <div className="main solo">
+                <div className="screen wait" aria-busy="true">
+                  Loading…
+                </div>
+              </div>
+            )}
+            {job?.stage === "missing" && (
+              <div className="main solo">
+                <div className="screen wait" role="alert">
+                  {job.error}
+                </div>
+              </div>
+            )}
             {job && job.state !== "done" && job.stage !== "missing" && (
               <div className="main">
                 <div className="col">
-                  <div className="screen wait" aria-busy={job.state === "running"}>{job.state === "error" ? "No video: this run stopped before the end." : "The video shows up here when it is ready."}</div>
-                  {err && <div className="err" role="alert">{err}</div>}
+                  <div className="screen wait" aria-busy={job.state === "running"}>
+                    {job.state === "error" ? "No video: this run stopped before the end." : "The video shows up here when it is ready."}
+                  </div>
+                  {err && (
+                    <div className="err" role="alert">
+                      {err}
+                    </div>
+                  )}
                 </div>
                 <Steps job={job} />
               </div>
             )}
-            {job?.state === "done" && <ResultView job={job} map={map} picked={picked} expl={expl} explBusy={explBusy} clips={clips} pick={pick} followUp={followUp} err={err} />}
+            {job?.state === "done" && (
+              <ResultView
+                job={job}
+                map={map}
+                picked={picked}
+                expl={expl}
+                explBusy={explBusy}
+                clips={clips}
+                pick={pick}
+                followUp={followUp}
+                err={err}
+              />
+            )}
           </>
         )}
       </main>
