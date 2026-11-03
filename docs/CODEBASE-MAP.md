@@ -113,7 +113,6 @@ explanimate/
 ├── examples/packs/supabase/  sample icon pack (see docs/plugins.md)
 ├── scripts/                  check-secrets.sh (pre-commit secret scan), gen-icon-pack.ts
 ├── Dockerfile, .dockerignore DOCKER: one image with Node, Chromium, ffmpeg, git; data on a /data volume
-├── railway.json              a Railway hosting config (health check on /api/health); not used today
 ├── .github/workflows/ci.yml  CI: typecheck, tests and web build on every push and PR
 │
 └── docs/

@@ -10,7 +10,7 @@ Explanimate is built to run on your own machine. This page is what to check befo
 - `ffmpeg` on the PATH.
 - Chrome or Chromium. Set `EXPLANIMATE_CHROME` if it is not in a standard place.
 - A persistent disk for jobs (`EXPLANIMATE_JOBS_DIR`). Each video is about 20 MB plus its boards.
-- About 2 CPU cores and 2 GB of memory per render. One video renders at a time.
+- About 2 CPU cores and 2 GB of memory per render. Up to 10 videos render at once by default (`EXPLANIMATE_CONCURRENCY`); past that, new videos wait their turn.
 
 A video takes 3 to 6 minutes and runs as a child process. That does not fit serverless functions with short time limits. Use a VM or a container with a disk instead.
 
