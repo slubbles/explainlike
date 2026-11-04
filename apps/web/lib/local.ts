@@ -1,6 +1,9 @@
 const LOCAL_HOSTS = new Set(["localhost", "127.0.0.1", "[::1]", "::1"]);
 const LOOPBACK = /^(127\.\d+\.\d+\.\d+|::1|::ffff:127\.\d+\.\d+\.\d+)$/;
 
+/** One loopback test shared by the server gate and the page: the whole 127/8 range is this machine. */
+export const loopbackHost = (h: string) => LOCAL_HOSTS.has(h) || LOOPBACK.test(h.replace(/^\[|\]$/g, ""));
+
 const hostname = (h: string) =>
   h
     .trim()
@@ -20,7 +23,6 @@ export function localOnly(req: Request): Response | undefined {
     .split(",")
     .map((s) => s.trim())
     .filter(Boolean);
-  const ok =
-    hosts.length > 0 && hosts.every((h) => LOCAL_HOSTS.has(h)) && ips.every((ip) => LOOPBACK.test(ip)) && !req.headers.get("forwarded");
+  const ok = hosts.length > 0 && hosts.every(loopbackHost) && ips.every((ip) => LOOPBACK.test(ip)) && !req.headers.get("forwarded");
   return ok ? undefined : Response.json({ error: "voice mode only runs on localhost" }, { status: 403 });
 }

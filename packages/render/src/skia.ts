@@ -10,6 +10,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { Worker } from "node:worker_threads";
 import { chromium } from "playwright-core";
+import { workerCount } from "./workers.js";
 import type { Film } from "./film.js";
 import { stageHtml } from "./stage.js";
 import { findChrome, chromiumArgs, type CaptionSpot } from "./capture.js";
@@ -154,7 +155,7 @@ export async function captureFramesSkia(
   const frames = opts.only ?? [...Array(total).keys()];
   const { captions, layout } = await probeStage(film, html);
   const jpegFrames = [...new Set(sampleTimes(film).map((t) => Math.round(t * film.fps)))];
-  const n = Math.max(1, Math.min(opts.workers ?? skiaWorkers(opts.hardwareEncoder), frames.length));
+  const n = workerCount(opts.workers, skiaWorkers(opts.hardwareEncoder), frames.length);
   const { fonts: _drop, ...plain } = film;
   const pool = await Promise.all(
     [...Array(n).keys()].map(

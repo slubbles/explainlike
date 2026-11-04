@@ -527,7 +527,8 @@ export async function runExplanimate(o: RunOptions) {
     });
     await recheckSpeech();
     // a speech fix may have reworded a line: each line's card is cut and checked again against what is said
-    if (plan.scenes.some((s) => s.beats?.length)) {
+    // (a plan with no beats at all gets one board beat per line, so one-visual-per-line always holds)
+    {
       const beats = checkBeats(plan, {
         arch: { product: "", one_liner: "", components: [], connections: [], walkthrough: { name: "", steps: [] }, scale: [] },
         source: doc.text,

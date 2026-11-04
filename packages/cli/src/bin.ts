@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { runExplanimate } from "./pipeline.js";
+import { checkFollowUpArgs, checkPackValues, isExplainRequest, parseVoice, parseWorkers } from "./args.js";
 import { builtinPackIds } from "@explanimate/render";
 import { adoptLegacyEnv } from "@explanimate/core";
 
@@ -72,8 +73,18 @@ const opt = (k: string) => {
   return i >= 0 ? argv[i + 1] : undefined;
 };
 const many = (k: string) => argv.flatMap((a, i) => (a === k ? [argv[i + 1]] : []));
-const flags = new Set(["--fresh", "--json", "--no-qa", "--no-packs", "--no-music", "--no-sfx", "--vision-review", "--allow-private"]);
-if (argv[0] === "explain") await explain();
+const flags = new Set([
+  "--fresh",
+  "--json",
+  "--no-qa",
+  "--no-packs",
+  "--no-music",
+  "--no-sfx",
+  "--vision-review",
+  "--allow-private",
+  "--export",
+]);
+if (isExplainRequest(argv)) await explain();
 const input = argv.find((a, i) => !a.startsWith("--") && (i === 0 || !argv[i - 1].startsWith("--") || flags.has(argv[i - 1])));
 if (!input) {
   process.stderr.write(HELP);
@@ -94,6 +105,17 @@ if (depth && !["overview", "working", "deep"].includes(depth)) {
   process.stderr.write("--depth takes overview, working or deep\n");
   process.exit(1);
 }
+let workers: number | undefined;
+let voice: string | undefined;
+try {
+  workers = parseWorkers(opt("--workers"));
+  voice = parseVoice(opt("--voice"));
+  checkFollowUpArgs(opt("--focus"), whatIf, opt("--from"));
+  checkPackValues([...many("--pack"), ...many("--icons")]);
+} catch (e) {
+  process.stderr.write(`${(e as Error).message}\n`);
+  process.exit(1);
+}
 const ask = {
   goal: opt("--goal"),
   audience: opt("--audience"),
@@ -107,7 +129,7 @@ runExplanimate({
   input: fs.existsSync(input) ? path.resolve(input) : input,
   out: opt("--out") && path.resolve(opt("--out")!),
   name: opt("--name"),
-  voice: opt("--voice"),
+  voice,
   ask: Object.values(ask).some(Boolean) ? ask : undefined,
   packs: argv.includes("--no-packs")
     ? []
@@ -115,7 +137,7 @@ runExplanimate({
       ? [...many("--pack"), ...many("--icons")].map((d) => (fs.existsSync(d) ? path.resolve(d) : d))
       : undefined,
   fresh: argv.includes("--fresh"),
-  workers: opt("--workers") ? Number(opt("--workers")) : undefined,
+  workers,
   qa: !argv.includes("--no-qa"),
   music: !argv.includes("--no-music"),
   sfx: !argv.includes("--no-sfx"),

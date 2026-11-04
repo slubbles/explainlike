@@ -7,7 +7,7 @@ import { fileURLToPath } from "node:url";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { JobRunner } from "@explanimate/api";
-import { createExplanimateServer } from "../src/index.ts";
+import { createExplanimateServer, defaultWaitSec, nextProgress } from "../src/index.ts";
 
 const cliPath = fileURLToPath(new URL("../../api/test/fixtures/fake-cli.mjs", import.meta.url));
 
@@ -113,4 +113,15 @@ test("explain_status and explain_cancel on an unknown id are tool errors, not cr
     assert.equal(r.isError, true, name);
     assert.match(text(r), /no job/);
   }
+});
+
+test("the default wait stays within 0-600 s, and progress never passes its total", () => {
+  assert.equal(defaultWaitSec({}), 50);
+  assert.equal(defaultWaitSec({ EXPLANIMATE_MCP_WAIT_SEC: "10" }), 10);
+  assert.equal(defaultWaitSec({ EXPLANIMATE_MCP_WAIT_SEC: "soon" }), 50);
+  assert.equal(defaultWaitSec({ EXPLANIMATE_MCP_WAIT_SEC: "9999" }), 600);
+  assert.equal(defaultWaitSec({ EXPLANIMATE_MCP_WAIT_SEC: "-3" }), 0);
+  assert.equal(nextProgress(30, 30), 30.01);
+  assert.equal(nextProgress(100, 100), 100);
+  assert.equal(nextProgress(99.995, 100), 100);
 });

@@ -35,7 +35,7 @@ import {
 } from "@explanimate/core";
 import { sparkJson, type CostLedger } from "@explanimate/models";
 import { SHAPES, WHAT_IF, analogyRule, shapeFor, type Shape } from "./shapes.js";
-import { checkBeats, beatAnchors, readmePromises, type BeatReport } from "./beats.js";
+import { checkBeats, beatAnchors, boardBeats, readmePromises, type BeatReport } from "./beats.js";
 
 /** Plain words are literal words: the newcomer test kept passing narration that swapped jargon for a riddle. */
 const PLAIN =
@@ -272,12 +272,20 @@ export const recapNeeds = (parts: number) => Math.min(parts, Math.max(3, Math.ce
  */
 export function recapInOrder(narration: string, keywords: string[]): number {
   const r = ` ${norm(narration)} `;
+  // a part counts when a whole word of its name is said (plurals and possessives count); a bare prefix does not
+  const atWord = (x: string) => {
+    for (const v of [` ${x} `, ` ${x}s `, ` ${x}'s `]) {
+      const i = r.indexOf(v);
+      if (i >= 0) return i;
+    }
+    return -1;
+  };
   const at = keywords
     .map((k) => {
       const full = r.indexOf(` ${norm(k)} `);
       if (full >= 0) return full;
       const parts = words4(k)
-        .map((x) => r.indexOf(` ${x}`))
+        .map(atWord)
         .filter((i) => i >= 0);
       return parts.length ? Math.min(...parts) : -1;
     })
@@ -347,15 +355,13 @@ export function checkStory(plan: ScenePlan, arch: Architecture, analogy = "", sh
           .join(" ")
       : hook.narration
     : "";
-  const parts = arch.components.filter(
-    (c) => hook && (shape !== "journey" || c.kind !== "client") && norm(hookSaid).includes(norm(c.keyword)),
-  );
+  const parts = arch.components.filter((c) => hook && norm(hookSaid).includes(norm(c.keyword)));
   if (hook) {
     const line = hookLine(hook.narration);
     const n = wordCount(line);
-    if (n > 16)
+    if (n > 14)
       issues.push(
-        `the hook's first sentence has ${n} words; state the concrete problem or payoff in one line of at most 16 words, spoken within about 8 seconds`,
+        `the hook's first sentence has ${n} words; state the concrete problem or payoff in one line of at most 14 words, spoken within about 8 seconds`,
       );
     if (!/[?]\s*$/.test(line) && !/\b(you|your|you're|you'll|you'd|yours)\b/i.test(line) && !/\d/.test(line))
       issues.push(
@@ -363,9 +369,11 @@ export function checkStory(plan: ScenePlan, arch: Architecture, analogy = "", sh
       );
     if (/^(hi|hello|welcome|today|in this video|this is|meet|let'?s)\b/i.test(line))
       issues.push(`the hook opens with "${line.split(/\s+/).slice(0, 3).join(" ")}"; open on a question or a surprising claim instead`);
-    if (shape === "journey" && !WHAT_IF.test(line))
+    // a journey opens on what this lets you do: the 'What if ...?' question, or another question about your payoff
+    const payoffQuestion = /\?\s*$/.test(line) && /\b(you|your|you're|you'll|you'd|yours)\b/i.test(line);
+    if (shape === "journey" && !WHAT_IF.test(line) && !payoffQuestion)
       issues.push(
-        `${hook.id}: the hook line "${line}" should be the 'What if ...?' question shown under the tagline ('What if your AI could really click around the web?')`,
+        `${hook.id}: the hook line "${line}" should be the 'What if ...?' question shown under the tagline ('What if your AI could really click around the web?'), or another question about what this lets you do`,
       );
     if (
       shape === "journey" &&
@@ -384,11 +392,14 @@ export function checkStory(plan: ScenePlan, arch: Architecture, analogy = "", sh
     );
   if (analogy) {
     const aw = words4(analogy);
-    const told = sc
+    const told = ` ${sc
       .filter((s) => s.kind === "hook" || s.kind === "layer" || s.kind === "walkthrough")
       .map((s) => norm(s.narration))
-      .join(" ");
-    if (aw.length && !aw.some((w) => told.includes(w.slice(0, 5))))
+      .join(" ")} `;
+    // the analogy counts when its words are really said: one long word, or two of its words
+    const said = (w: string) => told.includes(` ${w} `) || told.includes(` ${w}s `);
+    const full = aw.filter(said);
+    if (aw.length && !full.some((w) => w.length >= 5) && full.length < 2)
       issues.push(`the everyday analogy (${analogy}) never appears in the hook or the journey`);
   }
   const wi = sc.findIndex((s) => s.kind === "walkthrough");
@@ -1826,7 +1837,12 @@ export async function planConceptBeats(o: {
       { role: "user", content: lines.map((l, i) => `${i}. [${l.kind}] ${l.line}`).join("\n") },
     ],
   }).catch(() => undefined);
-  if (!out) return { plan: o.plan };
+  if (!out) {
+    // the line cards never came back: every line stays on its picture instead of going without a visual
+    const scenes = o.plan.scenes.map((s) => (carded.includes(s) ? { ...s, beats: boardBeats(s.narration) } : s));
+    const b = checkBeats({ ...o.plan, scenes }, { arch: NO_ARCH, source: o.source, wps: o.wps });
+    return { plan: b.plan, report: b.report };
+  }
   const pick = new Map(out.lines.map((x) => [x.n, x]));
   let n = 0;
   const scenes = o.plan.scenes.map((s) => {

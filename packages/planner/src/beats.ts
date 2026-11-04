@@ -69,7 +69,7 @@ const distinctWords = (a: string, other: string) => {
 const firstSaid = (ws: string[], line: string) => tokens(line).findIndex((t) => ws.some((w) => t === w || stem(t) === stem(w)));
 const someSaid = (shown: string, line: string) => contentWords(shown).some((w) => w.length >= 3 && spokenIn(w, line));
 
-const NUM_WORDS = [
+const ONES = [
   "zero",
   "one",
   "two",
@@ -90,22 +90,80 @@ const NUM_WORDS = [
   "seventeen",
   "eighteen",
   "nineteen",
-  "twenty",
 ];
-/** The figure a number card shows, read from its text ("1 command", "93%", "10x"). */
+const TENS: Record<string, number> = {
+  twenty: 20,
+  thirty: 30,
+  forty: 40,
+  fifty: 50,
+  sixty: 60,
+  seventy: 70,
+  eighty: 80,
+  ninety: 90,
+};
+const SCALES: Record<string, number> = { hundred: 100, thousand: 1000, million: 1_000_000 };
+
+/** Every number said in words in a text ("thirty two", "one hundred", "two thousand"). */
+export function wordNumbers(text: string): number[] {
+  const toks = tokens(text);
+  const out: number[] = [];
+  const ones = (w: string) => (ONES.includes(w) ? ONES.indexOf(w) : undefined);
+  let i = 0;
+  while (i < toks.length) {
+    const t = toks[i];
+    let n: number | undefined;
+    let j = i;
+    if (TENS[t] !== undefined) {
+      n = TENS[t];
+      j++;
+      const o = ones(toks[j]);
+      if (o !== undefined && o > 0 && o < 10) {
+        n += o;
+        j++;
+      }
+    } else {
+      const base = t === "a" ? 1 : ones(t);
+      if (base !== undefined) {
+        j++;
+        const scale = SCALES[toks[j]];
+        if (scale !== undefined) {
+          n = base * scale;
+          j++;
+          if (TENS[toks[j]] !== undefined) {
+            let tail = TENS[toks[j]];
+            j++;
+            const o = ones(toks[j]);
+            if (o !== undefined && o > 0 && o < 10) {
+              tail += o;
+              j++;
+            }
+            n += tail;
+          } else {
+            const o = ones(toks[j]);
+            if (o !== undefined && o > 0) {
+              n += o;
+              j++;
+            }
+          }
+        } else n = base;
+      }
+    }
+    if (n !== undefined) {
+      out.push(n);
+      i = j;
+    } else i++;
+  }
+  return out;
+}
+/** The figure a number card shows, read from its text ("1 command", "93%", "10x", "thirty two"). */
 export function figureOf(text: string): number | undefined {
   const m = /(\d+(?:[.,]\d+)?)/.exec(text);
   if (m) return Number(m[1].replace(/,/g, ""));
-  const w = tokens(text).find((x) => NUM_WORDS.includes(x));
-  return w === undefined ? undefined : NUM_WORDS.indexOf(w);
+  return wordNumbers(text)[0];
 }
 const figureSaid = (n: number, line: string) => {
   const t = ` ${norm(line).replace(/,/g, "")} `;
-  return (
-    t.includes(` ${n} `) ||
-    new RegExp(`[ $]${String(n).replace(".", "\\.")}(%|x|k|ms|s)? `).test(t) ||
-    (n <= 20 && Number.isInteger(n) && tokens(line).includes(NUM_WORDS[n]))
-  );
+  return t.includes(` ${n} `) || new RegExp(`[ $]${String(n).replace(".", "\\.")}(%|x|k|ms|s)? `).test(t) || wordNumbers(line).includes(n);
 };
 
 const sentencesOf = (s: string) =>
@@ -123,6 +181,21 @@ export function anchorIndex(narration: string, beats: Beat[]): number[] {
     if (k >= 0) at = k + 1;
     return k;
   });
+}
+
+/** One board beat per sentence: the fallback when no visuals were planned, so every line still moves the picture. */
+export function boardBeats(narration: string): Beat[] {
+  return sentencesOf(narration).map((line) => ({
+    line,
+    visual: "board",
+    anchor: spokenWords(line)
+      .slice(0, 3)
+      .join(" ")
+      .replace(/[,.;:!?"]+/g, ""),
+    text: "",
+    items: [],
+    focus: "",
+  }));
 }
 
 /** The first few words of a line, said from `from`: a kinetic card the line is sure to say. */
@@ -237,6 +310,15 @@ export function checkBeats(
     issues: string[] = [];
   const ids = new Set(o.arch.components.map((c) => c.id));
   const src = ` ${(o.source ?? "").toLowerCase().replace(/\s+/g, " ")} `;
+  // numbers the source states, as whole tokens: a card showing 2 must not match 200 or 12
+  const srcNums = new Set(
+    src
+      .replace(/,/g, "")
+      .split(/[^0-9.]+/)
+      .map((t) => t.replace(/^\.+|\.+$/g, ""))
+      .filter(Boolean),
+  );
+  const srcWords = wordNumbers(o.source ?? "");
   const kinetic = (s: Scene, b: Beat, why: string): Beat => {
     repairs.push(`${s.id}: ${b.visual} beat on "${b.anchor}" ${why}; shown as words from the line instead`);
     return { ...b, visual: "kinetic", text: kineticFrom(b.line, b.anchor), items: [], focus: "" };
@@ -244,8 +326,13 @@ export function checkBeats(
   let promised =
     !PROMISE.test(o.source ?? "") || plan.scenes.some((s) => (s.beats ?? []).some((b) => b.visual === "contrast" && PROMISE.test(b.line)));
   const scenes = plan.scenes.map((s0) => {
-    if (!s0.beats?.length) return s0;
     let s = s0;
+    if (!s.beats?.length) {
+      const beats = boardBeats(s.narration);
+      if (!beats.length) return s0;
+      repairs.push(`${s.id}: no visuals were planned, so each line stays on the board`);
+      s = { ...s, beats };
+    }
     if (!promised && s.kind !== "hook") {
       const add = promiseBeat(s.narration);
       if (add) {
@@ -306,9 +393,17 @@ export function checkBeats(
           const els = b.items.slice(0, 4).map((r) => r.slice(0, 32));
           if (!els.length) return kinetic(s, b, "has an empty page");
           if (!someSaid([b.focus, ...els].join(" "), line)) return kinetic(s, b, "shows a page the line never mentions");
+          // the address bar is chrome: a host the line never says is dropped instead of shown
+          const host = b.text
+            .replace(/^https?:\/\//, "")
+            .split("/")[0]
+            .replace(/^www\./, "")
+            .replace(/[.-]/g, " ");
+          const url = b.text.trim() && !someSaid(host, line) ? "" : b.text.replace(/^https?:\/\//, "").slice(0, 40);
+          if (b.text.trim() && !url) repairs.push(`${s.id}: the browser bar showed "${b.text.trim()}" the line never says`);
           return {
             ...b,
-            text: b.text.replace(/^https?:\/\//, "").slice(0, 40),
+            text: url,
             items: els,
             focus: els.find((e) => e === b.focus || (b.focus && e.includes(b.focus))) ?? "",
           };
@@ -316,7 +411,7 @@ export function checkBeats(
         case "number": {
           const n = figureOf(b.text);
           if (n === undefined || !figureSaid(n, line)) return kinetic(s, b, `shows a number (${b.text}) the line does not say`);
-          if (n > 1 && o.source && !src.includes(String(n)) && !(n <= 20 && src.includes(` ${NUM_WORDS[n]} `)))
+          if (n > 1 && o.source && !srcNums.has(String(n)) && !srcWords.includes(n))
             return kinetic(s, b, `shows ${n}, which the source never states`);
           return { ...b, items: [], focus: "" };
         }
@@ -391,9 +486,20 @@ export function checkBeats(
   const cap = Math.max(2, Math.round(cards.length / 3));
   const spare = cards.filter((x) => x.b.visual === "kinetic" && x.s.kind !== "hook");
   for (let over = cards.filter((x) => x.b.visual === "kinetic").length - cap; over > 0 && spare.length; over--) {
-    // the longest run of kinetic first: drop the one whose neighbours are kinetic too, else the last
-    const x = spare.splice(spare.length - 1, 1)[0];
-    x.s.beats![x.bi] = { ...x.b, visual: "board", text: "", items: [], focus: "" };
+    // a kinetic beside another kinetic goes back to the board before a lone one does, else the last
+    let drop = spare.length - 1;
+    for (let i = 0; i < spare.length; i++) {
+      const si = shown.indexOf(spare[i]);
+      const near = (x?: { b: Beat }) => x?.b.visual === "kinetic";
+      if (near(shown[si - 1]) || near(shown[si + 1])) {
+        drop = i;
+        break;
+      }
+    }
+    const x = spare.splice(drop, 1)[0];
+    const board: Beat = { ...x.b, visual: "board", text: "", items: [], focus: "" };
+    x.s.beats![x.bi] = board;
+    x.b = board;
     repairs.push(`${x.s.id}: kinetic line "${x.b.anchor}" went back to the board (kinetic is capped at about a third of the cards)`);
   }
   // a part is anchored to tools people know, early: "an AI agent, like Claude Code or Cursor"

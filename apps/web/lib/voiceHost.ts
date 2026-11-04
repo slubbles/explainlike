@@ -1,8 +1,7 @@
-/** Hosts voice mode answers on; the server's `localOnly` check (lib/local.ts) is the real gate. */
-const LOCAL_HOSTS = new Set(["localhost", "127.0.0.1", "[::1]", "::1"]);
+import { loopbackHost } from "./local";
 
 /** Whether this page's host can use voice mode, so the mic only shows where it works. */
-export const voiceHost = (hostname: string) => LOCAL_HOSTS.has(hostname.toLowerCase()) || /^127\.\d+\.\d+\.\d+$/.test(hostname);
+export const voiceHost = (hostname: string) => loopbackHost(hostname.trim().toLowerCase());
 
 /** A plain sentence for a microphone or voice start failure, instead of a raw DOMException message. */
 export function micError(e: unknown): string {

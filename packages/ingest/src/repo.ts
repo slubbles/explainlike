@@ -58,7 +58,13 @@ export function checkout(urlOrPath: string): { dir: string; url: string; commit:
   return { dir, url, commit, name: `${g.owner}/${g.repo}` };
 }
 
-const CLONE_TIMEOUT_MS = Number(process.env.EXPLANIMATE_CLONE_TIMEOUT_S ?? 180) * 1000;
+/** How long a clone may take: garbage in the env var falls back to 180 s instead of NaN. */
+export function cloneTimeoutMs(env: NodeJS.ProcessEnv = process.env): number {
+  const s = Number(env.EXPLANIMATE_CLONE_TIMEOUT_S ?? 180);
+  return (Number.isFinite(s) && s > 0 ? s : 180) * 1000;
+}
+
+const CLONE_TIMEOUT_MS = cloneTimeoutMs();
 
 /** A failed clone as a sentence a person can act on: missing or private, unknown branch, too big, or offline. */
 export function cloneError(e: { stderr?: Buffer | string; signal?: string | null; message?: string }, name: string, ref?: string): string {
@@ -108,6 +114,8 @@ function listFiles(dir: string, maxFiles = MAX_DIGEST_FILES): { files: string[];
       for (const e of entries) {
         if (files.length >= maxFiles) return false;
         const rel = d ? `${d}/${e.name}` : e.name;
+        // a symlink is never followed: it could point outside the repo, into secrets or /etc
+        if (e.isSymbolicLink()) continue;
         if (e.isDirectory()) {
           if (!SKIP_DIR.test(rel + "/") && !walk(rel)) return false;
         } else files.push(rel);
@@ -135,10 +143,16 @@ export function digestRepo(dir: string, budget = 42000, maxFiles = MAX_DIGEST_FI
   const files = all.filter((f) => !isSecretPath(f));
   const textFiles = files.filter((f) => !BINARY.test(f) && !LOCKFILE.test(f));
   const cache = new Map<string, string>();
+  const listed = new Set(files);
   const read = (p: string, max = 200_000): string => {
-    if (isSecretPath(p) || BINARY.test(p) || !files.includes(p)) return "";
+    if (isSecretPath(p) || BINARY.test(p) || !listed.has(p)) return "";
     if (!cache.has(p)) {
       try {
+        // a tracked symlink is listed by name but never followed, even inside the repo
+        if (fs.lstatSync(path.join(dir, p)).isSymbolicLink()) {
+          cache.set(p, "");
+          return "";
+        }
         const st = fs.statSync(path.join(dir, p));
         if (st.size > 400_000) cache.set(p, "");
         else {

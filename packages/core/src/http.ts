@@ -68,7 +68,7 @@ const scrub = (s: string) => s.replace(/(Bearer|Token)\s+[\w.-]+/gi, "$1 ***").r
  * function, so streamed bodies (FormData, Blob) are fresh every time. Resolves with an ok Response.
  */
 export async function fetchRetry(url: string, init: () => RequestInit, o: RetryOptions): Promise<Response> {
-  const attempts = o.attempts ?? 4,
+  const attempts = Math.max(1, Math.floor(o.attempts ?? 4) || 1),
     base = o.baseMs ?? 1000,
     maxWait = o.maxWaitMs ?? 30_000,
     timeout = o.timeoutMs ?? 120_000;

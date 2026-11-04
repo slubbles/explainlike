@@ -177,15 +177,42 @@ async function fetchX(url: string, id: string): Promise<Card & { url: string }> 
   };
 }
 
+/** Read at most `max` bytes of a body, so a chunked page with no length cannot exhaust memory. */
+export async function readCapped(r: Response, max: number): Promise<string> {
+  if (!r.body) return (await r.text()).slice(0, max);
+  const reader = r.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let n = 0;
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      n += value.byteLength;
+      chunks.push(value);
+      if (n >= max) break;
+    }
+  } finally {
+    await reader.cancel().catch(() => {});
+    reader.releaseLock();
+  }
+  return Buffer.concat(chunks).toString("utf8").slice(0, max);
+}
+
 export async function fetchArticle(url: string): Promise<Card & { url: string }> {
-  const r = await get(url, new URL(url).hostname, { headers: { "user-agent": UA, accept: "text/html" } });
+  let host: string;
+  try {
+    host = new URL(url).hostname;
+  } catch {
+    throw new Error(`That is not a link I can read ("${url.slice(0, 80)}"). Paste an article URL like https://example.com/story.`);
+  }
+  const r = await get(url, host, { headers: { "user-agent": UA, accept: "text/html" } });
   if (!r.ok) throw new Error(fetchError("article", r.status));
   const type = r.headers.get("content-type") ?? "";
   if (type && !/html|xml|text\/plain/i.test(type))
     throw new Error(`That link is not a web page (${type.split(";")[0]}). Link to an article instead.`);
   if (Number(r.headers.get("content-length") ?? 0) > MAX_PAGE_BYTES)
     throw new Error("That page is too large to read (over 5 MB). Link to a single article.");
-  const html = (await r.text()).slice(0, MAX_PAGE_BYTES);
+  const html = await readCapped(r, MAX_PAGE_BYTES);
   const { document } = parseHTML(html);
   const meta = (n: string) => document.querySelector(`meta[property="${n}"],meta[name="${n}"]`)?.getAttribute("content") ?? undefined;
   const art = new Readability(document as any).parse();
