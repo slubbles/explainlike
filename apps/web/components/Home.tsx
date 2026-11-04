@@ -14,14 +14,14 @@ import { fetchAuthConfig } from "../lib/session";
 
 const urlJob = () => new URLSearchParams(location.search).get("job") ?? undefined;
 
-export type Quota = "signin" | { used: number; limit: number; left: number } | null;
+export type Quota = "signin" | { used: number; limit: number | null; left: number | null } | null;
 type AuthState = {
   enabled: boolean;
   siteKey: string;
   google: boolean;
   github: boolean;
   email?: string;
-  videos?: { used: number; limit: number; left: number };
+  videos?: { used: number; limit: number | null; left: number | null };
 };
 
 /** The home UI: the start page, or a job when ?job=<id> is set. app/page.tsx wraps it with the head. */

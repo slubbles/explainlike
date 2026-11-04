@@ -17,7 +17,7 @@ export default async function VideoPage({ params }: { params: Promise<{ id: stri
   const user = await requireAppUser();
   const db = getD1Db();
   await ensureUsageTables(db);
-  const quota = await videosLeftToday(user.id);
+  const quota = await videosLeftToday(user.id, Date.now(), db, user.email);
   return (
     <>
       <Link className="app-back" href="/app/videos">

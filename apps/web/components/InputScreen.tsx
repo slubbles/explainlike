@@ -113,9 +113,7 @@ export function PromptBox({
         {quota === "signin" ? (
           <p className="quota">Sign in to make a video.</p>
         ) : quota ? (
-          <p className="quota">
-            {quota.left} of {quota.limit} videos left today
-          </p>
+          <p className="quota">{quota.limit === null ? "Unlimited videos" : `${quota.left} of ${quota.limit} videos left today`}</p>
         ) : null}
         <div className="pacts">
           {talk && (

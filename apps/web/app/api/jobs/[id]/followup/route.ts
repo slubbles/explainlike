@@ -17,10 +17,12 @@ export const POST = withErrors("followup.POST", async (req: Request, ctx: { para
   const limited = limitRequest(req, "followup");
   if (limited) return limited;
   let userId: string | undefined;
+  let userEmail: string | undefined;
   if (authEnabled()) {
     const u = await sessionUser(req);
     if (!u) return NextResponse.json({ error: SIGNIN_ERROR }, { status: 401 });
     userId = u.id;
+    userEmail = u.email;
   }
   const read = await readBody(req);
   if ("error" in read) return read.error;
@@ -32,7 +34,7 @@ export const POST = withErrors("followup.POST", async (req: Request, ctx: { para
   if (focus && !/^[a-z0-9-]{1,60}$/.test(focus)) return NextResponse.json({ error: "bad component id" }, { status: 400 });
   if (whatIf && whatIf !== "10x" && whatIf !== "100x") return NextResponse.json({ error: "what-if takes 10x or 100x" }, { status: 400 });
   if (userId) {
-    const claim = await claimVideoSlot(userId).catch(() => null);
+    const claim = await claimVideoSlot(userId, Date.now(), undefined, userEmail).catch(() => null);
     if (!claim) return NextResponse.json({ error: "Could not check your video limit. Try again in a moment." }, { status: 500 });
     if (!claim.ok) return NextResponse.json({ error: claim.error }, { status: 429 });
   }
