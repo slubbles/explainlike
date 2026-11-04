@@ -163,9 +163,9 @@ export function fallbacksFromManifest(manifest: unknown): { llm: boolean; tts: b
   return { llm: models.filter((m) => m.includes("muse-spark")).length >= 2, tts };
 }
 
-/** 83500 -> "1m 24s"; 4200 -> "4.2s"; null -> "—". */
+/** 83500 -> "1m 24s"; 4200 -> "4.2s"; null -> "n/a". */
 export function formatMs(ms: number | null): string {
-  if (ms === null) return "—";
+  if (ms === null) return "n/a";
   if (ms < 60_000) return `${(ms / 1000).toFixed(1)}s`;
   const s = Math.round(ms / 1000);
   return `${Math.floor(s / 60)}m ${String(s % 60).padStart(2, "0")}s`;
