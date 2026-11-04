@@ -47,7 +47,6 @@ export default function AuthNav() {
             body: "{}",
           }).catch(() => null);
           if (r?.ok) dispatchEvent(new CustomEvent("explanimate:auth-changed"));
-          else location.reload();
         }}
       >
         Sign out
