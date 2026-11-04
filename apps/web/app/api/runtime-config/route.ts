@@ -8,7 +8,8 @@ export const dynamic = "force-dynamic";
 
 /**
  * Public settings the browser needs at runtime (the same pattern as the Turnstile site key):
- * the GA4 measurement id, or null when the deploy sets none. Never any secrets.
+ * the GA4 measurement id (NEXT_PUBLIC_GA_ID, or the older GA_MEASUREMENT_ID server setting),
+ * or null when the deploy sets none. Never any secrets.
  */
 export const GET = withErrors("runtime-config.GET", async (req: Request) => {
   const limited = limitRequest(req, "runtime-config");
