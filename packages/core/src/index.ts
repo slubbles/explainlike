@@ -13,3 +13,4 @@ export * from "./topic.js";
 export * from "./intent.js";
 export * from "./private.js";
 export * from "./figures.js";
+export * from "./facts.js";
