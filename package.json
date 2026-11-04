@@ -12,6 +12,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "web": "pnpm --filter @explanimate/web dev",
     "icons:generate": "tsx scripts/gen-icon-pack.ts",
+    "og:generate": "node apps/web/scripts/gen-og-image.mjs",
     "test": "node --import tsx --test \"packages/*/test/*.test.ts\" \"apps/web/test/*.test.ts\"",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
