@@ -241,6 +241,8 @@ export interface SourceDoc {
   repoDir?: string;
   commit?: string;
   files?: string[];
+  /** repo: subfolder the video explains, e.g. "packages/cli" (the whole repo when missing) */
+  subpath?: string;
   /** posts/articles: screenshot + the DOM page we can re-open to locate quotes */
   screenshot?: string;
   pageHtml?: string;

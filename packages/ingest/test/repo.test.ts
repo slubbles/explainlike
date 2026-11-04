@@ -3,7 +3,8 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { cloneTimeoutMs, digestRepo } from "@explanimate/ingest";
+import { execFileSync } from "node:child_process";
+import { checkout, cloneTimeoutMs, digestRepo, ingestRepo } from "@explanimate/ingest";
 
 test("a garbage clone timeout falls back to 180 s instead of NaN", () => {
   assert.equal(cloneTimeoutMs({}), 180_000);
@@ -50,5 +51,63 @@ test("symlinks are listed by nothing and followed by nothing, even inside the re
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
     fs.rmSync(outside, { recursive: true, force: true });
+  }
+});
+
+test("a scoped checkout reads only the folder: files, title and digest stay inside it", async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "explanimate-scope-"));
+  try {
+    fs.mkdirSync(path.join(dir, "packages", "cli"), { recursive: true });
+    fs.mkdirSync(path.join(dir, "packages", "api"), { recursive: true });
+    fs.writeFileSync(path.join(dir, "packages", "cli", "index.ts"), "export const cli = 1;\n");
+    fs.writeFileSync(path.join(dir, "packages", "cli", "README.md"), "# cli\n");
+    fs.writeFileSync(path.join(dir, "packages", "api", "index.ts"), "export const api = 1;\n");
+    fs.writeFileSync(path.join(dir, "README.md"), "# root\n");
+    const r = await ingestRepo(dir, { subpath: "packages/cli" });
+    assert.equal(r.subpath, "packages/cli");
+    assert.equal(r.title, `${path.basename(dir)}/packages/cli`);
+    assert.deepEqual([...r.files].sort(), ["README.md", "index.ts"]);
+    assert.equal(r.digest.read("index.ts").trim(), "export const cli = 1;");
+    assert.equal(r.digest.read("packages/api/index.ts"), "", "outside files are unreadable");
+    assert.doesNotMatch(r.text, /export const api/);
+    assert.match(r.text, /export const cli/);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("a scoped git checkout lists the folder through git, relative to the folder", async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "explanimate-scope-git-"));
+  try {
+    const git = (...args: string[]) =>
+      execFileSync("git", ["-C", dir, "-c", "user.name=t", "-c", "user.email=t@t", "-c", "commit.gpgsign=false", ...args], {
+        encoding: "utf8",
+      });
+    git("init", "-b", "main");
+    fs.mkdirSync(path.join(dir, "sub", "deep"), { recursive: true });
+    fs.writeFileSync(path.join(dir, "sub", "deep", "a.ts"), "export const a = 1;\n");
+    fs.writeFileSync(path.join(dir, "top.ts"), "export const top = 1;\n");
+    git("add", "-A");
+    git("commit", "-m", "x", "--quiet");
+    const co = checkout(dir, { subpath: "sub" });
+    const d = digestRepo(co.dir);
+    assert.deepEqual(d.files, ["deep/a.ts"]);
+    const r = await ingestRepo(dir, { subpath: "sub/deep" });
+    assert.deepEqual(r.files, ["a.ts"]);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("a scoped folder that is missing, a file, or escaping is refused with a reason", async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "explanimate-scope-err-"));
+  try {
+    fs.writeFileSync(path.join(dir, "file.txt"), "x\n");
+    await assert.rejects(ingestRepo(dir, { subpath: "nope" }), /was not found/);
+    await assert.rejects(ingestRepo(dir, { subpath: "file.txt" }), /not a folder/);
+    await assert.rejects(ingestRepo(dir, { subpath: "../etc" }), /Invalid path/);
+    await assert.rejects(ingestRepo(dir, { subpath: "/abs" }), /Invalid path/);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
   }
 });

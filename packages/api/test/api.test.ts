@@ -186,6 +186,25 @@ test("renders spawned by default see the guard is on", async () => {
   }
 });
 
+test("a subfolder link gets its own output folder, and path reaches the render", async () => {
+  assert.equal(nameFor("https://github.com/owner/repo/tree/main/packages/cli"), "owner-repo-main-packages-cli");
+  assert.equal(nameFor("https://github.com/owner/repo"), "owner-repo");
+  const runner = new JobRunner({ cliPath, outRoot: tmp() });
+  const done = await runner.wait(runner.start({ input: "https://github.com/owner/repo", path: "packages/cli" }).id, 10_000);
+  assert.equal(done?.state, "done");
+  assert.match(path.basename(done!.out), /^owner-repo-packages-cli$/);
+  const { argv } = JSON.parse(fs.readFileSync(path.join(done!.out, "args.json"), "utf8"));
+  assert.equal(argv[argv.indexOf("--path") + 1], "packages/cli");
+});
+
+test("path is refused for non-repos and for escaping folders", () => {
+  const runner = new JobRunner({ cliPath, outRoot: tmp() });
+  assert.throws(() => runner.start({ input: "how DNS works", path: "packages/cli" }), /GitHub repo links/);
+  assert.throws(() => runner.start({ input: "https://example.com/article", path: "x" }), /GitHub repo links/);
+  assert.throws(() => runner.start({ input: "https://github.com/owner/repo", path: "../etc" }), /Invalid path/);
+  assert.throws(() => runner.start({ input: "https://github.com/owner/repo", path: "/abs" }), /Invalid path/);
+});
+
 test("the HTTP API creates a job, waits on it, and refuses other hosts and web pages", async () => {
   const api = createApiServer({ runner: new JobRunner({ cliPath, outRoot: tmp() }) });
   const port = await api.listen(0);

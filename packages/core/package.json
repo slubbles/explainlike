@@ -10,7 +10,8 @@
     "./places": "./src/places.ts",
     "./env": "./src/env.ts",
     "./llm": "./src/llm.ts",
-    "./private": "./src/private.ts"
+    "./private": "./src/private.ts",
+    "./repopath": "./src/repopath.ts"
   },
   "dependencies": {
     "zod": "^4.1.0"

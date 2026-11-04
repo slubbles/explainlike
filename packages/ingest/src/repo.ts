@@ -2,8 +2,10 @@ import fs from "node:fs";
 import path from "node:path";
 import { execFileSync } from "node:child_process";
 import type { SourceDoc } from "@explanimate/core";
-import { userCacheDir } from "@explanimate/core";
+import { normalizeRepoSubpath, parseGithubUrl, userCacheDir } from "@explanimate/core";
 import { isSecretPath, redact } from "./secrets.js";
+
+export { normalizeRepoSubpath, parseGithubUrl };
 
 export const REPO_CACHE = process.env.EXPLANIMATE_REPO_CACHE ?? userCacheDir("repos");
 
@@ -15,31 +17,48 @@ const LOCKFILE =
   /(package-lock\.json|pnpm-lock\.yaml|yarn\.lock|poetry\.lock|Cargo\.lock|go\.sum|composer\.lock|Gemfile\.lock|bun\.lockb?)$/;
 const CODE = /\.(ts|tsx|js|jsx|mjs|cjs|py|go|rs|rb|java|kt|php|cs|swift|scala|ex|exs|vue|svelte|sql|prisma)$/i;
 
-export function parseGithubUrl(u: string): { owner: string; repo: string; ref?: string } | null {
-  const m = u.match(/github\.com[/:]([\w.-]+)\/([\w.-]+?)(?:\.git)?(?:\/tree\/([^/?#]+))?(?:[/?#].*)?$/i);
-  return m ? { owner: m[1], repo: m[2], ref: m[3] } : null;
-}
-
-/** Shallow clone (or reuse) a GitHub repo, or accept a local directory. */
-export function checkout(urlOrPath: string): { dir: string; url: string; commit: string; name: string } {
+/**
+ * Shallow clone (or reuse) a GitHub repo, or accept a local directory. A .../tree/<branch>/<path>
+ * link checks out that branch and scopes to that folder; opts.subpath (--path) scopes a plain
+ * repo link the same way and wins over the link's folder when both are given. `dir` is the
+ * folder to digest (the repo root when unscoped); `name` carries the subfolder for titles.
+ */
+export function checkout(
+  urlOrPath: string,
+  opts?: { subpath?: string },
+): { dir: string; url: string; commit: string; name: string; subpath?: string; ref?: string } {
   if (fs.existsSync(urlOrPath) && fs.statSync(urlOrPath).isDirectory()) {
-    const dir = path.resolve(urlOrPath);
+    const root = path.resolve(urlOrPath);
+    const subpath = normalizeRepoSubpath(opts?.subpath);
+    let dir = root;
+    if (subpath) {
+      dir = path.join(root, ...subpath.split("/"));
+      if (!fs.existsSync(dir)) throw new Error(`Folder "${subpath}" was not found in ${root}. Check the path.`);
+      if (!fs.statSync(dir).isDirectory()) throw new Error(`"${subpath}" is a file, not a folder. Use a folder path.`);
+    }
     let commit = "local";
     try {
-      commit = execFileSync("git", ["-C", dir, "rev-parse", "HEAD"], { encoding: "utf8" }).trim();
+      commit = execFileSync("git", ["-C", root, "rev-parse", "HEAD"], { encoding: "utf8" }).trim();
     } catch {}
-    return { dir, url: dir, commit, name: path.basename(dir) };
+    return { dir, url: dir, commit, name: subpath ? `${path.basename(root)}/${subpath}` : path.basename(root), subpath };
   }
   const g = parseGithubUrl(urlOrPath);
   if (!g) throw new Error(`That is not a GitHub repository link or a folder: ${urlOrPath}. Use a link like https://github.com/owner/repo.`);
-  const dir = path.join(REPO_CACHE, `${g.owner}__${g.repo}`);
+  const explicit = normalizeRepoSubpath(opts?.subpath);
+  const subpath = explicit ?? (g.subpath ? normalizeRepoSubpath(g.subpath) : undefined);
+  const ref = g.ref;
+  // one cache per branch, so a link to another branch never reuses the wrong checkout (plain links keep their folder)
+  const root = path.join(
+    REPO_CACHE,
+    ref ? `${g.owner}__${g.repo}__${ref.replace(/[^a-zA-Z0-9._-]+/g, "-").slice(0, 80)}` : `${g.owner}__${g.repo}`,
+  );
   const url = `https://github.com/${g.owner}/${g.repo}`;
-  if (!fs.existsSync(path.join(dir, ".git"))) {
+  if (!fs.existsSync(path.join(root, ".git"))) {
     fs.mkdirSync(REPO_CACHE, { recursive: true });
     const args = ["clone", "--depth", "1", "--filter=blob:limit=2m"];
-    if (g.ref) args.push("--branch", g.ref);
+    if (ref) args.push("--branch", ref);
     // clone beside the cache and move it in, so a killed or failed clone never leaves a half repo to reuse
-    const tmp = `${dir}.tmp-${process.pid}`;
+    const tmp = `${root}.tmp-${process.pid}`;
     fs.rmSync(tmp, { recursive: true, force: true });
     try {
       execFileSync("git", [...args, url + ".git", tmp], {
@@ -49,13 +68,23 @@ export function checkout(urlOrPath: string): { dir: string; url: string; commit:
       });
     } catch (e) {
       fs.rmSync(tmp, { recursive: true, force: true });
-      throw new Error(cloneError(e as Error & { stderr?: Buffer; signal?: string }, `${g.owner}/${g.repo}`, g.ref));
+      throw new Error(cloneError(e as Error & { stderr?: Buffer; signal?: string }, `${g.owner}/${g.repo}`, ref));
     }
-    fs.rmSync(dir, { recursive: true, force: true });
-    fs.renameSync(tmp, dir);
+    fs.rmSync(root, { recursive: true, force: true });
+    fs.renameSync(tmp, root);
   }
-  const commit = execFileSync("git", ["-C", dir, "rev-parse", "HEAD"], { encoding: "utf8" }).trim();
-  return { dir, url, commit, name: `${g.owner}/${g.repo}` };
+  const commit = execFileSync("git", ["-C", root, "rev-parse", "HEAD"], { encoding: "utf8" }).trim();
+  let dir = root;
+  if (subpath) {
+    dir = path.join(root, ...subpath.split("/"));
+    if (!fs.existsSync(dir))
+      throw new Error(
+        `Folder "${subpath}" was not found in github.com/${g.owner}/${g.repo}${ref ? ` (branch "${ref}")` : ""}. Check the link.`,
+      );
+    if (!fs.statSync(dir).isDirectory())
+      throw new Error(`"${subpath}" in github.com/${g.owner}/${g.repo} is a file, not a folder. Use a folder link.`);
+  }
+  return { dir, url, commit, name: subpath ? `${g.owner}/${g.repo}/${subpath}` : `${g.owner}/${g.repo}`, subpath, ref };
 }
 
 /** How long a clone may take: garbage in the env var falls back to 180 s instead of NaN. */
@@ -416,8 +445,8 @@ function emptySourceMessage(dir: string, name: string, secrets: number): string 
   return `${name} has no files to explain. Use a folder with code in it, or a GitHub repo link.`;
 }
 
-export async function ingestRepo(urlOrPath: string): Promise<SourceDoc & { digest: RepoDigest }> {
-  const co = checkout(urlOrPath);
+export async function ingestRepo(urlOrPath: string, opts?: { subpath?: string }): Promise<SourceDoc & { digest: RepoDigest }> {
+  const co = checkout(urlOrPath, opts);
   const digest = digestRepo(co.dir);
   if (!digest.files.length) throw new Error(emptySourceMessage(co.dir, co.name, digest.skippedSecret.length));
   return {
@@ -428,6 +457,7 @@ export async function ingestRepo(urlOrPath: string): Promise<SourceDoc & { diges
     repoDir: co.dir,
     commit: co.commit,
     files: digest.files,
+    subpath: co.subpath,
     digest,
     meta: { skippedSecretFiles: digest.skippedSecret.length },
   };

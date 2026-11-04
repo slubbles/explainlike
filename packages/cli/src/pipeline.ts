@@ -80,6 +80,8 @@ export interface RunOptions {
   input: string;
   out?: string;
   name?: string;
+  /** only explain this subfolder inside the repo, e.g. "packages/cli" */
+  path?: string;
   /** "dark" renders on a black board; otherwise the brief picks the look */
   look?: "dark" | "default";
   voice?: string;
@@ -153,12 +155,13 @@ function plannerFingerprint(): string {
   }
   return (engineId = h.digest("hex").slice(0, 16));
 }
-export function planCacheDir(o: { url: string; commit: string; ask?: Ask }): string | undefined {
+export function planCacheDir(o: { url: string; commit: string; ask?: Ask; path?: string }): string | undefined {
   // only a pushed commit is a stable key; a local folder may have uncommitted edits
   if (process.env.EXPLANIMATE_PLAN_CACHE === "0" || !/^https?:\/\//.test(o.url) || !/^[0-9a-f]{40}$/.test(o.commit)) return undefined;
+  const base = [o.url.replace(/\.git$/, "").toLowerCase(), o.commit, o.ask ?? null, plannerFingerprint()];
   const key = crypto
     .createHash("sha256")
-    .update(JSON.stringify([o.url.replace(/\.git$/, "").toLowerCase(), o.commit, o.ask ?? null, plannerFingerprint()]))
+    .update(JSON.stringify(o.path ? [...base, o.path] : base))
     .digest("hex")
     .slice(0, 24);
   return path.join(PLAN_CACHE, key);
@@ -303,18 +306,19 @@ export async function runExplanimate(o: RunOptions) {
 
   if (kind === "repo") {
     P({ stage: "ingest", message: "reading the repository", pct: 2 });
-    const r = await timed("ingest", () => ingestRepo(input));
+    const r = await timed("ingest", () => ingestRepo(input, { subpath: o.path }));
     doc = r;
-    if (!o.focus && !o.whatIf) shared = planCacheDir({ url: r.url, commit: r.commit ?? "", ask });
+    if (!o.focus && !o.whatIf) shared = planCacheDir({ url: r.url, commit: r.commit ?? "", ask, path: r.subpath });
     const name = o.name ?? r.title;
     // a repo URL shows itself; a local checkout shows --name or its folder name, never the path on this machine
     sourceLabel = /^https?:\/\//.test(r.url)
-      ? r.url.replace(/^https?:\/\/(www\.)?/, "").replace(/\.git$/, "")
+      ? r.url.replace(/^https?:\/\/(www\.)?/, "").replace(/\.git$/, "") + (r.subpath ? `/${r.subpath}` : "")
       : o.name
-        ? `github.com/${o.name}`
-        : path.basename(r.url);
+        ? `github.com/${o.name}` + (r.subpath ? `/${r.subpath}` : "")
+        : r.title;
     out = o.out ?? path.join(defaultOutRoot(), slug(name));
     fs.mkdirSync(out, { recursive: true });
+    if (r.subpath) notes.push(`scoped to folder "${r.subpath}": only its files are read and explained`);
     notes.push(
       `digest: ${r.digest.files.length} files${r.digest.truncated ? " (list capped; the repo has more)" : ""}, ${r.digest.text.length} chars; ${r.digest.skippedSecret.length} secret-looking files never opened`,
     );
@@ -491,6 +495,7 @@ export async function runExplanimate(o: RunOptions) {
         digestText: src,
         files: r.digest.files,
         read: (p, max) => r.digest.read(p, max),
+        subpath: r.subpath,
       });
       writeAtomic(path.join(out, "facts.json"), JSON.stringify(manifest, null, 1));
       notes.push(`facts: ${manifest.length} anchors (numbers the script may state)`);
@@ -881,6 +886,7 @@ export async function runExplanimate(o: RunOptions) {
       tool: "explanimate",
       input: o.input,
       kind,
+      path: doc.subpath,
       sources: doc.sources,
       brief: spec.brief,
       tempo: spec.tempo,

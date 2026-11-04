@@ -113,8 +113,13 @@ export function createExplanimateServer(runner = new JobRunner()) {
           .string()
           .min(1)
           .describe(
-            "A GitHub repo URL, an x.com post URL, an article URL, an absolute path to a local repo folder, or a topic in a few words ('how DNS works') when there is no link.",
+            "A GitHub repo URL (or a subfolder link .../tree/<branch>/<path>), an x.com post URL, an article URL, an absolute path to a local repo folder, or a topic in a few words ('how DNS works') when there is no link.",
           ),
+        path: z
+          .string()
+          .max(500)
+          .optional()
+          .describe('Only explain this subfolder inside the repo, e.g. "packages/cli". Use it with a plain repo link.'),
         outDir: z
           .string()
           .optional()
@@ -164,6 +169,7 @@ export function createExplanimateServer(runner = new JobRunner()) {
           input: a.source,
           out: a.outDir,
           name: a.name,
+          path: a.path,
           look: a.look,
           voice: a.voice,
           fresh: a.fresh,
