@@ -1,5 +1,6 @@
 "use client";
 import { useEffect } from "react";
+import styles from "./error.module.css";
 
 /** A crashed section shows this instead of a blank page, and reports to /api/client-error once. */
 export default function Error({ error, reset }: { error: Error & { digest?: string }; reset: () => void }) {
@@ -15,11 +16,12 @@ export default function Error({ error, reset }: { error: Error & { digest?: stri
     }).catch(() => {});
   }, [error]);
   return (
-    <main className="page">
-      <div className="wrap" style={{ paddingTop: 120 }}>
+    <main className={styles.page}>
+      <div className={styles.wrap}>
+        <div className={styles.crumb}>Error</div>
         <h2>Something went wrong</h2>
-        <p className="lead">This part of the page crashed. Your videos are safe.</p>
-        <button type="button" className="btn solid" onClick={reset}>
+        <p className={styles.lead}>This part of the page crashed. Your videos are safe.</p>
+        <button type="button" className={styles.retry} onClick={reset}>
           Try again
         </button>
       </div>
