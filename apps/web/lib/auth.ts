@@ -9,7 +9,7 @@ import { betterAuth } from "better-auth";
 import { APIError, createAuthMiddleware } from "better-auth/api";
 import { getMigrations } from "better-auth/db/migration";
 import { emailOTP } from "better-auth/plugins";
-import { createKysely, d1ConfigFromEnv, ensureTables, getD1Db, localD1Path } from "./db";
+import { authTablesExist, createKysely, d1ConfigFromEnv, ensureTables, getD1Db, localD1Path } from "./db";
 import { createLocalKysely } from "./db-local";
 import { sendOtpEmail } from "./email";
 import { clientIp, rateLimit } from "./guard";
@@ -92,11 +92,25 @@ export function ensureAuthSchema(): Promise<void> {
       await runMigrations();
       await ensureTables(getD1Db());
     } catch (e) {
+      // D1 refuses some introspection queries outright; once the sign-in tables exist,
+      // sessions must work regardless, so a migration failure then only warns.
+      try {
+        if (await authTablesExist(getD1Db())) {
+          console.error(`[auth] migrations skipped, sign-in tables already exist: ${(e as Error).message}`);
+          return;
+        }
+      } catch {}
       migrated = undefined;
       throw e;
     }
   })();
   return migrated;
+}
+
+/** Forget the cached auth instance and migration state (tests only). */
+export function resetAuthForTests(): void {
+  auth = undefined;
+  migrated = undefined;
 }
 
 export interface SessionUser {

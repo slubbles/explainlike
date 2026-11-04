@@ -5,7 +5,7 @@
  * instance whose driver runs every query through the same REST call. D1 REST has no interactive
  * transactions, so begin/commit/rollback are no-ops and Better Auth is told not to use them.
  *
- * Failures log Cloudflare's error codes, never the token.
+ * Failures log Cloudflare's error codes and the statement shape, never the token or values.
  */
 import {
   Kysely,
@@ -115,10 +115,107 @@ interface D1Rows {
   lastRowId: number;
 }
 
+// D1 keeps internal _cf_ tables and refuses (SQLITE_AUTH, code 7500) any query that touches
+// one: PRAGMA table_list, a table_info/index_list/index_info/foreign_key_list call on a _cf_
+// table, or a schema scan that would read those rows. Better Auth's migration check joins
+// sqlite_master to pragma_index_list with no _cf_ filter, which failed every request until
+// the guard below. All D1 traffic passes through d1Query, so one rewrite here covers both
+// direct statements and the Kysely driver.
+
+/** A PRAGMA table_list answer that skips the sqlite and _cf_ internals. */
+function tableListScan(): string {
+  return `SELECT 'main' AS schema, name AS name, type AS type, 0 AS ncol, 0 AS wr, 0 AS strict FROM sqlite_master WHERE type IN ('table', 'view') AND name NOT LIKE 'sqlite_%' AND substr(name, 1, 4) <> '_cf_' ORDER BY name`;
+}
+
+const TABLE_LIST_STMT = /^\s*pragma\s+(?:[A-Za-z_][\w$]*\s*\.\s*)?table_list\s*;?\s*$/i;
+const TABLE_LIST_FN = /\bpragma_table_list\b(?:\s*\(\s*\))?/i;
+const SCHEMA_SCAN = /\bsqlite_(?:temp_)?(?:master|schema)\b/i;
+const CF_GUARD = /_cf_/i;
+const FROM_SCHEMA_TABLE = /\bsqlite_(?:temp_)?(?:master|schema)\b\s*(?:as\s+)?(["`']?)([A-Za-z_][\w$]*)\1/i;
+const SQL_KEYWORDS = new Set([
+  "where",
+  "join",
+  "inner",
+  "left",
+  "right",
+  "full",
+  "outer",
+  "cross",
+  "natural",
+  "on",
+  "using",
+  "group",
+  "order",
+  "limit",
+  "offset",
+  "having",
+  "window",
+  "union",
+  "except",
+  "intersect",
+  "values",
+  "returning",
+  "set",
+]);
+
+/** Adds the _cf_ exclusion to a schema scan that lacks one (Better Auth's index discovery). */
+function injectCfGuard(sql: string): string {
+  let qual = "";
+  const from = FROM_SCHEMA_TABLE.exec(sql);
+  if (from && !SQL_KEYWORDS.has(from[2].toLowerCase())) qual = `${from[1]}${from[2]}${from[1]}.`;
+  const pred = `substr(${qual}name, 1, 4) <> '_cf_'`;
+  const where = /\bwhere\b/i.exec(sql);
+  if (where) {
+    const at = where.index + where[0].length;
+    return `${sql.slice(0, at)} ${pred} AND${sql.slice(at)}`;
+  }
+  const tail = /\b(group\s+by|order\s+by|having|limit|offset|window|union|except|intersect)\b|;/i.exec(sql);
+  if (tail) return `${sql.slice(0, tail.index)} WHERE ${pred} ${sql.slice(tail.index)}`;
+  return `${sql} WHERE ${pred}`;
+}
+
+/**
+ * Rewrites a statement so D1 never sees its internal tables: PRAGMA table_list becomes a
+ * filtered scan, and schema scans without a _cf_ filter gain one. Statements already
+ * mentioning _cf_ pass through untouched: a guard of ours, or a direct internal read that
+ * D1 must refuse loudly.
+ */
+function rewriteD1Sql(sql: string): string {
+  if (TABLE_LIST_STMT.test(sql)) return tableListScan();
+  let out = sql;
+  if (TABLE_LIST_FN.test(out)) out = out.replace(TABLE_LIST_FN, `(${tableListScan()})`);
+  if (SCHEMA_SCAN.test(out) && !CF_GUARD.test(out)) out = injectCfGuard(out);
+  return out;
+}
+
+const INFO_PRAGMA_STMT =
+  /^\s*pragma\s+(?:[A-Za-z_][\w$]*\s*\.\s*)?(?:table_info|table_xinfo|index_list|index_info|foreign_key_list)\s*\(\s*(.*?)\s*\)\s*;?\s*$/i;
+const INFO_PRAGMA_FN =
+  /\bpragma_(?:table_info|table_xinfo|index_list|index_info|foreign_key_list)\s*\(\s*(\?|"(?:[^"]|"")*"|'(?:[^']|'')*'|[^\s,)]+)/i;
+const CF_PREFIX = /^["'`]?_cf_/i;
+
+/** True when a pragma only asks about an internal table: answer empty without asking D1. */
+function isInternalOnlyQuery(sql: string, params: readonly unknown[]): boolean {
+  const stmt = INFO_PRAGMA_STMT.exec(sql);
+  if (stmt) {
+    const arg = stmt[1].trim();
+    if (arg === "?") return params.length > 0 && CF_PREFIX.test(String(params[0] ?? ""));
+    return CF_PREFIX.test(arg);
+  }
+  const fn = INFO_PRAGMA_FN.exec(sql);
+  if (fn) {
+    if (fn[1] === "?") return params.length === 1 && CF_PREFIX.test(String(params[0] ?? ""));
+    return CF_PREFIX.test(fn[1]);
+  }
+  return false;
+}
+
 async function d1Query(config: D1Config, sql: string, params: readonly unknown[]): Promise<D1Rows> {
+  if (isInternalOnlyQuery(sql, params)) return { rows: [], changes: 0, lastRowId: 0 };
+  const statement = rewriteD1Sql(sql);
   const fetchImpl = config.fetchImpl ?? fetch;
   const url = `https://api.cloudflare.com/client/v4/accounts/${config.accountId}/d1/database/${config.databaseId}/query`;
-  const body = JSON.stringify({ sql, params: toD1Params(params) });
+  const body = JSON.stringify({ sql: statement, params: toD1Params(params) });
   let res: Response | undefined;
   let networkError = "";
   // one retry on a 5xx or a network error; a 4xx is our mistake and is not retried
@@ -150,8 +247,11 @@ async function d1Query(config: D1Config, sql: string, params: readonly unknown[]
       .map((e) => e.code)
       .filter(Boolean)
       .join(",");
-    console.error(`[db] D1 refused the query (http ${res.status}${codes ? `, codes ${codes}` : ""})`);
-    throw new Error(`D1 refused the query (http ${res.status}${codes ? `, codes ${codes}` : ""})`);
+    // the statement shape only: values travel as bound params and are never logged
+    const snippet = statement.replace(/\s+/g, " ").trim().slice(0, 120);
+    const message = `D1 refused the query (http ${res.status}${codes ? `, codes ${codes}` : ""}) sql=${JSON.stringify(snippet)}`;
+    console.error(`[db] ${message}`);
+    throw new Error(message);
   }
   return {
     rows: first.results ?? [],
@@ -212,6 +312,21 @@ export async function ensureTables(db: D1Db): Promise<void> {
   } catch (e) {
     console.error(`[db] videos migration skipped: ${(e as Error).message}`);
   }
+}
+
+/** Better Auth's tables: sign-in, sessions and accounts, plus email-code verification. */
+const AUTH_TABLES = ["user", "session", "account", "verification"] as const;
+
+/** True when every sign-in table is present, so a migration failure must not block sessions. */
+export async function authTablesExist(db: D1Db): Promise<boolean> {
+  const rows = await db
+    .prepare(
+      `SELECT name FROM sqlite_master WHERE type IN ('table', 'view') AND substr(name, 1, 4) <> '_cf_' AND name IN ('user', 'session', 'account', 'verification')`,
+    )
+    .bind()
+    .all<{ name: string }>();
+  const have = new Set(rows.map((r) => r.name));
+  return AUTH_TABLES.every((t) => have.has(t));
 }
 
 // ---- the Kysely dialect Better Auth runs on ----
