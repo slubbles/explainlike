@@ -5,11 +5,15 @@ import SignIn from "../../components/SignIn";
 /** The sign-in panel on its own page: after signing in, land where the visit was headed. */
 export default function SignInPanel({ next, enabled }: { next: string; enabled: boolean }) {
   const [siteKey, setSiteKey] = useState<string | null>(null);
+  const [google, setGoogle] = useState(false);
   useEffect(() => {
     if (!enabled) return;
     fetch("/api/auth-config")
       .then((r) => (r.ok ? r.json() : null))
-      .then((j) => setSiteKey(typeof j?.turnstileSiteKey === "string" ? j.turnstileSiteKey : ""))
+      .then((j) => {
+        setGoogle(j?.google === true);
+        setSiteKey(typeof j?.turnstileSiteKey === "string" ? j.turnstileSiteKey : "");
+      })
       .catch(() => setSiteKey(""));
   }, [enabled]);
   if (!enabled)

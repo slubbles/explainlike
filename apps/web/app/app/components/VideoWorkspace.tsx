@@ -36,6 +36,7 @@ export default function VideoWorkspace({ jobId: initialId, prompt }: { jobId?: s
   const [notes, setNotes] = useState<string[]>([]);
   const [quota, setQuota] = useState<Quota>(null);
   const [siteKey, setSiteKey] = useState("");
+  const [google, setGoogle] = useState(false);
   const [signin, setSignin] = useState(false);
   const job = useJob(jobId);
   const listed = useClips(jobId, bump);
@@ -45,6 +46,7 @@ export default function VideoWorkspace({ jobId: initialId, prompt }: { jobId?: s
     const j = await r?.json().catch(() => null);
     if (j?.enabled) {
       setSiteKey(j.turnstileSiteKey ?? "");
+      setGoogle(j.google === true);
       setQuota(j.videos ?? null);
     }
   };
@@ -151,6 +153,7 @@ export default function VideoWorkspace({ jobId: initialId, prompt }: { jobId?: s
       {signin && (
         <SignIn
           siteKey={siteKey}
+          google={google}
           onCancel={() => setSignin(false)}
           onDone={async () => {
             setSignin(false);
