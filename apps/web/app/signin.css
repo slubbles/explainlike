@@ -60,6 +60,54 @@
 .signin .btn.wide {
   margin-top: 16px;
 }
+
+/* Continue with Google: the same pill as the blue button, white with the Google G */
+.gbtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 48px;
+  margin-top: 16px;
+  padding: 11px 16px;
+  font-size: 15px;
+  font-weight: 600;
+  white-space: nowrap;
+  color: #1f1f1f;
+  background: #fff;
+  border: 1px solid transparent;
+  border-radius: 999px;
+}
+.gbtn:hover {
+  background: #eef0f2;
+}
+.gbtn:disabled {
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--dim);
+  cursor: default;
+}
+.gg {
+  width: 18px;
+  height: 18px;
+  flex: none;
+}
+/* the "or" between Google and the email code box */
+.sor {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 16px 0 0;
+  font-size: 13px;
+  color: var(--dim);
+}
+.sor::before,
+.sor::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--line2);
+}
 .sx {
   position: absolute;
   top: 10px;
