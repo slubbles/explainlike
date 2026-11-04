@@ -101,7 +101,7 @@ follow-ups on an earlier repo run:
 
 ## /explanimate in your coding agent
 
-`packages/mcp` is an MCP server that runs Explanimate on your own machine. Add it to your agent, then ask:
+`packages/mcp` is an MCP server that runs Explanimate on your own machine. Add it to your agent, then ask. Full setup with copy-paste configs for every tool: https://explanimate.co/docs
 
 ```
 /explanimate explain what this repo is about https://github.com/milind-soni/OpenMausBot
@@ -151,6 +151,42 @@ Replace `/path/to/explanimate` below with where you cloned this repo.
       "command": "node",
       "args": ["/path/to/explanimate/packages/mcp/bin/explanimate-mcp.mjs"],
       "env": { "MODEL_API_KEY": "${env:MODEL_API_KEY}", "DEEPGRAM_API_KEY": "${env:DEEPGRAM_API_KEY}" }
+    }
+  }
+}
+```
+
+**Claude Code**, in a terminal:
+
+```bash
+claude mcp add explanimate --transport stdio \
+  --env MODEL_API_KEY=your-meta-key \
+  --env DEEPGRAM_API_KEY=your-deepgram-key \
+  -- node /path/to/explanimate/packages/mcp/bin/explanimate-mcp.mjs
+```
+
+**Codex**, in `~/.codex/config.toml` (then restart Codex):
+
+```toml
+[mcp_servers.explanimate]
+command = "node"
+args = ["/path/to/explanimate/packages/mcp/bin/explanimate-mcp.mjs"]
+
+[mcp_servers.explanimate.env]
+MODEL_API_KEY = "your Meta key"
+DEEPGRAM_API_KEY = "your Deepgram key"
+```
+
+**VS Code**, in `.vscode/mcp.json` in your workspace (its format uses the `servers` key):
+
+```json
+{
+  "servers": {
+    "explanimate": {
+      "type": "stdio",
+      "command": "node",
+      "args": ["/path/to/explanimate/packages/mcp/bin/explanimate-mcp.mjs"],
+      "env": { "MODEL_API_KEY": "your Meta key", "DEEPGRAM_API_KEY": "your Deepgram key" }
     }
   }
 }
