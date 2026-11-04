@@ -7,6 +7,7 @@ import type { Film } from "./film.js";
 import { stageHtml } from "./stage.js";
 import { makeBed, makeSfx, mixGraph, type SfxCue } from "./music.js";
 import { workerCount } from "./workers.js";
+import { threadArgs } from "./renderslots.js";
 
 /** Chrome's usual Windows install folders, so a fresh shell works without setting EXPLANIMATE_CHROME. */
 function windowsChromePaths(): string[] {
@@ -214,7 +215,7 @@ function mp4Args(
   for (const f of ins) args.push("-i", f);
   const at = (f?: string) => (f ? ins.indexOf(f) + 1 : undefined);
   if (ins.length) args.push("-filter_complex", mixGraph(at(audio), at(bed), duration, at(fx)), "-map", "0:v", "-map", "[aout]");
-  args.push(...video, "-pix_fmt", "yuv420p", "-movflags", "+faststart");
+  args.push(...video, ...threadArgs(), "-pix_fmt", "yuv420p", "-movflags", "+faststart");
   if (ins.length) args.push("-c:a", "aac", "-b:a", "160k", "-t", duration.toFixed(3));
   args.push(out);
   return args;
