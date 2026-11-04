@@ -1,6 +1,6 @@
 "use client";
 import Player, { type Interactive } from "./Player";
-import { fileUrl, money, secs, useJob, type Explain, type Job } from "../lib/client";
+import { captionsUrl, fileUrl, money, secs, useJob, type Explain, type Job } from "../lib/client";
 import { Info } from "./Icons";
 import { cap } from "../lib/steps";
 import { noBoxesNote } from "../lib/form";
@@ -26,7 +26,9 @@ function Clip({ id }: { id: string }) {
         rel="noreferrer"
         aria-label={`Play ${what}`}
       >
-        {job.state === "done" && mp4 && <video src={`${fileUrl(id, mp4)}#t=4`} preload="metadata" muted playsInline tabIndex={-1} />}
+        {job.state === "done" && mp4 && (
+          <video src={`${fileUrl(id, mp4)}#t=4`} preload="metadata" muted playsInline tabIndex={-1} aria-hidden="true" />
+        )}
         {job.state === "running" && (
           <span className="mini">
             <span className="bar">
@@ -68,7 +70,9 @@ export default function ResultView({ job, map, picked, expl, explBusy, clips, pi
   return (
     <div className={`main ${side ? "" : "solo"}`}>
       <div className="col">
-        {o.mp4 && <Player src={fileUrl(job.id, o.mp4)} map={map} selected={picked} onPick={pick} />}
+        {o.mp4 && (
+          <Player src={fileUrl(job.id, o.mp4)} map={map} selected={picked} onPick={pick} title={job.title} captions={captionsUrl(job.id)} />
+        )}
         <div className="under">
           <h1 className="t">{job.title}</h1>
           <div className="m muted">

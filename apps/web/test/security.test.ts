@@ -1,7 +1,15 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { checkOrigin, contentSecurityPolicy, gaMeasurementId, securityHeaders } from "../lib/security.ts";
+import fs from "node:fs";
+import path from "node:path";
 import { readBody } from "../lib/guard.ts";
+
+test("the production build ships no browser source maps and stays minified", () => {
+  const config = fs.readFileSync(path.join(import.meta.dirname, "../next.config.mjs"), "utf8");
+  assert.match(config, /productionBrowserSourceMaps:\s*false/);
+  assert.doesNotMatch(config, /swcMinify:\s*false|minimize:\s*false/);
+});
 
 test("every security header is present and non-empty", () => {
   const h = securityHeaders(contentSecurityPolicy("abc123"));

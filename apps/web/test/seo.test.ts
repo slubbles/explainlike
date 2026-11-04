@@ -153,6 +153,16 @@ test("the share image is a 1200x630 PNG, small enough for social crawlers", () =
   assert.ok(png.length < 8 * 1024 * 1024, "under the 8 MB og:image limit");
 });
 
+test("the favicon is a real .ico served from public/", () => {
+  const file = path.join(WEB, "public", "favicon.ico");
+  assert.ok(fs.existsSync(file), "public/favicon.ico is committed");
+  const ico = fs.readFileSync(file);
+  assert.deepEqual(ico.subarray(0, 4), Buffer.from([0x00, 0x00, 0x01, 0x00]));
+  assert.equal(ico.readUInt16LE(4), 1, "one image");
+  assert.equal(ico[6], 32, "32px wide");
+  assert.equal(ico[7], 32, "32px tall");
+});
+
 test("JSON-LD describes the app, the site and the org, with no third-party marks", () => {
   const app = appJsonLd();
   assert.equal(app["@context"], "https://schema.org");

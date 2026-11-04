@@ -11,6 +11,7 @@ export const POST = withErrors("explain.POST", async (req: Request, ctx: { param
   const crossSite = checkOrigin(req);
   if (crossSite) return crossSite;
   const { id } = await ctx.params;
+  if (!/^[a-f0-9]{12}$/.test(id)) return NextResponse.json({ error: "not found" }, { status: 400 });
   if (process.env.EXPLANIMATE_DEMO_ONLY === "1") return NextResponse.json({ error: "explanations are off in demo mode" }, { status: 429 });
   const limited = limitRequest(req, "explain");
   if (limited) return limited;

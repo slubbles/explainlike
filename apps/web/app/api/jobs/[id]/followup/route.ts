@@ -13,6 +13,7 @@ export const POST = withErrors("followup.POST", async (req: Request, ctx: { para
   const crossSite = checkOrigin(req);
   if (crossSite) return crossSite;
   const { id } = await ctx.params;
+  if (!/^[a-f0-9]{12}$/.test(id)) return NextResponse.json({ error: "the original video is not ready" }, { status: 400 });
   const limited = limitRequest(req, "followup");
   if (limited) return limited;
   let userId: string | undefined;

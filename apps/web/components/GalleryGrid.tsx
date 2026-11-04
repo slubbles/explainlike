@@ -1,20 +1,43 @@
 "use client";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import type { GalleryItem } from "../lib/gallery";
 
 /** Example videos as cards: a real frame with a play button, which turns into the playing video in place. */
 export default function GalleryGrid({ videos }: { videos: GalleryItem[] }) {
   const [playing, setPlaying] = useState<string>();
+  const playRefs = useRef(new Map<string, HTMLButtonElement>());
+  // back to the thumbnail, with focus where the viewer left it
+  const stop = (id: string) => {
+    setPlaying(undefined);
+    setTimeout(() => playRefs.current.get(id)?.focus(), 0);
+  };
   return (
     <div className="grid">
       {videos.map((v) => (
         <div className="vid" id={v.id} key={v.id}>
           {playing === v.id ? (
-            <div className="th">
+            <div
+              className="th"
+              onKeyDown={(e) => {
+                if (e.key === "Escape") stop(v.id);
+              }}
+            >
               <video className="big" src={v.src} poster={v.poster} controls autoPlay playsInline aria-label={v.title} />
+              <button type="button" className="stop" onClick={() => stop(v.id)} aria-label={`Stop playing ${v.title}`}>
+                Stop
+              </button>
             </div>
           ) : (
-            <button type="button" className="th" onClick={() => setPlaying(v.id)} aria-label={`Play ${v.title}`}>
+            <button
+              type="button"
+              className="th"
+              ref={(el) => {
+                if (el) playRefs.current.set(v.id, el);
+                else playRefs.current.delete(v.id);
+              }}
+              onClick={() => setPlaying(v.id)}
+              aria-label={`Play ${v.title}`}
+            >
               {v.poster ? (
                 <img src={v.poster} alt="" loading="lazy" />
               ) : (

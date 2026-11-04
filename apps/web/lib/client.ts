@@ -61,6 +61,7 @@ export async function postJson<T = Record<string, unknown>>(
 export const money = (n?: number) => `$${(n ?? 0).toFixed(3)}`;
 export const secs = (n?: number) => `${Math.round(n ?? 0)} s`;
 export const fileUrl = (id: string, n?: string, dl = false) => (n ? `/api/jobs/${id}/file/${n}${dl ? "?download" : ""}` : "#");
+export const captionsUrl = (id: string) => `/api/jobs/${id}/captions`;
 
 /** Poll a job until it finishes. */
 export function useJob(id?: string) {
