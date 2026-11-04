@@ -19,12 +19,15 @@ export default function SignIn({
   github,
   onDone,
   onCancel,
+  next = "/",
 }: {
   siteKey: string;
   google: boolean;
   github: boolean;
   onDone: () => void;
   onCancel: () => void;
+  /** where Google or GitHub sign-in returns to; a same-site path */
+  next?: string;
 }) {
   const [email, setEmail] = useState("");
   const [code, setCode] = useState("");
@@ -113,7 +116,7 @@ export default function SignIn({
     setGbusy(true);
     // success leaves this page (the client sends the browser to Google); anything that
     // answers here failed, so the button unlocks with an explanation
-    const r = await authClient.signIn.social({ provider: "google", callbackURL: "/" }).catch(() => null);
+    const r = await authClient.signIn.social({ provider: "google", callbackURL: next }).catch(() => null);
     setGbusy(false);
     if (!r || r.error) setErr("Could not reach Google. Check your connection and try again.");
   }
@@ -124,7 +127,7 @@ export default function SignIn({
     setGhbusy(true);
     // success leaves this page (the client sends the browser to GitHub); anything that
     // answers here failed, so the button unlocks with an explanation
-    const r = await authClient.signIn.social({ provider: "github", callbackURL: "/" }).catch(() => null);
+    const r = await authClient.signIn.social({ provider: "github", callbackURL: next }).catch(() => null);
     setGhbusy(false);
     if (!r || r.error) setErr("Could not reach GitHub. Check your connection and try again.");
   }

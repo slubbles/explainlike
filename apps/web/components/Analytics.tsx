@@ -29,7 +29,13 @@ function Tracker({ measurementId }: { measurementId: string }) {
     if (!measurementId || typeof window === "undefined") return;
     if (document.getElementById("ga-gtag")) return;
     window.dataLayer = window.dataLayer ?? [];
-    window.gtag = window.gtag ?? ((...a: unknown[]) => void window.dataLayer!.push(a));
+    // gtag.js only reads Arguments objects from dataLayer; pushing a plain array is silently ignored
+    window.gtag =
+      window.gtag ??
+      function gtag() {
+        // eslint-disable-next-line prefer-rest-params
+        window.dataLayer!.push(arguments);
+      };
     const s = document.createElement("script");
     s.id = "ga-gtag";
     s.async = true;
