@@ -27,7 +27,7 @@ export default function AuthNav() {
   if (!state) return null;
   if (!state.email)
     return (
-      <button type="button" className="navl" onClick={() => dispatchEvent(new CustomEvent("explanimate:signin"))}>
+      <button type="button" className="navl ghost" onClick={() => dispatchEvent(new CustomEvent("explanimate:signin"))}>
         Sign in
       </button>
     );
