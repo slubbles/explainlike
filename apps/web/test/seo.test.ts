@@ -66,7 +66,7 @@ test("every page shares one 1200x630 image that resolves to an absolute URL", ()
   }
 });
 
-test("a result link gets its own title and description, keeps the home canonical, and stays out of search", () => {
+test("a result link gets its own title, description and canonical, and stays out of search", () => {
   const meta = jobPageMetadata({ id: "abcdef123456", title: "karpathy/minbpe", input: "https://github.com/karpathy/minbpe" }) as {
     title: string;
     description: string;
@@ -75,11 +75,28 @@ test("a result link gets its own title and description, keeps the home canonical
     openGraph?: { url: string };
   };
   assert.match(meta.title, /karpathy\/minbpe/);
-  assert.match(meta.description, /github\.com\/karpathy\/minbpe/);
+  assert.match(meta.description, /karpathy\/minbpe/);
   assert.notEqual(meta.title, (pageMetadata("home") as { title: string }).title);
-  assert.equal(meta.alternates?.canonical, SITE_URL);
+  assert.equal(meta.alternates?.canonical, `${SITE_URL}/?job=abcdef123456`);
   assert.equal(meta.robots?.index, false);
-  assert.equal(meta.openGraph?.url, `${SITE_URL}/?job=abcdef123456`);
+  assert.equal(meta.openGraph?.url, meta.alternates?.canonical);
+});
+
+test("a result page names its video in the one h1", () => {
+  const src = fs.readFileSync(path.join(WEB, "components/ResultView.tsx"), "utf8");
+  assert.match(src, /<h1 className="t">\{job\.title\}<\/h1>/);
+  assert.equal(src.match(/<h1/g)?.length, 1);
+});
+
+test("an unknown path gets the branded 404, kept out of search", async () => {
+  const nf = await import("../app/not-found.tsx");
+  const meta = nf.metadata as { title: string; robots?: { index: boolean } };
+  assert.match(meta.title, /not found · Explanimate/i);
+  assert.equal(meta.robots?.index, false);
+  const src = fs.readFileSync(path.join(WEB, "app/not-found.tsx"), "utf8");
+  assert.match(src, /<h1>Page not found<\/h1>/);
+  assert.match(src, /<Nav \/>/);
+  assert.match(src, /href="\/"/);
 });
 
 test("a result without a title falls back to its input, cut to a readable length", () => {
