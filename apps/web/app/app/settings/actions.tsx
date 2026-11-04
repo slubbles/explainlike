@@ -1,5 +1,6 @@
 "use client";
 import { useState } from "react";
+import { signOut } from "../../../lib/session";
 
 /** Sign out from the settings page, back to the landing page. */
 export function SignOutButton() {
@@ -11,12 +12,9 @@ export function SignOutButton() {
       disabled={busy}
       onClick={async () => {
         setBusy(true);
-        try {
-          await fetch("/api/auth/sign-out", { method: "POST" }).catch(() => null);
-        } finally {
-          // the session is over either way: a failed call only means the cookie was already gone
-          location.href = "/";
-        }
+        await signOut();
+        // home either way: the landing page reads the session fresh and shows the truth
+        location.href = "/";
       }}
     >
       {busy ? "Signing out…" : "Sign out"}
@@ -57,7 +55,7 @@ export function DeleteAccountButton({ videos }: { videos: number }) {
             const data = await r.json().catch(() => ({}));
             return setErr(typeof data?.error === "string" ? data.error : `Deleting failed (${r.status}). Try again in a moment.`);
           }
-          await fetch("/api/auth/sign-out", { method: "POST" }).catch(() => null);
+          await signOut();
           location.href = "/";
         }}
       >

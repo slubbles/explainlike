@@ -10,6 +10,7 @@ import ResultView from "./ResultView";
 import { DEFAULT_FORM, formatForRequest, formFromJob, normalizeInput, type Form } from "../lib/form";
 import { trackEvent } from "../lib/analytics";
 import { fileUrl, postJson, useGallery, useClips, useJob, type Explain } from "../lib/client";
+import { fetchAuthConfig } from "../lib/session";
 
 const urlJob = () => new URLSearchParams(location.search).get("job") ?? undefined;
 
@@ -50,8 +51,8 @@ export default function Home() {
   const examples = useGallery();
 
   const refreshAuth = async () => {
-    const r = await fetch("/api/auth-config").catch(() => null);
-    const j = await r?.json().catch(() => null);
+    // one shared read with the nav mounting beside this (see lib/session.ts)
+    const j = await fetchAuthConfig();
     if (j?.enabled)
       setAuth({
         enabled: true,

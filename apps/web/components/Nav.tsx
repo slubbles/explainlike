@@ -1,7 +1,7 @@
 import AuthNav from "./AuthNav";
 import Logo from "./Logo";
 
-export default function Nav() {
+export default function Nav({ initialEmail }: { initialEmail?: string | null }) {
   return (
     <nav className="nav">
       <div className="wrap">
@@ -19,7 +19,7 @@ export default function Nav() {
           <a className="gh" href="https://github.com/slubbles/explanimate" target="_blank" rel="noreferrer">
             GitHub
           </a>
-          <AuthNav />
+          <AuthNav initialEmail={initialEmail} />
         </div>
       </div>
     </nav>
