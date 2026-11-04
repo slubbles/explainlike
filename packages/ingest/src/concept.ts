@@ -119,6 +119,9 @@ async function get(url: string, what: string, init: RequestInit = {}): Promise<R
   }
 }
 const FETCH_TIMEOUT_MS = 20_000;
+/** Headless screenshots stall under CPU load; 90s plus one retry survives a slow render. */
+export const SCREENSHOT_TIMEOUT_MS = 90_000;
+const SCREENSHOT_RETRY_PAUSE_MS = 2000;
 /** the most HTML read from one page; real articles are far smaller */
 export const MAX_PAGE_BYTES = 5 << 20;
 
@@ -323,6 +326,24 @@ export async function ingestConcept(input: string, _outDir: string): Promise<Con
   return withLocate(doc, card);
 }
 
+/** Screenshot with one retry after a short pause; a failed retry throws the first error. Exported for tests. */
+export async function screenshotCard(
+  el: { screenshot(opts: { path: string; timeout: number }): Promise<unknown> },
+  pngPath: string,
+  pauseMs = SCREENSHOT_RETRY_PAUSE_MS,
+): Promise<void> {
+  try {
+    await el.screenshot({ path: pngPath, timeout: SCREENSHOT_TIMEOUT_MS });
+  } catch (first) {
+    await new Promise((r) => setTimeout(r, pauseMs));
+    try {
+      await el.screenshot({ path: pngPath, timeout: SCREENSHOT_TIMEOUT_MS });
+    } catch {
+      throw first;
+    }
+  }
+}
+
 /** The source card the video zooms into: render the blocks that hold the quotes and find each quote's boxes. */
 export function withLocate(doc: SourceDoc, card: Card): ConceptSource {
   return {
@@ -342,7 +363,7 @@ export function withLocate(doc: SourceDoc, card: Card): ConceptSource {
         const rects = (await page.evaluate(`(${LOCATE_JS})(${JSON.stringify(quotes)})`)) as Record<string, Rect[]>;
         const el = (await page.$(".card"))!;
         const box = (await el.boundingBox())!;
-        await el.screenshot({ path: pngPath });
+        await screenshotCard(el, pngPath);
         return { file: pngPath, width: box.width, height: box.height, rects };
       } finally {
         await browser.close();
