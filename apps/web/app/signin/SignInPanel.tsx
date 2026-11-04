@@ -26,6 +26,7 @@ export default function SignInPanel({
       siteKey={siteKey}
       google={google}
       github={github}
+      next={next}
       onCancel={() => {
         location.href = "/";
       }}
