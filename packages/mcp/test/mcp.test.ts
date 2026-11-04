@@ -94,3 +94,23 @@ test("a missing folder and a failed render come back as tool errors, not crashes
   assert.equal(f.isError, true);
   assert.match(text(f), /could not read the repository/);
 });
+
+test("explain_cancel stops a running job, and explain_status then reports it cancelled", async () => {
+  const { client } = await connect({ FAKE_DELAY_MS: "5000" });
+  const r = await client.callTool({ name: "explain", arguments: { source: "https://github.com/a/b", waitSeconds: 0 } });
+  const job = JSON.parse((r.content as any)[1].text);
+  assert.equal(job.state, "running");
+  const c = await client.callTool({ name: "explain_cancel", arguments: { jobId: job.id } });
+  assert.notEqual(c.isError, true);
+  const s = await client.callTool({ name: "explain_status", arguments: { jobId: job.id, waitSeconds: 0 } });
+  assert.equal(JSON.parse((s.content as any)[1].text).state, "cancelled");
+});
+
+test("explain_status and explain_cancel on an unknown id are tool errors, not crashes", async () => {
+  const { client } = await connect();
+  for (const name of ["explain_status", "explain_cancel"]) {
+    const r = await client.callTool({ name, arguments: { jobId: "nope" } });
+    assert.equal(r.isError, true, name);
+    assert.match(text(r), /no job/);
+  }
+});
