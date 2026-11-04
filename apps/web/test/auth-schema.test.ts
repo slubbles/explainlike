@@ -107,7 +107,20 @@ test("a dropped app table migrates again and comes back with every column", asyn
   calls = 0;
   await ensureAuthSchema();
   assert.ok(calls > 1, `table drift runs the full migration check (${calls} D1 calls)`);
-  assert.deepEqual(columns("videos"), ["id", "user_id", "input", "created_at", "input_len", "status", "cost"]);
+  assert.deepEqual(columns("videos"), [
+    "id",
+    "user_id",
+    "input",
+    "created_at",
+    "input_len",
+    "status",
+    "cost",
+    "title",
+    "format",
+    "duration_sec",
+    "poster",
+    "files",
+  ]);
 });
 
 test("a missing index alone still runs the full check and names the index", async () => {
