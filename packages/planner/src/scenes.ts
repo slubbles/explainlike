@@ -38,7 +38,17 @@ import {
 import { sparkJson, type CostLedger } from "@explanimate/models";
 import { SHAPES, WHAT_IF, analogyRule, shapeFor, type Shape } from "./shapes.js";
 import { checkBeats, beatAnchors, boardBeats, readmePromises, type BeatReport } from "./beats.js";
-import { checkFormatBeats, checkHookQuestion, checkManifestNumbers, checkPayoffAnswersHook, checkScenePurpose, checkVisualReasoning, formatRule, scoreRubric, shouldRejectRubric } from "./quality.js";
+import {
+  checkFormatBeats,
+  checkHookQuestion,
+  checkManifestNumbers,
+  checkPayoffAnswersHook,
+  checkScenePurpose,
+  checkVisualReasoning,
+  formatRule,
+  scoreRubric,
+  shouldRejectRubric,
+} from "./quality.js";
 
 /** Plain words are literal words: the newcomer test kept passing narration that swapped jargon for a riddle. */
 const PLAIN =
@@ -150,6 +160,12 @@ export function groundToReadme(arch: Architecture, readme: string, head = 12_000
 // ---------------------------------------------------------------------------
 // Repo: tell one request's journey on one evolving canvas (docs/explaining-playbook.md).
 // ---------------------------------------------------------------------------
+/** The anatomy tour: the parts layer by layer, each beat owning, handing on, and justified, on one traced request. */
+const ANATOMY_TOUR = [
+  "Anatomy tour: visit the parts layer by layer in the order above: the entry point where one request comes in first, then the core engine, data and storage, infra and deploy, tests and CI where the map has them.",
+  "Each layer scene is one part beat: say what the part owns, what it hands to the next part, and why it exists (what would be slow, hard or impossible without it).",
+  "The walkthrough traces ONE request end to end through actual file paths and `symbols` from the code; name the file or symbol at each hop. The recap closes on the whole map lit up along that traced path, naming the parts in order.",
+].join(" ");
 function repoSystem(arch: Architecture, L: ExplainSpec, lo: number, hi: number, manifest?: FactsManifest): string {
   const shape = shapeFor(L.brief.approach);
   const S = SHAPES[shape];
@@ -166,10 +182,15 @@ function repoSystem(arch: Architecture, L: ExplainSpec, lo: number, hi: number, 
     VOICE_EXAMPLES,
     L.voice,
     formatRule(L.format),
+    ...(L.format === "anatomy" ? [ANATOMY_TOUR] : []),
     "The hook asks one question the viewer can't answer yet and never answers it in its first line; the recap answers it in plain words for 'you'.",
     "Every layer, walkthrough, scale and notes scene advances the mechanism (because/therefore), shows evidence (a real command, file, row, or number), or poses the next question; a scene that only lists parts is cut.",
     "Show one specific mechanism drawing (the actual hops and what each hop knows, not labels that would work on any topic) plus failure or evidence visuals.",
-    ...(manifest?.length ? [`Numbers come only from this facts manifest (value plus source); any other number is cut. Stars are adoption only, benchmarks are phrased as "the project claims", line counts as "about N lines": ${JSON.stringify(promptFacts(manifest))}`] : []),
+    ...(manifest?.length
+      ? [
+          `Numbers come only from this facts manifest (value plus source); any other number is cut. Stars are adoption only, benchmarks are phrased as "the project claims", line counts as "about N lines": ${JSON.stringify(promptFacts(manifest))}`,
+        ]
+      : []),
     analogyRule(shape, analogy),
     "Scene order and rules:",
     `1. one 'hook' scene, 3 or 4 sentences, shown big on screen as it is spoken. ${S.hook} Whatever the shape, right after the hook line say what this project is, who it's for and why they'd care, in plain everyday words with no jargon, like '${arch.one_liner}'; someone who doesn't write code and hears only that knows what the thing is for and whether it's for them. add_components empty.`,
@@ -1806,7 +1827,11 @@ export async function planConceptScenes(o: {
     );
   }
   rubric = scoreRubric(fixed, { arch: NO_ARCH, format: L.format, wps: L.tempo.wps, source: o.doc.text });
-  return { ...fixed, repairs: [...dropped.map((d) => `dropped unquoted: ${d}`), ...retold], rubric: { total: rubric.total, issues: rubric.issues } };
+  return {
+    ...fixed,
+    repairs: [...dropped.map((d) => `dropped unquoted: ${d}`), ...retold],
+    rubric: { total: rubric.total, issues: rubric.issues },
+  };
 }
 
 const LineCards = z.object({

@@ -49,7 +49,13 @@ export interface Job {
   /** the owner stopped it (lib/owner.ts decides who may); it ends as an error that is not a failure */
   cancelled?: boolean;
 }
-export type Ask = { goal?: string; audience?: string; depth?: "overview" | "working" | "deep"; also?: string };
+export type Ask = {
+  goal?: string;
+  audience?: string;
+  depth?: "overview" | "working" | "deep";
+  also?: string;
+  format?: "short" | "deep" | "anatomy";
+};
 
 const ROOT = process.env.EXPLANIMATE_ROOT ?? path.resolve(process.cwd(), "../..");
 export const JOBS_DIR =
@@ -402,7 +408,7 @@ export function startJob(input: string, voice: string, ask?: Ask, via?: "voice",
   const job = newJob({ kind: "video", input, voice, ask, via, owner });
   const args = [input, "--out", path.join(JOBS_DIR, job.id)];
   if (voice === "silent") args.push("--voice", "silent");
-  for (const k of ["goal", "audience", "depth", "also"] as const) if (ask?.[k]) args.push(`--${k}`, ask[k]!);
+  for (const k of ["goal", "audience", "depth", "also", "format"] as const) if (ask?.[k]) args.push(`--${k}`, ask[k]!);
   run(job, args);
   return job;
 }

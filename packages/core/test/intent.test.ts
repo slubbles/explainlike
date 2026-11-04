@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { detectLanguage, isThisFeatureQuestion, isVagueQuestion, narrationLanguage } from "../src/intent.ts";
+import { detectLanguage, isAnatomyQuestion, isThisFeatureQuestion, isVagueQuestion, narrationLanguage } from "../src/intent.ts";
 
 test("questions about the current checkout's own changes are recognised", () => {
   for (const q of [
@@ -34,6 +34,43 @@ test("comparisons, release history and general topics are not working-change que
     "explain this repo",
   ])
     assert.equal(isThisFeatureQuestion(q), false, q);
+});
+
+test("tour questions ask for the anatomy format", () => {
+  for (const q of [
+    "give me the anatomy of this codebase",
+    "how does the codebase fit together",
+    "how do the parts fit together",
+    "give me a tour of the project",
+    "tour, please",
+    "what are the parts of the project",
+    "what are the parts of this codebase",
+    "walk me through the codebase",
+    "walk through the repo",
+    "how is this project organized",
+    "how is the codebase structured",
+    "show me the codebase structure",
+    "map of the repo",
+    "show me around the codebase",
+    "codebase tour for a new contributor",
+  ])
+    assert.equal(isAnatomyQuestion(q), true, q);
+});
+
+test("one feature, the working tree, comparisons and topics are not tours", () => {
+  for (const q of [
+    "how DNS works",
+    "photosynthesis",
+    "how does auth work",
+    "explain this repo",
+    "explain my current changes",
+    "what does this branch do",
+    "what changed in v2",
+    "explain the diff between TCP and UDP",
+    "the difference between a tour and a deep dive",
+    "why is the sky blue",
+  ])
+    assert.equal(isAnatomyQuestion(q), false, q);
 });
 
 test("a vague question is recognised, but never a real topic", () => {

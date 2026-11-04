@@ -21,6 +21,8 @@ export function firstSentence(narration: string): string {
 export function formatRule(format: ExplainFormat): string {
   if (format === "short")
     return "Format: short (45-60s), four beats: hook and stakes 5-8s (one question the viewer can't answer yet, never answered in its first line), core mechanism 20-25s, failure case or concrete example 10-15s, payoff 5-8s answering the hook. Add beats, not runtime.";
+  if (format === "anatomy")
+    return "Format: anatomy (90-150s) for repos, a guided tour of the project's parts layer by layer: hook question, entry point where one request comes in, core engine, data and storage, infra and deploy, then the payoff on the whole map lit up along the traced path. Each part beat states what it owns, what it hands to the next part, and why it exists. One real request is traced end to end through actual file paths and `symbols`; a tour without that traced path is cut. Add beats, not runtime.";
   return "Format: deep (90-120s) for repos and code, six beats: problem, mental model, mechanism, code trace or worked example (a real command, file, or output row), failure case or tradeoff, payoff answering the hook. Add beats, not runtime; never drop the code trace to fit short.";
 }
 
@@ -65,6 +67,9 @@ export function checkPayoffAnswersHook(plan: ScenePlan): string[] {
 
 const CAUSAL =
   /\b(because|therefore|so that|without|would be|lets|makes|means|fixes|solves|needs|why|how|when|since|until|unless|but|yet|however|then|next|forwards?|sends?|goes)\b/i;
+/** A part beat says what it hands to the next part: the verbs that carry work across a hop. */
+const HANDOFF =
+  /\b(hand|pass|sends?|sent|gives?|gave|forward|deliver|emit|returns?|calls?|invok|fetch|feed|writ|read|stor|load|save|takes?|took|bring|carri|rout)\w*\b/i;
 const EVIDENCE_WORDS = /\b(for example|for instance|trace|fails|breaks|error|measured|shows|e\.g\.|queue|lost)\b/i;
 
 function mentionsPart(narration: string, arch: Architecture): boolean {
@@ -141,6 +146,25 @@ function hasEvidenceContent(s: Scene): boolean {
   return EVIDENCE_WORDS.test(s.narration);
 }
 
+/** How many walkthrough parts the text names in the order one request meets them. */
+export function pathPartsInOrder(narration: string, arch: Architecture): number {
+  const ids = new Set(arch.components.map((c) => c.id));
+  const path: string[] = [];
+  for (const st of arch.walkthrough.steps) for (const id of [st.from, st.to]) if (ids.has(id) && !path.includes(id)) path.push(id);
+  const t = ` ${norm(narration)} `;
+  const at = path
+    .map((id) => {
+      const k = norm(arch.components.find((c) => c.id === id)?.keyword ?? "");
+      return k.length > 2 ? t.indexOf(` ${k} `) : -1;
+    })
+    .filter((i) => i >= 0);
+  const best: number[] = [];
+  at.forEach((p, i) => {
+    best[i] = 1 + Math.max(0, ...at.slice(0, i).map((q, j) => (q < p ? best[j] : 0)));
+  });
+  return Math.max(0, ...best);
+}
+
 /** The plan covers its format beats within the format's runtime. */
 export function checkFormatBeats(plan: ScenePlan, format: ExplainFormat, arch: Architecture, wps = 2.6): string[] {
   const issues: string[] = [];
@@ -150,7 +174,6 @@ export function checkFormatBeats(plan: ScenePlan, format: ExplainFormat, arch: A
   if (total < lo || total > hi) issues.push(`the ${format} format runs ${lo}-${hi}s; this plan runs ${Math.round(total)}s`);
   const hook = plan.scenes.find((s) => s.kind === "hook");
   const payoff = [...plan.scenes].reverse().find((s) => s.kind === "recap" || s.kind === "outro");
-  void arch;
   if (format === "short") {
     if (hook) {
       const d = dur(hook);
@@ -164,6 +187,28 @@ export function checkFormatBeats(plan: ScenePlan, format: ExplainFormat, arch: A
       const d = dur(payoff);
       if (d < 5 || d > 8) issues.push(`${payoff.id}: the payoff beat runs 5-8s; this payoff runs ${d.toFixed(1)}s`);
     } else issues.push("the short format needs a payoff beat (5-8s)");
+  } else if (format === "anatomy") {
+    if (!hook) issues.push("the anatomy format needs a hook question opening the tour");
+    const layers = plan.scenes.filter((s) => s.kind === "layer");
+    if (layers.length < 2)
+      issues.push(
+        "the anatomy format tours the parts layer by layer (entry point, core, data, infra); this plan has fewer than 2 layer scenes",
+      );
+    for (const s of layers)
+      if (!HANDOFF.test(s.narration))
+        issues.push(
+          `${s.id}: each part beat states what it owns, what it hands to the next part, and why it exists; this one never says what it hands on`,
+        );
+    const traced = plan.scenes.some(
+      (s) => s.kind === "walkthrough" && codeFactsIn(s.narration).length > 0 && pathPartsInOrder(s.narration, arch) >= 2,
+    );
+    if (!traced)
+      issues.push(
+        "the anatomy format anchors the tour on one request traced end to end; add a walkthrough naming real file paths and `symbols` along the path",
+      );
+    if (!payoff) issues.push("the anatomy format needs a payoff beat (recap) lighting the whole map along the traced path");
+    else if (pathPartsInOrder(payoff.narration, arch) < 2)
+      issues.push(`${payoff.id}: the final beat shows the whole map lit up along the traced path; retell it naming the parts in order`);
   } else {
     if (!hook) issues.push("the deep format needs a problem beat (hook)");
     if (!plan.scenes.some((s) => s.kind === "layer" || s.kind === "board"))
@@ -283,7 +328,7 @@ export function countVisualMoments(plan: ScenePlan, arch: Architecture): VisualM
   return { mechanism, evidence, total: mechanism + evidence, generic };
 }
 
-/** Short needs 2 visual moments, deep needs 3, including one specific mechanism drawing. */
+/** Short needs 2 visual moments, deep 3, anatomy 4, including one specific mechanism drawing. */
 export function checkVisualReasoning(plan: ScenePlan, format: ExplainFormat, arch: Architecture): string[] {
   const c = countVisualMoments(plan, arch);
   const need = FORMATS[format].visuals;

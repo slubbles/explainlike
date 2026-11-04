@@ -21,6 +21,7 @@ import {
   dropUntiedSides,
   countVisualMoments,
   checkVisualReasoning,
+  pathPartsInOrder,
   scoreRubric,
   shouldRejectRubric,
 } from "@explanimate/planner";
@@ -354,4 +355,165 @@ test("rubric scores hook, chain, anchors, visual, payoff and rejects weak script
   assert.ok(bad.total < 7 || [bad.hook, bad.causal, bad.anchors, bad.visual, bad.payoff].includes(0));
   assert.equal(shouldRejectRubric(bad), true);
   assert.ok(bad.issues.length >= 4, bad.issues.join("; "));
+});
+
+test("formats: anatomy tours a repo in 90-150s, picked by tour intent or explicit format", () => {
+  assert.deepEqual(
+    FORMATS.anatomy.beats.map((b) => b.id),
+    ["hook", "entry", "tour", "trace", "map", "payoff"],
+  );
+  assert.deepEqual(FORMATS.anatomy.seconds, [90, 150]);
+  assert.equal(FORMATS.anatomy.visuals, 4);
+  assert.equal(formatFor("repo", "working", "give me a tour of the codebase"), "anatomy");
+  assert.equal(formatFor("repo", "overview", "how does auth work"), "deep");
+  assert.equal(formatFor("repo", "overview"), "deep");
+  assert.equal(formatFor("topic", "working", "tour of the project"), "deep");
+  assert.equal(specFromBrief(DEFAULT_BRIEF, { goal: "anatomy of this repo" }, "repo").format, "anatomy");
+  assert.equal(specFromBrief(DEFAULT_BRIEF, { format: "anatomy" }, "repo").format, "anatomy");
+  assert.equal(specFromBrief(DEFAULT_BRIEF, { format: "anatomy" }, "topic").format, "deep");
+  assert.equal(specFromBrief(DEFAULT_BRIEF, { format: "short" }, "repo").format, "short");
+});
+
+const aHook = "How does one message travel from your chat to a working bot reply today?";
+const anatomyTour = () => {
+  const scenes = [
+    sc("hook", aHook),
+    sc(
+      "layer",
+      pad(
+        "Your words land in the team chat, which owns the screen you type in, because every request starts with you. It hands your message to the front door next, and it is popular with teams holding 1234 stars.",
+        60,
+      ),
+      {
+        add_components: ["ui"],
+        beats: [{ line: "Your words land.", visual: "board", anchor: "Your words", text: "", items: [], focus: "ui" }],
+      },
+    ),
+    sc(
+      "layer",
+      pad(
+        "Opening a fresh browser for every command would be slow, so the front door keeps one browser open for you. It forwards your message to the bot harness, which runs the bot for you.",
+        60,
+      ),
+      { add_components: ["edge"] },
+    ),
+    sc(
+      "layer",
+      pad(
+        "Your agent cannot read a screen, so the bot harness keeps the running bots and hands each reply back through the front door for you. The agent drivers do the clicking, because pointing beats guessing.",
+        60,
+      ),
+      { add_components: ["srv", "bot"] },
+    ),
+    sc(
+      "walkthrough",
+      pad(
+        "It types `snapshot` from `src/snapshot.ts`, holding about 600 lines, and the team chat hands the rows to the front door, which forwards them to the bot harness that runs the agent drivers for you.",
+        45,
+      ),
+      {
+        beats: [
+          { line: "It types snapshot.", visual: "terminal", anchor: "It types", text: "snapshot", items: [], focus: "" },
+          { line: "The team chat hands.", visual: "board", anchor: "team chat hands", text: "", items: [], focus: "edge" },
+        ],
+      },
+    ),
+    sc("scale", pad("At 10x traffic two writers collide, so the queue lines them up and nothing is lost for you.", 25), {
+      callouts: [{ target: "srv", text: "queue", color: "green" }],
+    }),
+    sc(
+      "recap",
+      pad(
+        "So your message reaches the bot through the team chat, the front door, the bot harness and the agent drivers, ready for you to use daily.",
+        22,
+      ),
+    ),
+  ];
+  return plan(...scenes.map((s, i) => ({ ...s, id: `s0${i + 1}-${s.kind}` })));
+};
+
+test("path order counts the parts named along the request path", () => {
+  assert.equal(pathPartsInOrder("The team chat hands it to the front door, which forwards it to the bot harness.", arch), 3);
+  assert.equal(pathPartsInOrder("The bot harness runs, and the team chat shows it.", arch), 1);
+  assert.equal(pathPartsInOrder("Teams ship faster every week.", arch), 0);
+});
+
+test("format beats: anatomy tours the parts on one traced request in 90-150s", () => {
+  assert.deepEqual(checkFormatBeats(anatomyTour(), "anatomy", arch, 2.6), []);
+  const noTrace = plan(sc("hook", `${aHook} This app is for teams.`), sc("recap", "Bye."));
+  assert.ok(checkFormatBeats(noTrace, "anatomy", arch, 2.6).some((i) => /traced end to end/.test(i)));
+  const untraced = anatomyTour();
+  untraced.scenes = untraced.scenes.map((s) =>
+    s.kind === "walkthrough"
+      ? {
+          ...s,
+          narration: pad(
+            "The team chat hands the rows to the front door, which forwards them to the bot harness that runs the agent drivers for you.",
+            45,
+          ),
+        }
+      : s,
+  );
+  assert.ok(checkFormatBeats(untraced, "anatomy", arch, 2.6).some((i) => /traced end to end/.test(i)));
+  const noHandoff = anatomyTour();
+  noHandoff.scenes = noHandoff.scenes.map((s) =>
+    s.id === "s03-layer"
+      ? {
+          ...s,
+          narration: pad(
+            "Opening a fresh browser for every command would be slow, because waiting hurts you. The front door is the browser keeper for you.",
+            60,
+          ),
+        }
+      : s,
+  );
+  assert.ok(checkFormatBeats(noHandoff, "anatomy", arch, 2.6).some((i) => /hands on/.test(i)));
+  const unlit = anatomyTour();
+  unlit.scenes = unlit.scenes.map((s) =>
+    s.kind === "recap" ? { ...s, narration: pad("So your message reaches the bot quickly, ready for you to use daily.", 22) } : s,
+  );
+  assert.ok(checkFormatBeats(unlit, "anatomy", arch, 2.6).some((i) => /naming the parts in order/.test(i)));
+  const tooShort = plan(sc("hook", aHook), sc("recap", "So your message reaches the bot for you."));
+  assert.ok(checkFormatBeats(tooShort, "anatomy", arch, 2.6).some((i) => /90-150s/.test(i)));
+});
+
+test("visuals: anatomy needs 4 moments including the mechanism drawing", () => {
+  assert.deepEqual(checkVisualReasoning(anatomyTour(), "anatomy", arch), []);
+  const three = anatomyTour();
+  three.scenes = three.scenes.filter((s) => s.kind !== "scale");
+  assert.ok(checkVisualReasoning(three, "anatomy", arch).some((i) => /4 visual/.test(i)));
+});
+
+test("rubric rejects an anatomy inventory without the request path and accepts a traced tour", () => {
+  const good = scoreRubric(anatomyTour(), { arch, manifest, format: "anatomy", wps: 2.6 });
+  assert.equal(good.total, 10);
+  assert.equal(shouldRejectRubric(good), false);
+  const weak = plan(
+    sc("hook", "This is a chat app. It has bots for teams."),
+    {
+      ...sc("layer", "The team chat and the front door help. They do work for you.", { add_components: ["ui", "edge"] }),
+      id: "s02-layer",
+    },
+    {
+      ...sc("layer", "The bot harness and the agent drivers help. They do work for you.", { add_components: ["srv", "bot"] }),
+      id: "s03-layer",
+    },
+    sc("recap", "Teams ship faster every week."),
+  );
+  const bad = scoreRubric(weak, { arch, manifest, format: "anatomy", wps: 2.6 });
+  assert.ok(bad.total < 7);
+  assert.equal(shouldRejectRubric(bad), true);
+  const beats = checkFormatBeats(weak, "anatomy", arch, 2.6);
+  assert.ok(
+    beats.some((i) => /traced end to end/.test(i)),
+    beats.join("; "),
+  );
+  assert.ok(
+    beats.some((i) => /hands on/.test(i)),
+    beats.join("; "),
+  );
+  assert.ok(
+    beats.some((i) => /naming the parts in order/.test(i)),
+    beats.join("; "),
+  );
 });
