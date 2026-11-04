@@ -29,7 +29,7 @@ export interface ShapeSpec {
 export const SHAPES: Record<Shape, ShapeSpec> = {
   journey: {
     analogy: "optional",
-    hook: "Sentence one is the hook, shown on the title card under the name and tagline: a 'What if ...?' question about what this lets you (or your AI, your app) do, at most 14 words, no product name ('What if your AI could really click around the web?'). Then one or two short lines on what that means in practice, said as the contrast with today ('Not guess what a page says. Actually open it, read it, and press the button.'). Then what the product is, in one plain sentence that names it and the familiar tools it works with ('That's agent-browser: a command-line tool that lets an AI agent, like Claude Code or Cursor, drive a real Chrome browser.'). No part names yet.",
+    hook: "Sentence one is the hook, shown on the title card under the name and tagline: a 'What if ...?' question about what this lets you (or your AI, your app) do, at most 14 words, spoken within about 8 seconds, no product name ('What if your AI could really click around the web?'). Then one or two short lines on what that means in practice, said as the contrast with today ('Not guess what a page says. Actually open it, read it, and press the button.'). Then what the product is, in one plain sentence that names it and the familiar tools it works with ('That's agent-browser: a command-line tool that lets an AI agent, like Claude Code or Cursor, drive a real Chrome browser.'). No part names yet.",
     spine:
       "Tell it in the order things happen ('First...', 'Next...'): each scene is the next thing that happens, said literally, and the part that does it. For each added part, first the problem it solves in one short line (what would be slow, hard or impossible without it), then the part by its keyword, what it is in one plain clause, and what that buys you (plus its role in the analogy, only if the video has one).",
     close:
@@ -40,7 +40,7 @@ export const SHAPES: Record<Shape, ShapeSpec> = {
   },
   build: {
     analogy: "optional",
-    hook: "Sentence one is the hook: the one small thing that already works here, said as a concrete claim ('one file, and it already answers'), at most 14 words, no product name needed. Then the limit of that small thing, in plain words, and the promise: what has to be added, and why. No analogy unless one genuinely comes from the project's own world.",
+    hook: "Sentence one is the hook: the one small thing that already works here, said as a concrete claim about the viewer's payoff ('one file, and you already get answers'), at most 14 words, spoken within about 8 seconds, no product name needed. Then the limit of that small thing, in plain words, and the promise: what has to be added, and why. No analogy unless one genuinely comes from the project's own world.",
     spine:
       "Each scene adds the next part because the scene before it hit a specific limit. Say the limit first, as a problem the viewer can feel ('one process is fine until the second writer arrives'), then add the part that lifts it and say what it buys. The parts arrive in the order the limits appear, not the order they are listed in the architecture.",
     close:
@@ -51,7 +51,7 @@ export const SHAPES: Record<Shape, ShapeSpec> = {
   },
   fault: {
     analogy: "none",
-    hook: "Sentence one is the hook: the pain, in the second person and concrete, at most 14 words ('your dashboard takes nine seconds to open'), then what that pain costs and what this project does about it. No analogy: the pain is the through-line.",
+    hook: "Sentence one is the hook: the pain, in the second person and concrete, at most 14 words, spoken within about 8 seconds ('your dashboard takes nine seconds to open'), then what that pain costs and what this project does about it. No analogy: the pain is the through-line.",
     spine:
       "Each scene removes one piece of the pain: name what hurts at that point (slow, lost, wrong, down), then the part that removes it and what changes for the viewer because of it. The parts arrive in the order the pain is felt.",
     close:

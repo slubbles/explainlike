@@ -45,6 +45,7 @@ const STYLE = [
   "Style of the video: a friend drawing on a whiteboard while explaining over coffee to a smart person who doesn't write code (docs/explaining-playbook.md).",
   PLAIN_LANGUAGE,
   "Narration is spoken; write it for the ear: short sentences, concrete, no filler ('in this video', 'let's dive in', 'robust', 'seamless', 'leverage' are banned).",
+  "The first line states the concrete problem or payoff for the viewer in plain words, within about 8 seconds: a question, a line that says 'you', or a surprising number. No warm-up, no title read-out.",
   "Every narration sentence is complete and grammatical: each verb agrees with its subject, and articles (a, an, the) are not dropped.",
   "Real names, explained. Call each part by its keyword, which is its real name (agent-browser CLI, the daemon, Chrome DevTools Protocol), and the first time it is said, say what it is in one plain clause in the same sentence: 'the daemon, a program that keeps running in the background'. Never invent a nickname for a part and never swap its name for an analogy. Name the familiar tools people already use next to it: 'an AI agent, like Claude Code or Cursor'. A code name that is not a part (a library or file name such as SQLite) is said only when it helps, with what it is. Any other technical term (an acronym, 'api', 'driver', 'harness') gets the same one-clause explanation, and a term the newcomer does not need is left out. Never 'called X'.",
   "Problem before fix: before a part or a feature, say in one line what is hard or annoying without it.",
@@ -60,9 +61,11 @@ const STYLE = [
   `${PLAIN_HEADINGS} Headings are lowercase and the narration of that scene says their words (the viewer reads the heading while hearing it).`,
   "Keywords 1 to 3 lowercase words.",
   "One new thing per sentence, and each sentence long enough to watch it being drawn (no two-word sentences).",
+  "Short lines, one idea each: about 5 to 14 words a line, a new visual every 3 to 5 seconds; cut every sentence the story does not need.",
   "Every sentence moves the story. Never announce what comes next instead of saying it: 'you'll meet', 'you'll see', 'you'll find', 'then you've got', 'let's take a look', 'basically', 'it's special' and 'it's important' are banned.",
   "If the video uses an everyday analogy, keep that one analogy from the hook to the end; never switch to a second one.",
   "At most one short, dry aside in the whole video, the kind a friendly engineer makes at the whiteboard ('which, to be fair, is most of programming'). Never a joke about people, never more than one sentence.",
+  "Close on a one-sentence takeaway for 'you', then a one-sentence retrace of what happened; never a list of steps.",
 ].join("\n");
 
 /**
@@ -350,7 +353,14 @@ export function checkStory(plan: ScenePlan, arch: Architecture, analogy = "", sh
   if (hook) {
     const line = hookLine(hook.narration);
     const n = wordCount(line);
-    if (n > 16) issues.push(`the hook's first sentence has ${n} words; make it a question or one surprising claim of at most 14 words`);
+    if (n > 16)
+      issues.push(
+        `the hook's first sentence has ${n} words; state the concrete problem or payoff in one line of at most 16 words, spoken within about 8 seconds`,
+      );
+    if (!/[?]\s*$/.test(line) && !/\b(you|your|you're|you'll|you'd|yours)\b/i.test(line) && !/\d/.test(line))
+      issues.push(
+        `${hook.id}: the hook opens on "${line.slice(0, 70)}"; open on the concrete problem or payoff for the viewer instead: a question, a line that says "you", or a surprising number`,
+      );
     if (/^(hi|hello|welcome|today|in this video|this is|meet|let'?s)\b/i.test(line))
       issues.push(`the hook opens with "${line.split(/\s+/).slice(0, 3).join(" ")}"; open on a question or a surprising claim instead`);
     if (shape === "journey" && !WHAT_IF.test(line))
@@ -426,6 +436,13 @@ export function checkStory(plan: ScenePlan, arch: Architecture, analogy = "", sh
     if (recapInOrder(recap.narration, path.map(kwOf)) < recapNeeds(path.length))
       issues.push(`the recap must retell the trip, saying the journey parts in order: ${path.map(kwOf).join(", ")}`);
   }
+  if (recap) {
+    const first = recap.narration.trim().split(/(?<=[.!?])\s+/)[0] ?? "";
+    if (!/\b(you|your|you're|you'll|you'd|yours)\b/i.test(first))
+      issues.push(
+        `${recap.id}: the recap opens on "${first.slice(0, 70)}"; open with what it does for you: a one-sentence payoff for the viewer, then the retrace`,
+      );
+  }
   return [...issues, ...undrawnLinks(plan, arch), ...speechIssues(plan, arch, analogy)];
 }
 
@@ -483,7 +500,7 @@ export function undrawnLinks(plan: ScenePlan, arch: Architecture): string[] {
 
 // phrases that announce instead of explain (docs/explaining-playbook.md, "No filler")
 const FILLER =
-  /\b(you'?ll (meet|see|find|notice)|then you'?ve got|let'?s (take a look|dive in|get into it)|in this video|basically|it'?s (special|important|worth noting)|without further ado|as you can see)\b/gi;
+  /\b(you'?ll (meet|see|find|notice)|then you'?ve got|let'?s (take a look|dive in|get into it)|in this video|basically|it'?s (special|important|worth noting)|without further ado|as you can see|delve\w*|deep dive|game[ -]?changer|supercharge\w*|at the end of the day|needless to say|it goes without saying|in a nutshell)\b/gi;
 export function fillerIn(text: string): string[] {
   return [...new Set([...text.replace(/[’‘]/g, "'").matchAll(FILLER)].map((m) => m[0].toLowerCase()))];
 }
@@ -556,6 +573,14 @@ export function speechIssues(plan: ScenePlan, arch: Architecture, analogy = ""):
     for (const g of grammarSlips(s.narration, { metaphor })) issues.push(`${s.id}: ${g}`);
     const filler = fillerIn(s.narration);
     if (filler.length) issues.push(`${s.id}: filler ${filler.map((f) => `"${f}"`).join(", ")}; say the thing itself instead`);
+    for (const sent of s.narration
+      .split(/(?<=[.!?])\s+/)
+      .map((x) => x.trim())
+      .filter(Boolean)) {
+      const n = wordCount(sent);
+      if (n > 20)
+        issues.push(`${s.id}: "${sent.length > 90 ? `${sent.slice(0, 90)}…` : sent}" has ${n} words; split it into short lines of one idea each`);
+    }
     // the plain-language bar a program can check: box names are judged on the map, so they pass here
     for (const p of plainSlips(s.narration, known)) issues.push(`${s.id}: ${p}`);
     for (const x of stiffLines(s.narration)) issues.push(`${s.id}: ${x}`);
