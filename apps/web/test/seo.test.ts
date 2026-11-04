@@ -22,7 +22,7 @@ test("the site URL is the bare https domain, never www", () => {
 
 test("every page has a unique title and description, and a canonical URL on the bare domain", () => {
   const keys = Object.keys(PAGES);
-  assert.deepEqual(keys.sort(), ["docs", "gallery", "home"]);
+  assert.deepEqual(keys.sort(), ["docs", "gallery", "home", "privacy", "terms"]);
   const titles = new Set<string>();
   const descriptions = new Set<string>();
   for (const key of keys as (keyof typeof PAGES)[]) {
@@ -111,7 +111,13 @@ test("a result without a title falls back to its input, cut to a readable length
 
 test("the sitemap lists the public pages, and nothing private or transient", () => {
   const entries = sitemapEntries();
-  assert.deepEqual(entries.map((e) => e.url).sort(), [SITE_URL, `${SITE_URL}/docs`, `${SITE_URL}/gallery`]);
+  assert.deepEqual(entries.map((e) => e.url).sort(), [
+    SITE_URL,
+    `${SITE_URL}/docs`,
+    `${SITE_URL}/gallery`,
+    `${SITE_URL}/privacy`,
+    `${SITE_URL}/terms`,
+  ]);
   for (const e of entries) {
     assert.ok(!e.url.includes("/api/"), "no API routes");
     assert.ok(!e.url.includes("?job="), "no job views");
@@ -140,6 +146,26 @@ test("the docs and gallery pages export the shared metadata", async () => {
   const gallery = await import("../app/gallery/page.tsx");
   assert.deepEqual(docs.metadata, pageMetadata("docs"));
   assert.deepEqual(gallery.metadata, pageMetadata("gallery"));
+});
+
+test("the privacy and terms pages render with the shared metadata, nav and footer", async () => {
+  const privacy = await import("../app/privacy/page.tsx");
+  const terms = await import("../app/terms/page.tsx");
+  assert.deepEqual(privacy.metadata, pageMetadata("privacy"));
+  assert.deepEqual(terms.metadata, pageMetadata("terms"));
+  const privacySrc = fs.readFileSync(path.join(WEB, "app/privacy/page.tsx"), "utf8");
+  assert.match(privacySrc, /<h1>Privacy<\/h1>/);
+  assert.match(privacySrc, /Last updated November 4, 2026/);
+  assert.match(privacySrc, /<Nav \/>/);
+  assert.match(privacySrc, /<Footer \/>/);
+  const termsSrc = fs.readFileSync(path.join(WEB, "app/terms/page.tsx"), "utf8");
+  assert.match(termsSrc, /<h1>Terms<\/h1>/);
+  assert.match(termsSrc, /provided as is/);
+  assert.match(termsSrc, /<Nav \/>/);
+  assert.match(termsSrc, /<Footer \/>/);
+  const footer = fs.readFileSync(path.join(WEB, "components/Footer.tsx"), "utf8");
+  assert.match(footer, /href="\/privacy">Privacy<\/a>/);
+  assert.match(footer, /href="\/terms">Terms<\/a>/);
 });
 
 test("the share image is a 1200x630 PNG, small enough for social crawlers", () => {
