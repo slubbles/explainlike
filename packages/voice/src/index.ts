@@ -6,7 +6,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import crypto from "node:crypto";
-import { fetchRetry, ServiceError, userCacheDir, type SceneAudio, type WordTiming } from "@explanimate/core";
+import { fetchRetry, providerLimiter, ServiceError, userCacheDir, type SceneAudio, type WordTiming } from "@explanimate/core";
 
 export interface VoiceProvider {
   id: string;
@@ -228,13 +228,16 @@ export class DeepgramVoice implements VoiceProvider {
   }
 
   private req(url: string, body: BodyInit, type: string): Promise<Response> {
-    return fetchRetry(url, () => ({ method: "POST", headers: { Authorization: `Token ${this.key}`, "Content-Type": type }, body }), {
-      service: "Deepgram",
-      keyVar: "DEEPGRAM_API_KEY",
-      timeoutMs: 90_000,
-      attempts: 4,
-      baseMs: 1500,
-    });
+    // the Deepgram lane, shared by the scenes voicing side by side
+    return providerLimiter.run("deepgram", () =>
+      fetchRetry(url, () => ({ method: "POST", headers: { Authorization: `Token ${this.key}`, "Content-Type": type }, body }), {
+        service: "Deepgram",
+        keyVar: "DEEPGRAM_API_KEY",
+        timeoutMs: 90_000,
+        attempts: 4,
+        baseMs: 1500,
+      }),
+    );
   }
 
   /** One Aura take of the text, and what Deepgram's recogniser hears in it (the word times captions use). */
@@ -351,27 +354,30 @@ export class CartesiaVoice implements VoiceProvider {
       jsonCache,
     );
     if (!cached) {
-      const r = await fetchRetry(
-        "https://api.cartesia.ai/tts/bytes",
-        () => ({
-          method: "POST",
-          headers: {
-            // X-API-Key is Cartesia's long-standing auth header; the current API reference shows a
-            // Bearer token instead, so both go along and the call works either way
-            "X-API-Key": this.key,
-            Authorization: `Bearer ${this.key}`,
-            "Cartesia-Version": CARTESIA_VERSION,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            model_id: this.model,
-            transcript: said,
-            voice: { id: this.voice },
-            language: "en",
-            output_format: { container: "wav", encoding: "pcm_s16le", sample_rate: 24000 },
+      // the Cartesia lane, shared by the scenes voicing side by side
+      const r = await providerLimiter.run("cartesia", () =>
+        fetchRetry(
+          "https://api.cartesia.ai/tts/bytes",
+          () => ({
+            method: "POST",
+            headers: {
+              // X-API-Key is Cartesia's long-standing auth header; the current API reference shows a
+              // Bearer token instead, so both go along and the call works either way
+              "X-API-Key": this.key,
+              Authorization: `Bearer ${this.key}`,
+              "Cartesia-Version": CARTESIA_VERSION,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              model_id: this.model,
+              transcript: said,
+              voice: { id: this.voice },
+              language: "en",
+              output_format: { container: "wav", encoding: "pcm_s16le", sample_rate: 24000 },
+            }),
           }),
-        }),
-        { service: "Cartesia", keyVar: "CARTESIA_API_KEY", timeoutMs: 90_000, attempts: 4, baseMs: 1500 },
+          { service: "Cartesia", keyVar: "CARTESIA_API_KEY", timeoutMs: 90_000, attempts: 4, baseMs: 1500 },
+        ),
       );
       const wav = Buffer.from(await r.arrayBuffer());
       if (wav.length < 44) throw new ServiceError("Cartesia sent back an answer too short to be audio. Try again.", "Cartesia");
