@@ -1,5 +1,10 @@
 /** @type {import('next').NextConfig} */
 export default {
+  // production ships no source maps: neither browser chunks nor server output reference any
+  productionBrowserSourceMaps: false,
+  experimental: {
+    serverSourceMaps: false,
+  },
   serverExternalPackages: [],
   // shared input checks are TypeScript source in the workspace
   transpilePackages: ["@explanimate/core"],

@@ -131,3 +131,47 @@ export function budget(s: Spend, c = caps(), r = reserve()): Budget {
   }
   return { ok: !error, error, warnings, spent: s, caps: c };
 }
+
+// ---- global daily spend guard (works whether sign-in is on or off) ----
+
+export const DEFAULT_DAILY_CAP_USD = 3;
+export const DAILY_BUDGET_ERROR = "Today's budget is used up, new videos are paused until 00:00 UTC.";
+
+const utcDay = (ts: number) => new Date(ts).toISOString().slice(0, 10);
+
+/** The combined Meta + voice cap for one UTC day (EXPLANIMATE_DAILY_CAP_USD, default 3). */
+export function dailyCap(): number {
+  const n = Number(process.env.EXPLANIMATE_DAILY_CAP_USD ?? DEFAULT_DAILY_CAP_USD);
+  return Number.isFinite(n) && n > 0 ? n : DEFAULT_DAILY_CAP_USD;
+}
+
+/** What one more video can cost, kept free under the daily cap (both reserves together). */
+export function dailyReserve(): number {
+  const r = reserve();
+  return r.meta + r.voice;
+}
+
+/** Today's (UTC) Meta + voice spend: job meters started today plus today's ledger lines. */
+export function spentToday(dir: string, jobs: { started?: number; usd?: { meta?: number; voice?: number } }[], nowMs = Date.now()): number {
+  const day = utcDay(nowMs);
+  let total = 0;
+  for (const j of jobs) {
+    if (j.started && utcDay(j.started) === day) total += (j.usd?.meta ?? 0) + (j.usd?.voice ?? 0);
+  }
+  if (fs.existsSync(ledgerFile(dir))) {
+    for (const line of fs.readFileSync(ledgerFile(dir), "utf8").split("\n")) {
+      try {
+        const e = JSON.parse(line);
+        if (e.t && utcDay(Number(e.t)) === day) total += (Number(e.meta) || 0) + (Number(e.voice) || 0);
+      } catch {
+        /* blank or torn line */
+      }
+    }
+  }
+  return total;
+}
+
+/** Whether today's spend leaves room for another video under the daily cap. */
+export function dailyBudget(todaySpend: number, cap = dailyCap(), res = dailyReserve()): { ok: boolean; error?: string } {
+  return todaySpend + res > cap ? { ok: false, error: DAILY_BUDGET_ERROR } : { ok: true };
+}

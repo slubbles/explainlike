@@ -3,7 +3,18 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { budget, clientIp, rateLimit, readBody, recordSpend, spent } from "../lib/guard.ts";
+import {
+  budget,
+  clientIp,
+  dailyBudget,
+  dailyCap,
+  dailyReserve,
+  rateLimit,
+  readBody,
+  recordSpend,
+  spent,
+  spentToday,
+} from "../lib/guard.ts";
 
 test("the per-IP limit lets a burst through, then says how long to wait, then frees up", () => {
   const t = 1_000_000;
@@ -58,6 +69,53 @@ test("spend adds every job's meter to the ledger of side calls", () => {
   const s = spent(dir, [{ usd: { meta: 0.3, voice: 0.09 } }, {}]);
   assert.ok(Math.abs(s.meta - 0.31) < 1e-9 && Math.abs(s.voice - 0.092) < 1e-9, JSON.stringify(s));
   fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test("today's spend counts only jobs started today plus today's ledger lines", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "el-daily-"));
+  const today = Date.parse("2026-05-01T12:00:00Z");
+  const yesterday = Date.parse("2026-04-30T12:00:00Z");
+  fs.writeFileSync(
+    path.join(dir, "spend.jsonl"),
+    [
+      JSON.stringify({ t: today, what: "voice turn", meta: 0.01, voice: 0 }),
+      JSON.stringify({ t: yesterday, what: "old", meta: 9, voice: 9 }),
+      '{"torn',
+    ].join("\n"),
+  );
+  const total = spentToday(
+    dir,
+    [{ started: today, usd: { meta: 0.2, voice: 0.05 } }, { started: yesterday, usd: { meta: 5, voice: 5 } }, { started: today }],
+    today,
+  );
+  assert.ok(Math.abs(total - 0.26) < 1e-9, String(total));
+  assert.equal(spentToday(dir, [], yesterday + 1), 18, "yesterday still sums on its own day");
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test("the daily guard pauses new videos once today's spend plus one reserve passes the cap", () => {
+  assert.deepEqual(dailyBudget(1, 3, 1.15), { ok: true });
+  assert.deepEqual(dailyBudget(1.86, 3, 1.15), {
+    ok: false,
+    error: "Today's budget is used up, new videos are paused until 00:00 UTC.",
+  });
+  const saved = {
+    cap: process.env.EXPLANIMATE_DAILY_CAP_USD,
+    meta: process.env.EXPLANIMATE_META_RESERVE_USD,
+    voice: process.env.EXPLANIMATE_VOICE_RESERVE_USD,
+  };
+  delete process.env.EXPLANIMATE_DAILY_CAP_USD;
+  delete process.env.EXPLANIMATE_META_RESERVE_USD;
+  delete process.env.EXPLANIMATE_VOICE_RESERVE_USD;
+  assert.equal(dailyCap(), 3);
+  assert.ok(Math.abs(dailyReserve() - 1.15) < 1e-9, String(dailyReserve()));
+  process.env.EXPLANIMATE_DAILY_CAP_USD = "10";
+  assert.equal(dailyCap(), 10);
+  for (const [k, v] of Object.entries(saved)) {
+    const name = { cap: "EXPLANIMATE_DAILY_CAP_USD", meta: "EXPLANIMATE_META_RESERVE_USD", voice: "EXPLANIMATE_VOICE_RESERVE_USD" }[k]!;
+    if (v === undefined) delete process.env[name];
+    else process.env[name] = v;
+  }
 });
 
 test("no client code reads a server secret", () => {
