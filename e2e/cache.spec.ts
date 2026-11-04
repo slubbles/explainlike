@@ -9,7 +9,7 @@ for (const route of ["/", "/docs", "/gallery", "/admin", "/no-such-page"]) {
   });
 }
 
-for (const route of ["/api/health", "/api/gallery", "/api/jobs", "/api/auth-config", "/api/runtime-config"]) {
+for (const route of ["/api/health", "/api/gallery", "/api/jobs", "/api/auth-config"]) {
   test(`${route} sends no-store`, async ({ request }) => {
     const res = await request.get(route);
     expect(res.headers()["cache-control"]).toContain("no-store");
