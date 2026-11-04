@@ -1,7 +1,7 @@
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import Nav from "../../components/Nav";
-import { authEnabled, sessionUser } from "../../lib/auth";
+import { authEnabled, googleEnabled, sessionUser } from "../../lib/auth";
 import SignInPanel from "./SignInPanel";
 
 export const runtime = "nodejs";
@@ -14,7 +14,8 @@ const safeNext = (v: unknown): string => (typeof v === "string" && v.startsWith(
 /** Sign in with a one-time email code. Signed-in visits skip straight to where they were headed. */
 export default async function SignInPage({ searchParams }: { searchParams: Promise<{ next?: string }> }) {
   const to = safeNext((await searchParams).next);
-  if (authEnabled()) {
+  const enabled = authEnabled();
+  if (enabled) {
     const h = await headers();
     const init: Record<string, string> = {};
     h.forEach((v, k) => {
@@ -22,12 +23,19 @@ export default async function SignInPage({ searchParams }: { searchParams: Promi
     });
     if (await sessionUser(new Request("http://localhost/signin", { headers: init }))) redirect(to);
   }
+  // signed-in visits never render this page (see the redirect above), so the nav is signed
+  // out; the panel's public settings come from the environment, and nothing fetches.
   return (
     <>
-      <Nav />
+      <Nav initialEmail={enabled ? null : undefined} />
       <main className="page">
         <h1 className="sr">Sign in</h1>
-        <SignInPanel next={to} enabled={authEnabled()} />
+        <SignInPanel
+          next={to}
+          enabled={enabled}
+          siteKey={process.env.EXPLANIMATE_TURNSTILE_SITE_KEY ?? ""}
+          google={googleEnabled(process.env.GOOGLE_CLIENT_ID, process.env.GOOGLE_CLIENT_SECRET)}
+        />
       </main>
     </>
   );
