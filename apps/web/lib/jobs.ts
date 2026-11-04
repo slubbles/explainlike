@@ -4,7 +4,7 @@ import path from "node:path";
 import crypto from "node:crypto";
 import { validInput } from "./validate";
 import { withLegacyDir } from "@explanimate/core/env";
-import { budget, caps, recordSpend, reserve, spent, type Budget } from "./guard";
+import { budget, caps, dailyBudget, dailyCap, dailyReserve, recordSpend, reserve, spent, spentToday, type Budget } from "./guard";
 export { validInput };
 
 export type JobState = "queued" | "running" | "done" | "error";
@@ -141,8 +141,14 @@ export function admit(client: string): string | undefined {
   return undefined;
 }
 
-/** Room left under the Meta and Deepgram caps, counting every job's meter and the side-call ledger. */
-export const budgetNow = (): Budget => budget(spent(JOBS_DIR, [...jobs.values()]));
+/** Room left under the Meta, Deepgram and daily caps, counting every job's meter and the side-call ledger. */
+export const budgetNow = (): Budget => {
+  const all = [...jobs.values()];
+  const b = budget(spent(JOBS_DIR, all));
+  if (!b.ok) return b;
+  const d = dailyBudget(spentToday(JOBS_DIR, all));
+  return d.ok ? b : { ...b, ok: false, error: d.error };
+};
 /** Note a paid call made outside a job (voice-mode chat), so the spend guard sees it. */
 export const noteSpend = (s: { meta?: number; voice?: number }, what: string) => recordSpend(JOBS_DIR, s, what);
 
@@ -184,7 +190,11 @@ function sweep(now = Date.now()) {
 /** Room under the spend caps for this many renders at once, each holding back one job's reserve. */
 const roomFor = (n: number) => {
   const r = reserve();
-  return budget(spent(JOBS_DIR, [...jobs.values()]), caps(), { meta: r.meta * n, voice: r.voice * n });
+  const all = [...jobs.values()];
+  const b = budget(spent(JOBS_DIR, all), caps(), { meta: r.meta * n, voice: r.voice * n });
+  if (!b.ok) return b;
+  const d = dailyBudget(spentToday(JOBS_DIR, all), dailyCap(), dailyReserve() * n);
+  return d.ok ? b : { ...b, ok: false, error: d.error };
 };
 
 /** Start waiting jobs, oldest first, while a render slot is free. */
