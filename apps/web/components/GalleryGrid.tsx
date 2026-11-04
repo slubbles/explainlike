@@ -2,6 +2,10 @@
 import { useRef, useState } from "react";
 import type { GalleryItem } from "../lib/gallery";
 
+/** A duration in seconds as m:ss, for the card corner. Nothing without a real number. */
+const dur = (s?: number) =>
+  typeof s === "number" && s > 0 ? `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, "0")}` : undefined;
+
 /** Example videos as cards: a real frame with a play button, which turns into the playing video in place. */
 export default function GalleryGrid({ videos }: { videos: GalleryItem[] }) {
   const [playing, setPlaying] = useState<string>();
@@ -51,14 +55,17 @@ export default function GalleryGrid({ videos }: { videos: GalleryItem[] }) {
             </button>
           )}
           <div className="meta">
-            <span>{v.title}</span>
-            {v.source ? (
-              <a href={v.source} target="_blank" rel="noreferrer">
-                {v.kind}
-              </a>
-            ) : (
-              <span>{v.kind}</span>
-            )}
+            <span>
+              {v.title}
+              {v.source ? (
+                <a className="tag" href={v.source} target="_blank" rel="noreferrer">
+                  {v.kind}
+                </a>
+              ) : (
+                <span className="tag">{v.kind}</span>
+              )}
+            </span>
+            {dur(v.durationSec) && <span className="dur">{dur(v.durationSec)}</span>}
           </div>
         </div>
       ))}

@@ -1,6 +1,7 @@
 "use client";
 import { FORMATS, LINK_MAX, VOICES, inputHint, type Form, shortLink } from "../lib/form";
 import type { GalleryItem } from "../lib/gallery";
+import { MCP_SNIPPETS } from "../lib/mcp";
 import type { Quota } from "./Home";
 import Footer from "./Footer";
 import GalleryGrid from "./GalleryGrid";
@@ -10,14 +11,11 @@ import { useEffect, useRef, useState } from "react";
 import { voiceHost } from "../lib/voiceHost";
 import type { StartedJob } from "../lib/voiceClient";
 
-/** six videos fill the home grid, the way the mockup shows; more live behind See all */
+/** six videos fill the home grid, the way the mockup shows; more live behind Browse all */
 const HOME_EXAMPLES = 6;
-const EXAMPLES = [
-  "https://github.com/umami-software/umami",
-  "https://x.com/karpathy/status/1977755427569111362",
-  "https://blog.vllm.ai/2023/06/20/vllm.html",
-  "how DNS works",
-];
+const EXAMPLES = ["https://github.com/umami-software/umami", "https://blog.vllm.ai/2023/06/20/vllm.html", "how DNS works"];
+/** the connect panel shows the real Claude Code snippet, so it never drifts from the docs */
+const CONNECT_SNIPPET = MCP_SNIPPETS.find((s) => s.id === "claude-code")?.body ?? "";
 
 export type Talk = false | "hero" | "cta";
 
@@ -111,6 +109,13 @@ function PromptBox({
             </button>
           ))}
         </div>
+        {quota === "signin" ? (
+          <p className="quota">Sign in to make a video.</p>
+        ) : quota ? (
+          <p className="quota">
+            {quota.left} of {quota.limit} videos left today
+          </p>
+        ) : null}
         <div className="pacts">
           {talk && (
             <button type="button" className="mic" aria-label="Talk it through instead" title="Talk it through instead" onClick={talk}>
@@ -147,19 +152,11 @@ function PromptBox({
           {hint.over ?? "Topics are a few words; links can be longer."} {hint.count && <span>{hint.count}</span>}
         </p>
       )}
-      {quota === "signin" ? (
-        <p className="quota">Sign in to make a video.</p>
-      ) : quota ? (
-        <p className="quota">
-          {quota.left} of {quota.limit} videos left today
-        </p>
-      ) : null}
     </form>
   );
 }
 
 export default function InputScreen({ form, set, go, busy, err, examples, talking, talk, onVoiceJob, quota }: Props) {
-  const board = examples[0];
   // voice runs on localhost only; elsewhere the mic is hidden instead of failing after a click
   const [canTalk, setCanTalk] = useState(false);
   useEffect(() => setCanTalk(voiceHost(location.hostname)), []);
@@ -172,18 +169,15 @@ export default function InputScreen({ form, set, go, busy, err, examples, talkin
   return (
     <>
       <section className="hero">
-        <div className="bg" aria-hidden="true">
-          <img src="/hero.jpg" alt="" fetchPriority="high" />
-        </div>
-        <div className="fade" aria-hidden="true" />
-        <div className="in">
+        <div className="wrap">
           <h1>
-            Any repo, post, article or topic, <br />
-            explained on a <span className="hand">whiteboard</span>.
+            Any repo. Any idea.
+            <br />
+            Explained in a video.
           </h1>
           <p className="sub">
-            Paste a link, or just name a topic. <br />
-            You get an mp4 plus editable .tldr and .excalidraw boards.
+            Paste a GitHub repo, an article, an X post or just a topic. Get back a narrated whiteboard video that shows how it works, plus
+            the board to keep editing.
           </p>
           <div className="box">{box("hero")}</div>
           {err && (
@@ -192,183 +186,256 @@ export default function InputScreen({ form, set, go, busy, err, examples, talkin
             </div>
           )}
           <div className="chips">
-            <span className="try">Try:</span>
             {EXAMPLES.map((x) => (
               <button type="button" key={x} className="chip" onClick={() => set({ input: x })}>
                 {shortLink(x)}
               </button>
             ))}
           </div>
-        </div>
-      </section>
-
-      <section className="blk">
-        <div className="wrap center">
-          <h2>How it works</h2>
-          <p className="lead">Muse Spark reads the source first and picks how to explain it.</p>
-          {board && (
-            <div className="stage">
-              {board.poster ? (
-                <img src={board.poster} alt={`A finished frame from ${board.title}`} loading="lazy" />
-              ) : (
-                <video src={`${board.src}#t=1`} muted playsInline preload="metadata" aria-label={`A finished frame from ${board.title}`} />
-              )}
+          <div className="win hero-win">
+            <div className="wb" aria-hidden="true">
+              <i />
+              <i />
+              <i />
+              <span>rxi/microui · 1:24</span>
             </div>
-          )}
-          <div className="steps5">
-            <div>
-              <b>Read</b>
-              <p>It takes a digest of the repo or the article&apos;s text.</p>
-            </div>
-            <div>
-              <b>Plan</b>
-              <p>Muse Spark maps the architecture and checks every box against real files.</p>
-            </div>
-            <div>
-              <b>Voice</b>
-              <p>Deepgram Aura reads the script.</p>
-            </div>
-            <div>
-              <b>Draw</b>
-              <p>The scenes become one hand-drawn SVG canvas with a moving camera.</p>
-            </div>
-            <div>
-              <b>Check</b>
-              <p>The frames and both boards are checked.</p>
+            <img
+              className="shot"
+              src="/v4/microui-52-dark.jpg"
+              alt="A finished whiteboard frame from an Explanimate video about rxi/microui"
+              fetchPriority="high"
+            />
+            <div className="pl" aria-hidden="true">
+              <span>❚❚</span>
+              <span>0:52</span>
+              <div className="tl">
+                <b style={{ width: "62%" }} />
+              </div>
+              <span>1:24</span>
+              <span>CC</span>
+              <span>.mp4 · .tldr · .excalidraw</span>
             </div>
           </div>
         </div>
       </section>
 
-      <section className="blk" style={{ paddingTop: 0 }}>
+      <section>
+        <div className="wrap feat">
+          <div className="t">
+            <div className="k">Watch it build</div>
+            <h2>Watch your video draw itself.</h2>
+            <p>Every step runs in the open: read, plan, voice, draw, check. No black box, no guessing what it&apos;s doing.</p>
+          </div>
+          <div className="win" aria-hidden="true">
+            <div className="wb">
+              <i />
+              <i />
+              <i />
+              <span>github.com/karpathy/minbpe</span>
+            </div>
+            <div className="split2">
+              <div className="bsteps">
+                <div>
+                  <span className="dot done">✓</span>Read
+                </div>
+                <div>
+                  <span className="dot done">✓</span>Plan
+                </div>
+                <div>
+                  <span className="dot done">✓</span>Voice
+                </div>
+                <div className="now">
+                  <span className="dot act" />
+                  Draw<span className="pc">68%</span>
+                </div>
+                <div className="todo">
+                  <span className="dot" />
+                  Check
+                </div>
+                <div>
+                  <div className="tl">
+                    <b style={{ width: "68%" }} />
+                  </div>
+                </div>
+              </div>
+              <img src="/v4/minbpe-60-dark.jpg" alt="" loading="lazy" />
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section>
+        <div className="wrap feat r">
+          <div className="t">
+            <div className="k">Go deeper</div>
+            <h2>Tap any box. Get the next video.</h2>
+            <p>
+              Curious about one part? Tap it for a focused deep dive, or ask what breaks at 10x traffic. Each answer is a new short video.
+            </p>
+            <p className="fine">
+              <b>Interactive on repos</b>: On a repo video, tap a box to ask what it does, render a deep dive on it, or ask what breaks at
+              10x traffic.
+            </p>
+          </div>
+          <div className="win deeper-win" aria-hidden="true">
+            <div className="wb">
+              <i />
+              <i />
+              <i />
+              <span>rxi/microui</span>
+            </div>
+            <div className="deeper-shot">
+              <img className="shot" src="/v4/microui-30-dark.jpg" alt="" loading="lazy" />
+              <div className="hl hl-deeper" />
+              <div className="pop pop-deeper">
+                <div className="pop-title">ui core</div>
+                <div className="o a">▶ Deep dive on this</div>
+                <div className="o">What breaks at 10x traffic?</div>
+                <div className="o">? Ask about it</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section>
+        <div className="wrap feat">
+          <div className="t">
+            <div className="k">Keep editing</div>
+            <h2>Your video is also a board.</h2>
+            <p>Every video ships with .tldr and .excalidraw files. Open them, move boxes, add notes, and make the diagram your own.</p>
+          </div>
+          <div className="win board-win" aria-hidden="true">
+            <div className="wb">
+              <i />
+              <i />
+              <i />
+              <span>tldraw.com · silk-road.tldr</span>
+            </div>
+            <div className="board-shot">
+              <img className="shot" src="/v4/silk-road-dark.jpg" alt="" loading="lazy" />
+              <div className="tool">
+                <span>↖</span>
+                <span className="a">▭</span>
+                <span>○</span>
+                <span>→</span>
+                <span>✎</span>
+                <span>T</span>
+              </div>
+              <div className="hl dash hl-board" />
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section className="mcp">
         <div className="wrap">
-          <h2>What it does</h2>
-          <div className="three">
-            <div className="fcard">
-              <svg
-                className="ic"
-                viewBox="0 0 44 44"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                aria-hidden="true"
-              >
-                <path d="M8 10 L30 9.5 L30.5 26 L8.5 26.5 Z" />
-                <path d="M19 27 L19.5 35 M13 35 L26 35" />
-                <path d="M32 18 l6 -0.5" />
-              </svg>
-              <b>Grounded</b>
-              <p>Every box on the board points at real files. A second Muse Spark pass checks each one against the code.</p>
+          <div className="mcp-head">
+            <div className="mcp-num">
+              <span className="idx">01</span>&nbsp; MCP
             </div>
-            <div className="fcard">
-              <svg
-                className="ic"
-                viewBox="0 0 44 44"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                aria-hidden="true"
-              >
-                <path d="M7 9 L27 8.5 L27.5 22 L7.5 22.5 Z" />
-                <path d="M24 18 L36 30 L30 30.5 L33 37" />
-              </svg>
-              <b>Interactive on repos</b>
-              <p>On a repo video, tap a box to ask about it, render a deep dive on it, or ask what breaks at 10x traffic.</p>
+            <div>
+              <div className="mcp-title">
+                Explainers included
+                <br />
+                <span className="muted">Explanimate as a tool your agent can call</span>
+              </div>
+              <p className="mcp-copy">
+                An MCP server that runs on your own machine. Type /explanimate in Claude Code, Cursor, Codex or Muse Code. It reads the repo
+                you&apos;re in and hands back the video and both boards, right in the chat.
+              </p>
+              <a className="mcp-link" href="/docs">
+                MCP documentation →
+              </a>
             </div>
-            <div className="fcard">
-              <svg
-                className="ic"
-                viewBox="0 0 44 44"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                aria-hidden="true"
-              >
-                <path d="M10 34 L12 27 L29 9.5 L35 15.5 L18 32.5 Z" />
-                <path d="M26 13 l6 6" />
-                <path d="M9 38 L36 37.5" />
-              </svg>
-              <b>Yours to edit</b>
-              <p>Download the .tldr and open it at tldraw.com to keep drawing. Open source, MIT.</p>
+          </div>
+          <div className="mcp-panel">
+            <div className="win mcp-win">
+              <div className="mcp-conn">
+                <div className="mcp-top">
+                  <span>Connect</span>
+                  <span className="dim mono">stdio · local</span>
+                </div>
+                <pre>{CONNECT_SNIPPET}</pre>
+                <ul className="mcp-tools">
+                  <li>✓ Claude Code</li>
+                  <li>✓ Cursor</li>
+                  <li>✓ Codex</li>
+                  <li>✓ Muse Code</li>
+                  <li>✓ Claude Desktop · VS Code</li>
+                </ul>
+                <p className="mcp-foot">Renders on your machine. Files land in ~/explanimate-videos/&lt;name&gt;.</p>
+              </div>
+              <div className="mcp-term">
+                <div className="dim mono">~/explanimate</div>
+                <div>
+                  › <span className="acc">/explanimate</span> explain what this repo is about
+                  <br />
+                  <span className="dim">explain_status · drawing frames…</span>
+                  <br />
+                  <span className="ok">✓</span> explanimate-mcp.mp4 &nbsp;<span className="ok">✓</span> board.tldr &nbsp;
+                  <span className="ok">✓</span> board.excalidraw
+                </div>
+                <div className="win" aria-hidden="true">
+                  <img className="shot" src="/v4/ct.jpg" alt="" loading="lazy" />
+                  <div className="pl">
+                    <span>❚❚</span>
+                    <div className="tl">
+                      <b style={{ width: "40%" }} />
+                    </div>
+                    <span>1:16</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div className="mcs">
+            <div className="mc">
+              <div className="mono">explain</div>
+              <h4>Ask</h4>
+              <p>Point it at a repo, a link, a topic or your current branch. It decides the style and length.</p>
+            </div>
+            <div className="mc">
+              <div className="mono">explain_status</div>
+              <h4>Follow along</h4>
+              <p>A render takes a few minutes. The agent checks back and tells you where it is.</p>
+            </div>
+            <div className="mc">
+              <div className="mono">explain_cancel</div>
+              <h4>Stop</h4>
+              <p>Change your mind and cancel. Anything already written stays in its folder.</p>
+            </div>
+            <div className="mc">
+              <div className="mono">.mp4 · .tldr · .excalidraw</div>
+              <h4>Everything back</h4>
+              <p>The video and both boards, as paths you can open straight from the chat.</p>
             </div>
           </div>
         </div>
       </section>
 
       {examples.length > 0 && (
-        <section className="blk" style={{ paddingTop: 0 }}>
+        <section className="gal">
           <div className="wrap">
-            <div className="ghead">
-              <div>
-                <h2>Examples</h2>
-                <p className="lead">Videos run about 85 to 175 seconds, at 1080p.</p>
-              </div>
-              {examples.length > HOME_EXAMPLES && (
-                <a className="more" href="/gallery">
-                  See all {examples.length}
-                </a>
-              )}
+            <div className="k">Gallery</div>
+            <div className="gal-head">
+              <h2>Press play on someone else&apos;s question.</h2>
+              <a className="more" href="/gallery">
+                Browse all
+              </a>
             </div>
+            <p className="gal-sub">Real videos made from real repos and topics. Pick one and see what you&apos;d get.</p>
             <GalleryGrid videos={examples.slice(0, HOME_EXAMPLES)} />
           </div>
         </section>
       )}
 
-      <section className="blk" style={{ paddingTop: 0 }}>
-        <div className="wrap">
-          <div className="facts">
-            <div>
-              <b>.mp4</b>
-              <p>The 1920x1080 video, with narration and captions.</p>
-            </div>
-            <div>
-              <b>.tldr and .excalidraw</b>
-              <p>The drawing as boards you can keep editing.</p>
-            </div>
-            <div>
-              <b>.contact.jpg</b>
-              <p>A sheet of frames for a quick look.</p>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <section className="blk" style={{ paddingTop: 0 }}>
-        <div className="wrap">
-          <h2>Use it in your coding tool</h2>
-          <p className="lead">
-            MCP is a standard way to plug extra tools into AI coding assistants. Connect Explanimate once and you can ask for a video from
-            inside your editor.
-          </p>
-          <div className="tools">
-            <span className="chip">Claude Code</span>
-            <span className="chip">Cursor</span>
-            <span className="chip">Codex</span>
-            <span className="chip">Muse Code</span>
-            <span className="chip">Claude Desktop</span>
-            <span className="chip">VS Code Copilot</span>
-          </div>
-          <div className="ask">
-            <code>/explanimate how does this repo work</code>
-            <p>You get back an mp4 plus .tldr and .excalidraw boards, saved on your machine.</p>
-          </div>
-          <a className="btn solid" style={{ marginTop: 24 }} href="/docs">
-            Set it up
-          </a>
-        </div>
-      </section>
-
-      <section className="blk" style={{ paddingTop: 0 }}>
-        <div className="wrap">
-          <div className="cta">
-            <h2>Paste a link, or just name a topic.</h2>
-            <p className="lead">You get an mp4 plus editable .tldr and .excalidraw boards.</p>
-            <div className="box">{box("cta")}</div>
-            <p className="note">Private and localhost links are blocked.</p>
-          </div>
+      <section>
+        <div className="wrap cta">
+          <h2>What do you want explained?</h2>
+          <p className="sub">Browsing is free. Sign in with your email and make three videos a day.</p>
+          <div className="box">{box("cta")}</div>
+          <p className="note">Private and localhost links are blocked.</p>
         </div>
       </section>
 
