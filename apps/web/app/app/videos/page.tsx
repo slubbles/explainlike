@@ -5,9 +5,10 @@ import { sourceKind } from "../../../lib/form";
 import { jobFile, listJobs } from "../../../lib/jobs";
 import { cap } from "../../../lib/steps";
 import { ensureUsageTables } from "../../../lib/usage";
-import { formatLabel, listVideosForUser, mss, when, type UserVideo } from "../../../lib/videos";
+import { formatLabel, listVideosForUser, mss, type UserVideo } from "../../../lib/videos";
 import DeleteVideoButton from "../components/DeleteVideoButton";
 import VideoThumb from "../components/VideoThumb";
+import VideoWhen from "../components/VideoWhen";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -116,7 +117,7 @@ export default async function VideosPage({ searchParams }: { searchParams: Promi
               <div className="app-vid" key={v.id}>
                 <VideoThumb video={v} link={`/app/videos/${v.id}`} />
                 <p className="app-vt">{v.title}</p>
-                <p className="app-vm">{[mss(v.durationSec), formatLabel(v.format), when(v.createdAt)].filter(Boolean).join(" · ")}</p>
+                <p className="app-vm">{[mss(v.durationSec), formatLabel(v.format)].filter(Boolean).join(" · ")}{" · "}<VideoWhen ts={v.createdAt} /></p>
                 <div className="app-vdel">
                   <DeleteVideoButton id={v.id} title={v.title} />
                 </div>
@@ -160,7 +161,7 @@ export default async function VideosPage({ searchParams }: { searchParams: Promi
                     <td>
                       <span className="app-fmt">{formatLabel(v.format)}</span>
                     </td>
-                    <td className="made">{when(v.createdAt)}</td>
+                    <td className="made"><VideoWhen ts={v.createdAt} /></td>
                     <td>
                       <div className="app-acts">
                         <Link className="app-abtn" href={`/app/videos/${v.id}`}>
