@@ -130,7 +130,7 @@ test("robots allows the public pages, blocks the API, and points at the sitemap"
   assert.equal(robots.rules.userAgent, "*");
   assert.equal(robots.rules.allow, "/");
   assert.ok(robots.rules.disallow.includes("/api/"), "API is not crawled");
-  assert.ok(robots.rules.disallow.includes("/admin"), "admin is not crawled");
+  assert.ok(!robots.rules.disallow.some((p) => p.includes("admin")), "robots.txt never names the operator routes");
   assert.ok(robots.rules.disallow.includes("/app"), "the dashboard is not crawled");
   assert.ok(robots.rules.disallow.includes("/signin"), "sign-in is not crawled");
   assert.equal(robots.sitemap, `${SITE_URL}/sitemap.xml`);

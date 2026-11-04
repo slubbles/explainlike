@@ -5,9 +5,18 @@ test("the admin page is a plain 404 to a visitor", async ({ page }) => {
   const res = await page.goto("/admin");
   expect(res?.status()).toBe(404);
   await expect(page.getByText(/users|spend/i)).toHaveCount(0);
+  await expect(page).toHaveTitle("Page not found · Explanimate");
 });
 
-for (const route of ["users", "videos", "usage", "spend", "errors", "health"]) {
+test("robots.txt and the sitemap never name the admin portal", async ({ request }) => {
+  for (const file of ["/robots.txt", "/sitemap.xml"]) {
+    const res = await request.get(file);
+    expect(res.status()).toBe(200);
+    expect(await res.text()).not.toMatch(/admin/i);
+  }
+});
+
+for (const route of ["users", "videos", "usage", "spend", "errors", "health", "metrics", "live"]) {
   test(`/api/admin/${route} is a 404 to a visitor`, async ({ request }) => {
     const res = await request.get(`/api/admin/${route}`);
     expect(res.status()).toBe(404);
