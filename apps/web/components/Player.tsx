@@ -30,11 +30,15 @@ export default function Player({
   map,
   selected,
   onPick,
+  title,
+  captions,
 }: {
   src: string;
   map?: Interactive;
   selected?: string;
   onPick: (id: string) => void;
+  title?: string;
+  captions?: string;
 }) {
   const video = useRef<HTMLVideoElement>(null);
   const [t, setT] = useState(0);
@@ -100,7 +104,18 @@ export default function Player({
 
   return (
     <div className="player">
-      <video ref={video} src={src} controls playsInline preload="auto" onPlay={onPlay} onSeeked={onSeeked} />
+      <video
+        ref={video}
+        src={src}
+        controls
+        playsInline
+        preload="auto"
+        onPlay={onPlay}
+        onSeeked={onSeeked}
+        aria-label={title ?? "Explainer video"}
+      >
+        {captions && <track kind="captions" src={captions} srcLang="en" label="English" />}
+      </video>
       {map && (
         <div className="overlay">
           {boxes.map((b) => (

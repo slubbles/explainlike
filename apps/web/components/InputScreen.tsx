@@ -6,7 +6,7 @@ import Footer from "./Footer";
 import GalleryGrid from "./GalleryGrid";
 import { Arrow, Mic } from "./Icons";
 import VoiceMode from "./VoiceMode";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { voiceHost } from "../lib/voiceHost";
 import type { StartedJob } from "../lib/voiceClient";
 
@@ -53,6 +53,14 @@ function PromptBox({
 }) {
   const hint = inputHint(form.input);
   const ready = !!form.input.trim() && !busy && !hint.over;
+  // roving tabindex: one tab stop for the group, arrows move and pick (WAI-APG radio pattern)
+  const radios = useRef<(HTMLButtonElement | null)[]>([]);
+  const move = (dir: 1 | -1) => {
+    const at = VOICES.findIndex((v) => v.id === form.voice);
+    const next = VOICES[(at + dir + VOICES.length) % VOICES.length];
+    set({ voice: next.id });
+    radios.current[VOICES.indexOf(next)]?.focus();
+  };
   return (
     <form
       className="prompt"
@@ -77,14 +85,27 @@ function PromptBox({
       <div className="prow">
         <div className="tog" role="radiogroup" aria-label="Voice">
           <span>Voice</span>
-          {VOICES.map((v) => (
+          {VOICES.map((v, i) => (
             <button
               type="button"
               role="radio"
               aria-checked={form.voice === v.id}
               key={v.id}
               className={`pill ${form.voice === v.id ? "on" : ""}`}
+              tabIndex={form.voice === v.id ? 0 : -1}
+              ref={(el) => {
+                radios.current[i] = el;
+              }}
               onClick={() => set({ voice: v.id })}
+              onKeyDown={(e) => {
+                if (e.key === "ArrowRight" || e.key === "ArrowDown") {
+                  e.preventDefault();
+                  move(1);
+                } else if (e.key === "ArrowLeft" || e.key === "ArrowUp") {
+                  e.preventDefault();
+                  move(-1);
+                }
+              }}
             >
               {v.label}
             </button>
