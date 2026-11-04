@@ -16,6 +16,7 @@ export interface TimedJob {
   costUsd?: number;
   usd?: { total?: number };
   error?: string;
+  cancelled?: boolean;
 }
 
 export interface JobTiming {
@@ -63,7 +64,10 @@ export interface JobMetrics {
   queued: number;
   running: number;
   done: number;
+  /** ended in an error the owner did not ask for */
   failed: number;
+  /** stopped by their owner: neither a success nor a failure */
+  cancelled: number;
   /** done / (done + failed), or null before any job has ended */
   successRate: number | null;
   medianRenderMs: number | null;
@@ -80,7 +84,8 @@ export function jobMetrics(jobs: TimedJob[], sinceMs = 0): JobMetrics {
   const timings = inWindow.map(jobTiming);
   const count = (s: string) => inWindow.filter((j) => j.state === s).length;
   const done = timings.filter((t) => t.state === "done");
-  const failed = count("error");
+  const cancelled = inWindow.filter((j) => j.state === "error" && j.cancelled).length;
+  const failed = count("error") - cancelled;
   const sorted = (xs: (number | null)[]) => xs.filter((x): x is number => x !== null).sort((a, b) => a - b);
   const render = sorted(done.map((t) => t.renderMs));
   const wait = sorted(timings.map((t) => t.waitMs));
@@ -92,6 +97,7 @@ export function jobMetrics(jobs: TimedJob[], sinceMs = 0): JobMetrics {
     running: count("running"),
     done: done.length,
     failed,
+    cancelled,
     successRate: ended ? done.length / ended : null,
     medianRenderMs: percentile(render, 0.5),
     p90RenderMs: percentile(render, 0.9),
