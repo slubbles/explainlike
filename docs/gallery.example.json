@@ -7,7 +7,8 @@
       "source": "https://github.com/karpathy/minbpe",
       "durationSec": 174.5,
       "file": "karpathy-minbpe.mp4",
-      "poster": "karpathy-minbpe.jpg"
+      "poster": "karpathy-minbpe.jpg",
+      "captions": "karpathy-minbpe.vtt"
     },
     {
       "id": "how-dns-works",

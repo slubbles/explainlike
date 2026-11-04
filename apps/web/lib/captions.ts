@@ -15,15 +15,8 @@ interface FilmCaption {
   words?: { w?: unknown }[];
 }
 
-/** The job's captions as WebVTT, or undefined when the film has none yet (still rendering) or the id is bad. */
-export function captionsVtt(id: string, dir: string = JOBS_DIR): string | undefined {
-  if (!/^[a-f0-9]{12}$/.test(id)) return undefined;
-  let captions: unknown;
-  try {
-    captions = (JSON.parse(fs.readFileSync(path.join(dir, id, "film.json"), "utf8")) as { captions?: unknown }).captions;
-  } catch {
-    return undefined;
-  }
+/** Film-style timed words ({t0, t1, words: [{w}]}) as WebVTT, or undefined when no cue survives. */
+export function captionsToVtt(captions: unknown): string | undefined {
   if (!Array.isArray(captions)) return undefined;
   const cues: string[] = [];
   for (const c of captions as FilmCaption[]) {
@@ -40,4 +33,16 @@ export function captionsVtt(id: string, dir: string = JOBS_DIR): string | undefi
     cues.push(`${stamp(t0)} --> ${stamp(t1)}\n${text.replace(/-->/g, "—")}`);
   }
   return cues.length ? `WEBVTT\n\n${cues.join("\n\n")}\n` : undefined;
+}
+
+/** The job's captions as WebVTT, or undefined when the film has none yet (still rendering) or the id is bad. */
+export function captionsVtt(id: string, dir: string = JOBS_DIR): string | undefined {
+  if (!/^[a-f0-9]{12}$/.test(id)) return undefined;
+  let captions: unknown;
+  try {
+    captions = (JSON.parse(fs.readFileSync(path.join(dir, id, "film.json"), "utf8")) as { captions?: unknown }).captions;
+  } catch {
+    return undefined;
+  }
+  return captionsToVtt(captions);
 }

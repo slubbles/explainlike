@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
+import { captionsToVtt } from "./captions";
 
 /**
  * The example videos shown on the home page and at /gallery. They are a hand-picked folder of finished videos
@@ -16,14 +17,17 @@ export interface GalleryVideo {
   durationSec?: number;
   file: string;
   poster?: string;
+  /** captions data in the folder: a ready .vtt, or a .json with film-style timed words to turn into one */
+  captions?: string;
 }
 /** What the page gets: the entry plus the URLs to play it from. */
-export type GalleryItem = Omit<GalleryVideo, "file" | "poster"> & { src: string; poster?: string };
+export type GalleryItem = Omit<GalleryVideo, "file" | "poster" | "captions"> & { src: string; poster?: string; captions?: string };
 
 const KINDS: GalleryKind[] = ["repo", "X post", "article", "topic"];
 const ID = /^[a-z0-9][a-z0-9-]{0,63}$/;
 const VIDEO = /^[\w-][\w.-]{0,120}\.mp4$/;
 const IMAGE = /^[\w-][\w.-]{0,120}\.(jpg|jpeg|png|webp)$/;
+const CAPTIONS = /^[\w-][\w.-]{0,120}\.(vtt|json)$/;
 export const TYPES: Record<string, string> = {
   mp4: "video/mp4",
   jpg: "image/jpeg",
@@ -59,6 +63,7 @@ export function loadGallery(dir = galleryDir()): GalleryVideo[] {
       file = str(e?.file);
     if (!id || !ID.test(id) || seen.has(id) || !title || !file || !VIDEO.test(file) || !inside(dir, file)) continue;
     const poster = str(e.poster);
+    const captions = str(e.captions);
     const kind = KINDS.includes(e.kind as GalleryKind) ? (e.kind as GalleryKind) : "topic";
     const source = str(e.source, 300);
     const d = Number(e.durationSec);
@@ -71,16 +76,55 @@ export function loadGallery(dir = galleryDir()): GalleryVideo[] {
       ...(source && /^https:\/\//.test(source) ? { source } : {}),
       ...(Number.isFinite(d) && d > 0 ? { durationSec: d } : {}),
       ...(poster && IMAGE.test(poster) && inside(dir, poster) ? { poster } : {}),
+      ...(captions && CAPTIONS.test(captions) && inside(dir, captions) ? { captions } : {}),
     });
   }
   return out;
 }
 
 export const galleryUrl = (name: string) => `/api/gallery/${encodeURIComponent(name)}`;
+export const galleryCaptionsUrl = (id: string) => `/api/gallery/captions/${encodeURIComponent(id)}`;
+
+/**
+ * A gallery video's captions as WebVTT, or undefined when the folder holds none for it. The captions
+ * come from the manifest's `captions` file when it names one, else from a file beside the video with
+ * the same base name (<video>.vtt, else <video>.captions.json). A .vtt is served as is; a .json holds
+ * film-style timed words ({captions: [{t0, t1, words: [{w}]}]}) and is turned into WebVTT.
+ */
+export function galleryCaptionsVtt(id: string, dir = galleryDir(), videos = loadGallery(dir)): string | undefined {
+  if (!dir || !ID.test(id)) return undefined;
+  const v = videos.find((e) => e.id === id);
+  if (!v) return undefined;
+  const base = v.file.replace(/\.mp4$/, "");
+  for (const name of [v.captions, `${base}.vtt`, `${base}.captions.json`]) {
+    if (!name || !CAPTIONS.test(name)) continue;
+    const f = inside(dir, name);
+    if (!f) continue;
+    try {
+      if (name.endsWith(".vtt")) {
+        const t = fs.readFileSync(f, "utf8");
+        if (t.trimStart().startsWith("WEBVTT")) return t;
+      } else {
+        const vtt = captionsToVtt((JSON.parse(fs.readFileSync(f, "utf8")) as { captions?: unknown }).captions);
+        if (vtt) return vtt;
+      }
+    } catch {
+      /* a torn file falls through to the next source */
+    }
+  }
+  return undefined;
+}
 
 /** The list the page renders, with the file names swapped for URLs. */
-export const galleryItems = (dir = galleryDir()): GalleryItem[] =>
-  loadGallery(dir).map(({ file, poster, ...v }) => ({ ...v, src: galleryUrl(file), ...(poster ? { poster: galleryUrl(poster) } : {}) }));
+export const galleryItems = (dir = galleryDir()): GalleryItem[] => {
+  const videos = loadGallery(dir);
+  return videos.map(({ file, poster, captions, ...v }) => ({
+    ...v,
+    src: galleryUrl(file),
+    ...(poster ? { poster: galleryUrl(poster) } : {}),
+    ...(galleryCaptionsVtt(v.id, dir, videos) ? { captions: galleryCaptionsUrl(v.id) } : {}),
+  }));
+};
 
 /** A gallery file by name, only if the manifest lists it: anything else, including any path, is not found. */
 export function galleryFile(name: string, dir = galleryDir()): string | undefined {

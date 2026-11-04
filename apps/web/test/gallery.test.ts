@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { galleryFile, galleryItems, loadGallery } from "../lib/gallery.ts";
+import { galleryCaptionsUrl, galleryCaptionsVtt, galleryFile, galleryItems, loadGallery } from "../lib/gallery.ts";
 
 function folder(manifest: unknown, files: Record<string, string> = {}) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "gallery-"));
@@ -90,4 +90,112 @@ test("only files the manifest names can be fetched, never a path out of the fold
     assert.equal(galleryFile(bad, dir), undefined, bad);
   }
   assert.equal(galleryFile("a.mp4", undefined), undefined);
+});
+
+test("a video whose manifest names a .vtt gets a captions URL serving that file", () => {
+  const vtt = "WEBVTT\n\n00:00:00.500 --> 00:00:02.000\nHello there\n";
+  const dir = folder([{ id: "a", title: "A", file: "a.mp4", captions: "a.vtt" }], { "a.mp4": "v", "a.vtt": vtt });
+  const [item] = galleryItems(dir);
+  assert.equal(item.captions, galleryCaptionsUrl("a"));
+  assert.equal(item.captions, "/api/gallery/captions/a");
+  assert.equal(galleryCaptionsVtt("a", dir), vtt);
+  assert.ok(!("file" in item));
+});
+
+test("a .vtt beside the video is picked up without a manifest field; the manifest wins on a clash", () => {
+  const dir = folder(
+    [
+      { id: "auto", title: "Auto", file: "auto.mp4" },
+      { id: "named", title: "Named", file: "named.mp4", captions: "other.vtt" },
+    ],
+    {
+      "auto.mp4": "v",
+      "auto.vtt": "WEBVTT\n\n00:00:01.000 --> 00:00:02.000\nauto\n",
+      "named.mp4": "v",
+      "named.vtt": "WEBVTT\n\n00:00:01.000 --> 00:00:02.000\nbeside\n",
+      "other.vtt": "WEBVTT\n\n00:00:01.000 --> 00:00:02.000\nnamed\n",
+    },
+  );
+  const [auto, named] = galleryItems(dir);
+  assert.equal(auto.captions, "/api/gallery/captions/auto");
+  assert.match(galleryCaptionsVtt("auto", dir)!, /auto/);
+  assert.equal(named.captions, "/api/gallery/captions/named");
+  assert.match(galleryCaptionsVtt("named", dir)!, /named/);
+});
+
+test("film-style timed words in JSON become WebVTT, from the manifest or beside the video", () => {
+  const timed = JSON.stringify({
+    captions: [
+      { t0: 0.5, t1: 2, words: [{ w: "Hello" }, { w: "there" }] },
+      { t0: 5, t1: 4, words: [{ w: "bad times" }] },
+    ],
+  });
+  const dir = folder(
+    [
+      { id: "m", title: "M", file: "m.mp4", captions: "m.json" },
+      { id: "b", title: "B", file: "b.mp4" },
+    ],
+    { "m.mp4": "v", "m.json": timed, "b.mp4": "v", "b.captions.json": timed },
+  );
+  const want = "WEBVTT\n\n00:00:00.500 --> 00:00:02.000\nHello there\n";
+  assert.equal(galleryCaptionsVtt("m", dir), want);
+  assert.equal(galleryCaptionsVtt("b", dir), want);
+  const [m, b] = galleryItems(dir);
+  assert.equal(m.captions, "/api/gallery/captions/m");
+  assert.equal(b.captions, "/api/gallery/captions/b");
+});
+
+test("no captions data, a torn file or a bad id means no captions", () => {
+  const dir = folder(
+    [
+      { id: "bare", title: "Bare", file: "bare.mp4" },
+      { id: "torn", title: "Torn", file: "torn.mp4" },
+      { id: "notvtt", title: "Not VTT", file: "notvtt.mp4" },
+      { id: "missing", title: "Missing", file: "missing.mp4", captions: "gone.vtt" },
+      { id: "evil", title: "Evil", file: "evil.mp4", captions: "../secret.vtt" },
+    ],
+    {
+      "bare.mp4": "v",
+      "torn.mp4": "v",
+      "torn.captions.json": "{broken",
+      "notvtt.mp4": "v",
+      "notvtt.vtt": "this is not webvtt",
+      "missing.mp4": "v",
+      "evil.mp4": "v",
+    },
+  );
+  for (const id of ["bare", "torn", "notvtt", "missing", "evil", "../x", "nope"]) {
+    assert.equal(galleryCaptionsVtt(id, dir), undefined, id);
+  }
+  assert.equal(galleryCaptionsVtt("bare", undefined), undefined);
+  for (const item of galleryItems(dir)) assert.ok(!("captions" in item), item.id);
+  assert.equal(loadGallery(dir).find((v) => v.id === "missing")?.captions, undefined);
+  assert.equal(loadGallery(dir).find((v) => v.id === "evil")?.captions, undefined);
+});
+
+test("the gallery captions route serves text/vtt, or 404 without captions", async () => {
+  const vtt = "WEBVTT\n\n00:00:01.000 --> 00:00:02.000\nHi\n";
+  const dir = folder(
+    [
+      { id: "a", title: "A", file: "a.mp4" },
+      { id: "bare", title: "Bare", file: "bare.mp4" },
+    ],
+    { "a.mp4": "v", "a.vtt": vtt, "bare.mp4": "v" },
+  );
+  const saved = process.env.EXPLANIMATE_GALLERY_DIR;
+  process.env.EXPLANIMATE_GALLERY_DIR = dir;
+  try {
+    const { GET } = await import("../app/api/gallery/captions/[id]/route.ts");
+    const ok = await GET(new Request("http://x/api/gallery/captions/a"), { params: Promise.resolve({ id: "a" }) });
+    assert.equal(ok.status, 200);
+    assert.equal(ok.headers.get("content-type"), "text/vtt");
+    assert.equal(await ok.text(), vtt);
+    for (const id of ["bare", "nope", "../x"]) {
+      const r = await GET(new Request(`http://x/api/gallery/captions/${id}`), { params: Promise.resolve({ id }) });
+      assert.equal(r.status, 404, id);
+    }
+  } finally {
+    if (saved === undefined) delete process.env.EXPLANIMATE_GALLERY_DIR;
+    else process.env.EXPLANIMATE_GALLERY_DIR = saved;
+  }
 });

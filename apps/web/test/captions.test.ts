@@ -68,3 +68,11 @@ test("the captions route serves text/vtt, or 404 while the video renders", async
   });
   assert.equal(missing.status, 404);
 });
+
+test("timed words convert to WebVTT on their own; anything else converts to nothing", async () => {
+  const { captionsToVtt } = await import("../lib/captions.ts");
+  assert.equal(captionsToVtt([{ t0: 1, t1: 2, words: [{ w: "Hi" }] }]), "WEBVTT\n\n00:00:01.000 --> 00:00:02.000\nHi\n");
+  for (const bad of [undefined, null, {}, "WEBVTT", [], [{ t0: 2, t1: 1, words: [{ w: "backwards" }] }]]) {
+    assert.equal(captionsToVtt(bad), undefined, JSON.stringify(bad));
+  }
+});

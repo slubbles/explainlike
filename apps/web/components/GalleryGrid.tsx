@@ -1,5 +1,5 @@
 "use client";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { GalleryItem } from "../lib/gallery";
 
 /** A duration in seconds as m:ss, for the card corner. Nothing without a real number. */
@@ -15,18 +15,25 @@ export default function GalleryGrid({ videos }: { videos: GalleryItem[] }) {
     setPlaying(undefined);
     setTimeout(() => playRefs.current.get(id)?.focus(), 0);
   };
+  // Esc closes the video from anywhere: focus may sit outside the card or inside the native
+  // video controls, where a key handler on the card itself would never hear it
+  useEffect(() => {
+    if (!playing) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") stop(playing);
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [playing]);
   return (
     <div className="grid">
       {videos.map((v) => (
         <div className="vid" id={v.id} key={v.id}>
           {playing === v.id ? (
-            <div
-              className="th"
-              onKeyDown={(e) => {
-                if (e.key === "Escape") stop(v.id);
-              }}
-            >
-              <video className="big" src={v.src} poster={v.poster} controls autoPlay playsInline aria-label={v.title} />
+            <div className="th">
+              <video className="big" src={v.src} poster={v.poster} controls autoPlay playsInline aria-label={v.title}>
+                {v.captions && <track kind="captions" src={v.captions} srcLang="en" label="English" default />}
+              </video>
               <button type="button" className="stop" onClick={() => stop(v.id)} aria-label={`Stop playing ${v.title}`}>
                 Stop
               </button>
