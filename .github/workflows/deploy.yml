@@ -1,0 +1,53 @@
+name: Deploy
+
+# Deploys main to the production server after CI passes on main, or by hand from the Actions tab.
+# It is off until the repository variable DEPLOY_ENABLED is "true" and the three secrets below exist.
+# The SSH key should be a deploy-only key: on the server its authorized_keys line forces one command
+# (the deploy script), so the key cannot open a shell. Setup steps are in docs/deploy.md.
+#
+#   secrets.DEPLOY_SSH_KEY      private key of the deploy-only key pair
+#   secrets.DEPLOY_HOST         user@host of the server
+#   secrets.DEPLOY_KNOWN_HOSTS  the server's host key line(s), from ssh-keyscan, checked before connecting
+
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    if: >-
+      vars.DEPLOY_ENABLED == 'true' &&
+      (github.event_name == 'workflow_dispatch' ||
+       (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: production
+    steps:
+      - name: Load the deploy key
+        env:
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          DEPLOY_KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
+        run: |
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$DEPLOY_SSH_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          printf '%s\n' "$DEPLOY_KNOWN_HOSTS" > ~/.ssh/known_hosts
+      # the server side runs the deploy script, fixes the data folder's owner and checks /api/health
+      # on the container itself, so the result does not depend on the CDN in front of the site
+      - name: Deploy and check health
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+        run: ssh -i ~/.ssh/deploy_key -o BatchMode=yes -o StrictHostKeyChecking=yes "$DEPLOY_HOST" deploy
+      - name: Remove the key
+        if: always()
+        run: rm -f ~/.ssh/deploy_key
