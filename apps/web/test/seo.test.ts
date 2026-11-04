@@ -231,8 +231,7 @@ test("a 404 drops the home canonical it would otherwise inherit", async () => {
 
 test("sign-in has its own short description and stays out of search", () => {
   const src = fs.readFileSync(path.join(WEB, "app/signin/page.tsx"), "utf8");
-  // the title text is owned by another branch: pin it byte-for-byte without touching it
-  assert.ok(src.includes('title: "Sign in ' + String.fromCharCode(0x2014) + ' Explanimate"'));
+  assert.ok(src.includes('title: "Sign in · Explanimate"'));
   const description = src.match(/description:\s*"([^"]*)"/)?.[1];
   assert.ok(description, "sign-in sets its own description");
   assert.notEqual(description, PAGES.home.description);
