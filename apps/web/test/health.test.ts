@@ -41,6 +41,26 @@ test("EXPLANIMATE_CHROME points at a Chrome in an unusual place", () => {
   assert.equal(h.checks.chrome, true);
 });
 
+test("fallbacks say which backup AI service would take over, as booleans and never key values", () => {
+  const both = checkHealth(
+    "/j",
+    true,
+    probe({
+      env: {
+        MODEL_API_KEY: "secret-model",
+        OPENROUTER_API_KEY: "secret-or",
+        EXPLANIMATE_LLM_PROVIDER: "meta",
+        CARTESIA_API_KEY: "secret-cartesia",
+      },
+    }),
+  );
+  assert.deepEqual(both.fallbacks, { llm: true, tts: true });
+  assert.doesNotMatch(JSON.stringify(both), /secret/);
+  assert.deepEqual(checkHealth("/j", true, probe({ env: { MODEL_API_KEY: "k" } })).fallbacks, { llm: false, tts: false });
+  const primary = checkHealth("/j", true, probe({ env: { OPENROUTER_API_KEY: "secret-or" } }));
+  assert.equal(primary.fallbacks.llm, false, "OpenRouter is already primary, so it is no backup");
+});
+
 test("with an OpenRouter key the OpenRouter key is the one that counts, and a bad provider name is a plain problem", () => {
   assert.equal(checkHealth("/j", true, probe({ env: { OPENROUTER_API_KEY: "secret-or" } })).checks.modelKey, true);
   const want = checkHealth("/j", true, probe({ env: { MODEL_API_KEY: "k", EXPLANIMATE_LLM_PROVIDER: "openrouter" } }));
