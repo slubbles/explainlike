@@ -25,10 +25,12 @@ export const POST = withErrors("voice-turn.POST", async (req: Request) => {
   const no = localOnly(req);
   if (no) return no;
   let userId: string | undefined;
+  let userEmail: string | undefined;
   if (authEnabled()) {
     const u = await sessionUser(req);
     if (!u) return Response.json({ error: SIGNIN_ERROR }, { status: 401 });
     userId = u.id;
+    userEmail = u.email;
   }
   // voice runs on localhost only; a job it starts belongs to this browser's owner cookie when there is one
   const t = ownerToken(req);
@@ -93,7 +95,7 @@ export const POST = withErrors("voice-turn.POST", async (req: Request) => {
             else {
               let blocked: string | undefined;
               if (userId) {
-                const claim = await claimVideoSlot(userId).catch(() => null);
+                const claim = await claimVideoSlot(userId, Date.now(), undefined, userEmail).catch(() => null);
                 if (!claim) blocked = "could not check your video limit, try again in a moment";
                 else if (!claim.ok) blocked = claim.error;
               }
