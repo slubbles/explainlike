@@ -43,3 +43,41 @@ test("explain accepts a name and a look and hands them to the job", async () => 
   assert.equal(req?.name, "dns");
   assert.equal(req?.look, "dark");
 });
+
+test("explain accepts a subfolder path and hands it to the job", async () => {
+  let req: JobRequest | undefined;
+  const job: Job = {
+    id: "def456",
+    input: "https://github.com/owner/repo",
+    out: "/tmp/x",
+    state: "done",
+    stage: "done",
+    message: "done",
+    pct: 100,
+    started: 1,
+    title: "repo",
+    durationSec: 60,
+  };
+  const runner = {
+    start: (r: JobRequest) => ((req = r), { ...job }),
+    get: () => ({ ...job }),
+    list: () => [{ ...job }],
+    on: () => {},
+    off: () => {},
+    wait: async () => ({ ...job }),
+  };
+  const { server } = createExplanimateServer(runner as unknown as JobRunner);
+  const [clientSide, serverSide] = InMemoryTransport.createLinkedPair();
+  const client = new Client({ name: "test", version: "0" });
+  await Promise.all([server.connect(serverSide), client.connect(clientSide)]);
+  try {
+    await client.callTool({
+      name: "explain",
+      arguments: { source: "https://github.com/owner/repo", path: "packages/cli", waitSeconds: 0 },
+    });
+  } finally {
+    await client.close();
+    await server.close();
+  }
+  assert.equal(req?.path, "packages/cli");
+});

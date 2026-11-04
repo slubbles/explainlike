@@ -1,4 +1,10 @@
 /** Argument checks for the CLI, kept pure so every refusal is covered by a test. */
+import { normalizeRepoSubpath } from "@explanimate/core";
+
+export function parsePath(raw: string | undefined): string | undefined {
+  if (raw === undefined) return undefined;
+  return normalizeRepoSubpath(raw);
+}
 
 export function isExplainRequest(argv: string[]): boolean {
   return argv[0] === "explain" && (argv.includes("--from") || argv.includes("--component"));
