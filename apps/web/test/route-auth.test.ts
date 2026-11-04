@@ -83,6 +83,7 @@ test("every public read is rate limited", async () => {
   const health = await import("../app/api/health/route.ts");
   const gallery = await import("../app/api/gallery/route.ts");
   const galleryFile = await import("../app/api/gallery/[name]/route.ts");
+  const galleryCaptions = await import("../app/api/gallery/captions/[id]/route.ts");
   const jobs = await import("../app/api/jobs/route.ts");
   const job = await import("../app/api/jobs/[id]/route.ts");
   const file = await import("../app/api/jobs/[id]/file/[name]/route.ts");
@@ -95,6 +96,10 @@ test("every public read is rate limited", async () => {
     [
       "gallery-file",
       () => galleryFile.GET(new Request("http://x/api/gallery/nope.mp4"), { params: Promise.resolve({ name: "nope.mp4" }) }),
+    ],
+    [
+      "gallery-captions",
+      () => galleryCaptions.GET(new Request("http://x/api/gallery/captions/nope"), { params: Promise.resolve({ id: "nope" }) }),
     ],
     ["jobs-list", () => jobs.GET(new Request("http://x/api/jobs"), undefined as never)],
     ["job", () => job.GET(new Request("http://x/api/jobs/abcdef123456"), { params: Promise.resolve({ id: "abcdef123456" }) })],

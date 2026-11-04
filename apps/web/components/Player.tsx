@@ -123,7 +123,7 @@ export default function Player({
         onSeeked={onSeeked}
         aria-label={title ?? "Explainer video"}
       >
-        {captions && <track kind="captions" src={captions} srcLang="en" label="English" />}
+        {captions && <track kind="captions" src={captions} srcLang="en" label="English" default />}
       </video>
       {map && (
         <div className="overlay">
