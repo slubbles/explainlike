@@ -76,18 +76,54 @@ const PROPER: Record<string, string> = {
  * box labels keep their lowercase style. A name already cased by the writer is left alone.
  */
 export function properNames(s: string): string {
+  // a name inside a domain or file name keeps its casing ("api.github.com", "chrome.exe")
   // eslint-disable-next-line no-useless-escape -- the \/ escapes keep the regex literal from ending early
-  return s.replace(/(^|[^\w'.\/-])([a-z]+)(?=$|[^\w'\/-]|'s\b)/g, (m, pre: string, w: string) => (PROPER[w] ? pre + PROPER[w] : m));
+  return s.replace(/(^|[^\w'.\/-])([a-z]+)(?=$|[^\w'.\/-]|\.(?!\w)|'s\b)/g, (m, pre: string, w: string) =>
+    PROPER[w] ? pre + PROPER[w] : m,
+  );
+}
+
+// top-level domains a narration names on their own ("the servers for .com")
+const TLD = "com|org|net|io|dev|ai|co|app|gov|edu|uk|de|jp|xyz|info|me|tv|us";
+// small words that are never the name part of a domain someone would say aloud
+const GLUE_WORD =
+  "for|then|to|the|and|or|of|in|on|at|with|from|like|as|is|are|by|via|than|into|onto|so|but|when|where|which|a|an|each|every|its|their|your|our|his|her";
+const GLUED_TLD = new RegExp(`\\b(${GLUE_WORD})\\.(${TLD})\\b(?![.\\w/-])`, "gi");
+/**
+ * Keeps a bare top-level domain apart from the word before it: "the servers for.com" -> "the servers for .com".
+ * Only a small joining word counts as glued on, so a real domain ("example.com", "api.github.com") is left whole.
+ */
+export function splitGluedTld(s: string): string {
+  return s.replace(GLUED_TLD, (m, w: string, tld: string) => `${w} .${tld}`);
+}
+
+// question and linking words that start a clause whose subject needs its article ("how the answer returns")
+const CLAUSE_WH = /^(how|where|when|why|until|once|so|if|because|while|after|before)$/i;
+// singular nouns that read as a subject and almost never as a verb or an adjective
+const SUBJECT_NOUNS =
+  /^(answer|reply|request|response|question|message|result|query|lookup|packet|server|resolver|browser|user|agent|worker|job|page|file|cache|queue|database|engine|video)$/i;
+/**
+ * A clause that drops its subject's article: "shows how answer returns" -> "shows how the answer returns".
+ * Only a singular subject noun between a clause word and a verb ending in -s counts, so lists and plurals stay put.
+ */
+export function addMissingArticle(s: string): string {
+  return s.replace(/\b([A-Za-z]+) ([A-Za-z]+) ([a-z]+s)\b/g, (m, wh: string, noun: string, verb: string) =>
+    CLAUSE_WH.test(wh) && SUBJECT_NOUNS.test(noun) && !/(ss|us|is)$/.test(verb) ? `${wh} the ${noun} ${verb}` : m,
+  );
 }
 
 export function tidySpeech(s: string): string {
   let t = s
     .replace(/\s+/g, " ")
     .trim()
-    .replace(/\s+([,.;:!?])/g, "$1")
+    // "rows ," -> "rows,", but " .com" or " .env" is a name that starts with a dot, not a full stop
+    .replace(/\s+([,;:!?])/g, "$1")
+    .replace(/\s+\.(?=\s|$|["')\]])/g, ".")
     .replace(/([,;:])(?=[A-Za-z])/g, "$1 ")
     .replace(/\.{2,}(?!\.)/g, ".")
     .replace(/\b(\w+) \1\b/gi, (m, w: string) => (/^(that|had|is)$/i.test(w) ? m : w));
+  t = splitGluedTld(t);
+  t = addMissingArticle(t);
   t = fixAgreement(t);
   t = properNames(t);
   // a new sentence starts with a capital; "e.g." or "vs." do not end one
@@ -114,6 +150,11 @@ const HELPERS =
 const NOT_ONE_THING = /^(and|or|few|couple|lot|lots|number|bunch|pair|of|plus|both|many)$/;
 const TO_OR_HELPER = /^(to|will|would|can|could|should|must|might|may|does|did|do|let|lets|helps|help|make|makes)$/;
 const NOUN_NEXT = /^(that|which|who|is|was|will|can|could|would|should|might|must|has|had)$/;
+// a determiner or possessive right before the word makes it a noun or adjective ("its own row", "the queue")
+const DETERMINER = /^(its|their|his|her|my|our|your|the|a|an|this|these|those|each|every|one|no|some|any)$/;
+// words after which a singular phrase can start a new subject; after anything else it is an object ("tests that ping a server break")
+const SUBJECT_START =
+  /^(and|but|or|so|then|when|if|because|while|once|until|after|before|where|since|now|first|next|finally|that|which|who|how|why|whenever|unless|as|here|also|still|only|even|soon|today|instead|otherwise)$/;
 const thirdPerson = (v: string) =>
   (({ have: "has", do: "does", go: "goes", be: "is" }) as Record<string, string>)[v] ??
   (/(s|sh|ch|x|z)$/.test(v) ? v + "es" : /[^aeiou]y$/.test(v) ? v.slice(0, -1) + "ies" : v + "s");
@@ -133,6 +174,8 @@ export function agreementSlips(text: string): { phrase: string; index: number; f
     if (!SINGULAR_DET.test(words[i])) continue;
     // "a user and a bot send" has a plural subject
     if (i > 0 && NOT_ONE_THING.test(words[i - 1])) continue;
+    // "tests that ping a server break": the phrase is the object of a verb, so the verb after it agrees with an earlier subject
+    if (i > 0 && !ends[i - 1] && !SUBJECT_START.test(words[i - 1])) continue;
     // a helper earlier in the same clause carries the agreement
     let helped = false;
     for (let k = i - 1; k >= 0 && k >= i - 5 && !ends[k]; k--)
@@ -149,6 +192,8 @@ export function agreementSlips(text: string): { phrase: string; index: number; f
       const nounish = ends[j] || (j + 1 < words.length && NOUN_NEXT.test(words[j + 1]));
       // "asks a concierge to run the agent": after "to" or a helper the bare form is right
       if (TO_OR_HELPER.test(words[j - 1])) break;
+      // "each job gets its own row": after "its" or "the" the word is a noun or adjective, never the verb
+      if (DETERMINER.test(words[j - 1])) break;
       if (BARE_VERBS.has(words[j]) && !nounish && !words[j - 1].endsWith("'s") && !/,["')]?$/.test(raw[j])) {
         // "an api call return": the first of two such words is still part of the subject
         if (!ends[j] && j + 1 < words.length && BARE_VERBS.has(words[j + 1])) j++;
@@ -371,4 +416,20 @@ export function shortHeading(s: string, max = 4): string {
   const ws = all.slice(0, max);
   while (ws.length > 2 && DANGLING.test(ws[ws.length - 1]!)) ws.pop();
   return ws.join(" ");
+}
+
+/**
+ * The last copyedit before a plan is voiced: every scene's narration goes through tidySpeech, so spacing,
+ * glued domains and agreement slips a later rewrite brought back are fixed in the text the voice reads and
+ * the captions show. Returns the scenes it changed, so the run notes can say so.
+ */
+export function copyeditPlan<T extends { scenes: { id: string; narration: string }[] }>(plan: T): { plan: T; changed: string[] } {
+  const changed: string[] = [];
+  const scenes = plan.scenes.map((s) => {
+    const narration = tidySpeech(s.narration);
+    if (narration === s.narration) return s;
+    changed.push(s.id);
+    return { ...s, narration };
+  });
+  return changed.length ? { plan: { ...plan, scenes }, changed } : { plan, changed };
 }
