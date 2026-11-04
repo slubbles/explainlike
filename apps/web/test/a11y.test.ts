@@ -21,11 +21,22 @@ test("a playing gallery video has a stop button that returns to the thumbnail", 
   assert.match(s, /Escape/);
 });
 
+test("closing a gallery video by Esc or the stop button refocuses the card that opened it", () => {
+  const s = src("components/GalleryGrid.tsx");
+  assert.match(s, /document\.addEventListener\("keydown"/, "Esc is heard even from the native video controls");
+  assert.match(s, /if \(e\.key === "Escape"\) stop\(playing\)/);
+  assert.match(s, /onClick=\{\(\) => stop\(v\.id\)\}/, "the stop button takes the same way back");
+  assert.match(s, /playRefs\.current\.get\(id\)\?\.focus\(\)/, "focus lands back on the triggering card");
+});
+
 test("playable videos are labelled with a captions track; previews stay hidden", () => {
   const player = src("components/Player.tsx");
   assert.match(player, /aria-label=\{title \?\? "Explainer video"\}/);
-  assert.match(player, /<track kind="captions" src=\{captions\} srcLang="en" label="English" \/>/);
-  assert.match(src("components/GalleryGrid.tsx"), /aria-label=\{v\.title\}/);
+  assert.match(player, /<track kind="captions" src=\{captions\} srcLang="en" label="English" default \/>/);
+  const grid = src("components/GalleryGrid.tsx");
+  assert.match(grid, /aria-label=\{v\.title\}/);
+  assert.match(grid, /<track kind="captions" src=\{v\.captions\} srcLang="en" label="English" default \/>/);
+  assert.match(src("lib/gallery.ts"), /galleryCaptionsUrl/, "gallery items carry a captions URL when the folder holds them");
   const result = src("components/ResultView.tsx");
   assert.match(result, /captions=\{captionsUrl\(job\.id\)\}/);
   assert.match(result, /#t=4.*aria-hidden="true"/, "the clip preview is decorative inside its labelled link");
