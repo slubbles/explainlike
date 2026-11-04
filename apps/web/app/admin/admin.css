@@ -28,6 +28,7 @@
 .adm .stats em.plain { color: var(--mut); }
 .adm .small { font-size: 13px; margin: 10px 0 12px; }
 .adm td .small { margin: 4px 0 0; max-width: 280px; white-space: normal; }
+.adm td .sub { font-size: 12px; margin-top: 2px; }
 .adm .pill { display: inline-block; font-size: 12px; font-weight: 600; padding: 2px 9px; border-radius: 999px; border: 1px solid var(--line2); }
 .adm .pill.done { color: #7fb0ff; border-color: rgba(77, 141, 255, .45); background: rgba(77, 141, 255, .1); }
 .adm .pill.error { color: var(--amber-ink); border-color: var(--amber-line); background: var(--amber-bg); }
