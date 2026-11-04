@@ -1,5 +1,6 @@
 "use client";
 import { FORMATS, LINK_MAX, VOICES, inputHint, type Form, shortLink } from "../lib/form";
+import { trackEvent } from "../lib/analytics";
 import type { GalleryItem } from "../lib/gallery";
 import { MCP_SNIPPETS } from "../lib/mcp";
 import type { Quota } from "./Home";
@@ -136,7 +137,14 @@ export function PromptBox({
       <div className="frow">
         <label className="pick">
           <span className="flab">Format</span>
-          <select value={form.format} onChange={(e) => set({ format: e.target.value as Form["format"] })} aria-label="Format">
+          <select
+            value={form.format}
+            onChange={(e) => {
+              set({ format: e.target.value as Form["format"] });
+              trackEvent("format_select");
+            }}
+            aria-label="Format"
+          >
             {FORMATS.map((f) => (
               <option key={f.id} value={f.id}>
                 {f.label}
@@ -344,7 +352,7 @@ export default function InputScreen({ form, set, go, busy, err, examples, talkin
                 An MCP server that runs on your own machine. Type /explanimate in Claude Code, Cursor, Codex or Muse Code. It reads the repo
                 you&apos;re in and hands back the video and both boards, right in the chat.
               </p>
-              <a className="mcp-link" href="/docs">
+              <a className="mcp-link" href="/docs" onClick={() => trackEvent("mcp_docs_view")}>
                 MCP documentation →
               </a>
             </div>

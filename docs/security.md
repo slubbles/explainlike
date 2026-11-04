@@ -14,7 +14,8 @@ settings this mentions are listed in [`.env.example`](../.env.example) and
   it to Next, which stamps it on the inline scripts it renders) plus the Turnstile loader;
   styles allow inline; the browser talks back only to this site, Turnstile and the Deepgram
   listening socket (`wss://api.deepgram.com`, which voice mode opens from the browser). The
-  Google hosts join only when `GA_MEASUREMENT_ID` is set. Frames are Turnstile only, and
+  Google hosts join only when a GA4 measurement id is set (`NEXT_PUBLIC_GA_ID`, or the
+  legacy `GA_MEASUREMENT_ID`). Frames are Turnstile only, and
   `frame-ancestors 'none'` with `X-Frame-Options: DENY` means nobody embeds us.
 - `Strict-Transport-Security: max-age=63072000; includeSubDomains`.
 - `X-Content-Type-Options: nosniff`, `Referrer-Policy: strict-origin-when-cross-origin`.
