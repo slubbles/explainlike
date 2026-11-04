@@ -15,8 +15,8 @@ export interface JobRequest {
   out?: string;
   /** display name, e.g. owner/repo for a local folder */
   name?: string;
-  /** "deepgram" (default when DEEPGRAM_API_KEY is set) or "silent" (captions only, no voice cost) */
-  voice?: "deepgram" | "silent";
+  /** "deepgram" (default when DEEPGRAM_API_KEY is set), "cartesia" (Cartesia Sonic) or "silent" (captions only, no voice cost) */
+  voice?: "deepgram" | "cartesia" | "silent";
   /** ignore the brief, diagram and plan cached in the output folder */
   fresh?: boolean;
   /** false: no music bed under the voice */
@@ -137,11 +137,19 @@ export function checkInput(input: string, env: NodeJS.ProcessEnv = process.env):
     return s;
   }
   const p = path.resolve(s.replace(/^~(?=\/|$)/, os.homedir()));
-  if (/^[~./]/.test(s) || fs.existsSync(p)) {
+  // a drive letter or a backslash is a path even when the folder is missing (else it would render as a nonsense topic)
+  if (/^[~./]/.test(s) || /^[a-zA-Z]:[\\/]/.test(s) || (s.includes("\\") && !/\s/.test(s)) || fs.existsSync(p)) {
     if (fs.existsSync(p) && fs.statSync(p).isDirectory()) return p;
     throw new JobError(`no folder at ${s}; pass a link (a GitHub repo, an X post or an article), a local repo folder, or a topic in words`);
   }
-  if (/^[\w-]+(\.[\w-]+)+(\/\S*)?$/.test(s)) return `https://${s}`;
+  if (/^[\w-]+(\.[\w-]+)+(\/\S*)?$/.test(s)) {
+    const upgraded = `https://${s}`;
+    if (!allowPrivateUrls(env) && privateHostname(new URL(upgraded).hostname))
+      throw new JobError(
+        `that link points at a private network address (${new URL(upgraded).hostname}), which this server does not read. Set EXPLANIMATE_ALLOW_PRIVATE_URLS=1 to allow it for local use.`,
+      );
+    return upgraded;
+  }
   if (s.length > 300) throw new JobError("that topic is too long; ask in one sentence (under 300 characters)");
   if (looksLikeTopic(s)) return s.replace(/\s+/g, " ");
   throw new JobError("pass a link (a GitHub repo, an X post or an article), a local repo folder, or a topic in words");
@@ -189,7 +197,8 @@ export class JobRunner extends EventEmitter {
     if (req.focus && !/^[a-z0-9-]{1,60}$/.test(req.focus))
       throw new JobError("focus is a component id from architecture.json, like `api` or `job-queue`");
     if (req.whatIf && req.whatIf !== "10x" && req.whatIf !== "100x") throw new JobError("whatIf takes 10x or 100x");
-    if (req.voice && req.voice !== "deepgram" && req.voice !== "silent") throw new JobError("voice is deepgram or silent");
+    if (req.voice && req.voice !== "deepgram" && req.voice !== "cartesia" && req.voice !== "silent")
+      throw new JobError("voice is deepgram, cartesia or silent");
     if (req.depth && !["overview", "working", "deep"].includes(req.depth)) throw new JobError("depth is overview, working or deep");
     for (const k of ["goal", "audience", "also"] as const) {
       if (req[k] !== undefined && (typeof req[k] !== "string" || req[k]!.length > 500))
@@ -299,7 +308,14 @@ export class JobRunner extends EventEmitter {
     const end = (code: number | null, err?: Error) => {
       this.children.delete(job.id);
       if (job.state !== "running") return;
-      const why = err?.message ?? errTail.split("\n").filter(Boolean).pop() ?? `the render stopped (exit ${code})`;
+      // the first line says what failed; the last line of a stack is a frame with a server path
+      const why =
+        err?.message ??
+        errTail
+          .split("\n")
+          .map((l) => l.trim())
+          .filter(Boolean)[0] ??
+        `the render stopped (exit ${code})`;
       Object.assign(job, { state: "error", error: why, finished: Date.now() });
       this.emit("update", { ...job });
     };

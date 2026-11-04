@@ -217,6 +217,8 @@ export async function sparkJson<T extends z.ZodType>(opts: {
       return await attemptOn(llm, i);
     } catch (e) {
       if (!backup || !llmFallbackable(e)) throw e;
+      // a copy that lost does not pay for a fallback nobody is waiting on
+      if (won !== undefined) throw e;
       if (!fellBack) {
         fellBack = true;
         console.warn(`Meta Muse failed on ${opts.step} (${shortReason(e)}); falling back to OpenRouter`);

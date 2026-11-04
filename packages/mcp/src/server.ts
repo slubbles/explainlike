@@ -2,7 +2,19 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { JobError, JobRunner, type Job } from "@explanimate/api";
 
-export const DEFAULT_WAIT_SEC = Number(process.env.EXPLANIMATE_MCP_WAIT_SEC ?? 50);
+/** How long explain waits by default: garbage falls back to 50 s, and the wait stays within 0-600 s. */
+export function defaultWaitSec(env: NodeJS.ProcessEnv = process.env): number {
+  const n = Number(env.EXPLANIMATE_MCP_WAIT_SEC ?? 50);
+  if (!Number.isFinite(n)) return 50;
+  return Math.min(600, Math.max(0, Math.floor(n)));
+}
+
+export const DEFAULT_WAIT_SEC = defaultWaitSec();
+
+/** Progress grows with every notification but never past its total. */
+export function nextProgress(last: number, pct: number): number {
+  return Math.min(100, Math.max(pct, last + 0.01));
+}
 
 const fmtTime = (s?: number) => (s == null ? "?" : `${Math.floor(s / 60)}:${String(Math.round(s % 60)).padStart(2, "0")}`);
 const money = (n?: number) => `$${(n ?? 0).toFixed(3)}`;
@@ -69,7 +81,7 @@ export function createExplanimateServer(runner = new JobRunner()) {
     const onUpdate = (j: Job) => {
       if (token === undefined || j.id !== id || j.message === lastMsg) return;
       // progress must grow with every notification, even when a stage repeats a percentage
-      last = Math.max(j.pct, last + 0.01);
+      last = nextProgress(last, j.pct);
       lastMsg = j.message;
       void extra
         .sendNotification({
@@ -108,9 +120,11 @@ export function createExplanimateServer(runner = new JobRunner()) {
           .optional()
           .describe("Folder to write the files to. Default: ~/explanimate-videos/<name> (or $EXPLANIMATE_OUT_DIR)."),
         voice: z
-          .enum(["deepgram", "silent"])
+          .enum(["deepgram", "cartesia", "silent"])
           .optional()
-          .describe("deepgram narrates (default when DEEPGRAM_API_KEY is set); silent keeps captions only."),
+          .describe(
+            "deepgram narrates (default when DEEPGRAM_API_KEY is set); cartesia uses Cartesia Sonic instead; silent keeps captions only.",
+          ),
         fresh: z.boolean().optional().describe("Re-plan from scratch instead of reusing a plan cached in outDir or for this repo commit."),
         followUpOf: z
           .string()

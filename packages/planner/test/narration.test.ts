@@ -109,6 +109,16 @@ test("a journey hook opens on the 'What if ...?' question; other shapes and old 
   assert.ok(!checkStory(p, arch).some((i) => /What if/.test(i)));
 });
 
+test("a journey hook may also open on a direct question about your payoff", () => {
+  const p = plan(sc("hook", "How does one file turn into answers you can trust? That is the question this tool answers for you."));
+  assert.ok(!checkStory(p, arch, "", "journey").some((i) => /should be the .What if/.test(i)));
+});
+
+test("a journey hook that names parts, the client included, says what it is instead", () => {
+  const p = plan(sc("hook", "What if your AI agent drove the daemon for you? That is the tool: it drives browsers for you."));
+  assert.ok(checkStory(p, arch, "", "journey").some((i) => /before the story starts/.test(i)));
+});
+
 test("the video's scope follows the README: a side part its opening never names, and a fix it never says, are left out", () => {
   const readme = `# agent-browser\nBrowser automation CLI for AI agents. The daemon keeps Chrome open.${" filler".repeat(3000)}\n## Observability Dashboard\nReuse browser contexts between runs.`;
   const g = groundToReadme(arch, readme);

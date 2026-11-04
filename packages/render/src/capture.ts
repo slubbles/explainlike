@@ -6,6 +6,7 @@ import { chromium } from "playwright-core";
 import type { Film } from "./film.js";
 import { stageHtml } from "./stage.js";
 import { makeBed, makeSfx, mixGraph, type SfxCue } from "./music.js";
+import { workerCount } from "./workers.js";
 
 /** Chrome's usual Windows install folders, so a fresh shell works without setting EXPLANIMATE_CHROME. */
 function windowsChromePaths(): string[] {
@@ -79,7 +80,7 @@ export async function captureFrames(
   fs.writeFileSync(html, stageHtml(film));
   const total = Math.ceil(film.duration * film.fps);
   const frames = opts.only ?? [...Array(total).keys()];
-  const workers = Math.max(1, Math.min(opts.workers ?? defaultWorkers(), frames.length));
+  const workers = workerCount(opts.workers, defaultWorkers(), frames.length);
   let next = 0,
     done = 0,
     failed = false;

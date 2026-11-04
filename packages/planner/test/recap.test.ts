@@ -75,6 +75,11 @@ test("the nanochat recap that shipped is flagged, and the issue lists the parts 
   );
 });
 
+test("a recap counts whole words, not shared prefixes; plurals still count", () => {
+  assert.equal(recapInOrder("The frontend team ships daily.", ["front desk"]), 0);
+  assert.equal(recapInOrder("The token shards stream in.", ["token shard"]), 1);
+});
+
 test("a plan without a recap gets one that names every walkthrough part in order, as speech", () => {
   const plan = repairRepoPlan(
     { title: "x", subtitle: "", scenes: [sc("hook", "Can one script train a chat model?"), sc("walkthrough", "You follow one batch.")] },

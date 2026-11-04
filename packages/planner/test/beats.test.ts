@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { ScenePlan, RepoPlanWire, strictJsonSchema, type Architecture, type Beat, type Scene } from "@explanimate/core";
-import { checkBeats, alignBeats, nicknames, shownIsSaid, figureOf, kineticFrom, readmeExcerpt } from "@explanimate/planner";
+import { checkBeats, alignBeats, nicknames, shownIsSaid, figureOf, wordNumbers, kineticFrom, readmeExcerpt } from "@explanimate/planner";
 
 const arch = {
   product: "agent-browser",
@@ -157,4 +157,89 @@ test("helpers: nicknames, figures, kinetic words and the README excerpt", () => 
     2000,
   );
   assert.ok(!ex.includes("<img") && ex.includes("[ref=e2]"));
+});
+
+test("word numbers read past twenty, and a figure matches the source only as a whole number", () => {
+  assert.equal(figureOf("thirty two browsers"), 32);
+  assert.equal(figureOf("one hundred requests"), 100);
+  assert.equal(figureOf("two thousand rows"), 2000);
+  assert.deepEqual(wordNumbers("a hundred and five"), [100, 5]);
+  const num = (text: string) => scene("layer", [beat("It drives 2 browsers at once.", "number", "drives", { text })]);
+  // 2 is said but the source only states 200: demoted, instead of matching the substring
+  const bad = checkBeats({ title: "x", subtitle: "", scenes: [num("2 browsers")] }, { arch, source: "the grid runs 200 browsers" });
+  assert.equal(bad.plan.scenes[0].beats![0].visual, "kinetic");
+  assert.ok(
+    bad.report.repairs.some((r) => /never states/.test(r)),
+    bad.report.repairs.join("; "),
+  );
+  // the source states 2, and the word form counts too
+  for (const source of ["the grid runs 2 browsers", "the grid runs two browsers"]) {
+    const good = checkBeats({ title: "x", subtitle: "", scenes: [num("2 browsers")] }, { arch, source });
+    assert.equal(good.plan.scenes[0].beats![0].visual, "number", source);
+  }
+});
+
+test("a scene with no beats gets one board beat per line instead of skipping the check", () => {
+  const s = { ...scene("layer", []), beats: undefined, narration: "First it opens the page. Then it reads the rows." };
+  const { plan, report } = checkBeats({ title: "x", subtitle: "", scenes: [s] }, { arch, source: SOURCE });
+  assert.deepEqual(
+    plan.scenes[0].beats!.map((b) => b.visual),
+    ["board", "board"],
+  );
+  assert.deepEqual(
+    plan.scenes[0].beats!.map((b) => b.line),
+    ["First it opens the page.", "Then it reads the rows."],
+  );
+  assert.ok(
+    report.repairs.some((r) => /no visuals were planned/.test(r)),
+    report.repairs.join("; "),
+  );
+});
+
+test("a browser bar the line never says is dropped; one it says is kept", () => {
+  const page = (line: string, text: string) =>
+    scene("layer", [
+      beat(line, "browser", line.split(" ").slice(0, 2).join(" "), {
+        text,
+        items: ["login page", "Submit button"],
+        focus: "Submit button",
+      }),
+    ]);
+  const dropped = checkBeats(
+    { title: "x", subtitle: "", scenes: [page("Open the login page and press Submit.", "myapp.internal/login")] },
+    { arch, source: SOURCE },
+  );
+  assert.equal(dropped.plan.scenes[0].beats![0].visual, "browser");
+  assert.equal(dropped.plan.scenes[0].beats![0].text, "");
+  assert.ok(
+    dropped.report.repairs.some((r) => /browser bar/.test(r)),
+    dropped.report.repairs.join("; "),
+  );
+  const kept = checkBeats(
+    { title: "x", subtitle: "", scenes: [page("Open the dashboard and press Submit.", "dashboard")] },
+    { arch, source: SOURCE },
+  );
+  assert.equal(kept.plan.scenes[0].beats![0].text, "dashboard");
+});
+
+test("past the kinetic cap, a kinetic beside another kinetic goes back to the board first", () => {
+  const k = (line: string) => beat(line, "kinetic", line.split(" ").slice(0, 2).join(" "), { text: line.replace(/\.$/, "") });
+  const lines = [
+    "Alpha teams ship daily.",
+    "Beta fixes land hourly.",
+    "Gamma pages render fast.",
+    "Delta cache fills first.",
+    "Epsilon flags flip safely.",
+  ];
+  const plan = {
+    title: "x",
+    subtitle: "",
+    scenes: [scene("hook", [beat("Can it scale well?", "board", "Can it")]), scene("layer", lines.map(k))],
+  };
+  const { plan: out } = checkBeats(plan, { arch, source: SOURCE });
+  // five kinetics: the third becomes board (never three running), then the cap keeps two
+  assert.deepEqual(
+    out.scenes[1].beats!.map((b) => b.visual),
+    ["board", "kinetic", "board", "board", "kinetic"],
+  );
 });

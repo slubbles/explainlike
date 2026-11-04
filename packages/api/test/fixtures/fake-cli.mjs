@@ -12,6 +12,10 @@ if (input.includes("fail")) {
   say({ type: "error", message: "could not read the repository" });
   process.exit(1);
 }
+if (input.includes("crash")) {
+  process.stderr.write("explanimate failed: could not read the repository\n    at foo (/abs/server/path/x.mjs:1:2)\n");
+  process.exit(1);
+}
 process.stdout.write("a stray line that is not JSON\n");
 say({ type: "progress", stage: "render", message: "drawing frames 10/10", pct: 90, usd });
 const files = Object.fromEntries(["mp4", "tldr", "excalidraw"].map((k) => [k, path.join(out, `demo.${k}`)]));

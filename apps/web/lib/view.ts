@@ -11,10 +11,20 @@ import type { Job } from "./jobs";
 /** Fields that exist only for the server (resume arguments, owner, slot bookkeeping). */
 const SERVER_ONLY = ["args", "owner", "resumed", "began", "finished"] as const;
 
+/** Server paths never reach the browser: an absolute path in an error reads as told, without the path. */
+export function scrubError(e: string): string {
+  return e
+    .replace(/[a-zA-Z]:\\(?:[^\\/:*?"<>|\s]+\\)*[^\\/:*?"<>|\s]*/g, "(a server path)")
+    .replace(/(?<![\w/])(?:\/[\w.-]+){2,}\/?/g, "(a server path)")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 /** One job as a viewer sees it, with `mine` telling the page whether it may offer Cancel. */
 export function publicJob(job: Job, viewer?: string) {
   const seen: Record<string, unknown> = { ...asSeen(job) };
   for (const k of SERVER_ONLY) delete seen[k];
+  if (typeof seen.error === "string") seen.error = scrubError(seen.error);
   return { ...seen, mine: !!viewer && job.owner === viewer };
 }
 

@@ -52,8 +52,13 @@ export async function postJson<T = Record<string, unknown>>(
   if (r.ok) return { ok: true, data: data as T };
   const said = typeof data?.error === "string" ? data.error : "";
   if (said) return { ok: false, error: said };
-  if (r.status === 429)
-    return { ok: false, error: `Too many requests. Wait ${r.headers.get("retry-after") ?? "a minute"} seconds and try again.` };
+  if (r.status === 429) {
+    const wait = r.headers.get("retry-after");
+    return {
+      ok: false,
+      error: wait ? `Too many requests. Wait ${wait} seconds and try again.` : "Too many requests. Wait a minute and try again.",
+    };
+  }
   if (r.status === 413) return { ok: false, error: "That request is too large." };
   return { ok: false, error: `The server had a problem (${r.status}). Try again in a moment.` };
 }
