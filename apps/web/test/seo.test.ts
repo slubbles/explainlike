@@ -103,10 +103,11 @@ test("the sitemap lists the public pages, and nothing private or transient", () 
 });
 
 test("robots allows the public pages, blocks the API, and points at the sitemap", () => {
-  const robots = robotsConfig() as { rules: { userAgent: string; allow: string; disallow: string }; sitemap: string };
+  const robots = robotsConfig() as { rules: { userAgent: string; allow: string; disallow: string[] }; sitemap: string };
   assert.equal(robots.rules.userAgent, "*");
   assert.equal(robots.rules.allow, "/");
   assert.ok(robots.rules.disallow.includes("/api/"), "API is not crawled");
+  assert.ok(robots.rules.disallow.includes("/admin"), "admin is not crawled");
   assert.equal(robots.sitemap, `${SITE_URL}/sitemap.xml`);
 });
 

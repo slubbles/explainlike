@@ -105,7 +105,7 @@ export function sitemapEntries(): MetadataRoute.Sitemap {
 /** Crawlers may read the pages; the JSON API and job files are not content. */
 export function robotsConfig(): MetadataRoute.Robots {
   return {
-    rules: { userAgent: "*", allow: "/", disallow: "/api/" },
+    rules: { userAgent: "*", allow: "/", disallow: ["/api/", "/admin"] },
     sitemap: `${SITE_URL}/sitemap.xml`,
   };
 }
