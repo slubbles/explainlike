@@ -2,7 +2,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
-import { llmProvider, type LlmProvider } from "@explanimate/core/llm";
+import { llmProvider, llmFallback, type LlmProvider } from "@explanimate/core/llm";
 
 /** What a load balancer or uptime check needs to know. Keys are reported present or missing, never their values. */
 export interface Health {
@@ -11,6 +11,8 @@ export interface Health {
   /** new videos are refused: demo-only mode or the spend cap */
   paused: boolean;
   problems: string[];
+  /** whether a backup AI service would take over if the primary fails (booleans only, never key values) */
+  fallbacks: { llm: boolean; tts: boolean };
 }
 
 const CHROME = [
@@ -61,9 +63,11 @@ export const realProbe: Probe = {
 /** Healthy means a video can be made: ffmpeg, Chrome, the key for the Muse Spark provider (OpenRouter or Meta) and a writable jobs folder. Voice is optional. */
 export function checkHealth(jobsDir: string, budgetOk: boolean, p: Probe = realProbe): Health {
   let llm: LlmProvider | undefined,
-    badProvider = "";
+    badProvider = "",
+    llmBackup = false;
   try {
     llm = llmProvider(p.env);
+    llmBackup = llmFallback(p.env) !== undefined;
   } catch (e) {
     badProvider = (e as Error).message;
   }
@@ -80,5 +84,5 @@ export function checkHealth(jobsDir: string, budgetOk: boolean, p: Probe = realP
   if (!checks.modelKey) problems.push(badProvider || `${llm!.keyVar} is not set.`);
   if (!checks.jobsDir) problems.push("The jobs folder is not writable. Check EXPLANIMATE_JOBS_DIR and the volume.");
   const paused = p.env.EXPLANIMATE_DEMO_ONLY === "1" || !budgetOk;
-  return { ok: problems.length === 0, checks, paused, problems };
+  return { ok: problems.length === 0, checks, paused, problems, fallbacks: { llm: llmBackup, tts: !!p.env.CARTESIA_API_KEY } };
 }
