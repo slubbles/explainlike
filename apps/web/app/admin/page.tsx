@@ -7,6 +7,7 @@ import { d1Configured } from "../../lib/db";
 import { countErrorsSince, listRecentErrors } from "../../lib/errors";
 import { checkHealth } from "../../lib/health";
 import { JOBS_DIR, budgetNow, listJobs } from "../../lib/jobs";
+import { formatMs, jobMetrics, jobTiming } from "../../lib/metrics";
 import "./admin.css";
 
 export const runtime = "nodejs";
@@ -37,6 +38,11 @@ export default async function AdminPage() {
   const spend = spendSummary(jobs, JOBS_DIR);
   const health = checkHealth(JOBS_DIR, budgetNow().ok);
   const dbOff = !d1Configured();
+  const now = Date.now();
+  const m24 = jobMetrics(jobs, now - 24 * 3600_000);
+  const mAll = jobMetrics(jobs);
+  const pct = (r: number | null) => (r === null ? "—" : `${Math.round(r * 100)}%`);
+  const recentJobs = jobs.slice(0, 50).map(jobTiming);
 
   return (
     <>
@@ -80,6 +86,85 @@ export default async function AdminPage() {
                 {w}
               </p>
             ))}
+          </section>
+
+          <section aria-label="Jobs">
+            <h2>Jobs</h2>
+            <div className="stats">
+              <div>
+                <span>Running / waiting now</span>
+                <b>
+                  {mAll.running} / {mAll.queued}
+                </b>
+              </div>
+              <div>
+                <span>Last 24 h</span>
+                <b>
+                  {m24.done} done · {m24.failed} failed
+                </b>
+                <em className="plain">success {pct(m24.successRate)}</em>
+              </div>
+              <div>
+                <span>Render time (median · p90)</span>
+                <b>
+                  {formatMs(mAll.medianRenderMs)} · {formatMs(mAll.p90RenderMs)}
+                </b>
+              </div>
+              <div>
+                <span>Wait for a slot (median)</span>
+                <b>{formatMs(mAll.medianWaitMs)}</b>
+              </div>
+              <div>
+                <span>Request to video (median)</span>
+                <b>{formatMs(mAll.medianTotalMs)}</b>
+              </div>
+              <div>
+                <span>Cost per video (avg)</span>
+                <b>{mAll.avgCostDone === null ? "—" : money(mAll.avgCostDone)}</b>
+              </div>
+            </div>
+            <p className="muted small">
+              All {mAll.total} jobs on this server: {mAll.done} done, {mAll.failed} failed, success {pct(mAll.successRate)}.
+            </p>
+            {recentJobs.length === 0 ? (
+              <p className="muted">No jobs yet.</p>
+            ) : (
+              <div className="scroll">
+                <table>
+                  <thead>
+                    <tr>
+                      <th scope="col">Job</th>
+                      <th scope="col">Status</th>
+                      <th scope="col">Waited</th>
+                      <th scope="col">Render</th>
+                      <th scope="col">Video</th>
+                      <th scope="col">Cost</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {recentJobs.map((t) => (
+                      <tr key={t.id}>
+                        <td className="nowrap">
+                          <a href={`/?job=${t.id}`}>{t.id}</a>
+                          <span className="muted">
+                            {" "}
+                            · {t.kind} · {when(new Date(t.started).toISOString())}
+                          </span>
+                        </td>
+                        <td>
+                          <span className={`pill ${t.state}`}>{t.state}</span>
+                          {t.error && <div className="muted small prompt">{t.error}</div>}
+                        </td>
+                        <td className="nowrap">{formatMs(t.waitMs)}</td>
+                        <td className="nowrap">{formatMs(t.renderMs)}</td>
+                        <td className="nowrap">{t.videoSec === null ? "—" : `${Math.round(t.videoSec)}s`}</td>
+                        <td className="nowrap">{money(t.cost)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </section>
 
           <section aria-label="Users">
