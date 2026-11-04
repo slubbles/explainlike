@@ -20,20 +20,21 @@ Inter is the upstream web build (`InterVariable.woff2` from the v4.1 release), u
 
 ## Runtime dependencies (not vendored, installed from npm)
 
-| Package                | License    | Use                                                        |
-| ---------------------- | ---------- | ---------------------------------------------------------- |
-| roughjs                | MIT        | hand-drawn strokes                                         |
-| perfect-freehand       | MIT        | marker-pen strokes that swell and thin                     |
-| elkjs                  | EPL-2.0    | graph layout                                               |
-| opentype.js            | MIT        | glyph outlines for handwriting text                        |
-| esbuild                | MIT        | bundles the stage script                                   |
-| playwright-core        | Apache-2.0 | headless Chrome frame capture, screenshots                 |
-| sharp                  | Apache-2.0 | image processing                                           |
-| zod                    | MIT        | schemas                                                    |
-| @mozilla/readability   | Apache-2.0 | article text extraction                                    |
-| linkedom               | ISC        | DOM for Readability                                        |
-| next, react            | MIT        | web app                                                    |
-| ffmpeg (system binary) | LGPL/GPL   | video encoding, invoked as an external process, not linked |
+| Package                  | License    | Use                                                        |
+| ------------------------ | ---------- | ---------------------------------------------------------- |
+| roughjs                  | MIT        | hand-drawn strokes                                         |
+| perfect-freehand         | MIT        | marker-pen strokes that swell and thin                     |
+| elkjs                    | EPL-2.0    | graph layout                                               |
+| opentype.js              | MIT        | glyph outlines for handwriting text                        |
+| esbuild                  | MIT        | bundles the stage script                                   |
+| playwright-core          | Apache-2.0 | headless Chrome frame capture, screenshots                 |
+| sharp                    | Apache-2.0 | image processing                                           |
+| zod                      | MIT        | schemas                                                    |
+| @mozilla/readability     | Apache-2.0 | article text extraction                                    |
+| linkedom                 | ISC        | DOM for Readability                                        |
+| next, react              | MIT        | web app                                                    |
+| disposable-email-domains | MIT        | temp-mail blocklist for email sign-up                      |
+| ffmpeg (system binary)   | LGPL/GPL   | video encoding, invoked as an external process, not linked |
 
 ## File formats
 
@@ -57,4 +58,4 @@ Meta's public Model API, credited in plain text as "Powered by Meta Muse models"
 | Meta Model API (api.meta.ai)             | Muse Spark, Muse Image, SAM, Muse Transcribe     |
 | Deepgram (optional)                      | Aura text to speech, Nova word timestamps        |
 | FxTwitter public API (api.fxtwitter.com) | public X post text and metadata for X post input |
-| GitHub                                   | cloning public repos                             |
+| GitHub                                   | cloning public repos, sign-in (optional)         |

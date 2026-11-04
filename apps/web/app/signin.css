@@ -61,7 +61,7 @@
   margin-top: 16px;
 }
 
-/* Continue with Google: the same pill as the blue button, white with the Google G */
+/* Continue with Google/GitHub: the same pill as the blue button, white with the provider mark */
 .gbtn {
   display: flex;
   align-items: center;
@@ -87,12 +87,13 @@
   color: var(--dim);
   cursor: default;
 }
-.gg {
+.gg,
+.gh {
   width: 18px;
   height: 18px;
   flex: none;
 }
-/* the "or" between Google and the email code box */
+/* the "or" between the social buttons and the email code box */
 .sor {
   display: flex;
   align-items: center;

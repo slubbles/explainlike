@@ -50,7 +50,11 @@ test("googleEnabled needs both settings, and blank counts as missing", async () 
 
 test("flag off: auth-config reports no sign-in and no Google", async () => {
   const { GET } = await authConfig();
-  assert.deepEqual(await (await GET(new Request("http://x/api/auth-config"))).json(), { enabled: false, google: false });
+  assert.deepEqual(await (await GET(new Request("http://x/api/auth-config"))).json(), {
+    enabled: false,
+    google: false,
+    github: false,
+  });
 });
 
 test("flag on without the Google settings: google is false", async () => {
@@ -59,7 +63,14 @@ test("flag on without the Google settings: google is false", async () => {
   await quiet(async () => {
     const { GET } = await authConfig();
     const body = (await (await GET(new Request("http://x/api/auth-config"))).json()) as Record<string, unknown>;
-    assert.deepEqual(body, { enabled: true, turnstileSiteKey: "test-site-key", user: null, videos: null, google: false });
+    assert.deepEqual(body, {
+      enabled: true,
+      turnstileSiteKey: "test-site-key",
+      user: null,
+      videos: null,
+      google: false,
+      github: false,
+    });
   });
 });
 
