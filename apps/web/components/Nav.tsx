@@ -20,6 +20,18 @@ export default function Nav() {
             GitHub
           </a>
           <AuthNav />
+          <details className="navmenu">
+            <summary aria-label="Menu">
+              <span aria-hidden="true">☰</span>
+            </summary>
+            <div className="navdrop">
+              <a href="/gallery">Examples</a>
+              <a href="/docs">Docs</a>
+              <a href="https://github.com/slubbles/explanimate" target="_blank" rel="noreferrer">
+                GitHub
+              </a>
+            </div>
+          </details>
         </div>
       </div>
     </nav>

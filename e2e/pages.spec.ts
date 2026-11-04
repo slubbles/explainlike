@@ -30,7 +30,10 @@ test("the landing page explains the product and links the docs", async ({ page }
   await expect(page.getByRole("heading", { level: 1 })).toContainText("Explained in a video");
   await expect(page.getByLabel("Link or topic to explain").first()).toBeVisible();
   await expect(page.getByRole("heading", { name: "Watch your video draw itself." })).toBeVisible();
-  await page.getByRole("link", { name: "Docs" }).first().click();
+  // on phones the nav links hide behind the menu button
+  const docs = page.locator("nav.nav").getByRole("link", { name: "Docs" });
+  if (!(await docs.isVisible())) await page.getByRole("button", { name: "Menu" }).click();
+  await docs.click();
   await expect(page).toHaveURL(/\/docs$/);
 });
 

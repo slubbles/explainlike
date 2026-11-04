@@ -443,19 +443,18 @@
 }
 
 @media (max-width: 1180px) {
+  /* 1024-1180 keeps all three columns, tightened so the content keeps room */
   .layout {
-    grid-template-columns: 248px minmax(0, 1fr);
+    grid-template-columns: 232px minmax(0, 1fr) 200px;
     gap: 40px;
-  }
-  .toc {
-    display: none;
   }
   .main {
     max-width: 780px;
   }
 }
 
-@media (max-width: 860px) {
+@media (max-width: 1023px) {
+  /* below 1024 the sidebar collapses into the section menu and the rail goes away */
   .page {
     padding: 104px 0 80px;
   }
@@ -464,6 +463,9 @@
     padding: 0 16px;
   }
   .side {
+    display: none;
+  }
+  .toc {
     display: none;
   }
   .menu {

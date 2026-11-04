@@ -47,6 +47,15 @@ h2 { font-size: clamp(30px, 3.6vw, 44px); line-height: 1.05; font-weight: 450; l
 .ghost { border: 1px solid #2a2a2a; padding: 7px 14px; border-radius: 8px; color: var(--ink); }
 .ghost:hover { border-color: rgba(255, 255, 255, .3); }
 .navuser { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; font-size: 13px; color: var(--dim); }
+/* narrow-screen menu: a dropdown holding the same three links, hidden on desktop */
+.navmenu { display: none; position: relative; margin: 0; }
+.navmenu summary { list-style: none; display: flex; align-items: center; justify-content: center; min-width: 44px; min-height: 44px; border: 1px solid #2a2a2a; border-radius: 8px; color: var(--ink); cursor: pointer; font-size: 16px; }
+.navmenu summary::-webkit-details-marker { display: none; }
+.navmenu summary:hover { border-color: rgba(255, 255, 255, .3); }
+.navmenu:not([open]) .navdrop { display: none; }
+.navdrop { position: absolute; right: 0; top: calc(100% + 8px); z-index: 30; min-width: 180px; background: #141414; border: 1px solid #2e2e2e; border-radius: 12px; box-shadow: 0 20px 50px rgba(0, 0, 0, .8); padding: 6px; }
+.navdrop a { display: flex; align-items: center; min-height: 44px; padding: 8px 12px; border-radius: 7px; color: #bdbdbd; font-size: 14px; }
+.navdrop a:hover { background: #1d1d1d; color: #fff; }
 .page { padding: 0 0 56px; }
 
 /* shared landing wrap */
@@ -373,11 +382,11 @@ footer .l a, footer .flogo { display: inline-flex; align-items: center; min-heig
 }
 @media (max-width: 600px) {
   body { font-size: 14.5px; }
-  .nav .wrap { min-height: 64px; gap: 8px; flex-wrap: wrap; padding-top: 6px; padding-bottom: 6px; }
-  /* the nav fits 305px wide without scrolling sideways: tighter pills, the email moves out, and the pills wrap under the brand instead of overflowing */
-  .navr { gap: 0; font-size: 13.5px; flex-wrap: wrap; row-gap: 2px; margin-left: auto; }
-  .navl { padding: 8px; min-height: 44px; display: inline-flex; align-items: center; }
-  .gh { padding: 0 12px; margin-left: 4px; }
+  .nav .wrap { min-height: 64px; gap: 8px; }
+  /* one row on phones: the brand, the sign-in and the menu button; the links live in the menu */
+  .navr { gap: 8px; margin-left: auto; }
+  .navr > a.navl, .navr > a.gh { display: none; }
+  .navmenu { display: block; }
   .navuser .who { display: none; }
   .hero { padding-top: 72px; }
   .sub { font-size: 16.5px; }
@@ -422,6 +431,4 @@ footer .l a, footer .flogo { display: inline-flex; align-items: center; min-heig
 @media (max-width: 360px) {
   .nav .wrap { width: calc(100% - 32px); }
   .brand { font-size: 16px; }
-  .navl { padding: 8px 5px; }
-  .gh { padding: 0 10px; margin-left: 2px; font-size: 13.5px; }
 }
