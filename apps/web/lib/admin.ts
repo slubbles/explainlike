@@ -7,6 +7,7 @@
 import { authEnabled, sessionUser, type SessionUser } from "./auth";
 import { getD1Db, type D1Db } from "./db";
 import { budget, caps, dailyBudget, dailyCap, dailyReserve, spent, spentToday } from "./guard";
+import { jobTiming } from "./metrics";
 import { defaultDailyVideos, ensureUsageTables, utcDay } from "./usage";
 
 /** The admin addresses from the environment, lowercased. Empty when unset, which denies everyone. */
@@ -88,6 +89,10 @@ export interface AdminVideo {
   created: string;
   status: string;
   cost: number;
+  /** how long the job waited for a render slot, in ms (null when unknown or still waiting) */
+  waitMs: number | null;
+  /** how long the render ran once it had a slot, in ms (null when unknown or unfinished) */
+  renderMs: number | null;
 }
 
 export interface JobLike {
@@ -95,6 +100,9 @@ export interface JobLike {
   state: string;
   costUsd?: number;
   usd?: { total?: number };
+  started?: number;
+  began?: number;
+  finished?: number;
 }
 
 /** The newest videos: owner from D1, live status and cost from the jobs on disk. */
@@ -111,6 +119,10 @@ export async function listAdminVideos(jobs: JobLike[], db: D1Db = getD1Db(), lim
   return rows.map((r) => {
     const full = String(r.input ?? "");
     const j = byId.get(r.id);
+    const t =
+      j?.started === undefined
+        ? undefined
+        : jobTiming({ id: j.id, state: j.state, started: j.started, began: j.began, finished: j.finished });
     return {
       id: r.id,
       input: full.slice(0, 120),
@@ -119,6 +131,8 @@ export async function listAdminVideos(jobs: JobLike[], db: D1Db = getD1Db(), lim
       created: asIso(Number(r.createdAt)),
       status: j?.state ?? "gone",
       cost: j?.costUsd ?? j?.usd?.total ?? 0,
+      waitMs: t?.waitMs ?? null,
+      renderMs: t?.renderMs ?? null,
     };
   });
 }

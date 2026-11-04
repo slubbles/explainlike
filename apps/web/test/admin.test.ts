@@ -215,7 +215,7 @@ test("videos join owners from D1 with live status and cost from disk", async () 
     { id: "aaa", userId: "u1", input: "how DNS works", inputLen: 13, createdAt: at },
     { id: "bbb", userId: "gone", input: "old video", inputLen: 0, createdAt: at - 1000 },
   );
-  const jobs = [{ id: "aaa", state: "done", costUsd: 0.25 }];
+  const jobs = [{ id: "aaa", state: "done", costUsd: 0.25, started: at, began: at + 2000, finished: at + 62000 }];
   assert.deepEqual(await listAdminVideos(jobs, db), [
     {
       id: "aaa",
@@ -225,6 +225,8 @@ test("videos join owners from D1 with live status and cost from disk", async () 
       created: new Date(at).toISOString(),
       status: "done",
       cost: 0.25,
+      waitMs: 2000,
+      renderMs: 60000,
     },
     {
       id: "bbb",
@@ -234,6 +236,8 @@ test("videos join owners from D1 with live status and cost from disk", async () 
       created: new Date(at - 1000).toISOString(),
       status: "gone",
       cost: 0,
+      waitMs: null,
+      renderMs: null,
     },
   ]);
 });
