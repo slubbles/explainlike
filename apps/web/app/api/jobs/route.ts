@@ -9,9 +9,18 @@ import { checkOrigin } from "../../../lib/security";
 
 export const runtime = "nodejs";
 
-export const GET = withErrors("jobs.GET", async () => {
+const NO_STORE = { "cache-control": "no-store" };
+
+/**
+ * The follow-up clips of one job: GET /api/jobs?parent=<id>. Without a parent it answers an empty
+ * list, so nobody can page through other visitors' links. A job is readable by its id anyway.
+ */
+export const GET = withErrors("jobs.GET", async (req: Request) => {
+  const parent = new URL(req.url).searchParams.get("parent");
+  if (!parent || !/^[a-z0-9-]{1,64}$/i.test(parent)) return NextResponse.json([], { headers: NO_STORE });
   return NextResponse.json(
     listJobs()
+      .filter((j) => j.parent === parent)
       .slice(0, 40)
       .map(asSeen)
       .map(({ id, kind, input, approach, voice, state, title, parent, focus, whatIf, costUsd, started, durationSec, outputs }) => ({
@@ -30,6 +39,7 @@ export const GET = withErrors("jobs.GET", async () => {
         durationSec,
         mp4: outputs?.mp4,
       })),
+    { headers: NO_STORE },
   );
 });
 

@@ -38,7 +38,7 @@ with a 415 and caps the size (16 KB, 96 KB for voice turns, 4 KB for client erro
 | `GET /api/runtime-config`        | public read (GA id only)                       | no                      | none                                                |
 | `GET /api/gallery`               | public                                         | no                      | none                                                |
 | `GET /api/gallery/[name]`        | public                                         | no                      | manifest allowlist + file-name pattern              |
-| `GET /api/jobs`                  | public, 40 latest                              | no                      | none                                                |
+| `GET /api/jobs?parent=<id>`      | public, only that job's follow-up clips        | no                      | none                                                |
 | `POST /api/jobs`                 | 401 without a session                          | per-IP + hourly + daily | JSON, link ≤ 2048 chars, URL/topic checks           |
 | `GET /api/jobs/[id]`             | public read by id                              | no                      | id is a map lookup, never a path                    |
 | `GET /api/jobs/[id]/file/[name]` | public read                                    | no                      | id + name patterns, `job.json` excluded             |
@@ -67,8 +67,9 @@ Notes:
   the signed-in address is in `EXPLANIMATE_ADMIN_EMAILS` (comma list, case-insensitive).
   The check runs on the server for every route and for the page.
 - **Reads stay open**: the landing page, gallery, `/docs`, `/api/health` and job reads work
-  without an account, with or without sign-in turned on. `GET /api/jobs` still lists the
-  newest jobs to anyone who asks (see the "still to do" list in `deploy.md`).
+  without an account, with or without sign-in turned on. `GET /api/jobs` lists only the
+  follow-up clips of the job id it is given, and nothing without one, so other visitors'
+  links cannot be paged through.
 - **Voice** answers only on localhost (`lib/local.ts`): every host and forwarded address
   must be loopback, so a tunnel or proxy is refused.
 - **Job ids and paths**: `[id]` is looked up in memory, never joined into a path; file

@@ -11,5 +11,7 @@ export const GET = withErrors("job.GET", async (_req: Request, ctx: { params: Pr
   if (!job) return NextResponse.json({ error: "not found" }, { status: 404 });
   // the page polls every second: that keeps a waiting job's place, and a job nobody polls is dropped before it starts
   touch(id);
-  return NextResponse.json(asSeen(job));
+  // args hold server paths and are only for resuming after a restart: never sent out
+  const { args: _args, ...shown } = asSeen(job);
+  return NextResponse.json(shown, { headers: { "cache-control": "no-store" } });
 });

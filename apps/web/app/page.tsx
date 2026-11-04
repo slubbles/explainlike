@@ -33,7 +33,7 @@ export default function Home() {
   const [auth, setAuth] = useState<AuthState | null>(null);
   const [signin, setSignin] = useState(false);
   const job = useJob(jobId);
-  const listed = useJobs(bump);
+  const listed = useJobs(jobId, bump);
   const examples = useGallery();
 
   const refreshAuth = async () => {
