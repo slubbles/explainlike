@@ -49,6 +49,12 @@ test("the nav stays one row on phones, with the links behind a menu button", () 
   assert.match(nav, /aria-expanded=\{open\}/);
   assert.match(nav, /\{open && \(/);
   assert.match(nav, /<AuthNav[^>]*\/>/);
+  // Escape closes the open menu and hands focus back to the Menu button
+  assert.match(nav, /document\.addEventListener\("keydown"/, "Esc is heard even when focus sits in the menu");
+  assert.match(nav, /if \(e\.key === "Escape"\)/, "Escape closes the menu");
+  assert.match(nav, /btnRef\.current\?\.focus\(\)/, "focus lands back on the Menu button");
+  // tapping a menu link closes the menu behind it
+  assert.match(nav, /onClick=\{\(\) => setOpen\(false\)\}/, "a menu link click closes the menu");
 });
 
 test("the docs page shows all three columns at 1024px and up", () => {
