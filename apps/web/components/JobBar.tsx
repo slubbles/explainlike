@@ -1,6 +1,6 @@
 "use client";
 import { useState } from "react";
-import { VOICES, type Form } from "../lib/form";
+import { LINK_MAX, VOICES, inputHint, type Form } from "../lib/form";
 import type { Quota } from "./Home";
 import { Arrow, Chevron } from "./Icons";
 
@@ -23,7 +23,8 @@ export default function JobBar({
   quota: Quota;
 }) {
   const [open, setOpen] = useState(false);
-  const ready = !!form.input.trim() && !busy;
+  const hint = inputHint(form.input);
+  const ready = !!form.input.trim() && !busy && !hint.over;
   return (
     <>
       <form
@@ -36,8 +37,10 @@ export default function JobBar({
         <input
           className="in"
           type="text"
-          maxLength={2048}
+          maxLength={LINK_MAX}
           aria-label="Link or topic to explain"
+          aria-invalid={hint.over ? true : undefined}
+          title={hint.over}
           value={form.input}
           onChange={(e) => set({ input: e.target.value })}
           spellCheck={false}
@@ -70,6 +73,11 @@ export default function JobBar({
           </button>
         </div>
       </form>
+      {hint.over && (
+        <p className="count over" role="alert">
+          {hint.over} <span>{hint.count}</span>
+        </p>
+      )}
       {quota === "signin" ? (
         <p className="quota">Sign in to make a video.</p>
       ) : quota ? (

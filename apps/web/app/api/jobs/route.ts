@@ -5,6 +5,7 @@ import { claimOwner, viewerKey } from "../../../lib/owner";
 import { SIGNIN_ERROR, authEnabled, sessionUser } from "../../../lib/auth";
 import { MAX_INPUT_CHARS, clientIp, limitRequest, readBody } from "../../../lib/guard";
 import { claimVideoSlot, recordVideo } from "../../../lib/usage";
+import { inputHint, normalizeInput } from "../../../lib/form";
 import { withErrors } from "../../../lib/route";
 import { checkOrigin } from "../../../lib/security";
 
@@ -30,9 +31,11 @@ export const POST = withErrors("jobs.POST", async (req: Request) => {
   }
   const read = await readBody(req);
   if ("error" in read) return read.error;
-  const input = typeof read.body.input === "string" ? read.body.input.trim() : "";
+  const input = typeof read.body.input === "string" ? normalizeInput(read.body.input) : "";
   if (input.length > MAX_INPUT_CHARS)
     return NextResponse.json({ error: "That link is too long. Paste just the repo, post or article URL." }, { status: 400 });
+  const over = inputHint(input).over;
+  if (over) return NextResponse.json({ error: over }, { status: 400 });
   if (!validInput(input))
     return NextResponse.json({ error: "Paste a GitHub repo, X post or article URL, or name a topic in a few words." }, { status: 400 });
   const no = admit(clientIp(req));

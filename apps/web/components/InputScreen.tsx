@@ -1,5 +1,5 @@
 "use client";
-import { VOICES, type Form, shortLink } from "../lib/form";
+import { LINK_MAX, VOICES, inputHint, type Form, shortLink } from "../lib/form";
 import type { GalleryItem } from "../lib/gallery";
 import type { Quota } from "./Home";
 import Footer from "./Footer";
@@ -51,7 +51,8 @@ function PromptBox({
   talk?: () => void;
   quota: Quota;
 }) {
-  const ready = !!form.input.trim() && !busy;
+  const hint = inputHint(form.input);
+  const ready = !!form.input.trim() && !busy && !hint.over;
   return (
     <form
       className="prompt"
@@ -63,8 +64,10 @@ function PromptBox({
       <input
         className="field"
         type="text"
-        maxLength={2048}
+        maxLength={LINK_MAX}
         aria-label="Link or topic to explain"
+        aria-describedby={hint.count || hint.over ? "input-hint" : undefined}
+        aria-invalid={hint.over ? true : undefined}
         placeholder="Paste a link or name a topic"
         value={form.input}
         onChange={(e) => set({ input: e.target.value })}
@@ -104,6 +107,11 @@ function PromptBox({
           </button>
         </div>
       </div>
+      {(hint.count || hint.over) && (
+        <p className={`count${hint.over ? " over" : ""}`} id="input-hint" aria-live="polite">
+          {hint.over ?? "Topics are a few words; links can be longer."} {hint.count && <span>{hint.count}</span>}
+        </p>
+      )}
       {quota === "signin" ? (
         <p className="quota">Sign in to make a video.</p>
       ) : quota ? (

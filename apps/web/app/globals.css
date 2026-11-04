@@ -73,6 +73,9 @@ button.pill:hover { color: #fff; }
 .pill.on { background: rgba(255, 255, 255, .1); border-color: rgba(255, 255, 255, .16); color: #fff; }
 .pacts { display: flex; gap: 10px; align-items: center; }
 .mic { width: 40px; height: 40px; flex: none; border-radius: 50%; border: 1px solid var(--line2); background: none; color: #e4e4e7; display: grid; place-items: center; }
+.count { margin: 10px 0 0; font-size: 13px; color: var(--mut); display: flex; justify-content: space-between; gap: 12px; }
+.count span { font-variant-numeric: tabular-nums; }
+.count.over { color: var(--red); }
 .mic:hover { border-color: rgba(255, 255, 255, .35); }
 .send { white-space: nowrap; display: inline-flex; align-items: center; justify-content: center; gap: 8px; background: var(--g); color: #fff; border: 0; font-weight: 600; font-size: 14px; height: 40px; padding: 0 18px; border-radius: 999px; box-shadow: inset 0 1px 0 rgba(255, 255, 255, .22); }
 .send:hover { filter: brightness(1.08); }
