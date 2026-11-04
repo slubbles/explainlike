@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { sql } from "kysely";
-import { D1RestDialect, createD1Db, createKysely, d1ConfigFromEnv, ensureTables, getD1Db, type D1Config } from "../lib/db.ts";
+import { D1RestDialect, createD1Db, createKysely, d1ConfigFromEnv, d1Configured, ensureTables, getD1Db, type D1Config } from "../lib/db.ts";
 
 const TOKEN = "test-token-never-logged";
 const base: D1Config = { accountId: "acct", databaseId: "db", token: TOKEN };
@@ -125,14 +125,44 @@ test("the env handle needs all three D1 settings", () => {
   Object.assign(process.env, saved);
 });
 
-test("ensureTables creates usage, user_limits and videos when missing", async () => {
+test("ensureTables creates usage, user_limits, videos and errors when missing", async () => {
   const fetchImpl = stub(d1ok([]));
   await ensureTables(createD1Db({ ...base, fetchImpl }));
-  assert.equal(fetchImpl.calls.length, 3);
+  // 4 CREATEs, the videos column check, and the 3 columns missing on an old table
+  assert.equal(fetchImpl.calls.length, 8);
   const sql = fetchImpl.calls.map((c) => String(c.body.sql)).join("\n");
   assert.match(sql, /CREATE TABLE IF NOT EXISTS usage/);
   assert.match(sql, /CREATE TABLE IF NOT EXISTS user_limits/);
   assert.match(sql, /CREATE TABLE IF NOT EXISTS videos/);
+  assert.match(sql, /CREATE TABLE IF NOT EXISTS errors/);
+  assert.match(sql, /input_len.*status.*cost/s);
+  assert.match(sql, /PRAGMA table_info\(videos\)/);
+  assert.match(sql, /ALTER TABLE videos ADD COLUMN input_len/);
+  assert.match(sql, /ALTER TABLE videos ADD COLUMN status/);
+  assert.match(sql, /ALTER TABLE videos ADD COLUMN cost/);
+});
+
+test("ensureTables skips the videos columns a database already has", async () => {
+  const cols = ["id", "user_id", "input", "created_at", "input_len", "status", "cost"].map((name) => ({ name }));
+  const fetchImpl = stub(d1ok([]), d1ok([]), d1ok([]), d1ok([]), d1ok(cols));
+  await ensureTables(createD1Db({ ...base, fetchImpl }));
+  assert.equal(fetchImpl.calls.length, 5);
+  assert.doesNotMatch(fetchImpl.calls.map((c) => String(c.body.sql)).join("\n"), /ALTER TABLE/);
+});
+
+test("d1Configured is true only with all three D1 settings", () => {
+  const saved = { ...process.env };
+  delete process.env.EXPLANIMATE_CF_ACCOUNT_ID;
+  delete process.env.EXPLANIMATE_D1_DATABASE_ID;
+  delete process.env.EXPLANIMATE_D1_TOKEN;
+  assert.equal(d1Configured(), false);
+  process.env.EXPLANIMATE_CF_ACCOUNT_ID = "a";
+  process.env.EXPLANIMATE_D1_DATABASE_ID = "b";
+  assert.equal(d1Configured(), false);
+  process.env.EXPLANIMATE_D1_TOKEN = "c";
+  assert.equal(d1Configured(), true);
+  for (const k of ["EXPLANIMATE_CF_ACCOUNT_ID", "EXPLANIMATE_D1_DATABASE_ID", "EXPLANIMATE_D1_TOKEN"]) delete process.env[k];
+  Object.assign(process.env, saved);
 });
 
 test("the Kysely dialect runs queries through D1 REST with no-op transactions", async () => {
