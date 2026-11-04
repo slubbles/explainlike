@@ -38,40 +38,41 @@ const escapeHtml = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;")
 export type OtpEmail = { subject: string; text: string; html: string };
 
 /**
- * The login-code message: a plain-text part plus a designed HTML part. The HTML is
- * tables with inline CSS only (no style blocks, scripts or SVG), so it renders in
- * strict email clients; the logo is a PNG served from public/email/logo.png.
+ * The login-code message: a plain-text part plus the approved v2 HTML design. The HTML
+ * is tables with inline CSS only (no style blocks, scripts or SVG), so it renders in
+ * strict email clients; the logo and the copy icon are PNGs from public/email/. The code
+ * sits left-aligned next to a blue Copy code button that opens /copy?c= for one-tap copy.
  */
 export function buildOtpEmail(otp: string): OtpEmail {
   const subject = `Your Explanimate code: ${otp}`;
-  const text = `Your Explanimate code is ${otp}. It expires in 10 minutes. If you did not ask for this, ignore it.`;
+  const copyUrl = `${SITE_URL}/copy?c=${encodeURIComponent(otp)}`;
+  const text =
+    `Your Explanimate code is ${otp}. It expires in 10 minutes. ` + `If you did not ask for this, ignore it. Copy it here: ${copyUrl}`;
   const code = escapeHtml(otp);
-  const font = "font-family:Inter,-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;";
+  const link = escapeHtml(copyUrl);
+  const font = "font-family:Inter,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;";
+  const mono = "font-family:'Geist Mono',ui-monospace,SFMono-Regular,Menlo,Consolas,'Courier New',monospace;";
+  // one chunk per output line, matching the approved v2 design line for line
   const html =
-    `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>` +
-    `<body style="margin:0;padding:0;background-color:#0a0a0a;">` +
-    `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#0a0a0a;">` +
-    `<tr><td align="center" style="padding:32px 16px;">` +
-    `<table role="presentation" width="480" cellpadding="0" cellspacing="0" style="width:480px;max-width:100%;background-color:#111111;border:1px solid #1f1f1f;border-radius:12px;">` +
-    `<tr><td style="padding:32px 32px 28px 32px;${font}">` +
-    `<table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr>` +
-    `<td width="36" style="width:36px;vertical-align:middle;"><img src="${SITE_URL}/email/logo.png" width="28" height="28" alt="Explanimate" style="display:block;width:28px;height:28px;border:0;"></td>` +
-    `<td style="font-size:15px;font-weight:600;color:#ededed;vertical-align:middle;">Explanimate</td>` +
-    `</tr></table>` +
-    `<h1 style="margin:24px 0 8px 0;font-size:22px;font-weight:600;line-height:1.3;color:#ffffff;">Your sign-in code</h1>` +
-    `<p style="margin:0 0 20px 0;font-size:14px;line-height:1.5;color:#a1a1a1;">Enter this code on explanimate.co to finish signing in.</p>` +
-    `<table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr>` +
-    `<td align="center" style="background-color:#0a0a0a;border:1px solid #262626;border-left:3px solid #0082fb;border-radius:6px;padding:20px 16px 20px 26px;">` +
-    `<span style="font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,'Liberation Mono',monospace;font-size:36px;letter-spacing:10px;color:#ffffff;">${code}</span>` +
-    `</td></tr></table>` +
-    `<p style="margin:20px 0 0 0;font-size:13px;line-height:1.5;color:#8a8a8a;">It expires in 10 minutes. If you didn&apos;t ask for this code, you can ignore this email.</p>` +
-    `<table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr>` +
-    `<td style="padding:24px 0 16px 0;border-bottom:1px solid #1f1f1f;"></td>` +
-    `</tr></table>` +
-    `<p style="margin:16px 0 0 0;font-size:12px;line-height:1.5;color:#666666;">Explanimate turns any repo, article or idea into a narrated whiteboard video.<br><a href="${SITE_URL}" style="color:#0082fb;text-decoration:none;">explanimate.co</a></p>` +
-    `</td></tr></table>` +
-    `</td></tr></table>` +
-    `</body></html>`;
+    `<!doctype html><html><head><meta charset="utf-8"><meta name="color-scheme" content="dark"><title>Your Explanimate code</title></head>\n` +
+    `<body style="margin:0;padding:0;background:#0a0a0a;">\n` +
+    `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#0a0a0a;"><tr><td align="center" style="padding:48px 16px;">\n` +
+    `<table role="presentation" width="480" cellpadding="0" cellspacing="0" border="0" style="width:480px;max-width:100%;background:#111111;border:1px solid #1f1f1f;border-radius:12px;">\n` +
+    `<tr><td style="padding:32px 36px 0 36px;${font}">\n` +
+    `<table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr>\n` +
+    `<td style="vertical-align:middle;padding-right:10px;"><img src="${SITE_URL}/email/logo.png" width="24" height="24" alt="Explanimate" style="display:block;width:24px;height:24px;border:0;"></td>\n` +
+    `<td style="vertical-align:middle;font-size:15px;font-weight:600;color:#ededed;letter-spacing:-0.01em;">Explanimate</td></tr></table></td></tr>\n` +
+    `<tr><td style="padding:32px 36px 0 36px;${font}">\n` +
+    `<h1 style="margin:0;font-size:22px;line-height:30px;font-weight:600;color:#ffffff;letter-spacing:-0.02em;">Your sign-in code</h1>\n` +
+    `<p style="margin:10px 0 0 0;font-size:14px;line-height:22px;color:#a1a1a1;">Enter this code on explanimate.co to finish signing in.</p></td></tr>\n` +
+    `<tr><td style="padding:24px 36px 0 36px;">\n` +
+    `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#0a0a0a;border:1px solid #262626;border-left:3px solid #0082fb;border-radius:8px;"><tr>\n` +
+    `<td align="left" style="padding:22px 0 22px 24px;${mono}font-size:36px;line-height:40px;font-weight:600;letter-spacing:10px;color:#ffffff;">${code}</td><td align="right" style="padding:0 16px 0 8px;"><a href="${link}" style="display:inline-block;padding:10px 14px;background:#0082fb;border-radius:6px;${font}font-size:13px;line-height:16px;font-weight:600;color:#ffffff;text-decoration:none;white-space:nowrap;"><img src="${SITE_URL}/email/copy.png" width="14" height="14" alt="" style="vertical-align:-2px;margin-right:6px;border:0;">Copy code</a></td></tr></table></td></tr>\n` +
+    `<tr><td style="padding:20px 36px 32px 36px;${font}font-size:13px;line-height:20px;color:#8a8a8a;">\n` +
+    `It expires in 10 minutes. If you didn't ask for this code, you can ignore this email.</td></tr>\n` +
+    `<tr><td style="padding:18px 36px;border-top:1px solid #1f1f1f;${font}font-size:12px;line-height:18px;color:#666666;">\n` +
+    `Explanimate turns any repo, article or idea into a narrated whiteboard video.<br><a href="${SITE_URL}" style="color:#8a8a8a;text-decoration:underline;">explanimate.co</a></td></tr>\n` +
+    `</table></td></tr></table></body></html>\n`;
   return { subject, text, html };
 }
 
