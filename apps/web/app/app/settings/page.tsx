@@ -7,7 +7,7 @@ import { DeleteAccountButton, SignOutButton } from "./actions";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-export const metadata = { title: "Settings — Explanimate" };
+export const metadata = { title: "Settings · Explanimate" };
 
 /** The account: its address, sign out, and the way out entirely. */
 export default async function SettingsPage() {

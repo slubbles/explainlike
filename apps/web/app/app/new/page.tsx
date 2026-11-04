@@ -6,7 +6,7 @@ import VideoWorkspace from "../components/VideoWorkspace";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-export const metadata = { title: "New video — Explanimate" };
+export const metadata = { title: "New video · Explanimate" };
 
 /** The full editor: the prompt box (?prompt= pre-fills it), then progress and the result. The layout already gated the visit; the quota and the sign-in panel's public settings travel as props, so nothing fetches. */
 export default async function NewPage({ searchParams }: { searchParams: Promise<{ prompt?: string }> }) {

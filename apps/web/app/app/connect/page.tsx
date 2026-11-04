@@ -3,7 +3,7 @@ import { MCP_SNIPPETS } from "../../../lib/mcp";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-export const metadata = { title: "Connect — Explanimate" };
+export const metadata = { title: "Connect · Explanimate" };
 
 const ASK = `/explanimate how does this repo work
 /explanimate explain what this repo is about https://github.com/milind-soni/OpenMausBot`;

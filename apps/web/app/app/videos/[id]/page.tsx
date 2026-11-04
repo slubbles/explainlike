@@ -8,7 +8,7 @@ import VideoWorkspace from "../../components/VideoWorkspace";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-export const metadata = { title: "Video — Explanimate" };
+export const metadata = { title: "Video · Explanimate" };
 
 /** One video: progress while it draws, then the player, follow-ups and downloads. Anyone signed in with the link may watch, like the shared landing link; only the owner may delete. The layout already gated the visit; the quota and the sign-in panel's public settings travel as props, so nothing fetches. */
 export default async function VideoPage({ params }: { params: Promise<{ id: string }> }) {
