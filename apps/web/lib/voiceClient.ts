@@ -1,5 +1,6 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { micError } from "./voiceHost";
 import type { Turn } from "./voice";
 import { greeting } from "./voice";
 
@@ -268,6 +269,7 @@ export function useVoice(o: { typed?: string; voice: string; onJob: (job: Starte
     const stale = () => s.run !== run || s.closed;
     (async () => {
       try {
+        if (!navigator.mediaDevices?.getUserMedia) throw new TypeError("no mediaDevices");
         const mic = await navigator.mediaDevices.getUserMedia({
           audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
         });
@@ -312,13 +314,7 @@ export function useVoice(o: { typed?: string; voice: string; onJob: (job: Starte
         };
       } catch (e) {
         if (stale()) return;
-        setError(
-          e instanceof Error && e.name === "NotAllowedError"
-            ? "Microphone access was blocked."
-            : e instanceof Error
-              ? e.message
-              : "voice mode could not start",
-        );
+        setError(micError(e));
         setStatus("error");
       }
     })();
