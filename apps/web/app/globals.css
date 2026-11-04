@@ -31,6 +31,7 @@ img, video { max-width: 100%; }
 .navl:hover { color: #fff; }
 .gh { display: inline-flex; align-items: center; height: 40px; padding: 0 18px; border-radius: 999px; border: 1px solid var(--line2); background: rgba(255, 255, 255, .04); color: #fff; font-weight: 500; font-size: 14px; }
 .gh:hover { border-color: rgba(255, 255, 255, .3); }
+.navuser { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
 .page { padding: 0 0 56px; }
 
 /* shared landing wrap */
@@ -277,10 +278,8 @@ h2 { font-size: clamp(28px, 1.1vw + 24px, 40px); }
 }
 @media (max-width: 900px) {
   .main, .main.solo { grid-template-columns: minmax(0, 1fr); max-width: 720px; }
-  .main:not(.solo) { row-gap: 0; }
-  .main:not(.solo) .col { display: contents; }
-  .main:not(.solo) .side { order: 1; margin-top: 24px; }
-  .main:not(.solo) .col > :not(.player) { order: 2; }
+  /* one column reads in source order: video, title and downloads, then the Q&A panel */
+  .main:not(.solo) { row-gap: 24px; }
   section.blk { padding: 88px 0; }
   .steps5 { grid-template-columns: repeat(3, minmax(0, 1fr)); row-gap: 28px; }
   .three { grid-template-columns: minmax(0, 1fr); max-width: 640px; }
@@ -292,7 +291,12 @@ h2 { font-size: clamp(28px, 1.1vw + 24px, 40px); }
 }
 @media (max-width: 600px) {
   body { font-size: 14.5px; }
-  .nav { height: 64px; } .nav .wrap { height: 64px; }
+  .nav { height: 64px; } .nav .wrap { height: 64px; gap: 8px; }
+  /* the nav fits 305px wide without scrolling sideways: tighter pills, the email moves out */
+  .navr { gap: 0; font-size: 13.5px; }
+  .navl { padding: 8px; min-height: 44px; display: inline-flex; align-items: center; }
+  .gh { height: 40px; padding: 0 12px; margin-left: 4px; }
+  .navuser .who { display: none; }
   .hero .in { padding-top: 104px; }
   h1 br { display: none; }
   .sub { font-size: 15.5px; }
@@ -328,4 +332,10 @@ h2 { font-size: clamp(28px, 1.1vw + 24px, 40px); }
   .page.job { padding-top: 88px; }
   .main { margin-top: 16px; gap: 16px; }
   .row2 { flex-direction: column; }
+}
+@media (max-width: 360px) {
+  .nav .wrap { width: calc(100% - 32px); }
+  .brand { font-size: 16px; }
+  .navl { padding: 8px 5px; }
+  .gh { padding: 0 10px; margin-left: 2px; font-size: 13.5px; }
 }
