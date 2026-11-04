@@ -56,6 +56,9 @@ explanimate/
 │   ├── app/api/jobs/...      start a video, check progress, fetch files, explain a box, follow-up clips
 │   ├── app/api/voice/...     voice-mode chat: speak, listen, take a turn (localhost only)
 │   ├── app/api/health        says whether the machine can make a video right now
+│   ├── app/app/...             /app: the signed-in dashboard (overview, editor, videos, connect, usage, settings)
+│   ├── app/api/me/...          the account's videos (list, delete) and account deletion
+│   ├── lib/videos.ts           one account's videos joined with live jobs, ownership-checked deletes
 │   ├── lib/jobs.ts           the job store and the silent queue (one JSON file per job, no database)
 │   ├── lib/guard.ts          spend guard: pauses new work before a spend cap is crossed
 │   ├── lib/serve.ts, validate.ts, reach.ts   rate limits, input checks, private-address blocking
