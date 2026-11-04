@@ -39,11 +39,13 @@ curl -s localhost:3000/api/health
   "ok": true,
   "checks": { "ffmpeg": true, "chrome": true, "modelKey": true, "voiceKey": true, "jobsDir": true },
   "paused": false,
-  "problems": []
+  "problems": [],
+  "fallbacks": { "llm": true, "tts": false }
 }
 ```
 
 - Keys appear only as `true` or `false`, never their values.
+- `fallbacks` says which backup AI services are configured: OpenRouter for Meta Muse calls, Cartesia for Deepgram narration.
 - `modelKey` is the key for the Muse Spark provider in use: `OPENROUTER_API_KEY` on OpenRouter, `MODEL_API_KEY` on Meta.
 - `voiceKey: false` is not a failure. Videos then render silent with captions.
 - `paused: true` means demo-only mode is on or a spend cap is reached. The server is still healthy.

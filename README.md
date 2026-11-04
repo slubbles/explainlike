@@ -14,7 +14,7 @@ _Above: 12 seconds from a 2-minute video about [milind-soni/OpenMausBot](https:/
 
 1. **Paste a link or a topic.** A repo, an article, an X post, or just words on the site or the CLI.
 2. **Muse plans the explanation.** It reads the source, maps the architecture against the code, and writes the narration.
-3. **The board draws itself in sync.** Deepgram speaks each scene while the hand-drawn board builds on the words being said.
+3. **The board draws itself in sync.** Deepgram speaks each scene (Cartesia Sonic backs it up when its key is set) while the hand-drawn board builds on the words being said.
 4. **Take the video and the boards.** An mp4 plus `.tldr` and `.excalidraw` boards, with a manifest of every check that ran.
 
 ## What it does
@@ -68,6 +68,15 @@ Every job spends your API credits. The web app has a per-IP rate limit, size lim
 
 If a server restart cuts a video off, it starts again on its own the next time the app loads. Every setting is listed in [`.env.example`](.env.example).
 
+## Configuration
+
+Every setting is listed in [`.env.example`](.env.example). Each AI service has a backup for when it fails:
+
+- **Muse Spark** runs on Meta (`EXPLANIMATE_LLM_PROVIDER=meta`) or through OpenRouter (the default when `OPENROUTER_API_KEY` is set). When Meta is primary and a call fails after its retries, it is tried once on OpenRouter's `meta/muse-spark-1.3` if that key is set; otherwise the error surfaces.
+- **Voice** is Deepgram Aura (`DEEPGRAM_API_KEY`); without it videos render silent. When Deepgram fails and `CARTESIA_API_KEY` is set, the scene falls back to Cartesia Sonic instead (`--voice cartesia` uses it directly; `CARTESIA_VOICE_ID` picks the voice).
+
+`/api/health` reports `fallbacks: { llm, tts }`, so a deployment can see which backups are configured (booleans only, never keys).
+
 ## Checks
 
 ```bash
@@ -82,7 +91,7 @@ The tests need ffmpeg and Chrome but no API keys.
 pnpm explanimate <github url | local repo folder | article url | x.com post url | "a topic"> [options]
 
   --out <dir>                 output folder (default ./explanimate-out/<name>)
-  --voice <deepgram|silent>   default: deepgram when DEEPGRAM_API_KEY is set
+  --voice <deepgram|cartesia|silent>   default: deepgram when DEEPGRAM_API_KEY is set
   --fresh                     plan again instead of using the cached plan
   --goal <text>               what you want to understand
   --audience <text>           who it is for
@@ -198,7 +207,7 @@ Want to call it from your own code instead? `packages/api` runs the same jobs ov
 
 1. **Read.** It takes a digest of the repo (file tree, manifests, entry points, configs; secret files are never opened) or the article's text. A plain topic is looked up on Wikipedia, and the article plus up to two reputable pages it cites (standards bodies, universities, governments, major outlets) are read; every quote on screen comes from them, and the sources are named in the video, `sources.md` and the manifest.
 2. **Plan.** Muse Spark maps the architecture, checks every box against real files, picks an approach and writes the scenes and narration.
-3. **Voice.** Deepgram Aura reads the script, and word timestamps let each box draw in on the word that names it.
+3. **Voice.** Deepgram Aura reads the script (Cartesia Sonic when Deepgram fails and its key is set), and word timestamps let each box draw in on the word that names it.
 4. **Draw.** The scenes become one hand-drawn SVG canvas with a moving camera. Skia draws the frames on a few threads and streams them into ffmpeg (NVENC when a GPU is there, else libx264). Set `EXPLANIMATE_RENDERER=chrome` to draw them in headless Chrome instead; Skia falls back to Chrome on its own if it cannot load.
 5. **Check.** The frames and both boards are checked, and the voiceover is transcribed back and compared with the script.
 
