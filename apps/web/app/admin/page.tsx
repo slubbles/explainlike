@@ -12,7 +12,7 @@ import "./admin.css";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-export const metadata = { title: "Admin — Explanimate" };
+export const metadata = { title: "Admin · Explanimate" };
 
 const when = (iso: string) => (iso.length > 16 ? `${iso.slice(0, 10)} ${iso.slice(11, 16)}` : iso);
 const money = (n: number) => `$${n.toFixed(3)}`;
@@ -43,7 +43,7 @@ export default async function AdminPage() {
   const now = Date.now();
   const m24 = jobMetrics(jobs, now - 24 * 3600_000);
   const mAll = jobMetrics(jobs);
-  const pct = (r: number | null) => (r === null ? "—" : `${Math.round(r * 100)}%`);
+  const pct = (r: number | null) => (r === null ? "n/a" : `${Math.round(r * 100)}%`);
   const recentJobs = jobs.slice(0, 50).map(jobTiming);
 
   return (
@@ -94,7 +94,7 @@ export default async function AdminPage() {
               </div>
               <div>
                 <span>Cost per video (avg)</span>
-                <b>{mAll.avgCostDone === null ? "—" : money(mAll.avgCostDone)}</b>
+                <b>{mAll.avgCostDone === null ? "n/a" : money(mAll.avgCostDone)}</b>
               </div>
             </div>
             <p className="muted small">
@@ -135,7 +135,7 @@ export default async function AdminPage() {
                         <td className="nowrap">{formatMs(t.renderWaitMs)}</td>
                         <td className="nowrap">{formatMs(t.renderMs)}</td>
                         <td className="nowrap">{formatMs(t.totalMs)}</td>
-                        <td className="nowrap">{t.videoSec === null ? "—" : `${Math.round(t.videoSec)}s`}</td>
+                        <td className="nowrap">{t.videoSec === null ? "n/a" : `${Math.round(t.videoSec)}s`}</td>
                         <td className="nowrap">{money(t.cost)}</td>
                       </tr>
                     ))}
@@ -253,7 +253,7 @@ export default async function AdminPage() {
                           {e.name ? `${e.name}: ` : ""}
                           {e.message}
                         </td>
-                        <td className="nowrap">{e.requestId || "—"}</td>
+                        <td className="nowrap">{e.requestId || "n/a"}</td>
                       </tr>
                     ))}
                   </tbody>
