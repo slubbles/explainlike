@@ -4,10 +4,12 @@
  * alias ADMIN_EMAILS; a comma list, matched case-insensitively). Never 403: to anyone else the portal does not exist.
  * All D1 reads use bound parameters; nothing from the request is built into SQL.
  */
+import fs from "node:fs";
+import path from "node:path";
 import { authEnabled, sessionUser, type SessionUser } from "./auth";
 import { getD1Db, type D1Db } from "./db";
 import { budget, caps, dailyBudget, dailyCap, dailyReserve, spent, spentToday } from "./guard";
-import { jobTiming } from "./metrics";
+import { fallbacksFromManifest, jobMetrics, jobTiming, type JobMetrics } from "./metrics";
 import { defaultDailyVideos, ensureUsageTables, utcDay } from "./usage";
 
 /** The admin addresses from the environment, lowercased. Empty when unset, which denies everyone. */
@@ -213,6 +215,192 @@ export function parseLimitEdit(body: Record<string, unknown>): LimitEdit {
   if (!Number.isInteger(limit) || limit < 0 || limit > MAX_ADMIN_LIMIT)
     return { ok: false, error: `The limit is a whole number of videos per day, 0 to ${MAX_ADMIN_LIMIT} (0 is the default).` };
   return { ok: true, email, limit };
+}
+
+/** A job as the live snapshot reads it (the jobs lib's Job fits this shape). */
+export interface LiveSnapshotJob {
+  id: string;
+  kind?: string;
+  state: string;
+  stage?: string;
+  message?: string;
+  pct?: number;
+  started: number;
+  began?: number;
+  finished?: number;
+  durationSec?: number;
+  costUsd?: number;
+  usd?: { meta?: number; voice?: number; total?: number };
+  error?: string;
+  cancelled?: boolean;
+  fallbacks?: { llm: boolean; tts: boolean };
+  input?: string;
+}
+
+export interface LiveActiveJob {
+  id: string;
+  kind: string;
+  state: string;
+  stage: string;
+  message: string;
+  pct: number;
+  started: number;
+  /** place in the wait line (1-based) while still waiting, else null */
+  queuePosition: number | null;
+  cost: number;
+}
+
+/** The jobs running or waiting now, oldest first, each with its stage and place in line. */
+export function selectActiveJobs(jobs: LiveSnapshotJob[], queue: string[]): LiveActiveJob[] {
+  const place = new Map(queue.map((id, i) => [id, i + 1]));
+  return jobs
+    .filter((j) => j.state === "queued" || j.state === "running")
+    .map((j) => ({
+      id: j.id,
+      kind: j.kind ?? "video",
+      state: j.state,
+      stage: j.stage ?? "start",
+      message: j.message ?? "",
+      pct: typeof j.pct === "number" ? j.pct : 0,
+      started: j.started,
+      queuePosition: j.state === "queued" ? (place.get(j.id) ?? null) : null,
+      cost: j.costUsd ?? j.usd?.total ?? 0,
+    }))
+    .sort((a, b) => a.started - b.started);
+}
+
+export interface LiveFailure {
+  id: string;
+  kind: string;
+  input: string;
+  started: number;
+  finished: number | null;
+  error: string;
+}
+
+/** Failed runs, newest first, with their error text. Cancelled ones are left out: their owner stopped them. */
+export function selectFailures(jobs: LiveSnapshotJob[], limit = 10): LiveFailure[] {
+  return jobs
+    .filter((j) => j.state === "error" && !j.cancelled)
+    .sort((a, b) => b.started - a.started)
+    .slice(0, limit)
+    .map((j) => ({
+      id: j.id,
+      kind: j.kind ?? "video",
+      input: (j.input ?? "").slice(0, 120),
+      started: j.started,
+      finished: typeof j.finished === "number" ? j.finished : null,
+      error: (j.error ?? "stopped before the end").slice(0, 300),
+    }));
+}
+
+export interface FallbackUsage {
+  /** finished videos where the backup chat provider answered at least one call */
+  llm: number;
+  /** finished videos where the backup voice spoke at least one scene */
+  tts: number;
+  /** finished videos with an answer (anything unreadable is left out, never an error) */
+  checked: number;
+}
+
+/** Parsed manifest fallbacks by job id (null when unreadable); manifests never change once written. */
+export type ManifestCache = Map<string, { llm: boolean; tts: boolean } | null>;
+
+/**
+ * How many finished videos used each backup provider: recorded on the job when it finished,
+ * else read once from its manifest.json and cached. Only 12-hex ids are read, so an odd id
+ * can never escape the jobs folder.
+ */
+export function fallbackUsage(dir: string, jobs: LiveSnapshotJob[], cache: ManifestCache = new Map()): FallbackUsage {
+  const use: FallbackUsage = { llm: 0, tts: 0, checked: 0 };
+  for (const j of jobs) {
+    if (j.state !== "done") continue;
+    let flags = j.fallbacks;
+    if (!flags) {
+      if (!cache.has(j.id)) {
+        let parsed: { llm: boolean; tts: boolean } | null = null;
+        if (/^[a-f0-9]{12}$/.test(j.id)) {
+          try {
+            parsed = fallbacksFromManifest(JSON.parse(fs.readFileSync(path.join(dir, j.id, "manifest.json"), "utf8")));
+          } catch {
+            /* missing or torn manifest: left out */
+          }
+        }
+        cache.set(j.id, parsed);
+      }
+      flags = cache.get(j.id) ?? undefined;
+    }
+    if (!flags) continue;
+    use.checked++;
+    if (flags.llm) use.llm++;
+    if (flags.tts) use.tts++;
+  }
+  return use;
+}
+
+export interface AdminLive {
+  now: number;
+  /** the sign-in database (D1) is not answering, so signups and videos per day are empty (spend, jobs and fallbacks still work) */
+  dbOff: boolean;
+  active: LiveActiveJob[];
+  queued: number;
+  running: number;
+  signups: { email: string; created: string }[];
+  /** videos started per UTC day, newest first, last 14 days */
+  videosPerDay: UsageDay[];
+  failures: LiveFailure[];
+  spend: SpendSummary;
+  fallbacks: FallbackUsage;
+  /** every job on this server, and the last 24 h (render p50 is medianRenderMs, p95 is p95RenderMs) */
+  metrics: JobMetrics;
+  metrics24h: JobMetrics;
+}
+
+export interface AdminLiveInput {
+  jobs: LiveSnapshotJob[];
+  queue: string[];
+  jobsDir: string;
+  db?: D1Db;
+  cache?: ManifestCache;
+  nowMs?: number;
+}
+
+const manifestCache: ManifestCache = new Map();
+
+/**
+ * Everything the dashboard refreshes, in one object: the page renders it on the server for the
+ * first paint, then /api/admin/live serves it every few seconds. A database failure empties only
+ * the account parts (dbOff says so); nothing here throws for a missing database.
+ */
+export async function getAdminLive(input: AdminLiveInput): Promise<AdminLive> {
+  const { jobs, queue, jobsDir } = input;
+  const nowMs = input.nowMs ?? Date.now();
+  const cache = input.cache ?? manifestCache;
+  let signups: AdminLive["signups"] = [];
+  let videosPerDay: UsageDay[] = [];
+  let dbOff = false;
+  try {
+    const db = input.db ?? getD1Db();
+    const [users, days] = await Promise.all([listAdminUsers(nowMs, db), usagePerDay(db, 14)]);
+    signups = users.slice(0, 10).map((u) => ({ email: u.email, created: u.created }));
+    videosPerDay = days;
+  } catch {
+    dbOff = true;
+  }
+  return {
+    now: nowMs,
+    dbOff,
+    active: selectActiveJobs(jobs, queue),
+    queued: jobs.filter((j) => j.state === "queued").length,
+    running: jobs.filter((j) => j.state === "running").length,
+    signups,
+    videosPerDay,
+    failures: selectFailures(jobs),
+    spend: spendSummary(jobs, jobsDir, nowMs),
+    fallbacks: fallbackUsage(jobsDir, jobs, cache),
+    metrics: jobMetrics(jobs),
+    metrics24h: jobMetrics(jobs, nowMs - 24 * 3600_000),
+  };
 }
 
 /** Set one account's daily override by email. The account signs in once first. */

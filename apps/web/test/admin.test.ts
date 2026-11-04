@@ -5,14 +5,19 @@ import os from "node:os";
 import path from "node:path";
 import {
   adminEmails,
+  fallbackUsage,
+  getAdminLive,
   isAdminEmail,
   listAdminUsers,
   listAdminVideos,
   parseLimitEdit,
   requireAdmin,
+  selectActiveJobs,
+  selectFailures,
   setUserLimit,
   spendSummary,
   usagePerDay,
+  type LiveSnapshotJob,
 } from "../lib/admin.ts";
 import type { D1Bound, D1Db } from "../lib/db.ts";
 
@@ -28,6 +33,7 @@ test.after(() => fs.rmSync(dir, { recursive: true, force: true }));
 const adminUsers = () => import("../app/api/admin/users/route.ts");
 const adminLimits = () => import("../app/api/admin/limits/route.ts");
 const adminMetrics = () => import("../app/api/admin/metrics/route.ts");
+const adminLive = () => import("../app/api/admin/live/route.ts");
 
 /** An in-memory D1 handle that answers the exact statements admin.ts issues. */
 class FakeD1 implements D1Db {
@@ -159,6 +165,9 @@ test("admin routes answer 404 with auth off, without touching the database", asy
   const { GET: metrics } = await adminMetrics();
   const m = await metrics(new Request("http://x/api/admin/metrics"), undefined as never);
   assert.equal(m.status, 404, "the metrics endpoint is admin-only too");
+  const { GET: liveGet } = await adminLive();
+  const l = await liveGet(new Request("http://x/api/admin/live"), undefined as never);
+  assert.equal(l.status, 404);
 });
 
 test("a limit edit is an email and a whole number from 0 to 1000", () => {
@@ -261,6 +270,169 @@ test("usage per day sums videos and counts accounts, newest first", async () => 
     { day: "2026-05-01", videos: 3, users: 2 },
     { day: "2026-04-30", videos: 3, users: 1 },
   ]);
+});
+
+test("the live queue shows running and waiting jobs oldest first, with their place in line", () => {
+  const jobs: LiveSnapshotJob[] = [
+    { id: "b", state: "queued", started: 200, input: "b" },
+    { id: "a", state: "running", stage: "voice", message: "recording", pct: 40, started: 100, usd: { total: 0.05 } },
+    { id: "c", state: "queued", started: 300 },
+    { id: "d", state: "done", started: 50 },
+  ];
+  assert.deepEqual(selectActiveJobs(jobs, ["b", "c"]), [
+    {
+      id: "a",
+      kind: "video",
+      state: "running",
+      stage: "voice",
+      message: "recording",
+      pct: 40,
+      started: 100,
+      queuePosition: null,
+      cost: 0.05,
+    },
+    { id: "b", kind: "video", state: "queued", stage: "start", message: "", pct: 0, started: 200, queuePosition: 1, cost: 0 },
+    { id: "c", kind: "video", state: "queued", stage: "start", message: "", pct: 0, started: 300, queuePosition: 2, cost: 0 },
+  ]);
+});
+
+test("live failures are failed runs newest first, without the cancelled ones", () => {
+  const jobs: LiveSnapshotJob[] = [
+    { id: "old", state: "error", started: 100, finished: 150, error: "boom", input: "how DNS works" },
+    { id: "new", kind: "focus", state: "error", started: 200, error: "bust", input: "x".repeat(200) },
+    { id: "stop", state: "error", cancelled: true, started: 300, error: "Cancelled." },
+    { id: "ok", state: "done", started: 400 },
+  ];
+  assert.deepEqual(selectFailures(jobs), [
+    { id: "new", kind: "focus", input: "x".repeat(120), started: 200, finished: null, error: "bust" },
+    { id: "old", kind: "video", input: "how DNS works", started: 100, finished: 150, error: "boom" },
+  ]);
+  assert.equal(selectFailures(jobs, 1).length, 1);
+});
+
+test("fallback usage prefers the recorded flags and reads older manifests once", () => {
+  const jdir = fs.mkdtempSync(path.join(os.tmpdir(), "el-admin-fb-"));
+  try {
+    const jobs: LiveSnapshotJob[] = [
+      { id: "aaaaaaaaaaaa", state: "done", started: 1, fallbacks: { llm: true, tts: false } },
+      { id: "bbbbbbbbbbbb", state: "done", started: 2 },
+      { id: "cccccccccccc", state: "done", started: 3 },
+      { id: "dddddddddddd", state: "done", started: 4 },
+      { id: "not-an-id!", state: "done", started: 5 },
+      { id: "eeeeeeeeeeee", state: "running", started: 6 },
+    ];
+    fs.mkdirSync(path.join(jdir, "bbbbbbbbbbbb"), { recursive: true });
+    fs.writeFileSync(
+      path.join(jdir, "bbbbbbbbbbbb", "manifest.json"),
+      JSON.stringify({ cost: { voice: "deepgram+cartesia", byModel: { "muse-spark-1.3-contributor": {} } } }),
+    );
+    fs.mkdirSync(path.join(jdir, "dddddddddddd"), { recursive: true });
+    fs.writeFileSync(path.join(jdir, "dddddddddddd", "manifest.json"), "{oops");
+    const cache = new Map();
+    assert.deepEqual(fallbackUsage(jdir, jobs, cache), { llm: 1, tts: 1, checked: 2 });
+    // the manifests were read once: removing one changes nothing afterwards
+    fs.rmSync(path.join(jdir, "bbbbbbbbbbbb", "manifest.json"));
+    assert.deepEqual(fallbackUsage(jdir, jobs, cache), { llm: 1, tts: 1, checked: 2 });
+  } finally {
+    fs.rmSync(jdir, { recursive: true, force: true });
+  }
+});
+
+test("the live snapshot joins the queue, signups, usage, failures, spend, fallbacks and timings", async () => {
+  const saved = { ...process.env };
+  try {
+    delete process.env.EXPLANIMATE_META_CAP_USD;
+    delete process.env.EXPLANIMATE_VOICE_CAP_USD;
+    delete process.env.EXPLANIMATE_DAILY_CAP_USD;
+    const db = new FakeD1();
+    const now = Date.parse("2026-05-01T12:00:00Z");
+    db.users.push({ id: "u1", email: "a@x.co", createdAt: "2026-04-01T10:00:00.000Z" });
+    db.usage.push({ userId: "u1", day: "2026-05-01", videos: 2 });
+    const jobs: LiveSnapshotJob[] = [
+      {
+        id: "aaaaaaaaaaaa",
+        state: "running",
+        stage: "voice",
+        message: "recording",
+        pct: 40,
+        started: now - 60000,
+        began: now - 50000,
+        usd: { meta: 0.1, voice: 0.02, total: 0.12 },
+        input: "how DNS works",
+      },
+      { id: "bbbbbbbbbbbb", state: "queued", started: now - 10000, input: "how TCP works" },
+      {
+        id: "cccccccccccc",
+        state: "done",
+        started: now - 3600000,
+        began: now - 3600000,
+        finished: now - 3500000,
+        usd: { meta: 0.15, voice: 0.05, total: 0.2 },
+        fallbacks: { llm: true, tts: false },
+        input: "x",
+      },
+      {
+        id: "dddddddddddd",
+        state: "error",
+        started: now - 7200000,
+        finished: now - 7100000,
+        error: "the renderer stopped (exit 1)",
+        input: "y",
+      },
+      { id: "eeeeeeeeeeee", state: "error", cancelled: true, started: now - 8000000, error: "Cancelled.", input: "z" },
+    ];
+    const live = await getAdminLive({ jobs, queue: ["bbbbbbbbbbbb"], jobsDir: dir, db, cache: new Map(), nowMs: now });
+    assert.equal(live.now, now);
+    assert.equal(live.dbOff, false);
+    assert.deepEqual(
+      live.active.map((j) => [j.id, j.queuePosition]),
+      [
+        ["aaaaaaaaaaaa", null],
+        ["bbbbbbbbbbbb", 1],
+      ],
+    );
+    assert.deepEqual([live.queued, live.running], [1, 1]);
+    assert.deepEqual(live.signups, [{ email: "a@x.co", created: "2026-04-01T10:00:00.000Z" }]);
+    assert.deepEqual(live.videosPerDay, [{ day: "2026-05-01", videos: 2, users: 1 }]);
+    assert.deepEqual(
+      live.failures.map((f) => f.id),
+      ["dddddddddddd"],
+    );
+    assert.match(live.failures[0].error, /renderer stopped/);
+    assert.deepEqual(live.spend.caps, { meta: 25, voice: 10 });
+    assert.ok(Math.abs(live.spend.today - 0.32) < 1e-9, String(live.spend.today));
+    assert.deepEqual(live.fallbacks, { llm: 1, tts: 0, checked: 1 });
+    assert.deepEqual([live.metrics.total, live.metrics.done, live.metrics.failed, live.metrics.cancelled], [5, 1, 1, 1]);
+    assert.equal(live.metrics.p95RenderMs, 100000);
+    assert.equal(live.metrics24h.total, 5);
+  } finally {
+    for (const k of ["EXPLANIMATE_META_CAP_USD", "EXPLANIMATE_VOICE_CAP_USD", "EXPLANIMATE_DAILY_CAP_USD"]) delete process.env[k];
+    Object.assign(process.env, saved);
+  }
+});
+
+test("the live snapshot still answers when the database is down, with the account parts empty", async () => {
+  const broken = {
+    prepare: () => {
+      throw new Error("D1 is down");
+    },
+  } as unknown as D1Db;
+  const live = await getAdminLive({
+    jobs: [{ id: "a", state: "running", started: 1 }],
+    queue: [],
+    jobsDir: dir,
+    db: broken,
+    cache: new Map(),
+    nowMs: 1000,
+  });
+  assert.equal(live.dbOff, true);
+  assert.deepEqual(live.signups, []);
+  assert.deepEqual(live.videosPerDay, []);
+  assert.deepEqual(
+    live.active.map((j) => j.id),
+    ["a"],
+  );
+  assert.deepEqual(live.spend.caps, { meta: 25, voice: 10 });
 });
 
 test("the spend summary reads today, the daily cap and the lifetime caps", () => {
