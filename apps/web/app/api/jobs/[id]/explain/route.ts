@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { budgetNow, explain } from "../../../../../lib/jobs";
+import { SIGNIN_ERROR, authEnabled, sessionUser } from "../../../../../lib/auth";
 import { field, limitRequest, readBody } from "../../../../../lib/guard";
 
 export const runtime = "nodejs";
@@ -9,6 +10,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
   if (process.env.EXPLANIMATE_DEMO_ONLY === "1") return NextResponse.json({ error: "explanations are off in demo mode" }, { status: 429 });
   const limited = limitRequest(req, "explain");
   if (limited) return limited;
+  if (authEnabled() && !(await sessionUser(req))) return NextResponse.json({ error: SIGNIN_ERROR }, { status: 401 });
   const b = budgetNow();
   if (!b.ok) return NextResponse.json({ error: b.error }, { status: 429 });
   const read = await readBody(req);

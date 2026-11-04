@@ -1,5 +1,6 @@
 import { localOnly } from "../../../../lib/local";
 import { budgetNow, noteSpend } from "../../../../lib/jobs";
+import { SIGNIN_ERROR, authEnabled, sessionUser } from "../../../../lib/auth";
 
 export const runtime = "nodejs";
 
@@ -9,6 +10,7 @@ const VOICE = process.env.EXPLANIMATE_CHAT_VOICE ?? "aura-2-thalia-en";
 export async function GET(req: Request) {
   const no = localOnly(req);
   if (no) return no;
+  if (authEnabled() && !(await sessionUser(req))) return new Response(JSON.stringify({ error: SIGNIN_ERROR }), { status: 401 });
   const text = new URL(req.url).searchParams.get("text")?.trim().slice(0, 400);
   if (!text) return new Response("no text", { status: 400 });
   if (!budgetNow().ok) return new Response("voice budget used up", { status: 429 });
