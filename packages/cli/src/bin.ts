@@ -3,18 +3,11 @@ import path from "node:path";
 import { runExplanimate } from "./pipeline.js";
 import { checkFollowUpArgs, checkPackValues, isExplainRequest, parseLook, parsePath, parseVoice, parseWorkers } from "./args.js";
 import { builtinPackIds } from "@explanimate/render";
-import { adoptLegacyEnv } from "@explanimate/core";
+import { loadDotenvFiles } from "@explanimate/core";
 
-// load .env from the working directory without printing anything
-for (const f of [".env", ".env.local"]) {
-  if (!fs.existsSync(f)) continue;
-  for (const line of fs.readFileSync(f, "utf8").split("\n")) {
-    const m = line.match(/^\s*([A-Z0-9_]+)\s*=\s*(.*)\s*$/);
-    if (m && !process.env[m[1]]) process.env[m[1]] = m[2].replace(/^["']|["']$/g, "");
-  }
-}
-// a .env written before the rename may still use EXPLAINLIKE_* names
-adoptLegacyEnv();
+// load .env from the working directory without printing anything; a .env written
+// before the rename may still use EXPLAINLIKE_* names, which are adopted too
+loadDotenvFiles([".env", ".env.local"]);
 
 const HELP = `explanimate <github-url | local-repo-dir | x.com post url | article url | "a topic in words"> [options]
 
