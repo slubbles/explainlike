@@ -68,3 +68,28 @@ test("below 1024px the docs sidebar collapses into the section menu", () => {
   assert.match(small, /\.toc\s*\{[^}]*display:\s*none/);
   assert.match(small, /\.menu\s*\{[^}]*display:\s*block/);
 });
+
+test("gallery cards show the video length as muted text, on the home wall and at /gallery", () => {
+  const grid = fs.readFileSync(path.join(import.meta.dirname, "../components/GalleryGrid.tsx"), "utf8");
+  assert.match(grid, /className="dur"/, "the card renders the length");
+  assert.match(grid, /dur\(v\.durationSec\)/, "from the item data, showing nothing when unknown");
+  // both walls style it as plain muted text, like the spec: never a pill, and the tag keeps its own pill
+  assert.match(css, /\.vid \.meta \.dur\s*\{[^}]*\}/, "the home wall styles the length");
+  const gallery = fs.readFileSync(path.join(import.meta.dirname, "../app/gallery/gallery.module.css"), "utf8");
+  const dur = gallery.match(/\.dur\)\s*\{[^}]*\}/);
+  assert.ok(dur, "/gallery styles the length");
+  assert.match(dur[0], /color:/);
+  assert.doesNotMatch(dur[0], /border/, "the length is plain text, not a pill");
+  assert.match(gallery, /a\.tag:hover\)\s*\{[^}]*\}/, "the kind tag keeps its hover");
+});
+
+test("privacy and terms share the narrow v4 legal column with hairline dividers", () => {
+  for (const page of ["../app/privacy/page.tsx", "../app/terms/page.tsx"]) {
+    const s = fs.readFileSync(path.join(import.meta.dirname, page), "utf8");
+    assert.match(s, /legal\.module\.css/, `${page} uses the shared legal styles`);
+  }
+  const legal = fs.readFileSync(path.join(import.meta.dirname, "../app/legal.module.css"), "utf8");
+  assert.match(legal, /\.wrap\s*\{[^}]*min\(720px/, "a narrow readable column");
+  assert.match(legal, /\.wrap h2\s*\{[^}]*border-top:\s*1px solid var\(--line\)/, "hairline dividers between sections");
+  assert.match(legal, /\.lead\s*\{[^}]*color:\s*var\(--mut\)/, "muted secondary text from the tokens");
+});
