@@ -29,13 +29,41 @@ test("hover labels on edge tap targets flip inside the video instead of clipping
   assert.match(css, /\.hit\.rr \.tipchip\s*\{[^}]*right:\s*0/);
 });
 
-test("the nav has narrow-screen rules so it never scrolls sideways", () => {
+test("the nav stays one row on phones, with the links behind a menu button", () => {
   const narrow = css.slice(css.lastIndexOf("@media (max-width: 360px)"));
   assert.match(narrow, /\.nav \.wrap\s*\{[^}]*width:/);
-  assert.match(narrow, /\.gh\s*\{[^}]*padding:/);
   assert.match(css, /\.navuser \.who\s*\{\s*display:\s*none/);
-  // with auth on, the pills outgrow 305px: the narrow nav wraps instead of overflowing
+  // the narrow bar never wraps: the inline links hide and a menu button takes their place
   const mid = css.slice(css.indexOf("@media (max-width: 600px)"), css.indexOf("@media (max-width: 360px)"));
-  assert.match(mid, /\.nav \.wrap\s*\{[^}]*flex-wrap:\s*wrap/);
-  assert.match(mid, /\.navr\s*\{[^}]*flex-wrap:\s*wrap/);
+  const navRules = (mid.match(/\.nav[^{]*\{[^}]*\}/g) ?? []).join("\n");
+  assert.doesNotMatch(navRules, /flex-wrap:\s*wrap/);
+  assert.match(mid, /\.navr > a\.navl[^}]*display:\s*none/);
+  assert.match(mid, /\.navmenu\s*\{[^}]*display:\s*block/);
+  // the menu is a closed dropdown: hidden on desktop, its panel hidden until opened
+  assert.match(css, /\.navmenu\s*\{\s*display:\s*none/);
+  assert.match(css, /\.navmenu:not\(\[open\]\) \.navdrop\s*\{[^}]*display:\s*none/);
+  // the menu carries the same three links as the desktop bar, and the sign-in stays put
+  const nav = fs.readFileSync(path.join(import.meta.dirname, "../components/Nav.tsx"), "utf8");
+  for (const href of ['href="/gallery"', 'href="/docs"', 'href="https://github.com/slubbles/explanimate"'])
+    assert.equal(nav.split(href).length - 1, 2, `${href} appears inline and in the menu`);
+  assert.match(nav, /<summary aria-label="Menu">/);
+  assert.match(nav, /<AuthNav \/>/);
+});
+
+test("the docs page shows all three columns at 1024px and up", () => {
+  const docs = fs.readFileSync(path.join(import.meta.dirname, "../app/docs/docs.module.css"), "utf8");
+  assert.match(docs, /\.layout\s*\{[^}]*grid-template-columns:\s*264px minmax\(0, 1fr\) 232px/);
+  // 1024-1180 only tightens the rails; the right rail stays visible
+  const compact = docs.slice(docs.indexOf("@media (max-width: 1180px)"), docs.indexOf("@media (max-width: 1023px)"));
+  assert.match(compact, /\.layout\s*\{[^}]*grid-template-columns:\s*232px minmax\(0, 1fr\) 200px/);
+  assert.doesNotMatch(compact, /\.toc\s*\{[^}]*display:\s*none/);
+});
+
+test("below 1024px the docs sidebar collapses into the section menu", () => {
+  const docs = fs.readFileSync(path.join(import.meta.dirname, "../app/docs/docs.module.css"), "utf8");
+  const small = docs.slice(docs.indexOf("@media (max-width: 1023px)"));
+  assert.match(small, /\.layout\s*\{[^}]*grid-template-columns:\s*minmax\(0, 1fr\)/);
+  assert.match(small, /\.side\s*\{[^}]*display:\s*none/);
+  assert.match(small, /\.toc\s*\{[^}]*display:\s*none/);
+  assert.match(small, /\.menu\s*\{[^}]*display:\s*block/);
 });

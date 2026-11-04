@@ -79,3 +79,44 @@ for (const width of WIDTHS) {
     await expectNavUnclipped(page);
   });
 }
+
+test("the docs page shows the sidebar and the On-this-page rail at 1440 and 1024", async ({ page }) => {
+  for (const width of [1440, 1024]) {
+    await page.setViewportSize({ width, height: 900 });
+    await page.goto("/docs");
+    await expect(page.locator('aside[aria-label="Docs sections"]')).toBeVisible();
+    await expect(page.locator('nav[aria-label="On this page"]')).toBeVisible();
+    // side by side: the sidebar ends before the rail starts
+    const boxes = await page.evaluate(() => {
+      const r = (s: string) => document.querySelector(s)!.getBoundingClientRect().toJSON();
+      return { side: r("aside"), rail: r('nav[aria-label="On this page"]') };
+    });
+    expect(boxes.side.x + boxes.side.width).toBeLessThanOrEqual(boxes.rail.x);
+    await expectNoOverflow(page);
+  }
+});
+
+test("below 1024px the docs sidebar collapses into the section menu", async ({ page }) => {
+  for (const width of [768, 390]) {
+    await page.setViewportSize({ width, height: 900 });
+    await page.goto("/docs");
+    await expect(page.locator('aside[aria-label="Docs sections"]')).toBeHidden();
+    await expect(page.locator('nav[aria-label="On this page"]')).toBeHidden();
+    await expect(page.locator("main details summary")).toBeVisible();
+    await expectNoOverflow(page);
+  }
+});
+
+test("the nav stays one row at 390px, with the links behind the menu", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 900 });
+  await page.goto("/");
+  const nav = page.locator("nav.nav");
+  await expect(nav).toBeVisible();
+  // one row: the bar is its own height, not two stacked rows of pills
+  expect((await nav.boundingBox())!.height).toBeLessThan(100);
+  const docs = nav.getByRole("link", { name: "Docs" });
+  await expect(docs).toBeHidden();
+  await page.getByRole("button", { name: "Menu" }).click();
+  await expect(docs).toBeVisible();
+  await expectNavUnclipped(page);
+});
