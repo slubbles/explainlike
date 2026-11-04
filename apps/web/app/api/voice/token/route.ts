@@ -1,5 +1,6 @@
 import { localOnly } from "../../../../lib/local";
 import { budgetNow } from "../../../../lib/jobs";
+import { SIGNIN_ERROR, authEnabled, sessionUser } from "../../../../lib/auth";
 
 export const runtime = "nodejs";
 
@@ -7,6 +8,7 @@ export const runtime = "nodejs";
 export async function POST(req: Request) {
   const no = localOnly(req);
   if (no) return no;
+  if (authEnabled() && !(await sessionUser(req))) return Response.json({ error: SIGNIN_ERROR }, { status: 401 });
   const key = process.env.DEEPGRAM_API_KEY;
   const b = budgetNow();
   if (!b.ok) return Response.json({ error: b.error }, { status: 429 });

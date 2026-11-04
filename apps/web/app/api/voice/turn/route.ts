@@ -1,7 +1,9 @@
 import { chatUsd, llmProvider } from "@explanimate/core/llm";
 import { localOnly } from "../../../../lib/local";
 import { admit, budgetNow, noteSpend, startJob, validInput } from "../../../../lib/jobs";
+import { SIGNIN_ERROR, authEnabled, sessionUser } from "../../../../lib/auth";
 import { limitRequest, readBody } from "../../../../lib/guard";
+import { claimVideoSlot, recordVideo } from "../../../../lib/usage";
 import { checkRepo } from "../../../../lib/reach";
 import { START_TOOL, readStart, takeSentences, voiceSystem, type Turn } from "../../../../lib/voice";
 
@@ -17,6 +19,12 @@ type Msg = { role: string; content: string | null; tool_calls?: unknown[]; tool_
 export async function POST(req: Request) {
   const no = localOnly(req);
   if (no) return no;
+  let userId: string | undefined;
+  if (authEnabled()) {
+    const u = await sessionUser(req);
+    if (!u) return Response.json({ error: SIGNIN_ERROR }, { status: 401 });
+    userId = u.id;
+  }
   const limited = limitRequest(req, "voice-turn");
   if (limited) return limited;
   const b = budgetNow();
@@ -73,15 +81,26 @@ export async function POST(req: Request) {
             if (missing) result = `error: ${missing}`;
             else if (busy) result = `error: ${busy}`;
             else {
-              const job = startJob(
-                read.req.input,
-                voice,
-                { goal: read.req.goal, audience: read.req.audience, depth: read.req.depth, also: read.req.also },
-                "voice",
-              );
-              send("say", { text: read.confirm });
-              send("job", { id: job.id, ...read.req });
-              break;
+              let blocked: string | undefined;
+              if (userId) {
+                const claim = await claimVideoSlot(userId).catch(() => null);
+                if (!claim) blocked = "could not check your video limit, try again in a moment";
+                else if (!claim.ok) blocked = claim.error;
+              }
+              if (blocked) {
+                result = `error: ${blocked}`;
+              } else {
+                const job = startJob(
+                  read.req.input,
+                  voice,
+                  { goal: read.req.goal, audience: read.req.audience, depth: read.req.depth, also: read.req.also },
+                  "voice",
+                );
+                if (userId) await recordVideo(job.id, userId, read.req.input);
+                send("say", { text: read.confirm });
+                send("job", { id: job.id, ...read.req });
+                break;
+              }
             }
           } else result = `error: ${read.error}`;
           messages.push({

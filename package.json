@@ -8,6 +8,7 @@
   "packageManager": "pnpm@9.15.9",
   "scripts": {
     "explanimate": "tsx packages/cli/src/bin.ts",
+    "set-user-limit": "tsx scripts/set-user-limit.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "web": "pnpm --filter @explanimate/web dev",
     "icons:generate": "tsx scripts/gen-icon-pack.ts",
