@@ -94,7 +94,7 @@ test("only files the manifest names can be fetched, never a path out of the fold
 
 test("a video whose manifest names a .vtt gets a captions URL serving that file", () => {
   const vtt = "WEBVTT\n\n00:00:00.500 --> 00:00:02.000\nHello there\n";
-  const dir = folder([{ id: "a", title: "A", file: "a.mp4", captions: "a.vtt" }], { "a.mp4": "v", "a.vtt": vtt });
+  const dir = folder([{ id: "a", title: "A", file: "a.mp4", captions: "a.vtt", burnedCaptions: false }], { "a.mp4": "v", "a.vtt": vtt });
   const [item] = galleryItems(dir);
   assert.equal(item.captions, galleryCaptionsUrl("a"));
   assert.equal(item.captions, "/api/gallery/captions/a");
@@ -105,8 +105,8 @@ test("a video whose manifest names a .vtt gets a captions URL serving that file"
 test("a .vtt beside the video is picked up without a manifest field; the manifest wins on a clash", () => {
   const dir = folder(
     [
-      { id: "auto", title: "Auto", file: "auto.mp4" },
-      { id: "named", title: "Named", file: "named.mp4", captions: "other.vtt" },
+      { id: "auto", title: "Auto", file: "auto.mp4", burnedCaptions: false },
+      { id: "named", title: "Named", file: "named.mp4", captions: "other.vtt", burnedCaptions: false },
     ],
     {
       "auto.mp4": "v",
@@ -132,8 +132,8 @@ test("film-style timed words in JSON become WebVTT, from the manifest or beside 
   });
   const dir = folder(
     [
-      { id: "m", title: "M", file: "m.mp4", captions: "m.json" },
-      { id: "b", title: "B", file: "b.mp4" },
+      { id: "m", title: "M", file: "m.mp4", captions: "m.json", burnedCaptions: false },
+      { id: "b", title: "B", file: "b.mp4", burnedCaptions: false },
     ],
     { "m.mp4": "v", "m.json": timed, "b.mp4": "v", "b.captions.json": timed },
   );
@@ -198,4 +198,19 @@ test("the gallery captions route serves text/vtt, or 404 without captions", asyn
     if (saved === undefined) delete process.env.EXPLANIMATE_GALLERY_DIR;
     else process.env.EXPLANIMATE_GALLERY_DIR = saved;
   }
+});
+
+test("a video with captions drawn in gets no captions track, so they don't show twice", () => {
+  const vtt = "WEBVTT\n\n00:00:00.500 --> 00:00:02.000\nHello there\n";
+  const dir = folder(
+    [
+      { id: "burned", title: "Burned", file: "burned.mp4" },
+      { id: "plain", title: "Plain", file: "plain.mp4", burnedCaptions: false },
+    ],
+    { "burned.mp4": "v", "burned.vtt": vtt, "plain.mp4": "v", "plain.vtt": vtt },
+  );
+  const [burned, plain] = galleryItems(dir);
+  assert.equal(burned.captions, undefined);
+  assert.equal(plain.captions, "/api/gallery/captions/plain");
+  assert.ok(!("burnedCaptions" in burned));
 });
