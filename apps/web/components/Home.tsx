@@ -115,11 +115,13 @@ export default function Home() {
 
   const busy = job?.state === "running";
 
-  // signed out with auth on: the submit opens the sign-in panel, which sends the request after
+  // with auth on, the landing page only routes: the prompt travels to the dashboard editor,
   async function go() {
     if (posting) return;
-    if (auth?.enabled && !auth.email) {
-      setSignin(true);
+    if (auth?.enabled) {
+      const prompt = form.input.trim();
+      const dest = `/app/new${prompt ? `?prompt=${encodeURIComponent(prompt)}` : ""}`;
+      location.href = auth.email ? dest : `/signin?next=${encodeURIComponent(dest)}`;
       return;
     }
     await submit();
@@ -197,7 +199,8 @@ export default function Home() {
             setSignin(false);
             // the nav and this page's quota both refresh off this (see useEffect above)
             dispatchEvent(new CustomEvent("explanimate:auth-changed"));
-            await submit();
+            // signing in always lands on the dashboard; a typed prompt travels through /signin instead
+            location.href = "/app";
           }}
         />
       )}
