@@ -44,7 +44,7 @@ test("captions become WebVTT; bad cues are skipped and --> is escaped", async ()
   const { captionsVtt } = await import("../lib/captions.ts");
   assert.equal(
     captionsVtt(id, dir),
-    "WEBVTT\n\n00:00:00.500 --> 00:00:02.250\nHello there\n\n00:00:02.500 --> 00:00:04.000\nSecond line\n\n00:00:08.000 --> 00:00:09.500\na—b\n",
+    "WEBVTT\n\n00:00:00.500 --> 00:00:02.250\nHello there\n\n00:00:02.500 --> 00:00:04.000\nSecond line\n\n00:00:08.000 --> 00:00:09.500\na→b\n",
   );
 });
 
