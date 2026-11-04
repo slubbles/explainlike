@@ -18,6 +18,12 @@ export function parseVoice(raw: string | undefined): string | undefined {
   return raw;
 }
 
+export function parseLook(raw: string | undefined): "dark" | "default" | undefined {
+  if (raw === undefined) return undefined;
+  if (raw !== "dark" && raw !== "default") throw new Error(`--look takes dark or default (got "${raw}")`);
+  return raw;
+}
+
 export function checkPackValues(packs: (string | undefined)[]): string[] {
   if (packs.some((p) => p === undefined)) throw new Error("--pack needs a value: an icon pack id or folder");
   return packs as string[];

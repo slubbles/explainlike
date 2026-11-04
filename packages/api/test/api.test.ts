@@ -65,6 +65,16 @@ test("what the viewer asked for reaches the engine and gets its own folder", asy
   );
 });
 
+test("the job name and look reach the render, and a bad look is refused", async () => {
+  const runner = new JobRunner({ cliPath, outRoot: tmp() });
+  const done = await runner.wait(runner.start({ input: "https://github.com/owner/repo", name: "owner/repo", look: "dark" }).id, 10_000);
+  assert.equal(done?.state, "done");
+  const { argv } = JSON.parse(fs.readFileSync(path.join(done!.out, "args.json"), "utf8"));
+  assert.equal(argv[argv.indexOf("--name") + 1], "owner/repo");
+  assert.equal(argv[argv.indexOf("--look") + 1], "dark");
+  assert.throws(() => runner.start({ input: "https://github.com/a/b", look: "neon" as "dark" }), /look is dark or default/);
+});
+
 test("cartesia is an accepted voice and reaches the render", async () => {
   const runner = new JobRunner({ cliPath, outRoot: tmp() });
   const done = await runner.wait(runner.start({ input: "https://github.com/owner/repo", voice: "cartesia" }).id, 10_000);

@@ -119,6 +119,8 @@ export function createExplanimateServer(runner = new JobRunner()) {
           .string()
           .optional()
           .describe("Folder to write the files to. Default: ~/explanimate-videos/<name> (or $EXPLANIMATE_OUT_DIR)."),
+        name: z.string().max(200).optional().describe("Display name for the video's title card, e.g. owner/repo for a local folder."),
+        look: z.enum(["dark", "default"]).optional().describe("dark renders on a black board. Default: the engine picks the look."),
         voice: z
           .enum(["deepgram", "cartesia", "silent"])
           .optional()
@@ -161,6 +163,8 @@ export function createExplanimateServer(runner = new JobRunner()) {
         const job = runner.start({
           input: a.source,
           out: a.outDir,
+          name: a.name,
+          look: a.look,
           voice: a.voice,
           fresh: a.fresh,
           from: a.followUpOf,
