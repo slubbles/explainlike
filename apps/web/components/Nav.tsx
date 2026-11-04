@@ -9,6 +9,9 @@ export default function Nav() {
           <a className="navl" href="/gallery">
             Examples
           </a>
+          <a className="navl" href="/docs">
+            Docs
+          </a>
           <a className="gh" href="https://github.com/slubbles/explanimate" target="_blank" rel="noreferrer">
             GitHub
           </a>
