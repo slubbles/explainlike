@@ -37,7 +37,14 @@ export default function Nav({ initialEmail }: { initialEmail?: string | null }) 
           </a>
           <AuthNav initialEmail={initialEmail} />
           <div className="navmenu">
-            <button ref={btnRef} type="button" className="menubtn" aria-label="Menu" aria-expanded={open} onClick={() => setOpen((v) => !v)}>
+            <button
+              ref={btnRef}
+              type="button"
+              className="menubtn"
+              aria-label="Menu"
+              aria-expanded={open}
+              onClick={() => setOpen((v) => !v)}
+            >
               <span aria-hidden="true">☰</span>
             </button>
             {open && (
