@@ -73,7 +73,7 @@ export default function Home() {
   const watching = useRef<string | null>(null);
   useEffect(() => {
     if (!job) return;
-    if (job.state === "queued" || job.state === "running") watching.current = job.id;
+    if (job.state === "running") watching.current = job.id;
     else if (watching.current === job.id) {
       watching.current = null;
       trackEvent(job.state === "done" ? "video_finished" : "video_failed");
