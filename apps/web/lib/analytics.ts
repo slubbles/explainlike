@@ -10,3 +10,20 @@ export function trackEvent(name: AnalyticsEvent): void {
     /* analytics never breaks the page */
   }
 }
+
+/**
+ * The page_view override for a URL, or null when GA's default location is safe. /copy
+ * links carry the login code in ?c, so there the query string and fragment are stripped
+ * from both page_location and page_path. Nothing else carries secrets in the URL (?job=
+ * ids are public share links), so only /copy is rewritten.
+ */
+export function pageViewOverride(href: string): { page_location: string; page_path: string } | null {
+  let url: URL;
+  try {
+    url = new URL(href);
+  } catch {
+    return null;
+  }
+  if (url.pathname !== "/copy" && !url.pathname.startsWith("/copy/")) return null;
+  return { page_location: `${url.origin}${url.pathname}`, page_path: url.pathname };
+}
