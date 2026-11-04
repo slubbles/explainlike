@@ -1,7 +1,7 @@
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import Nav from "../../components/Nav";
-import { authEnabled, googleEnabled, sessionUser } from "../../lib/auth";
+import { authEnabled, githubEnabled, googleEnabled, sessionUser } from "../../lib/auth";
 import SignInPanel from "./SignInPanel";
 
 export const runtime = "nodejs";
@@ -39,6 +39,7 @@ export default async function SignInPage({ searchParams }: { searchParams: Promi
           enabled={enabled}
           siteKey={process.env.EXPLANIMATE_TURNSTILE_SITE_KEY ?? ""}
           google={googleEnabled(process.env.GOOGLE_CLIENT_ID, process.env.GOOGLE_CLIENT_SECRET)}
+          github={githubEnabled(process.env.GITHUB_CLIENT_ID, process.env.GITHUB_CLIENT_SECRET)}
         />
       </main>
     </>
