@@ -7,7 +7,7 @@ import SignInPanel from "./SignInPanel";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const metadata = {
-  title: "Sign in — Explanimate",
+  title: "Sign in · Explanimate",
   description: "Sign in to Explanimate to make whiteboard explainer videos from your repos, posts, articles and topics.",
   robots: { index: false },
 };
