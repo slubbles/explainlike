@@ -274,6 +274,31 @@ export default function InputScreen({ form, set, go, busy, err, examples, talkin
 
       <section className="blk" style={{ paddingTop: 0 }}>
         <div className="wrap">
+          <h2>Use it in your coding tool</h2>
+          <p className="lead">
+            MCP is a standard way to plug extra tools into AI coding assistants. Connect Explanimate once and you can ask for a video from
+            inside your editor.
+          </p>
+          <div className="tools">
+            <span className="chip">Claude Code</span>
+            <span className="chip">Cursor</span>
+            <span className="chip">Codex</span>
+            <span className="chip">Muse Code</span>
+            <span className="chip">Claude Desktop</span>
+            <span className="chip">VS Code Copilot</span>
+          </div>
+          <div className="ask">
+            <code>/explanimate how does this repo work</code>
+            <p>You get back an mp4 plus .tldr and .excalidraw boards, saved on your machine.</p>
+          </div>
+          <a className="btn solid" style={{ marginTop: 24 }} href="/docs">
+            Set it up
+          </a>
+        </div>
+      </section>
+
+      <section className="blk" style={{ paddingTop: 0 }}>
+        <div className="wrap">
           <div className="cta">
             <h2>Paste a link, or just name a topic.</h2>
             <p className="lead">You get an mp4 plus editable .tldr and .excalidraw boards.</p>
