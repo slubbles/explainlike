@@ -1,0 +1,94 @@
+/* /privacy and /terms: one narrow v4 column both pages share. The type scale
+   follows /docs; the colours come from the globals.css tokens. */
+
+.page {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-sans, var(--sans, Inter, system-ui, -apple-system, sans-serif));
+  padding: 120px 0 120px;
+}
+
+.wrap {
+  width: min(720px, 100% - 32px);
+  margin: 0 auto;
+}
+
+.crumb {
+  color: var(--accent);
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.wrap h1 {
+  font-size: 36px;
+  font-weight: 450;
+  letter-spacing: -0.9px;
+  line-height: 1.1;
+  margin: 10px 0 0;
+  text-wrap: balance;
+}
+
+.lead {
+  font-size: 18px;
+  color: var(--mut);
+  line-height: 1.55;
+  margin: 12px 0 0;
+}
+
+.wrap h2 {
+  font-size: 22px;
+  font-weight: 450;
+  letter-spacing: -0.4px;
+  margin: 40px 0 0;
+  padding-top: 32px;
+  border-top: 1px solid var(--line);
+  scroll-margin-top: 24px;
+}
+
+.wrap p,
+.wrap li {
+  color: #b4b4b4;
+  line-height: 1.7;
+  font-size: 15px;
+}
+
+.wrap p {
+  margin: 12px 0 0;
+}
+
+.wrap ul {
+  padding-left: 20px;
+  margin: 12px 0 0;
+}
+
+.wrap li + li {
+  margin-top: 6px;
+}
+
+.wrap strong {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.wrap a {
+  color: var(--accent);
+  text-decoration: none;
+  overflow-wrap: anywhere;
+}
+
+.wrap a:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+@media (max-width: 1023px) {
+  .page {
+    padding: 104px 0 80px;
+  }
+}
+
+@media (max-width: 600px) {
+  .wrap h1 {
+    font-size: 30px;
+  }
+}
