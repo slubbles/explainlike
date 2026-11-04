@@ -34,6 +34,8 @@ export default function Home() {
   const [bump, setBump] = useState(0);
   const [talking, setTalking] = useState<Talk>(false);
   const [posting, setPosting] = useState(false);
+  // a follow-up starts a paid clip: one tap, one clip, even on a double-click
+  const [followingUp, setFollowingUp] = useState(false);
   const [notes, setNotes] = useState<string[]>([]);
   const [auth, setAuth] = useState<AuthState | null>(null);
   const [signin, setSignin] = useState(false);
@@ -143,9 +145,11 @@ export default function Home() {
   }
 
   async function followUp(body: { focus?: string; whatIf?: string }) {
-    if (!job) return;
+    if (!job || followingUp) return;
+    setFollowingUp(true);
     setErr("");
     const r = await postJson<{ id: string }>(`/api/jobs/${job.id}/followup`, body);
+    setFollowingUp(false);
     if (!r.ok) return setErr(r.error);
     refreshAuth();
     setStarted((f) => [r.data.id, ...f]);
@@ -250,6 +254,7 @@ export default function Home() {
                 clips={clips}
                 pick={pick}
                 followUp={followUp}
+                followBusy={followingUp}
                 err={err}
               />
             )}

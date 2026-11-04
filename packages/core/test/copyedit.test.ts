@@ -31,6 +31,9 @@ test("a top-level domain stays its own word, and real domains and dotted names s
   assert.equal(splitGluedTld("the servers for.com and then.org"), "the servers for .com and then .org");
   assert.equal(splitGluedTld("to.com.au stays"), "to.com.au stays");
   assert.equal(splitGluedTld("google.com and x.com"), "google.com and x.com");
+  assert.equal(splitGluedTld("visit wait-for.com today"), "visit wait-for.com today");
+  assert.equal(splitGluedTld("it syncs with stand-by.io nightly"), "it syncs with stand-by.io nightly");
+  assert.equal(tidySpeech("it syncs with wait-for.com nightly"), "It syncs with wait-for.com nightly.");
 });
 
 test("a dropped article is put back only on a singular subject after a clause word", () => {
