@@ -2,7 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { Interactive } from "./Player";
 import Nav from "./Nav";
-import InputScreen from "./InputScreen";
+import InputScreen, { type Talk } from "./InputScreen";
 import JobBar from "./JobBar";
 import SignIn from "./SignIn";
 import Steps from "./Steps";
@@ -28,7 +28,7 @@ export default function Home() {
   const [explBusy, setExplBusy] = useState(false);
   const [started, setStarted] = useState<string[]>([]);
   const [bump, setBump] = useState(0);
-  const [talking, setTalking] = useState(false);
+  const [talking, setTalking] = useState<Talk>(false);
   const [posting, setPosting] = useState(false);
   const [notes, setNotes] = useState<string[]>([]);
   const [auth, setAuth] = useState<AuthState | null>(null);

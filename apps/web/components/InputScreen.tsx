@@ -6,6 +6,8 @@ import Footer from "./Footer";
 import GalleryGrid from "./GalleryGrid";
 import { Arrow, Mic } from "./Icons";
 import VoiceMode from "./VoiceMode";
+import { useEffect, useState } from "react";
+import { voiceHost } from "../lib/voiceHost";
 import type { StartedJob } from "../lib/voiceClient";
 
 /** six videos fill the home grid, the way the mockup shows; more live behind See all */
@@ -17,6 +19,8 @@ const EXAMPLES = [
   "how DNS works",
 ];
 
+export type Talk = false | "hero" | "cta";
+
 type Props = {
   form: Form;
   set: (f: Partial<Form>) => void;
@@ -24,8 +28,9 @@ type Props = {
   busy: boolean;
   err: string;
   examples: GalleryItem[];
-  talking: boolean;
-  talk: (on: boolean) => void;
+  /** which prompt box opened voice mode, so only that one shows it */
+  talking: Talk;
+  talk: (where: Talk) => void;
   onVoiceJob: (job: StartedJob) => void;
   quota: Quota;
 };
@@ -43,7 +48,7 @@ function PromptBox({
   set: (f: Partial<Form>) => void;
   go: () => void;
   busy: boolean;
-  talk: () => void;
+  talk?: () => void;
   quota: Quota;
 }) {
   const ready = !!form.input.trim() && !busy;
@@ -83,9 +88,11 @@ function PromptBox({
           ))}
         </div>
         <div className="pacts">
-          <button type="button" className="mic" aria-label="Talk it through instead" title="Talk it through instead" onClick={talk}>
-            <Mic />
-          </button>
+          {talk && (
+            <button type="button" className="mic" aria-label="Talk it through instead" title="Talk it through instead" onClick={talk}>
+              <Mic />
+            </button>
+          )}
           <button className="send" type="submit" disabled={!ready} aria-busy={busy}>
             {busy ? (
               "Starting…"
@@ -110,6 +117,15 @@ function PromptBox({
 
 export default function InputScreen({ form, set, go, busy, err, examples, talking, talk, onVoiceJob, quota }: Props) {
   const board = examples[0];
+  // voice runs on localhost only; elsewhere the mic is hidden instead of failing after a click
+  const [canTalk, setCanTalk] = useState(false);
+  useEffect(() => setCanTalk(voiceHost(location.hostname)), []);
+  const box = (where: "hero" | "cta") =>
+    talking === where ? (
+      <VoiceMode typed={form.input.trim() || undefined} voice={form.voice} onJob={onVoiceJob} onEnd={() => talk(false)} />
+    ) : (
+      <PromptBox form={form} set={set} go={go} busy={busy} talk={canTalk ? () => talk(where) : undefined} quota={quota} />
+    );
   return (
     <>
       <section className="hero">
@@ -126,13 +142,7 @@ export default function InputScreen({ form, set, go, busy, err, examples, talkin
             Paste a link, or just name a topic. <br />
             You get an mp4 plus editable .tldr and .excalidraw boards.
           </p>
-          <div className="box">
-            {talking ? (
-              <VoiceMode typed={form.input.trim() || undefined} voice={form.voice} onJob={onVoiceJob} onEnd={() => talk(false)} />
-            ) : (
-              <PromptBox form={form} set={set} go={go} busy={busy} talk={() => talk(true)} quota={quota} />
-            )}
-          </div>
+          <div className="box">{box("hero")}</div>
           {err && (
             <div className="err" id="input-err" role="alert">
               {err}
@@ -313,13 +323,7 @@ export default function InputScreen({ form, set, go, busy, err, examples, talkin
           <div className="cta">
             <h2>Paste a link, or just name a topic.</h2>
             <p className="lead">You get an mp4 plus editable .tldr and .excalidraw boards.</p>
-            <div className="box">
-              {talking ? (
-                <VoiceMode typed={form.input.trim() || undefined} voice={form.voice} onJob={onVoiceJob} onEnd={() => talk(false)} />
-              ) : (
-                <PromptBox form={form} set={set} go={go} busy={busy} talk={() => talk(true)} quota={quota} />
-              )}
-            </div>
+            <div className="box">{box("cta")}</div>
             <p className="note">Private and localhost links are blocked.</p>
           </div>
         </div>
