@@ -1,5 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import fs from "node:fs";
+import path from "node:path";
 
 // GitHub sign-in is offered only when both OAuth settings are set; the helper decides it
 // and /api/auth-config reports it to the sign-in panel. No database here: signed out, the
@@ -115,4 +117,28 @@ test("the auth instance offers the github provider only when both settings are s
     }
     (await auth()).resetAuthForTests();
   }
+});
+
+test("every place that passes google to SignIn also passes github", () => {
+  // SignIn needs both flags; a caller passing only google breaks the build.
+  const root = path.join(import.meta.dirname, "..");
+  for (const f of ["components/Home.tsx", "app/app/components/VideoWorkspace.tsx", "app/signin/SignInPanel.tsx"]) {
+    const src = fs.readFileSync(path.join(root, f), "utf8");
+    assert.ok(src.includes("github={"), `${f} passes github`);
+    assert.equal(src.split("github={").length, src.split("google={").length, `${f} passes github wherever it passes google`);
+  }
+});
+
+test("the server builds the github flag everywhere it builds the google flag, and AuthConfig carries it", () => {
+  const root = path.join(import.meta.dirname, "..");
+  for (const f of ["app/signin/page.tsx", "app/app/page.tsx", "app/app/new/page.tsx", "app/app/videos/[id]/page.tsx"]) {
+    const src = fs.readFileSync(path.join(root, f), "utf8");
+    assert.match(src, /githubEnabled\(process\.env\.GITHUB_CLIENT_ID, process\.env\.GITHUB_CLIENT_SECRET\)/, `${f} passes the github flag`);
+  }
+  assert.match(fs.readFileSync(path.join(root, "lib/session.ts"), "utf8"), /github\?: boolean/, "AuthConfig carries github");
+  assert.match(
+    fs.readFileSync(path.join(root, "app/app/components/VideoWorkspace.tsx"), "utf8"),
+    /initial\?\.github/,
+    "the workspace seeds github from the server",
+  );
 });

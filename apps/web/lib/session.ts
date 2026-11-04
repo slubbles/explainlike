@@ -8,6 +8,7 @@ export interface AuthConfig {
   enabled?: boolean;
   turnstileSiteKey?: string;
   google?: boolean;
+  github?: boolean;
   user?: { email?: string } | null;
   videos?: { used: number; limit: number; left: number } | null;
 }

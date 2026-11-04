@@ -7,11 +7,13 @@ export default function SignInPanel({
   enabled,
   siteKey,
   google,
+  github,
 }: {
   next: string;
   enabled: boolean;
   siteKey: string;
   google: boolean;
+  github: boolean;
 }) {
   if (!enabled)
     return (
@@ -23,6 +25,7 @@ export default function SignInPanel({
     <SignIn
       siteKey={siteKey}
       google={google}
+      github={github}
       onCancel={() => {
         location.href = "/";
       }}
