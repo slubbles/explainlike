@@ -16,3 +16,8 @@ explanimate-out/
 .DS_Store
 *.tsbuildinfo
 .tmp/
+
+# browser test output
+/test-results/
+/playwright-report/
+/blob-report/

@@ -1,0 +1,20 @@
+{
+  "videos": [
+    {
+      "id": "e2e-sample",
+      "title": "E2E sample video",
+      "kind": "repo",
+      "source": "https://github.com/slubbles/explanimate",
+      "durationSec": 2,
+      "file": "sample.mp4",
+      "poster": "sample.jpg"
+    },
+    {
+      "id": "e2e-no-poster",
+      "title": "E2E sample without a poster",
+      "kind": "topic",
+      "durationSec": 2,
+      "file": "sample.mp4"
+    }
+  ]
+}
