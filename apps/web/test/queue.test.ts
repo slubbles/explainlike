@@ -158,6 +158,29 @@ test("EXPLANIMATE_MAX_CONCURRENT wins over the old EXPLANIMATE_CONCURRENCY", asy
   delete process.env.EXPLANIMATE_CONCURRENCY;
 });
 
+test("the dashboard reads the wait line oldest-first, and a finished job keeps its fallbacks", async () => {
+  const { getJob, queueOrder, startJob, touch } = await jobs();
+  const settled = (id: string) => getJob(id)!.state === "done" || getJob(id)!.state === "error";
+  Object.assign(process.env, { EXPLANIMATE_CONCURRENCY: "1" });
+  const a = startJob("queue order first", "silent").id;
+  const b = startJob("queue order second", "silent").id;
+  const c = startJob("queue order third", "silent").id;
+  assert.ok(!queueOrder().includes(a), "a running job already left the line");
+  const at = (id: string) => queueOrder().indexOf(id);
+  assert.ok(at(b) >= 0 && at(c) > at(b), `the line runs oldest first: ${queueOrder().join()}`);
+  for (let i = 0; i < 400 && !(settled(a) && settled(b) && settled(c)); i++) {
+    [a, b, c].forEach(touch);
+    await sleep(50);
+  }
+  assert.deepEqual(
+    [a, b, c].map((id) => getJob(id)!.state),
+    ["done", "done", "done"],
+  );
+  // the fake render's manifest names no backup, so nothing fell back
+  assert.deepEqual(getJob(a)!.fallbacks, { llm: false, tts: false });
+  delete process.env.EXPLANIMATE_CONCURRENCY;
+});
+
 test("JOB_CONCURRENCY caps simultaneous renders, first in first out", async () => {
   const { admit, getJob, startJob, touch } = await jobs();
   const settled = (id: string) => getJob(id)!.state === "done" || getJob(id)!.state === "error";
