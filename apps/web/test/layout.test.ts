@@ -48,7 +48,7 @@ test("the nav stays one row on phones, with the links behind a menu button", () 
   assert.match(nav, /<button[^>]*aria-label="Menu"/);
   assert.match(nav, /aria-expanded=\{open\}/);
   assert.match(nav, /\{open && \(/);
-  assert.match(nav, /<AuthNav \/>/);
+  assert.match(nav, /<AuthNav[^>]*\/>/);
 });
 
 test("the docs page shows all three columns at 1024px and up", () => {
