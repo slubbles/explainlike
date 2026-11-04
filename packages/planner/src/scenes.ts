@@ -579,7 +579,9 @@ export function speechIssues(plan: ScenePlan, arch: Architecture, analogy = ""):
       .filter(Boolean)) {
       const n = wordCount(sent);
       if (n > 20)
-        issues.push(`${s.id}: "${sent.length > 90 ? `${sent.slice(0, 90)}…` : sent}" has ${n} words; split it into short lines of one idea each`);
+        issues.push(
+          `${s.id}: "${sent.length > 90 ? `${sent.slice(0, 90)}…` : sent}" has ${n} words; split it into short lines of one idea each`,
+        );
     }
     // the plain-language bar a program can check: box names are judged on the map, so they pass here
     for (const p of plainSlips(s.narration, known)) issues.push(`${s.id}: ${p}`);

@@ -92,7 +92,9 @@ function git(dir: string, args: string[]): string | undefined {
 
 /** The default branch to compare a feature branch against: origin's HEAD, else main, else master. */
 function defaultBranch(dir: string, branch: string): string | undefined {
-  const head = git(dir, ["symbolic-ref", "--short", "refs/remotes/origin/HEAD"])?.trim().replace(/^origin\//, "");
+  const head = git(dir, ["symbolic-ref", "--short", "refs/remotes/origin/HEAD"])
+    ?.trim()
+    .replace(/^origin\//, "");
   const cands = [head, "main", "master"].filter(Boolean) as string[];
   for (const c of cands) {
     if (c !== branch && git(dir, ["rev-parse", "--verify", "--quiet", c])) return c;
@@ -110,7 +112,12 @@ function excerpt(dir: string, file: string, max: number): { excerpt: string; ski
     if (!st.isFile() || st.size > 256_000) return { excerpt: "", skipped: "too large" };
     const head = fs.readFileSync(abs, "utf8").slice(0, Math.max(max, 4096));
     if (head.includes("\0")) return { excerpt: "", skipped: "binary" };
-    return { excerpt: head.slice(0, max).replace(/\n{3,}/g, "\n\n").trim() };
+    return {
+      excerpt: head
+        .slice(0, max)
+        .replace(/\n{3,}/g, "\n\n")
+        .trim(),
+    };
   } catch {
     return { excerpt: "", skipped: "unreadable" };
   }
@@ -131,7 +138,7 @@ export function collectWorkingChanges(dir: string, o: ChangesOptions = {}): Work
   const base = empty ? undefined : defaultBranch(abs, branch);
   const mergeBase = !empty && base ? git(abs, ["merge-base", "HEAD", base])?.trim() || undefined : undefined;
   // on a feature branch the diff covers the branch's commits too; on the default branch it is the working tree
-  const ref = empty ? undefined : mergeBase ?? "HEAD";
+  const ref = empty ? undefined : (mergeBase ?? "HEAD");
 
   // per-file state from the status, line counts from the diff; secret-looking files are never shown
   const status = git(abs, ["status", "--porcelain=v1", "--untracked-files=normal"]) ?? "";
@@ -188,7 +195,9 @@ export function collectWorkingChanges(dir: string, o: ChangesOptions = {}): Work
   const diffParts: string[] = [];
   let diffCut = false;
   for (const file of names.slice(0, maxFiles)) {
-    const part = ref ? (git(abs, ["diff", ref, "--", file]) ?? "") : `${git(abs, ["diff", "--", file]) ?? ""}${git(abs, ["diff", "--cached", "--", file]) ?? ""}`;
+    const part = ref
+      ? (git(abs, ["diff", ref, "--", file]) ?? "")
+      : `${git(abs, ["diff", "--", file]) ?? ""}${git(abs, ["diff", "--cached", "--", file]) ?? ""}`;
     if (!part.trim()) continue;
     diffParts.push(part.length > maxFileDiffChars ? `${part.slice(0, maxFileDiffChars)}\n[... ${file} truncated]` : part.trimEnd());
   }
@@ -197,7 +206,9 @@ export function collectWorkingChanges(dir: string, o: ChangesOptions = {}): Work
     diff = `${diff.slice(0, maxDiffChars)}\n[... diff truncated]`;
     diffCut = true;
   }
-  const untracked: UntrackedFile[] = untrackedNames.slice(0, maxUntracked).map((file) => ({ file, ...excerpt(abs, file, maxExcerptChars) }));
+  const untracked: UntrackedFile[] = untrackedNames
+    .slice(0, maxUntracked)
+    .map((file) => ({ file, ...excerpt(abs, file, maxExcerptChars) }));
 
   // branch commits past the merge-base; on the default branch (or with no base) the latest commits
   const logArgs = mergeBase
@@ -251,10 +262,13 @@ export function formatWorkingChanges(wc: WorkingChanges, question?: string): str
     : wc.commits.length
       ? "There are no uncommitted changes; explain what this branch's recent commits did and why."
       : "There are no working changes and no recent commits; explain the repo as it stands.";
-  sec.push(`## working changes (the video's subject)\n${head}${question ? ` The viewer asked: "${question.trim().slice(0, 300)}".` : ""} ${subject}`);
+  sec.push(
+    `## working changes (the video's subject)\n${head}${question ? ` The viewer asked: "${question.trim().slice(0, 300)}".` : ""} ${subject}`,
+  );
   if (wc.stats.length) {
     const lines = wc.stats.map(
-      (s) => `- ${s.file} (+${s.added} -${s.removed})${s.staged && s.unstaged ? " staged and unstaged" : s.staged ? " staged" : s.unstaged ? " unstaged" : ""}`,
+      (s) =>
+        `- ${s.file} (+${s.added} -${s.removed})${s.staged && s.unstaged ? " staged and unstaged" : s.staged ? " staged" : s.unstaged ? " unstaged" : ""}`,
     );
     if (wc.statsTruncated) lines.push("- ... and more");
     sec.push(`### changed files (${wc.stats.length}${wc.statsTruncated ? "+" : ""})\n${lines.join("\n")}`);
@@ -266,6 +280,7 @@ export function formatWorkingChanges(wc: WorkingChanges, question?: string): str
     if (wc.untrackedTruncated) lines.push("- ... and more");
     sec.push(`### new untracked files (${wc.untracked.length}${wc.untrackedTruncated ? "+" : ""})\n${lines.join("\n")}`);
   }
-  if (wc.commits.length) sec.push(`### recent commits (${wc.commits.length})\n${wc.commits.map((c) => `- ${c.hash} ${c.subject}`).join("\n")}`);
+  if (wc.commits.length)
+    sec.push(`### recent commits (${wc.commits.length})\n${wc.commits.map((c) => `- ${c.hash} ${c.subject}`).join("\n")}`);
   return sec.join("\n\n");
 }

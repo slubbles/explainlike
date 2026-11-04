@@ -78,34 +78,108 @@ export function detectLanguage(text: string): DetectedLanguage | undefined {
   if (/[\u3040-\u309f\u30a0-\u30ff]/.test(t)) return { code: "ja", name: "Japanese" };
   if (/[\uac00-\ud7af]/.test(t)) return { code: "ko", name: "Korean" };
   if (/[\u4e00-\u9fff]/.test(t)) return { code: "zh", name: "Chinese" };
-  if (/[\u0600-\u06ff]/.test(t)) return /[\u06af\u067e\u0686\u0698]/.test(t) ? { code: "fa", name: "Persian" } : { code: "ar", name: "Arabic" };
+  if (/[\u0600-\u06ff]/.test(t))
+    return /[\u06af\u067e\u0686\u0698]/.test(t) ? { code: "fa", name: "Persian" } : { code: "ar", name: "Arabic" };
   if (/[\u0900-\u097f]/.test(t)) return { code: "hi", name: "Hindi" };
-  if (/[\u0400-\u04ff]/.test(t))
-    return /[іїєґІЇЄҐ]/.test(t) ? { code: "uk", name: "Ukrainian" } : { code: "ru", name: "Russian" };
+  if (/[\u0400-\u04ff]/.test(t)) return /[іїєґІЇЄҐ]/.test(t) ? { code: "uk", name: "Ukrainian" } : { code: "ru", name: "Russian" };
   if (/[\u0590-\u05ff]/.test(t)) return { code: "he", name: "Hebrew" };
   if (/[\u0e00-\u0e7f]/.test(t)) return { code: "th", name: "Thai" };
-  const words = new Set(t.toLowerCase().split(/[^a-zà-ÿ'’]+/).filter(Boolean));
+  const words = new Set(
+    t
+      .toLowerCase()
+      .split(/[^a-zà-ÿ'’]+/)
+      .filter(Boolean),
+  );
   const hits = (...ws: string[]) => ws.filter((w) => words.has(w));
   const accent = (...res: RegExp[]) => res.some((re) => re.test(t));
   const scored: { lang: DetectedLanguage; n: number; sure: boolean }[] = [
     {
       lang: { code: "es", name: "Spanish" },
-      n: hits("que", "qué", "cómo", "como", "porque", "explica", "explícame", "explicame", "este", "esta", "estos", "estas", "sobre", "una", "los", "las", "del", "funciona", "repositorio").length,
+      n: hits(
+        "que",
+        "qué",
+        "cómo",
+        "como",
+        "porque",
+        "explica",
+        "explícame",
+        "explicame",
+        "este",
+        "esta",
+        "estos",
+        "estas",
+        "sobre",
+        "una",
+        "los",
+        "las",
+        "del",
+        "funciona",
+        "repositorio",
+      ).length,
       sure: hits("qué", "cómo", "explícame", "explicame", "por qué").length > 0 || accent(/[¿¡]/, /ñ/),
     },
     {
       lang: { code: "fr", name: "French" },
-      n: hits("quoi", "comment", "pourquoi", "explique", "explique-moi", "cette", "ces", "les", "des", "une", "dans", "sur", "fonctionne", "dépôt").length,
+      n: hits(
+        "quoi",
+        "comment",
+        "pourquoi",
+        "explique",
+        "explique-moi",
+        "cette",
+        "ces",
+        "les",
+        "des",
+        "une",
+        "dans",
+        "sur",
+        "fonctionne",
+        "dépôt",
+      ).length,
       sure: hits("quoi", "comment", "pourquoi", "explique").length > 0,
     },
     {
       lang: { code: "de", name: "German" },
-      n: hits("was", "wie", "warum", "erklärt", "erklart", "erkläre", "erklar", "dieses", "diese", "dieser", "einer", "einem", "einen", "und", "über", "nicht", "funktioniert", "aktuellen").length,
+      n: hits(
+        "was",
+        "wie",
+        "warum",
+        "erklärt",
+        "erklart",
+        "erkläre",
+        "erklar",
+        "dieses",
+        "diese",
+        "dieser",
+        "einer",
+        "einem",
+        "einen",
+        "und",
+        "über",
+        "nicht",
+        "funktioniert",
+        "aktuellen",
+      ).length,
       sure: hits("warum", "erklärt", "erklart", "erkläre", "erklar", "funktioniert").length > 0 || accent(/[äöüß]/),
     },
     {
       lang: { code: "it", name: "Italian" },
-      n: hits("cosa", "come", "perché", "perche", "spiega", "spiegami", "questo", "questa", "questi", "della", "nella", "sono", "funziona", "correnti").length,
+      n: hits(
+        "cosa",
+        "come",
+        "perché",
+        "perche",
+        "spiega",
+        "spiegami",
+        "questo",
+        "questa",
+        "questi",
+        "della",
+        "nella",
+        "sono",
+        "funziona",
+        "correnti",
+      ).length,
       sure: hits("cosa", "perché", "perche", "spiega", "spiegami").length > 0,
     },
     {

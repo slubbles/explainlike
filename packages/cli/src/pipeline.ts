@@ -261,13 +261,15 @@ export async function runExplanimate(o: RunOptions) {
   }
   // a non-English question is narrated in its language when the voice speaks it, else in English
   const voiceModel =
-    o.voice === "silent" ? "silent" : o.voice === "deepgram" || (!o.voice && process.env.DEEPGRAM_API_KEY) ? (process.env.EXPLANIMATE_VOICE ?? "aura-2-arcas-en") : "silent";
+    o.voice === "silent"
+      ? "silent"
+      : o.voice === "deepgram" || (!o.voice && process.env.DEEPGRAM_API_KEY)
+        ? (process.env.EXPLANIMATE_VOICE ?? "aura-2-arcas-en")
+        : "silent";
   const lang = narrationLanguage(ask, voiceModel);
   if (lang.note) notes.push(lang.note);
   const decide = async (file: string, kindOf: SourceKind, name: string, text: string) => {
-    const b = await timed("brief", () =>
-      cacheJson<Brief>(file, () => planBrief({ ledger, kind: kindOf, name, text, ask, progress: P })),
-    );
+    const b = await timed("brief", () => cacheJson<Brief>(file, () => planBrief({ ledger, kind: kindOf, name, text, ask, progress: P })));
     spec = specFromBrief(b, ask);
     if (lang.instruction) spec = { ...spec, voice: `${spec.voice} ${lang.instruction}` };
     notes.push(`brief: ${b.approach}, ${b.depth}, ${b.complexity} -> ${spec.tempo.id} tempo, ${b.look}; ${b.why}`);
