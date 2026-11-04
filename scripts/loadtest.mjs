@@ -259,7 +259,7 @@ const totals = done.map((r) => r.totalMs).sort((a, b) => a - b);
 console.log(
   `finished in ${ms(Date.now() - t0)}: ${done.length} done, ${failed.length} failed${failed.length ? ` (${failed.map((f) => f.id).join(", ")})` : ""}`,
 );
-for (const f of failed.slice(0, 5)) console.log(`  ${f.id}: ${f.state}${f.error ? ` — ${String(f.error).slice(0, 160)}` : ""}`);
+for (const f of failed.slice(0, 5)) console.log(`  ${f.id}: ${f.state}${f.error ? `: ${String(f.error).slice(0, 160)}` : ""}`);
 for (const r of done) {
   console.log(`  ${r.id}: wait ${ms(r.waitMs)} (queue ${ms(r.queueMs)} + render slot ${ms(r.renderWaitMs)}), total ${ms(r.totalMs)}`);
 }
