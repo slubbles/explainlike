@@ -68,6 +68,9 @@ export const secs = (n?: number) => `${Math.round(n ?? 0)} s`;
 export const fileUrl = (id: string, n?: string, dl = false) => (n ? `/api/jobs/${id}/file/${n}${dl ? "?download" : ""}` : "#");
 export const captionsUrl = (id: string) => `/api/jobs/${id}/captions`;
 
+/** Failed polls in a row (429, 500, offline) before the page says the server stopped answering. */
+export const MAX_POLL_FAILURES = 10;
+
 /** Poll a job until it finishes. */
 export function useJob(id?: string) {
   const [job, setJob] = useState<Job | null>(null);
@@ -75,28 +78,37 @@ export function useJob(id?: string) {
     setJob(null);
     if (!id) return;
     let stop = false;
+    // a server that stays silent (429, 500, down) may not hold the page on "Loading" forever
+    let failures = 0;
+    const unreachable = (stage: string, error: string): Job => ({
+      id,
+      kind: "video",
+      input: "",
+      voice: "deepgram",
+      state: "error",
+      stage,
+      message: "",
+      pct: 0,
+      error,
+    });
     const poll = async () => {
       const r = await fetch(`/api/jobs/${id}`).catch(() => null);
       if (stop) return;
       // a job that is gone (deleted, or a different server) ends as an error instead of a blank page that polls forever
       if (r?.status === 404) {
-        setJob({
-          id,
-          kind: "video",
-          input: "",
-          voice: "deepgram",
-          state: "error",
-          stage: "missing",
-          message: "",
-          pct: 0,
-          error: "This video is not on this server anymore. Paste the link again to make it.",
-        });
+        setJob(unreachable("missing", "This video is not on this server anymore. Paste the link again to make it."));
         return;
       }
       if (!r?.ok) {
+        failures += 1;
+        if (failures > MAX_POLL_FAILURES) {
+          setJob(unreachable("unreachable", "The server stopped answering. Reload the page to keep watching this video."));
+          return;
+        }
         setTimeout(poll, 3000);
         return;
       }
+      failures = 0;
       const j: Job = await r.json();
       if (stop) return;
       setJob(j);

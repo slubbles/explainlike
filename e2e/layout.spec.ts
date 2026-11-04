@@ -1,6 +1,6 @@
 import { expect, test, type Page, type APIRequestContext } from "@playwright/test";
 
-const WIDTHS = [1440, 1024, 768, 390, 345];
+const WIDTHS = [1440, 1024, 768, 390, 375, 345, 305];
 const ROUTES = ["/", "/docs", "/gallery", "/admin", "/no-such-page"];
 
 /** The page never scrolls sideways: the widest box fits the viewport (1px for rounding). */
