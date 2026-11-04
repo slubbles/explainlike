@@ -77,6 +77,11 @@ export function getD1Db(fetchImpl: typeof fetch = fetch): D1Db {
   return createD1Db(d1ConfigFromEnv(fetchImpl));
 }
 
+/** True when the three D1 settings are present. The error store and admin lists need them. */
+export function d1Configured(): boolean {
+  return !!(process.env.EXPLANIMATE_CF_ACCOUNT_ID && process.env.EXPLANIMATE_D1_DATABASE_ID && process.env.EXPLANIMATE_D1_TOKEN);
+}
+
 type D1Value = string | number | null;
 
 /** REST params are JSON: booleans become 0/1, missing values become null. */
@@ -142,7 +147,11 @@ async function d1Query(config: D1Config, sql: string, params: readonly unknown[]
   };
 }
 
-/** Our own tables: per-day video counts, per-user overrides, and which account started which job. */
+/**
+ * Our own tables: per-day video counts, per-user overrides, which account started which job,
+ * and recent server/client errors. Fresh databases get the full videos shape (prompt length,
+ * status, cost); older ones gain the new columns below, so both old and new rows read the same.
+ */
 export async function ensureTables(db: D1Db): Promise<void> {
   await db
     .prepare(
@@ -162,10 +171,34 @@ export async function ensureTables(db: D1Db): Promise<void> {
   await db
     .prepare(
       `CREATE TABLE IF NOT EXISTS videos (
-    id TEXT PRIMARY KEY, user_id TEXT NOT NULL, input TEXT NOT NULL, created_at INTEGER NOT NULL)`,
+    id TEXT PRIMARY KEY, user_id TEXT NOT NULL, input TEXT NOT NULL, created_at INTEGER NOT NULL,
+    input_len INTEGER NOT NULL DEFAULT 0, status TEXT NOT NULL DEFAULT 'started', cost REAL NOT NULL DEFAULT 0)`,
     )
     .bind()
     .run();
+  await db
+    .prepare(
+      `CREATE TABLE IF NOT EXISTS errors (
+    id INTEGER PRIMARY KEY AUTOINCREMENT, ts INTEGER NOT NULL, route TEXT NOT NULL, source TEXT NOT NULL,
+    name TEXT NOT NULL DEFAULT '', message TEXT NOT NULL, stack TEXT NOT NULL DEFAULT '', request_id TEXT NOT NULL DEFAULT '')`,
+    )
+    .bind()
+    .run();
+  // videos rows from before the input_len/status/cost columns: add what is missing. Best effort
+  // (a failure is logged, never thrown), because recording a video must never break creating one.
+  try {
+    const cols = await db.prepare("PRAGMA table_info(videos)").bind().all<{ name: string }>();
+    const have = new Set(cols.map((c) => c.name));
+    for (const [column, ddl] of [
+      ["input_len", "ALTER TABLE videos ADD COLUMN input_len INTEGER NOT NULL DEFAULT 0"],
+      ["status", "ALTER TABLE videos ADD COLUMN status TEXT NOT NULL DEFAULT 'started'"],
+      ["cost", "ALTER TABLE videos ADD COLUMN cost REAL NOT NULL DEFAULT 0"],
+    ] as const) {
+      if (!have.has(column)) await db.prepare(ddl).bind().run();
+    }
+  } catch (e) {
+    console.error(`[db] videos migration skipped: ${(e as Error).message}`);
+  }
 }
 
 // ---- the Kysely dialect Better Auth runs on ----
