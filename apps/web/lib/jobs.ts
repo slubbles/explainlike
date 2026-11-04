@@ -46,6 +46,8 @@ export interface Job {
   began?: number;
   /** who started it (lib/owner.ts): scopes the jobs list and who may cancel; never sent to the browser */
   owner?: string;
+  /** the owner stopped it (lib/owner.ts decides who may); it ends as an error that is not a failure */
+  cancelled?: boolean;
 }
 export type Ask = { goal?: string; audience?: string; depth?: "overview" | "working" | "deep"; also?: string };
 
@@ -61,6 +63,7 @@ const g = globalThis as unknown as {
   __explanimateLine?: string[];
   __explanimateSeen?: Map<string, number>;
   __explanimateResumed?: boolean;
+  __explanimateKids?: Map<string, ReturnType<typeof spawnCli>>;
 };
 const jobs: Map<string, Job> = (g.__explanimateJobs ??= loadJobs());
 // first load after a restart: carry on with a job the restart cut off (EXPLANIMATE_RESUME=0 turns this off)
@@ -170,6 +173,7 @@ const num = (name: string, dflt: number) => {
 const slots = () => Math.floor(num("EXPLANIMATE_CONCURRENCY", 10));
 const line = (): string[] => (g.__explanimateLine ??= []);
 const seen = (): Map<string, number> => (g.__explanimateSeen ??= new Map());
+const kids = (): Map<string, ReturnType<typeof spawnCli>> => (g.__explanimateKids ??= new Map());
 const running = () => [...jobs.values()].filter((j) => j.state === "running").length;
 const GONE = "Not started: the page was closed while it waited. Start it again.";
 
@@ -243,11 +247,13 @@ function launch(job: Job) {
     save(job);
     return void setTimeout(pump, 0);
   }
+  kids().set(job.id, child);
   // free the slot once, whether the process closed or never started
   let ended = false;
   const end = () => {
     if (ended) return;
     ended = true;
+    kids().delete(job.id);
     save(job);
     noteEnd(job);
     pump();
@@ -265,6 +271,11 @@ function launch(job: Job) {
       buf = buf.slice(i + 1);
       try {
         const e = JSON.parse(line);
+        // a cancelled run only keeps its cost meter current while it stops
+        if (job.cancelled) {
+          if (e.type === "progress" && e.usd) job.usd = e.usd;
+          continue;
+        }
         if (e.type === "progress") {
           Object.assign(job, { stage: e.stage, message: e.message, pct: e.pct ?? job.pct, usd: e.usd ?? job.usd });
           save(job, true);
@@ -315,17 +326,18 @@ function launch(job: Job) {
 /** One structured log line per finished job, with its timings; a failed render also lands in the error store. */
 function noteEnd(job: Job) {
   const t = jobTiming(job);
-  log(job.state === "done" ? "info" : "warn", "job", `job ${job.state}`, {
+  const what = job.cancelled ? "cancelled" : job.state;
+  log(job.state === "done" || job.cancelled ? "info" : "warn", "job", `job ${what}`, {
     jobId: job.id,
     kind: t.kind,
-    state: job.state,
+    state: what,
     waitMs: t.waitMs,
     renderMs: t.renderMs,
     totalMs: t.totalMs,
     videoSec: t.videoSec,
     costUsd: Number(t.cost.toFixed(4)),
   });
-  if (job.state === "error") {
+  if (job.state === "error" && !job.cancelled) {
     const e = new Error(job.error || "render failed");
     e.name = "RenderError";
     void recordError(buildErrorRow(`job/${job.kind}`, "server", e, job.id)).catch(() => {});
@@ -403,6 +415,32 @@ export function explain(jobId: string, component: string): Promise<unknown> {
       }
     });
   });
+}
+
+export const CANCELLED = "Cancelled. Nothing more is spent on this video.";
+
+/**
+ * Stop a waiting or running job. A waiting one leaves the line before it costs anything; a running
+ * one gets SIGTERM (the renderer stops its paid calls with it) and SIGKILL if it is still there after
+ * 5 s. The cost meter keeps what was already spent, so the spend caps stay honest. Who may call
+ * this is the route's job (the owner key from lib/owner.ts). Returns the job, or undefined when
+ * there is nothing left to stop.
+ */
+export function cancelJob(id: string): Job | undefined {
+  const job = jobs.get(id);
+  if (!job || (job.state !== "queued" && job.state !== "running")) return undefined;
+  const i = line().indexOf(id);
+  if (i >= 0) line().splice(i, 1);
+  Object.assign(job, { state: "error", cancelled: true, error: CANCELLED, message: "cancelled", finished: Date.now() });
+  save(job);
+  const child = kids().get(id);
+  if (child) {
+    child.kill("SIGTERM");
+    setTimeout(() => {
+      if (child.exitCode === null && child.signalCode === null) child.kill("SIGKILL");
+    }, 5000).unref();
+  } else noteEnd(job);
+  return job;
 }
 
 export const getJob = (id: string) => jobs.get(id);
