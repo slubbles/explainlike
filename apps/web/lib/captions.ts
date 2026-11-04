@@ -30,7 +30,7 @@ export function captionsToVtt(captions: unknown): string | undefined {
           .trim()
       : "";
     if (!Number.isFinite(t0) || !Number.isFinite(t1) || t1 <= t0 || !text) continue;
-    cues.push(`${stamp(t0)} --> ${stamp(t1)}\n${text.replace(/-->/g, "—")}`);
+    cues.push(`${stamp(t0)} --> ${stamp(t1)}\n${text.replace(/-->/g, "→")}`);
   }
   return cues.length ? `WEBVTT\n\n${cues.join("\n\n")}\n` : undefined;
 }
