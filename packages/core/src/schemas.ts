@@ -272,4 +272,10 @@ export interface CostEntry {
 }
 
 /** usd: running spend so far (Meta models + voice), the per-video cost meter */
-export type Progress = (e: { stage: string; message: string; pct?: number; usd?: { meta: number; voice: number; total: number } }) => void;
+export type Progress = (e: {
+  stage: string;
+  message: string;
+  pct?: number;
+  usd?: { meta: number; voice: number; total: number };
+  renderWaitMs?: number;
+}) => void;

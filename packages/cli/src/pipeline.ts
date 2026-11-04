@@ -67,6 +67,7 @@ import {
   mixNarration,
   sfxCues,
   contactSheet,
+  acquireRenderSlot,
   frameCheck,
   checkTldr,
   checkExcalidraw,
@@ -844,51 +845,66 @@ export async function runExplanimate(o: RunOptions) {
         : Promise.resolve(undefined);
     // ffmpeg encodes each frame as soon as it is drawn, instead of waiting for all of them
     const mp4 = path.join(out, `${base}.mp4`);
-    P({ stage: "render", message: "drawing frames", pct: 48 });
-    const rendered = await timed("render frames", () =>
-      renderFilm(film, frames, mp4, {
-        workers: o.workers,
-        audio: narration,
-        music: o.music,
-        cues: o.sfx === false ? [] : sfxCues(film),
-        onProgress: (d, t) => P({ stage: "render", message: `drawing frames ${d}/${t}`, pct: 48 + Math.round((d / t) * 42) }),
-      }),
-    );
-    const cap = rendered.cap;
-    notes.push(`renderer: ${rendered.renderer}, ${rendered.codec}${rendered.fellBack ? ` (${rendered.fellBack})` : ""}`);
-    const covering = cap.captions.filter((c) => c.overlapPx > 0);
-    if (covering.length)
-      notes.push(
-        `${covering.length} caption(s) could not find fully free space: ${covering.map((c) => `${c.t0.toFixed(1)}s "${c.text}"`).join(", ")}`,
+    // the CPU-heavy stage holds a render slot; API-bound stages ran without one
+    P({ stage: "render", message: "waiting for a render slot", pct: 48 });
+    const slot = await timed("render-wait", () => acquireRenderSlot());
+    const renderWaitMs = slot.waitMs;
+    if (renderWaitMs > 1000) notes.push(`render gate: waited ${(renderWaitMs / 1000).toFixed(0)}s for a render slot`);
+    P({ stage: "render", message: "drawing frames", pct: 48, renderWaitMs });
+    let rendered: Awaited<ReturnType<typeof renderFilm>>;
+    let cap: (typeof rendered)["cap"];
+    let fc: Awaited<ReturnType<typeof frameCheck>>;
+    let sheet: string;
+    let sheetRun: Promise<void>;
+    try {
+      rendered = await timed("render frames", () =>
+        renderFilm(film, frames, mp4, {
+          workers: o.workers,
+          audio: narration,
+          music: o.music,
+          cues: o.sfx === false ? [] : sfxCues(film),
+          onProgress: (d, t) =>
+            P({ stage: "render", message: `drawing frames ${d}/${t}`, pct: 48 + Math.round((d / t) * 42), renderWaitMs }),
+        }),
       );
-    // ffmpeg finishes the last frames while the frame check runs
-    const encoded = rendered.encoded;
-    encoded.catch(() => {});
-    // look at the picture itself: where every word, ring and caption actually landed, frame by frame
-    P({ stage: "render", message: "checking the rendered frames", pct: 91 });
-    // the contact sheet reads the finished mp4, so it is made while the frame check looks at the frames
-    const sheet = path.join(out, `${base}.contact.jpg`);
-    const sheetRun = encoded.then(() => timed("contact sheet", () => contactSheet(mp4, sheet, Math.max(2, Math.ceil(film.duration / 40)))));
-    sheetRun.catch(() => {});
-    const fc = await timed("frame check", () =>
-      frameCheck(film, { workDir: path.join(out, "frame-check"), frameDir: frames, visionFrames: o.visionReview ? 8 : 0, ledger }),
-    );
-    fs.rmSync(path.join(out, "frame-check"), { recursive: true, force: true });
-    fs.writeFileSync(path.join(out, "frame-check.json"), JSON.stringify(fc, null, 1));
-    notes.push(
-      `frame check: ${fc.atRest} of ${fc.samples} sampled frames at rest, ${fc.issues.length} issue(s)${
-        fc.issues.length
-          ? `: ${fc.issues
-              .slice(0, 4)
-              .map((i) => `${i.t}s ${i.rule} ${i.detail}`)
-              .join("; ")}`
-          : ""
-      }`,
-    );
-    if (fc.vision)
-      notes.push(`vision review: ${fc.vision.reduce((n, f) => n + f.problems.length, 0)} problem(s) across ${fc.vision.length} frames`);
-    P({ stage: "encode", message: "encoding the mp4", pct: 92 });
-    await timed("encode tail", () => encoded);
+      cap = rendered.cap;
+      notes.push(`renderer: ${rendered.renderer}, ${rendered.codec}${rendered.fellBack ? ` (${rendered.fellBack})` : ""}`);
+      const covering = cap.captions.filter((c) => c.overlapPx > 0);
+      if (covering.length)
+        notes.push(
+          `${covering.length} caption(s) could not find fully free space: ${covering.map((c) => `${c.t0.toFixed(1)}s "${c.text}"`).join(", ")}`,
+        );
+      // ffmpeg finishes the last frames while the frame check runs
+      const encoded = rendered.encoded;
+      encoded.catch(() => {});
+      // look at the picture itself: where every word, ring and caption actually landed, frame by frame
+      P({ stage: "render", message: "checking the rendered frames", pct: 91 });
+      // the contact sheet reads the finished mp4, so it is made while the frame check looks at the frames
+      sheet = path.join(out, `${base}.contact.jpg`);
+      sheetRun = encoded.then(() => timed("contact sheet", () => contactSheet(mp4, sheet, Math.max(2, Math.ceil(film.duration / 40)))));
+      sheetRun.catch(() => {});
+      fc = await timed("frame check", () =>
+        frameCheck(film, { workDir: path.join(out, "frame-check"), frameDir: frames, visionFrames: o.visionReview ? 8 : 0, ledger }),
+      );
+      fs.rmSync(path.join(out, "frame-check"), { recursive: true, force: true });
+      fs.writeFileSync(path.join(out, "frame-check.json"), JSON.stringify(fc, null, 1));
+      notes.push(
+        `frame check: ${fc.atRest} of ${fc.samples} sampled frames at rest, ${fc.issues.length} issue(s)${
+          fc.issues.length
+            ? `: ${fc.issues
+                .slice(0, 4)
+                .map((i) => `${i.t}s ${i.rule} ${i.detail}`)
+                .join("; ")}`
+            : ""
+        }`,
+      );
+      if (fc.vision)
+        notes.push(`vision review: ${fc.vision.reduce((n, f) => n + f.problems.length, 0)} problem(s) across ${fc.vision.length} frames`);
+      P({ stage: "encode", message: "encoding the mp4", pct: 92 });
+      await timed("encode tail", () => encoded);
+    } finally {
+      slot.release();
+    }
     await sheetRun;
     fs.copyFileSync(cap.html, path.join(out, "stage.html"));
     const qa = await qaRun;
@@ -937,6 +953,7 @@ export async function runExplanimate(o: RunOptions) {
       },
       seconds: Math.round((Date.now() - t0) / 1000),
       stages,
+      renderWaitMs,
     };
     writeAtomic(path.join(out, "manifest.json"), JSON.stringify(manifest, null, 1));
     P({ stage: "done", message: "done", pct: 100 });
