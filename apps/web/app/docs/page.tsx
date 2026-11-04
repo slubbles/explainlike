@@ -527,7 +527,7 @@ export default function Docs() {
             <p>
               Sign-in by email code stays off unless <code>EXPLANIMATE_AUTH_ENABLED</code> is exactly <code>1</code>. When on, accounts get
               three videos a day by default, and the addresses in <code>EXPLANIMATE_ADMIN_EMAILS</code> can open the <code>/admin</code>{" "}
-              portal. Paths and timeouts — jobs folder, gallery folder, Chrome binary, clone timeout — are optional overrides with working
+              portal. Paths and timeouts (jobs folder, gallery folder, Chrome binary, clone timeout) are optional overrides with working
               defaults.
             </p>
 
