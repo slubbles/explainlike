@@ -1,16 +1,25 @@
+"use client";
+import { useState } from "react";
 import { money, type Job } from "../lib/client";
 import { cap, stepsFor, stepStates } from "../lib/steps";
 import { Check } from "./Icons";
 
-/** The side card while a job draws: the one progress readout (percent and steps) and the money spent so far. */
-export default function Steps({ job }: { job: Job }) {
+/**
+ * The side card while a job draws: the one progress readout (percent and steps) and the money spent so far.
+ * The person who started it also gets Cancel, which asks once before it stops the render.
+ */
+export default function Steps({ job, onCancel }: { job: Job; onCancel?: () => Promise<void> }) {
   const steps = stepsFor(job);
-  const states = stepStates(steps, job.stage, job.state);
-  const failed = job.state === "error";
+  // a cancelled run did not fail: the step it stopped on just stays undone
+  const states = stepStates(steps, job.stage, job.state).map((s) => (job.cancelled && s === "fail" ? "todo" : s));
+  const failed = job.state === "error" && !job.cancelled;
+  const [asking, setAsking] = useState(false);
+  const [stopping, setStopping] = useState(false);
+  const canCancel = !!onCancel && job.mine && job.state === "running";
   return (
     <aside className="side">
       <div className="pct">
-        <h3>{failed ? "Failed" : job.state === "done" ? "Done" : "Drawing…"}</h3>
+        <h3>{job.cancelled ? "Cancelled" : failed ? "Failed" : job.state === "done" ? "Done" : "Drawing…"}</h3>
         <b>{Math.round(job.pct)}%</b>
       </div>
       <div
@@ -40,6 +49,39 @@ export default function Steps({ job }: { job: Job }) {
       {failed && (
         <div className="err" role="alert">
           Failed: {job.error}
+        </div>
+      )}
+      {job.cancelled && (
+        <p className="note" role="status">
+          {job.error}
+        </p>
+      )}
+      {canCancel && !asking && (
+        <button type="button" className="btn wide stop" onClick={() => setAsking(true)}>
+          Cancel this video
+        </button>
+      )}
+      {canCancel && asking && (
+        <div className="confirm" role="group" aria-label="Cancel this video?">
+          <p>Stop drawing? The {money(job.usd?.total)} spent so far is not refunded, and the video is not finished.</p>
+          <div className="row2">
+            <button
+              type="button"
+              className="btn stop"
+              disabled={stopping}
+              onClick={async () => {
+                setStopping(true);
+                await onCancel!();
+                // stays "Stopping…" until the poll brings the cancelled job; on an error the page says why
+                setTimeout(() => setStopping(false), 3000);
+              }}
+            >
+              {stopping ? "Stopping…" : "Yes, stop it"}
+            </button>
+            <button type="button" className="btn" disabled={stopping} onClick={() => setAsking(false)} autoFocus>
+              Keep drawing
+            </button>
+          </div>
         </div>
       )}
       <div className="cost">
