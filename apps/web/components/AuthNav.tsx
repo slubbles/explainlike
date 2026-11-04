@@ -27,7 +27,9 @@ export default function AuthNav() {
     );
   return (
     <span className="navuser">
-      Signed in as {state.email} ·{" "}
+      <span className="who" title={state.email}>
+        Signed in as {state.email} ·
+      </span>
       <button
         type="button"
         className="navout"
