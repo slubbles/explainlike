@@ -147,6 +147,53 @@ test("the gate is 404 unless auth is on and the signed-in address is listed", as
   }
 });
 
+test("admin is off by default: with sign-in on but no admin list, every signed-in account gets 404", async () => {
+  const saved = { ...process.env };
+  try {
+    process.env.EXPLANIMATE_AUTH_ENABLED = "1";
+    delete process.env.EXPLANIMATE_ADMIN_EMAILS;
+    delete process.env.ADMIN_EMAILS;
+    assert.deepEqual(adminEmails(), [], "nothing is listed unless the operator sets it");
+    const gate = await requireAdmin(new Request("http://x/admin"), async () => ({ id: "u1", email: "anyone@example.com" }));
+    assert.equal(gate.ok === false && gate.response.status, 404);
+  } finally {
+    for (const k of ["EXPLANIMATE_AUTH_ENABLED", "EXPLANIMATE_ADMIN_EMAILS", "ADMIN_EMAILS"]) delete process.env[k];
+    Object.assign(process.env, saved);
+  }
+});
+
+test("the public site, README and .env.example carry no admin trace beyond one opt-in line", () => {
+  const web = path.join(import.meta.dirname, "..");
+  const root = path.join(web, "..", "..");
+  const publicFiles = [
+    "app/page.tsx",
+    "app/layout.tsx",
+    "app/not-found.tsx",
+    "app/docs/page.tsx",
+    "app/privacy/page.tsx",
+    "app/terms/page.tsx",
+    "app/sitemap.ts",
+    "app/robots.ts",
+    "lib/seo.ts",
+    ...fs.readdirSync(path.join(web, "app/gallery"), { recursive: true }).map((f) => `app/gallery/${f}`),
+    ...fs.readdirSync(path.join(web, "components")).map((f) => `components/${f}`),
+  ].filter((f) => /\.tsx?$/.test(f) && fs.existsSync(path.join(web, f)));
+  for (const f of publicFiles) {
+    assert.doesNotMatch(fs.readFileSync(path.join(web, f), "utf8"), /admin/i, `${f} mentions admin`);
+  }
+  assert.doesNotMatch(fs.readFileSync(path.join(root, "README.md"), "utf8"), /admin/i, "README stays admin-free");
+  const envLines = fs
+    .readFileSync(path.join(root, ".env.example"), "utf8")
+    .split("\n")
+    .filter((l) => /admin/i.test(l));
+  assert.equal(envLines.length, 1, "one neutral, commented-out opt-in line");
+  assert.match(envLines[0], /^# EXPLANIMATE_ADMIN_EMAILS=\s/, "commented out, so admin stays off by default");
+  // the admin page's tab title is decided per request, so a visitor's 404 never says "Admin"
+  const page = fs.readFileSync(path.join(web, "app/admin/page.tsx"), "utf8");
+  assert.doesNotMatch(page, /export const metadata/, "no static admin title in the 404's head");
+  assert.match(page, /generateMetadata/);
+});
+
 test("admin routes answer 404 with auth off, without touching the database", async () => {
   delete process.env.EXPLANIMATE_AUTH_ENABLED;
   const { GET } = await adminUsers();

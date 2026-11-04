@@ -526,9 +526,8 @@ export default function Docs() {
             <div className={styles.subhead}>Sign-in, paths and timeouts</div>
             <p>
               Sign-in by email code stays off unless <code>EXPLANIMATE_AUTH_ENABLED</code> is exactly <code>1</code>. When on, accounts get
-              three videos a day by default, and the addresses in <code>EXPLANIMATE_ADMIN_EMAILS</code> can open the <code>/admin</code>{" "}
-              portal. Paths and timeouts (jobs folder, gallery folder, Chrome binary, clone timeout) are optional overrides with working
-              defaults.
+              three videos a day by default. Paths and timeouts (jobs folder, gallery folder, Chrome binary, clone timeout) are optional
+              overrides with working defaults.
             </p>
 
             <h2 id="how-it-works">How it works</h2>
@@ -575,9 +574,6 @@ export default function Docs() {
               <li>
                 <strong>Abuse and budget checks:</strong> per-IP rate limits, a per-account daily quota when sign-in is on, spend caps that
                 pause new work, and prompt size caps.
-              </li>
-              <li>
-                <strong>Admin answers 404, never 403,</strong> unless sign-in is on and the address is a listed admin.
               </li>
             </ul>
             <p>

@@ -1,6 +1,8 @@
+import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { headers } from "next/headers";
 import Nav from "../../components/Nav";
+import { metadata as notFoundMetadata } from "../not-found";
 import LimitForm from "./LimitForm";
 import Live from "./Live";
 import { getAdminLive, listAdminUsers, listAdminVideos, requireAdmin } from "../../lib/admin";
@@ -12,7 +14,22 @@ import "./admin.css";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-export const metadata = { title: "Admin · Explanimate" };
+
+/** The tab title names the page only for a listed admin; everyone else gets the 404 page's title. */
+export async function generateMetadata(): Promise<Metadata> {
+  const gate = await requireAdmin(await gateRequest());
+  return gate.ok ? { title: "Admin · Explanimate", robots: { index: false, follow: false } } : notFoundMetadata;
+}
+
+/** The incoming request's headers (the session cookie) as a Request the gate can read. */
+async function gateRequest(): Promise<Request> {
+  const h = await headers();
+  const init: Record<string, string> = {};
+  h.forEach((v, k) => {
+    init[k] = v;
+  });
+  return new Request("http://localhost/admin", { headers: init });
+}
 
 const when = (iso: string) => (iso.length > 16 ? `${iso.slice(0, 10)} ${iso.slice(11, 16)}` : iso);
 const money = (n: number) => `$${n.toFixed(3)}`;
@@ -22,12 +39,7 @@ const money = (n: number) => `$${n.toFixed(3)}`;
  * The live half refreshes every 5 s; the tables below are the full record at load time.
  */
 export default async function AdminPage() {
-  const h = await headers();
-  const init: Record<string, string> = {};
-  h.forEach((v, k) => {
-    init[k] = v;
-  });
-  const gate = await requireAdmin(new Request("http://localhost/admin", { headers: init }));
+  const gate = await requireAdmin(await gateRequest());
   if (!gate.ok) notFound();
 
   const jobs = listJobs();
