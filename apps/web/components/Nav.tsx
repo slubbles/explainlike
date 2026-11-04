@@ -1,10 +1,23 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import AuthNav from "./AuthNav";
 import Logo from "./Logo";
 
 export default function Nav({ initialEmail }: { initialEmail?: string | null }) {
   const [open, setOpen] = useState(false);
+  const btnRef = useRef<HTMLButtonElement>(null);
+  // Esc closes the open menu and hands focus back to the Menu button, wherever focus sits
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setOpen(false);
+        btnRef.current?.focus();
+      }
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [open]);
   return (
     <nav className="nav">
       <div className="wrap">
@@ -24,11 +37,11 @@ export default function Nav({ initialEmail }: { initialEmail?: string | null }) 
           </a>
           <AuthNav initialEmail={initialEmail} />
           <div className="navmenu">
-            <button type="button" className="menubtn" aria-label="Menu" aria-expanded={open} onClick={() => setOpen((v) => !v)}>
+            <button ref={btnRef} type="button" className="menubtn" aria-label="Menu" aria-expanded={open} onClick={() => setOpen((v) => !v)}>
               <span aria-hidden="true">☰</span>
             </button>
             {open && (
-              <div className="navdrop">
+              <div className="navdrop" onClick={() => setOpen(false)}>
                 <a href="/gallery">Examples</a>
                 <a href="/docs">Docs</a>
                 <a href="https://github.com/slubbles/explanimate" target="_blank" rel="noreferrer">
