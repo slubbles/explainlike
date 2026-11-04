@@ -1,7 +1,7 @@
 "use client";
 import { useState } from "react";
 import { VOICES, type Form } from "../lib/form";
-import type { Quota } from "../app/page";
+import type { Quota } from "./Home";
 import { Arrow, Chevron } from "./Icons";
 
 /** The compact form above a job: change the link or voice and draw again. On a phone result page it folds to one line until you tap Change. The button only turns blue once the link or voice differs from the video shown. */
