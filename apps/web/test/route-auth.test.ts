@@ -13,6 +13,9 @@ Object.assign(process.env, {
   EXPLANIMATE_ROOT: path.resolve(import.meta.dirname, "../../.."),
   EXPLANIMATE_CLI: path.join(import.meta.dirname, "fake-cli.mjs"),
   EXPLANIMATE_JOBS_PER_HOUR: "1000",
+  // in-memory sign-in database: the dev defaults would otherwise open files that stay
+  // locked on Windows and break the temp-dir cleanup below
+  EXPLANIMATE_D1_LOCAL_PATH: ":memory:",
 });
 delete process.env.EXPLANIMATE_AUTH_ENABLED;
 delete process.env.BETTER_AUTH_SECRET;
@@ -26,11 +29,14 @@ const post = (url: string, body: unknown) =>
 /** The 401/404 paths log why the session check failed; keep the test output quiet. */
 async function quiet<T>(fn: () => Promise<T>): Promise<T> {
   const orig = console.error;
+  const origWarn = console.warn;
   console.error = () => {};
+  console.warn = () => {};
   try {
     return await fn();
   } finally {
     console.error = orig;
+    console.warn = origWarn;
   }
 }
 

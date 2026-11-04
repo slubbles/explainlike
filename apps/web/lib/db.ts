@@ -24,6 +24,8 @@ import {
   type QueryCompiler,
   type QueryResult,
 } from "kysely";
+import path from "node:path";
+import { withLegacyDir } from "@explanimate/core/env";
 import { createLocalD1Db } from "./db-local";
 
 const D1_TIMEOUT_MS = 10_000;
@@ -76,10 +78,25 @@ export function createD1Db(config: D1Config): D1Db {
   };
 }
 
-/** A local SQLite file standing in for D1 (end-to-end tests); unset in production. */
+/** Where the local SQLite file lives when sign-in is on without D1 in local dev: next to the jobs folder. */
+export function defaultLocalD1Path(): string {
+  const root = process.env.EXPLANIMATE_ROOT ?? path.resolve(process.cwd(), "../..");
+  const jobsDir =
+    process.env.EXPLANIMATE_JOBS_DIR ?? withLegacyDir(path.join(root, "explanimate-out", "web"), path.join(root, "explainlike-out", "web"));
+  return path.join(jobsDir, "auth.db");
+}
+
+/** A local SQLite file standing in for D1 (end-to-end tests, and local dev when sign-in is on without D1); unset in production. */
 export function localD1Path(): string | undefined {
   const p = process.env.EXPLANIMATE_D1_LOCAL_PATH?.trim();
-  return p ? p : undefined;
+  if (p) return p;
+  if (
+    process.env.EXPLANIMATE_AUTH_ENABLED === "1" &&
+    process.env.NODE_ENV !== "production" &&
+    !(process.env.EXPLANIMATE_CF_ACCOUNT_ID && process.env.EXPLANIMATE_D1_DATABASE_ID && process.env.EXPLANIMATE_D1_TOKEN)
+  )
+    return defaultLocalD1Path();
+  return undefined;
 }
 
 /** The app's D1 handle from the environment (stateless, so no caching or closing). */

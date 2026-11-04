@@ -33,6 +33,9 @@ export default function SignIn({
   const [token, setToken] = useState("");
   const box = useRef<HTMLDivElement>(null);
   const widget = useRef<string | undefined>(undefined);
+  // local dev sets no Turnstile keys: the email flow stays, the widget goes, and the
+  // server logs the code to its console instead of sending it.
+  const needCaptcha = Boolean(siteKey);
 
   // the Turnstile script loads only here, and renders explicitly with action "login"
   useEffect(() => {
@@ -81,7 +84,7 @@ export default function SignIn({
   async function send() {
     if (busy || !email.trim()) return;
     // the Send button stays disabled until the CAPTCHA check answers; Enter must wait too
-    if (!token) return setErr("Finish the CAPTCHA check first, then send the code.");
+    if (needCaptcha && !token) return setErr("Finish the CAPTCHA check first, then send the code.");
     setErr("");
     setBusy(true);
     try {
@@ -138,11 +141,7 @@ export default function SignIn({
           ×
         </button>
         <h2>Sign in to make a video</h2>
-        {!siteKey && !google ? (
-          <p className="err" role="alert">
-            Sign-in is not configured on this server.
-          </p>
-        ) : step === "email" ? (
+        {step === "email" ? (
           <>
             {google && (
               <>
@@ -167,37 +166,34 @@ export default function SignIn({
                   </svg>
                   {gbusy ? "Connecting…" : "Continue with Google"}
                 </button>
-                {siteKey && (
-                  <div className="sor" aria-hidden="true">
-                    or
-                  </div>
-                )}
+                <div className="sor" aria-hidden="true">
+                  or
+                </div>
               </>
             )}
-            {siteKey && (
-              <>
-                <p className="ssub">Enter your email and we will send you a 6-digit code.</p>
-                <label className="sr" htmlFor="signin-email">
-                  Email
-                </label>
-                <input
-                  id="signin-email"
-                  className="sfield"
-                  type="email"
-                  autoComplete="email"
-                  placeholder="you@example.com"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") send();
-                  }}
-                />
-                <div ref={box} className="scap" />
-                <button type="button" className="btn solid wide" disabled={busy || !email.trim() || !token} onClick={send}>
-                  {busy ? "Sending…" : "Send code"}
-                </button>
-              </>
-            )}
+            <>
+              <p className="ssub">Enter your email and we will send you a 6-digit code.</p>
+              {!needCaptcha && <p className="ssub">Local dev: the code is logged to the server console.</p>}
+              <label className="sr" htmlFor="signin-email">
+                Email
+              </label>
+              <input
+                id="signin-email"
+                className="sfield"
+                type="email"
+                autoComplete="email"
+                placeholder="you@example.com"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") send();
+                }}
+              />
+              {needCaptcha && <div ref={box} className="scap" />}
+              <button type="button" className="btn solid wide" disabled={busy || !email.trim() || (needCaptcha && !token)} onClick={send}>
+                {busy ? "Sending…" : "Send code"}
+              </button>
+            </>
           </>
         ) : (
           <>
