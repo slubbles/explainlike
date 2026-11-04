@@ -47,7 +47,7 @@ export default function Home() {
   const [notes, setNotes] = useState<string[]>([]);
   const [auth, setAuth] = useState<AuthState | null>(null);
   const [signin, setSignin] = useState(false);
-  const job = useJob(jobId);
+  const { job, reconnecting } = useJob(jobId);
   const listed = useClips(jobId, bump);
   const examples = useGallery();
 
@@ -249,6 +249,11 @@ export default function Home() {
                 <div className="screen wait" aria-busy="true">
                   Loading…
                 </div>
+                {reconnecting && (
+                  <p className="note" role="status">
+                    Reconnecting to the server...
+                  </p>
+                )}
               </div>
             )}
             {job?.stage === "missing" && (
@@ -274,7 +279,7 @@ export default function Home() {
                     </div>
                   )}
                 </div>
-                <Steps job={job} onCancel={cancelRun} />
+                <Steps job={job} onCancel={cancelRun} reconnecting={reconnecting} />
               </div>
             )}
             {job?.state === "done" && (

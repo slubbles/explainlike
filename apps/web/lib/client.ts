@@ -74,58 +74,87 @@ export const secs = (n?: number) => `${Math.round(n ?? 0)} s`;
 export const fileUrl = (id: string, n?: string, dl = false) => (n ? `/api/jobs/${id}/file/${n}${dl ? "?download" : ""}` : "#");
 export const captionsUrl = (id: string) => `/api/jobs/${id}/captions`;
 
-/** Failed polls in a row (429, 500, offline) before the page says the server stopped answering. */
-export const MAX_POLL_FAILURES = 10;
+/** One job poll may hang this long before it counts as failed. */
+export const POLL_TIMEOUT_MS = 15_000;
+/** Failed polls in a row (offline, timeout, 429, 5xx) before the page says it is reconnecting. */
+export const RECONNECT_AFTER_FAILURES = 3;
+/** Wait after a failed poll: 3 s, then doubling up to 15 s. */
+export function pollDelay(failures: number): number {
+  return Math.min(3000 * 2 ** Math.max(0, failures - 1), 15_000);
+}
 
-/** Poll a job until it finishes. */
-export function useJob(id?: string) {
+/** Poll a job until it finishes. Failed polls never end the loop; only a 404 or the server reporting done or error does. */
+export function useJob(id?: string): { job: Job | null; reconnecting: boolean } {
   const [job, setJob] = useState<Job | null>(null);
+  const [reconnecting, setReconnecting] = useState(false);
   useEffect(() => {
     setJob(null);
+    setReconnecting(false);
     if (!id) return;
     let stop = false;
-    // a server that stays silent (429, 500, down) may not hold the page on "Loading" forever
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    let active: AbortController | null = null;
+    // failures never replace the last job the server sent; they only back off and, after a few, flag reconnecting
     let failures = 0;
-    const unreachable = (stage: string, error: string): Job => ({
+    const missing = (): Job => ({
       id,
       kind: "video",
       input: "",
       voice: "deepgram",
       state: "error",
-      stage,
+      stage: "missing",
       message: "",
       pct: 0,
-      error,
+      error: "This video is not on this server anymore. Paste the link again to make it.",
     });
+    const failed = () => {
+      failures += 1;
+      if (failures >= RECONNECT_AFTER_FAILURES) setReconnecting(true);
+      timer = setTimeout(poll, pollDelay(failures));
+    };
     const poll = async () => {
-      const r = await fetch(`/api/jobs/${id}`).catch(() => null);
+      const ctrl = new AbortController();
+      active = ctrl;
+      const timeout = setTimeout(() => ctrl.abort(), POLL_TIMEOUT_MS);
+      let r: Response | null = null;
+      try {
+        r = await fetch(`/api/jobs/${id}`, { signal: ctrl.signal }).catch(() => null);
+      } finally {
+        clearTimeout(timeout);
+        if (active === ctrl) active = null;
+      }
       if (stop) return;
       // a job that is gone (deleted, or a different server) ends as an error instead of a blank page that polls forever
       if (r?.status === 404) {
-        setJob(unreachable("missing", "This video is not on this server anymore. Paste the link again to make it."));
+        setReconnecting(false);
+        setJob(missing());
         return;
       }
       if (!r?.ok) {
-        failures += 1;
-        if (failures > MAX_POLL_FAILURES) {
-          setJob(unreachable("unreachable", "The server stopped answering. Reload the page to keep watching this video."));
-          return;
-        }
-        setTimeout(poll, 3000);
+        failed();
         return;
       }
-      failures = 0;
-      const j: Job = await r.json();
+      let j: Job;
+      try {
+        j = (await r.json()) as Job;
+      } catch {
+        failed();
+        return;
+      }
       if (stop) return;
+      failures = 0;
+      setReconnecting(false);
       setJob(j);
-      if (j.state === "running") setTimeout(poll, 1000);
+      if (j.state === "running") timer = setTimeout(poll, 1000);
     };
     poll();
     return () => {
       stop = true;
+      if (timer) clearTimeout(timer);
+      active?.abort();
     };
   }, [id]);
-  return job;
+  return { job, reconnecting };
 }
 
 /** The follow-up clips made from one video; `bump` refetches them. */

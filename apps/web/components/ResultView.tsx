@@ -14,7 +14,7 @@ function firstSentence(s: string) {
 
 /** One follow-up clip in the side list: progress while it draws, then a still you can open. */
 function Clip({ id }: { id: string }) {
-  const job = useJob(id);
+  const { job } = useJob(id);
   if (!job) return null;
   const what = job.kind === "focus" ? `Deep dive: ${job.focus}` : `What if ${job.whatIf} traffic?`;
   const mp4 = job.outputs?.mp4;
