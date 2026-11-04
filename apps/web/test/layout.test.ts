@@ -89,6 +89,32 @@ test("gallery cards show the video length as muted text, on the home wall and at
   assert.match(gallery, /a\.tag:hover\)\s*\{[^}]*\}/, "the kind tag keeps its hover");
 });
 
+test("the /app tables scroll inside their card on narrow screens, never the page", () => {
+  const app = fs.readFileSync(path.join(import.meta.dirname, "../app/app/app.css"), "utf8");
+  // the scroll card keeps sideways scroll inside itself and never outgrows the panel
+  assert.match(app, /\.app-tscroll\s*\{[^}]*overflow-x:\s*auto/);
+  assert.match(app, /\.app-tscroll\s*\{[^}]*max-width:\s*100%/);
+  // the flex and grid parents around the tables shrink instead of forcing the page wide
+  assert.match(app, /\.app-main\s*\{[^}]*min-width:\s*0/);
+  assert.match(app, /\.app-c\s*\{[^}]*min-width:\s*0/);
+  assert.match(app, /\.app-tools\s*\{[^}]*min-width:\s*0/);
+  // both tables sit inside the scroll card
+  for (const page of ["../app/app/videos/page.tsx", "../app/app/usage/page.tsx"]) {
+    const s = fs.readFileSync(path.join(import.meta.dirname, page), "utf8");
+    const open = s.indexOf("app-tscroll");
+    assert.ok(open >= 0, `${page} wraps its table in the scroll card`);
+    assert.ok(s.indexOf("<table", open) > open, `${page} renders the table inside the scroll card`);
+  }
+});
+
+test("the /app header row and the My videos toggles wrap instead of overflowing at 390px", () => {
+  const app = fs.readFileSync(path.join(import.meta.dirname, "../app/app/app.css"), "utf8");
+  const base = app.slice(0, app.indexOf("@media"));
+  assert.match(base, /\.app-top\s*\{[^}]*flex-wrap:\s*wrap/, "search plus New video wraps");
+  assert.match(base, /\.app-thead\s*\{[^}]*flex-wrap:\s*wrap/, "title and toggles wrap");
+  assert.match(base, /\.app-tools\s*\{[^}]*flex-wrap:\s*wrap/, "filter and view toggles wrap");
+});
+
 test("privacy and terms share the narrow v4 legal column with hairline dividers", () => {
   for (const page of ["../app/privacy/page.tsx", "../app/terms/page.tsx"]) {
     const s = fs.readFileSync(path.join(import.meta.dirname, page), "utf8");
