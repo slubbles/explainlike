@@ -7,7 +7,7 @@ import { d1Configured } from "../../lib/db";
 import { countErrorsSince, listRecentErrors } from "../../lib/errors";
 import { checkHealth } from "../../lib/health";
 import { JOBS_DIR, budgetNow, listJobs } from "../../lib/jobs";
-import { formatMs, jobMetrics, jobTiming } from "../../lib/metrics";
+import { formatMs, jobMetrics, jobTiming, systemMetrics } from "../../lib/metrics";
 import "./admin.css";
 
 export const runtime = "nodejs";
@@ -36,6 +36,7 @@ export default async function AdminPage() {
     countErrorsSince(Date.now() - 24 * 3600_000).catch(() => 0),
   ]);
   const spend = spendSummary(jobs, JOBS_DIR);
+  const sys = systemMetrics();
   const health = checkHealth(JOBS_DIR, budgetNow().ok);
   const dbOff = !d1Configured();
   const now = Date.now();
@@ -137,7 +138,9 @@ export default async function AdminPage() {
                       <th scope="col">Job</th>
                       <th scope="col">Status</th>
                       <th scope="col">Waited</th>
+                      <th scope="col">Render wait</th>
                       <th scope="col">Render</th>
+                      <th scope="col">Total</th>
                       <th scope="col">Video</th>
                       <th scope="col">Cost</th>
                     </tr>
@@ -156,7 +159,9 @@ export default async function AdminPage() {
                           {t.error && <div className="muted small prompt">{t.error}</div>}
                         </td>
                         <td className="nowrap">{formatMs(t.waitMs)}</td>
+                        <td className="nowrap">{formatMs(t.renderWaitMs)}</td>
                         <td className="nowrap">{formatMs(t.renderMs)}</td>
+                        <td className="nowrap">{formatMs(t.totalMs)}</td>
                         <td className="nowrap">{t.videoSec === null ? "—" : `${Math.round(t.videoSec)}s`}</td>
                         <td className="nowrap">{money(t.cost)}</td>
                       </tr>
@@ -221,6 +226,8 @@ export default async function AdminPage() {
                       <th scope="col">Owner</th>
                       <th scope="col">Status</th>
                       <th scope="col">Cost</th>
+                      <th scope="col">Wait</th>
+                      <th scope="col">Total</th>
                       <th scope="col">Prompt</th>
                     </tr>
                   </thead>
@@ -234,6 +241,8 @@ export default async function AdminPage() {
                         <td>{v.owner}</td>
                         <td>{v.status}</td>
                         <td className="nowrap">{money(v.cost)}</td>
+                        <td className="nowrap">{formatMs(v.waitMs)}</td>
+                        <td className="nowrap">{formatMs(v.totalMs)}</td>
                         <td className="prompt">
                           {v.input} <span className="muted">({v.inputLen} chars)</span>
                         </td>
@@ -308,6 +317,34 @@ export default async function AdminPage() {
                 </table>
               </div>
             )}
+          </section>
+
+          <section aria-label="System">
+            <h2>System</h2>
+            <div className="stats">
+              <div>
+                <span>Load (1 / 5 / 15 min)</span>
+                <b>
+                  {sys.loadavg.map((n) => n.toFixed(2)).join(" / ")} on {sys.cpus} cores
+                </b>
+              </div>
+              <div>
+                <span>Server memory free</span>
+                <b>
+                  {(sys.freemem / 1024 ** 3).toFixed(1)} GB of {(sys.totalmem / 1024 ** 3).toFixed(1)} GB
+                </b>
+              </div>
+              <div>
+                <span>App memory (RSS)</span>
+                <b>{(sys.process.rss / 1024 ** 2).toFixed(0)} MB</b>
+              </div>
+              <div>
+                <span>App heap</span>
+                <b>
+                  {(sys.process.heapUsed / 1024 ** 2).toFixed(0)} MB of {(sys.process.heapTotal / 1024 ** 2).toFixed(0)} MB
+                </b>
+              </div>
+            </div>
           </section>
 
           <section aria-label="Health">

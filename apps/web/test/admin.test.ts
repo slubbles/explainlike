@@ -27,6 +27,7 @@ test.after(() => fs.rmSync(dir, { recursive: true, force: true }));
 
 const adminUsers = () => import("../app/api/admin/users/route.ts");
 const adminLimits = () => import("../app/api/admin/limits/route.ts");
+const adminMetrics = () => import("../app/api/admin/metrics/route.ts");
 
 /** An in-memory D1 handle that answers the exact statements admin.ts issues. */
 class FakeD1 implements D1Db {
@@ -155,6 +156,9 @@ test("admin routes answer 404 with auth off, without touching the database", asy
     undefined as never,
   );
   assert.equal(w.status, 404);
+  const { GET: metrics } = await adminMetrics();
+  const m = await metrics(new Request("http://x/api/admin/metrics"), undefined as never);
+  assert.equal(m.status, 404, "the metrics endpoint is admin-only too");
 });
 
 test("a limit edit is an email and a whole number from 0 to 1000", () => {
@@ -215,7 +219,7 @@ test("videos join owners from D1 with live status and cost from disk", async () 
     { id: "aaa", userId: "u1", input: "how DNS works", inputLen: 13, createdAt: at },
     { id: "bbb", userId: "gone", input: "old video", inputLen: 0, createdAt: at - 1000 },
   );
-  const jobs = [{ id: "aaa", state: "done", costUsd: 0.25, started: at, began: at + 2000, finished: at + 62000 }];
+  const jobs = [{ id: "aaa", state: "done", costUsd: 0.25, started: at, began: at + 2000, finished: at + 62000, renderWaitMs: 500 }];
   assert.deepEqual(await listAdminVideos(jobs, db), [
     {
       id: "aaa",
@@ -226,7 +230,9 @@ test("videos join owners from D1 with live status and cost from disk", async () 
       status: "done",
       cost: 0.25,
       waitMs: 2000,
+      renderWaitMs: 500,
       renderMs: 60000,
+      totalMs: 62000,
     },
     {
       id: "bbb",
@@ -237,7 +243,9 @@ test("videos join owners from D1 with live status and cost from disk", async () 
       status: "gone",
       cost: 0,
       waitMs: null,
+      renderWaitMs: null,
       renderMs: null,
+      totalMs: null,
     },
   ]);
 });

@@ -89,10 +89,14 @@ export interface AdminVideo {
   created: string;
   status: string;
   cost: number;
-  /** how long the job waited for a render slot, in ms (null when unknown or still waiting) */
+  /** how long the job waited for an API slot, in ms (null when unknown or still waiting) */
   waitMs: number | null;
+  /** how long the run waited for a render slot, in ms (null when unknown) */
+  renderWaitMs: number | null;
   /** how long the render ran once it had a slot, in ms (null when unknown or unfinished) */
   renderMs: number | null;
+  /** from the request until the job ended, in ms (null when unknown or unfinished) */
+  totalMs: number | null;
 }
 
 export interface JobLike {
@@ -103,6 +107,9 @@ export interface JobLike {
   started?: number;
   began?: number;
   finished?: number;
+  accepted?: number;
+  renderWaitMs?: number;
+  stages?: Record<string, { start: number; end?: number }>;
 }
 
 /** The newest videos: owner from D1, live status and cost from the jobs on disk. */
@@ -122,7 +129,16 @@ export async function listAdminVideos(jobs: JobLike[], db: D1Db = getD1Db(), lim
     const t =
       j?.started === undefined
         ? undefined
-        : jobTiming({ id: j.id, state: j.state, started: j.started, began: j.began, finished: j.finished });
+        : jobTiming({
+            id: j.id,
+            state: j.state,
+            started: j.started,
+            began: j.began,
+            finished: j.finished,
+            accepted: j.accepted,
+            renderWaitMs: j.renderWaitMs,
+            stages: j.stages,
+          });
     return {
       id: r.id,
       input: full.slice(0, 120),
@@ -132,7 +148,9 @@ export async function listAdminVideos(jobs: JobLike[], db: D1Db = getD1Db(), lim
       status: j?.state ?? "gone",
       cost: j?.costUsd ?? j?.usd?.total ?? 0,
       waitMs: t?.waitMs ?? null,
+      renderWaitMs: t?.renderWaitMs ?? null,
       renderMs: t?.renderMs ?? null,
+      totalMs: t?.totalMs ?? null,
     };
   });
 }
