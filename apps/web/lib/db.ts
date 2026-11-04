@@ -263,7 +263,8 @@ async function d1Query(config: D1Config, sql: string, params: readonly unknown[]
 /**
  * Our own tables: per-day video counts, per-user overrides, which account started which job,
  * and recent server/client errors. Fresh databases get the full videos shape (prompt length,
- * status, cost); older ones gain the new columns below, so both old and new rows read the same.
+ * status, cost, plus the finished result: title, format, duration, poster and file names);
+ * older ones gain the new columns below, so both old and new rows read the same.
  */
 export async function ensureTables(db: D1Db): Promise<void> {
   await db
@@ -285,7 +286,9 @@ export async function ensureTables(db: D1Db): Promise<void> {
     .prepare(
       `CREATE TABLE IF NOT EXISTS videos (
     id TEXT PRIMARY KEY, user_id TEXT NOT NULL, input TEXT NOT NULL, created_at INTEGER NOT NULL,
-    input_len INTEGER NOT NULL DEFAULT 0, status TEXT NOT NULL DEFAULT 'started', cost REAL NOT NULL DEFAULT 0)`,
+    input_len INTEGER NOT NULL DEFAULT 0, status TEXT NOT NULL DEFAULT 'started', cost REAL NOT NULL DEFAULT 0,
+    title TEXT NOT NULL DEFAULT '', format TEXT NOT NULL DEFAULT '', duration_sec REAL NOT NULL DEFAULT 0,
+    poster TEXT NOT NULL DEFAULT '', files TEXT NOT NULL DEFAULT '')`,
     )
     .bind()
     .run();
@@ -297,7 +300,7 @@ export async function ensureTables(db: D1Db): Promise<void> {
     )
     .bind()
     .run();
-  // videos rows from before the input_len/status/cost columns: add what is missing. Best effort
+  // videos rows from before the result columns: add what is missing. Best effort
   // (a failure is logged, never thrown), because recording a video must never break creating one.
   try {
     const cols = await db.prepare("PRAGMA table_info(videos)").bind().all<{ name: string }>();
@@ -306,6 +309,11 @@ export async function ensureTables(db: D1Db): Promise<void> {
       ["input_len", "ALTER TABLE videos ADD COLUMN input_len INTEGER NOT NULL DEFAULT 0"],
       ["status", "ALTER TABLE videos ADD COLUMN status TEXT NOT NULL DEFAULT 'started'"],
       ["cost", "ALTER TABLE videos ADD COLUMN cost REAL NOT NULL DEFAULT 0"],
+      ["title", "ALTER TABLE videos ADD COLUMN title TEXT NOT NULL DEFAULT ''"],
+      ["format", "ALTER TABLE videos ADD COLUMN format TEXT NOT NULL DEFAULT ''"],
+      ["duration_sec", "ALTER TABLE videos ADD COLUMN duration_sec REAL NOT NULL DEFAULT 0"],
+      ["poster", "ALTER TABLE videos ADD COLUMN poster TEXT NOT NULL DEFAULT ''"],
+      ["files", "ALTER TABLE videos ADD COLUMN files TEXT NOT NULL DEFAULT ''"],
     ] as const) {
       if (!have.has(column)) await db.prepare(ddl).bind().run();
     }
@@ -322,7 +330,7 @@ export async function ensureTables(db: D1Db): Promise<void> {
 export const APP_TABLE_COLUMNS: Record<string, readonly string[]> = {
   usage: ["user_id", "day", "videos"],
   user_limits: ["user_id", "daily_videos"],
-  videos: ["id", "user_id", "input", "created_at", "input_len", "status", "cost"],
+  videos: ["id", "user_id", "input", "created_at", "input_len", "status", "cost", "title", "format", "duration_sec", "poster", "files"],
   errors: ["id", "ts", "route", "source", "name", "message", "stack", "request_id"],
 };
 
