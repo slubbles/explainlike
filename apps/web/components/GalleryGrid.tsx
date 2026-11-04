@@ -33,7 +33,7 @@ export default function GalleryGrid({ videos }: { videos: GalleryItem[] }) {
           {playing === v.id ? (
             <div className="th">
               <video className="big" src={v.src} poster={v.poster} controls autoPlay playsInline aria-label={v.title}>
-                {v.captions && <track kind="captions" src={v.captions} srcLang="en" label="English" default />}
+                {v.captions && <track kind="captions" src={v.captions} srcLang="en" label="English" />}
               </video>
               <button type="button" className="stop" onClick={() => stop(v.id)} aria-label={`Stop playing ${v.title}`}>
                 Stop
