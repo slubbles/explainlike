@@ -11,6 +11,7 @@ import {
   specFromBrief,
   withLegacyDir,
   userCacheDir,
+  copyeditPlan,
   DEFAULT_BRIEF,
   type Ask,
   type Brief,
@@ -199,8 +200,11 @@ export async function runExplanimate(o: RunOptions) {
   const recheckSpeech = async (a?: Architecture) => {
     const r = await respeak({ ledger, plan: plan!, arch: a, audience: spec.audience });
     if (r.note) notes.push(r.note);
-    if (r.changed.length) {
-      plan = r.plan;
+    // a rewrite can bring back a slip the planner had tidied, so the copyedit runs on whatever is voiced
+    const ce = copyeditPlan(r.plan);
+    if (ce.changed.length) notes.push(`copyedit: ${ce.changed.join(", ")} tidied`);
+    if (r.changed.length || ce.changed.length) {
+      plan = ce.plan;
       writeAtomic(path.join(out, "plan.json"), JSON.stringify(plan, null, 1));
     }
   };
@@ -361,6 +365,7 @@ export async function runExplanimate(o: RunOptions) {
         arch = w.arch;
         plan = w.plan;
       }
+      plan = copyeditPlan(plan).plan;
       fs.writeFileSync(path.join(out, "plan.json"), JSON.stringify(plan, null, 1));
       fs.writeFileSync(path.join(out, "architecture.json"), JSON.stringify(arch, null, 1));
       fs.writeFileSync(done, JSON.stringify({ key, plan, arch }));
