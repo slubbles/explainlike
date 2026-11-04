@@ -33,6 +33,7 @@ test("the CLI names --allow-private in its help", async () => {
   const r = await run(["--help"]);
   assert.equal(r.code, 0);
   assert.match(r.out, /--allow-private/);
+  assert.match(r.out, /my current changes/);
 });
 
 test("the CLI refuses a localhost link by default, before any render", async () => {

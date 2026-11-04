@@ -20,6 +20,9 @@ const HELP = `explanimate <github-url | local-repo-dir | x.com post url | articl
   A topic with no link ("how DNS works") is read from Wikipedia and the reputable pages it cites,
   and the video names its sources (listed in sources.md and the manifest).
 
+  Ask about this checkout ("explain my current changes", "what does this branch do") and the video
+  explains the working changes: branch, diff, new files and recent commits.
+
   Muse Spark reads the source first and decides the approach (analogy, story, step by step...),
   the depth, the tempo and the look. There are no levels or themes to pick.
 

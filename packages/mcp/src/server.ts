@@ -55,7 +55,7 @@ export function createExplanimateServer(runner = new JobRunner()) {
     { name: "explanimate", version: "0.1.0" },
     {
       instructions:
-        "Explanimate turns a GitHub repo, an X post or an article into a narrated whiteboard explainer video (mp4) plus editable .tldr and .excalidraw boards, saved on this machine. Call explain with the link, then explain_status until it is done, then tell the user where the files are.",
+        "Explanimate turns a GitHub repo, an X post, an article, a local folder or a plain topic into a narrated whiteboard explainer video (mp4) plus editable .tldr and .excalidraw boards, saved on this machine. Call explain with the link, then explain_status until it is done, then tell the user where the files are.",
     },
   );
 
@@ -95,7 +95,7 @@ export function createExplanimateServer(runner = new JobRunner()) {
     {
       title: "Make an explainer video",
       description:
-        'Make a narrated, hand-drawn whiteboard explainer video of a GitHub repo, an X post, an article, a local repo folder, or a plain topic ("how DNS works": it reads and cites a few reputable pages about it). The engine reads the source and decides the explaining style, depth and length itself. Writes an mp4, a .tldr (tldraw) and an .excalidraw board to a folder on this machine and returns their paths. Uses the Meta Model API and Deepgram keys from the environment, so each new video costs a little (usually well under $0.50); re-running the same source into the same folder reuses the cached plan.',
+        'Make a narrated, hand-drawn whiteboard explainer video of a GitHub repo, an X post, an article, a local repo folder, or a plain topic ("how DNS works": it reads and cites a few reputable pages about it). To explain the current checkout\'s working changes, pass the project folder as `source` and the question ("what does this branch do") as `question`. The engine reads the source and decides the explaining style, depth and length itself. Writes an mp4, a .tldr (tldraw) and an .excalidraw board to a folder on this machine and returns their paths. Uses the Meta Model API and Deepgram keys from the environment, so each new video costs a little (usually well under $0.50); re-running the same source into the same folder reuses the cached plan.',
       inputSchema: {
         source: z
           .string()
@@ -126,7 +126,7 @@ export function createExplanimateServer(runner = new JobRunner()) {
           .max(500)
           .optional()
           .describe(
-            'What the user wants to understand, in their words, e.g. "how a chat message reaches the bot\'s tools". Leave it out for a general explainer.',
+            'What the user wants to understand, in their words, e.g. "how a chat message reaches the bot\'s tools". Leave it out for a general explainer. For "this feature / my changes / this branch" questions, pass the project folder as `source`.',
           ),
         audience: z.string().max(500).optional().describe('Who the video is for, if the user said, e.g. "a new contributor".'),
         depth: z
@@ -212,7 +212,7 @@ export function createExplanimateServer(runner = new JobRunner()) {
             text: [
               `Make an Explanimate video for this request: ${request}`,
               "",
-              '1. Find the source in the request: a GitHub repo URL, an x.com post URL, an article URL, or a local repo folder (use the current project folder if I say "this repo" without a link). With no link at all, use the topic itself in a few words ("how DNS works").',
+              '1. Find the source in the request: a GitHub repo URL, an x.com post URL, an article URL, or a local repo folder (use the current project folder if I say "this repo" without a link). With no link at all, use the topic itself in a few words ("how DNS works"). If I ask about "this feature", "my changes", "current changes", "this branch" or "what we are working on", use my current project folder as the source and pass my question as `question`, so the video explains the working changes (branch, diff, new files, recent commits).',
               '2. Call the explain tool with it as `source`. If I asked about something specific ("what this repo is about" is general, "how auth works" is specific), pass that as `question`; pass `audience` or `depth` only if I said them.',
               "3. If it says it is still working, call explain_status with the jobId until it is done.",
               "4. Tell me in two or three plain sentences what the video covers, then give me the paths of the mp4, the .tldr and the .excalidraw files.",

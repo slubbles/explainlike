@@ -5,6 +5,9 @@ import { fileURLToPath } from "node:url";
 import {
   getTheme,
   looksLikeTopic,
+  isThisFeatureQuestion,
+  isVagueQuestion,
+  narrationLanguage,
   specFromBrief,
   withLegacyDir,
   userCacheDir,
@@ -20,7 +23,7 @@ import {
   type SourceKind,
 } from "@explanimate/core";
 import { CostLedger, museTranscribe } from "@explanimate/models";
-import { ingestRepo } from "@explanimate/ingest";
+import { ingestRepo, collectWorkingChanges, formatWorkingChanges } from "@explanimate/ingest";
 import {
   planBrief,
   extractArchitecture,
@@ -186,8 +189,12 @@ export async function runExplanimate(o: RunOptions) {
   const extra = (o.packs ?? builtinPackIds()).map((d) => loadIconPack(d));
   const pack: IconPack = mergePacks([loadIconPack(), ...extra]);
   let detected: DetectedComponent[] = [];
-  const kind = detectKind(o.input);
+  let input = o.input;
+  let ask = o.ask;
+  let kind = detectKind(input);
   let shared: string | undefined;
+  // a rewrite of the cached plan: --fresh, or working changes that moved on since the plan was made
+  let fresh = !!o.fresh;
   // a cached plan gets the newest speech check too; only a scene it rewrites is voiced again
   const recheckSpeech = async (a?: Architecture) => {
     const r = await respeak({ ledger, plan: plan!, arch: a, audience: spec.audience });
@@ -201,7 +208,7 @@ export async function runExplanimate(o: RunOptions) {
     // a crashed run restarted with the same --out picks up every paid step it already finished,
     // and a new folder for a repo commit that was planned before picks up the shared plan
     const sharedFile = shared && path.join(shared, path.basename(file));
-    for (const f of o.fresh ? [] : [file, sharedFile]) {
+    for (const f of fresh ? [] : [file, sharedFile]) {
       if (!f || !fs.existsSync(f)) continue;
       try {
         const v = JSON.parse(fs.readFileSync(f, "utf8"));
@@ -234,19 +241,43 @@ export async function runExplanimate(o: RunOptions) {
   const notes: string[] = [];
   // the engine decides how to explain: approach, depth, tempo and look come from Muse Spark's brief
   let spec: ExplainSpec = specFromBrief(DEFAULT_BRIEF);
+  // a bare working-changes question ("explain my current changes") is about this checkout
+  if (!fs.existsSync(input) && !/^[a-z][a-z0-9+.-]*:\/\//i.test(input)) {
+    if (isThisFeatureQuestion(input)) {
+      ask = { ...ask, goal: ask?.goal ? `${ask.goal} (${input.trim()})` : input.trim() };
+      input = process.cwd();
+      kind = detectKind(input);
+    } else if (isVagueQuestion(input)) {
+      throw new Error(
+        `Tell me what to explain: a GitHub repo link, a folder, an article link, or a topic in words (like "how DNS works"). "${input.trim().slice(0, 80)}" is not enough to go on.`,
+      );
+    }
+  }
+  // a vague goal ("explain", "?") asks for nothing specific: make the general explainer
+  if (ask?.goal && isVagueQuestion(ask.goal)) {
+    notes.push(`the question ("${ask.goal.trim().slice(0, 80)}") asks for nothing specific; making the general explainer`);
+    const { goal: _goal, ...rest } = ask;
+    ask = Object.values(rest).some(Boolean) ? rest : undefined;
+  }
+  // a non-English question is narrated in its language when the voice speaks it, else in English
+  const voiceModel =
+    o.voice === "silent" ? "silent" : o.voice === "deepgram" || (!o.voice && process.env.DEEPGRAM_API_KEY) ? (process.env.EXPLANIMATE_VOICE ?? "aura-2-arcas-en") : "silent";
+  const lang = narrationLanguage(ask, voiceModel);
+  if (lang.note) notes.push(lang.note);
   const decide = async (file: string, kindOf: SourceKind, name: string, text: string) => {
     const b = await timed("brief", () =>
-      cacheJson<Brief>(file, () => planBrief({ ledger, kind: kindOf, name, text, ask: o.ask, progress: P })),
+      cacheJson<Brief>(file, () => planBrief({ ledger, kind: kindOf, name, text, ask, progress: P })),
     );
-    spec = specFromBrief(b, o.ask);
+    spec = specFromBrief(b, ask);
+    if (lang.instruction) spec = { ...spec, voice: `${spec.voice} ${lang.instruction}` };
     notes.push(`brief: ${b.approach}, ${b.depth}, ${b.complexity} -> ${spec.tempo.id} tempo, ${b.look}; ${b.why}`);
   };
 
   if (kind === "repo") {
     P({ stage: "ingest", message: "reading the repository", pct: 2 });
-    const r = await timed("ingest", () => ingestRepo(o.input));
+    const r = await timed("ingest", () => ingestRepo(input));
     doc = r;
-    if (!o.focus && !o.whatIf) shared = planCacheDir({ url: r.url, commit: r.commit ?? "", ask: o.ask });
+    if (!o.focus && !o.whatIf) shared = planCacheDir({ url: r.url, commit: r.commit ?? "", ask });
     const name = o.name ?? r.title;
     // a repo URL shows itself; a local checkout shows --name or its folder name, never the path on this machine
     sourceLabel = /^https?:\/\//.test(r.url)
@@ -257,8 +288,33 @@ export async function runExplanimate(o: RunOptions) {
     out = o.out ?? path.join(defaultOutRoot(), slug(name));
     fs.mkdirSync(out, { recursive: true });
     notes.push(
-      `digest: ${r.digest.files.length} files, ${r.digest.text.length} chars; ${r.digest.skippedSecret.length} secret-looking files never opened`,
+      `digest: ${r.digest.files.length} files${r.digest.truncated ? " (list capped; the repo has more)" : ""}, ${r.digest.text.length} chars; ${r.digest.skippedSecret.length} secret-looking files never opened`,
     );
+    // a working-changes question makes the branch's diff the video's subject, ahead of the repo itself
+    let src = r.digest.text;
+    const featureGoal = ask?.goal && isThisFeatureQuestion(ask.goal) ? ask.goal : undefined;
+    if (featureGoal && r.repoDir && !o.focus && !o.whatIf) {
+      const wc = collectWorkingChanges(r.repoDir);
+      if (!wc) notes.push(`"${name}" is not a git checkout, so there is no branch or diff to show; explaining its files instead`);
+      else if (!wc.hasChanges && !wc.commits.length)
+        notes.push(`no working changes and no recent commits on "${wc.branch}"; explaining the repo as it stands`);
+      else {
+        const section = formatWorkingChanges(wc, featureGoal);
+        src = `${section}\n\n${r.digest.text}`;
+        notes.push(
+          wc.hasChanges
+            ? `explaining the working changes on branch "${wc.branch}"${wc.base ? ` (against ${wc.base})` : ""}: ${wc.stats.length} file(s)${wc.statsTruncated ? "+" : ""}, ${wc.untracked.length} new file(s)${wc.untrackedTruncated ? "+" : ""}, ${wc.commits.length} commit(s)`
+            : `no uncommitted changes on "${wc.branch}"; explaining its latest ${wc.commits.length} commit(s)`,
+        );
+        // working changes change: a plan cached for other changes must not be reused
+        const key = crypto.createHash("sha1").update(section).digest("hex");
+        const keyFile = path.join(out, ".changes-key");
+        if (!fs.existsSync(keyFile) || fs.readFileSync(keyFile, "utf8") !== key) {
+          fresh = true;
+          writeAtomic(keyFile, key);
+        }
+      }
+    }
     detected = detectComponents(extra, r.digest.files, (f) => r.digest.read(f, 60_000));
     if (detected.length) notes.push(`packs detected: ${detected.map((d) => `${d.pack}/${d.component.id}`).join(", ")}`);
     const hints = packHints(detected);
@@ -307,11 +363,11 @@ export async function runExplanimate(o: RunOptions) {
       fs.writeFileSync(path.join(out, "architecture.json"), JSON.stringify(arch, null, 1));
       fs.writeFileSync(done, JSON.stringify({ key, plan, arch }));
     } else {
-      await decide(path.join(out, "brief.json"), "repo", name, r.digest.text);
+      await decide(path.join(out, "brief.json"), "repo", name, src);
       arch = await timed("architecture", () =>
         cacheJson(path.join(out, "architecture.json"), async () => {
           P({ stage: "architecture", message: "Muse Spark is mapping the architecture", pct: 8 });
-          const a = await extractArchitecture({ ledger, digest: r.digest.text, name, spec, icons: iconCatalog(pack), hints, progress: P });
+          const a = await extractArchitecture({ ledger, digest: src, name, spec, icons: iconCatalog(pack), hints, progress: P });
           const check = (x: Architecture) => validateArchitecture(x, r.digest.files, resolve, fb, r.digest.read);
           let v = check(a);
           P({ stage: "review", message: "second pass: checking every box against the code", pct: 20 });
@@ -327,7 +383,7 @@ export async function runExplanimate(o: RunOptions) {
             ledger,
             arch: v.arch,
             evidence: evidencePack(v.arch, r.digest.read),
-            digest: r.digest.text,
+            digest: src,
             name,
             found: [...v.issues, ...v.open],
             spec,
@@ -389,12 +445,12 @@ export async function runExplanimate(o: RunOptions) {
       plan = await timed("scene plan", () =>
         cacheJson(path.join(out, "plan.json"), () => {
           P({ stage: "plan", message: "writing the scene plan", pct: 32 });
-          return planRepoScenes({ ledger, arch: arch!, spec, readme: readme(), source: r.digest.text, progress: P });
+          return planRepoScenes({ ledger, arch: arch!, spec, readme: readme(), source: src, progress: P });
         }),
       );
       await recheckSpeech(arch);
       // the speech check may have reworded a line: each line's visual is cut and checked again against what is said
-      const beats = checkBeats(plan, { arch: arch!, source: `${r.digest.text}\n${readme()}`, wps: spec.tempo.wps });
+      const beats = checkBeats(plan, { arch: arch!, source: `${src}\n${readme()}`, wps: spec.tempo.wps });
       plan = { ...plan, scenes: beats.plan.scenes };
       if (beats.report.beats)
         notes.push(
@@ -436,7 +492,7 @@ export async function runExplanimate(o: RunOptions) {
     });
     const tmpOut = o.out ?? path.join(defaultOutRoot(), "tmp-" + Date.now());
     fs.mkdirSync(tmpOut, { recursive: true });
-    const c = kind === "topic" ? await ingestTopic(o.input) : await ingestConcept(o.input, tmpOut);
+    const c = kind === "topic" ? await ingestTopic(input) : await ingestConcept(input, tmpOut);
     doc = c.doc;
     out = o.out ?? path.join(defaultOutRoot(), slug(o.name ?? doc.title));
     if (out !== tmpOut) {
