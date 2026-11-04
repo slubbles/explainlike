@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { verifyTurnstile } from "../lib/turnstile.ts";
+import { TURNSTILE_DUMMY_TOKEN, TURNSTILE_TEST_SECRET, verifyTurnstile } from "../lib/turnstile.ts";
 
 function withEnv(vars: Record<string, string | undefined>, fn: () => Promise<void> | void) {
   const saved: Record<string, string | undefined> = {};
@@ -76,5 +76,17 @@ test("a network error, a missing token, a missing secret, or no hostname list fa
   await withEnv({ EXPLANIMATE_TURNSTILE_SECRET: "secret", EXPLANIMATE_TURNSTILE_HOSTNAMES: undefined }, async () => {
     const r = await verifyTurnstile("tok", "9.9.9.9", siteverify({ success: true, action: "login", hostname: "explanimate.co" }));
     assert.deepEqual(r, { ok: false, error: "That check did not pass. Try again." }, "no list, nothing passes");
+  });
+});
+
+test("the documented test secret plus the dummy token passes with no network call", async () => {
+  await withEnv({ EXPLANIMATE_TURNSTILE_SECRET: TURNSTILE_TEST_SECRET }, async () => {
+    const r = await verifyTurnstile(TURNSTILE_DUMMY_TOKEN, "9.9.9.9", (() =>
+      assert.fail("must not call fetch")) as unknown as typeof fetch);
+    assert.deepEqual(r, { ok: true });
+  });
+  await withEnv({ EXPLANIMATE_TURNSTILE_SECRET: "secret" }, async () => {
+    const r = await verifyTurnstile(TURNSTILE_DUMMY_TOKEN, "9.9.9.9", siteverify({ success: false }));
+    assert.deepEqual(r, { ok: false, error: "That check did not pass. Try again." }, "the dummy token needs the test secret");
   });
 });

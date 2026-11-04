@@ -13,6 +13,7 @@ const chrome = process.env.CHROME_PATH ? { launchOptions: { executablePath: proc
 
 export default defineConfig({
   testDir: "e2e",
+  testIgnore: "e2e/auth/**",
   timeout: 30_000,
   fullyParallel: true,
   forbidOnly: !!process.env.CI,

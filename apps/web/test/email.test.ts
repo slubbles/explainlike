@@ -1,5 +1,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import { parseEmailFrom, sendOtpEmail } from "../lib/email.ts";
 
 function withEnv(vars: Record<string, string | undefined>, fn: () => Promise<void> | void) {
@@ -100,4 +103,17 @@ test("a network error or a missing config fails plainly without sending", async 
     });
     assert.match(lines.join("\n"), /not configured/);
   });
+});
+
+test("EXPLANIMATE_EMAIL_CAPTURE_DIR writes the code to a file instead of sending", async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "el-email-"));
+  await withEnv({ EXPLANIMATE_EMAIL_CAPTURE_DIR: dir }, async () => {
+    const r = await sendOtpEmail("a@x.co", "654321", (() => assert.fail("must not call fetch")) as unknown as typeof fetch);
+    assert.deepEqual(r, { ok: true });
+    const row = JSON.parse(fs.readFileSync(path.join(dir, "a@x.co.json"), "utf8"));
+    assert.equal(row.to, "a@x.co");
+    assert.equal(row.otp, "654321");
+    assert.match(fs.readFileSync(path.join(dir, "outbox.jsonl"), "utf8"), /654321/);
+  });
+  fs.rmSync(dir, { recursive: true, force: true });
 });

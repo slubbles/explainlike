@@ -24,6 +24,7 @@ import {
   type QueryCompiler,
   type QueryResult,
 } from "kysely";
+import { createLocalD1Db } from "./db-local";
 
 const D1_TIMEOUT_MS = 10_000;
 
@@ -75,13 +76,22 @@ export function createD1Db(config: D1Config): D1Db {
   };
 }
 
+/** A local SQLite file standing in for D1 (end-to-end tests); unset in production. */
+export function localD1Path(): string | undefined {
+  const p = process.env.EXPLANIMATE_D1_LOCAL_PATH?.trim();
+  return p ? p : undefined;
+}
+
 /** The app's D1 handle from the environment (stateless, so no caching or closing). */
 export function getD1Db(fetchImpl: typeof fetch = fetch): D1Db {
+  const local = localD1Path();
+  if (local) return createLocalD1Db(local);
   return createD1Db(d1ConfigFromEnv(fetchImpl));
 }
 
-/** True when the three D1 settings are present. The error store and admin lists need them. */
+/** True when the three D1 settings are present, or a local stand-in file is set. The error store and admin lists need them. */
 export function d1Configured(): boolean {
+  if (localD1Path()) return true;
   return !!(process.env.EXPLANIMATE_CF_ACCOUNT_ID && process.env.EXPLANIMATE_D1_DATABASE_ID && process.env.EXPLANIMATE_D1_TOKEN);
 }
 
