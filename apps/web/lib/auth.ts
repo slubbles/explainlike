@@ -1,7 +1,7 @@
 /**
  * Sign-in by one-time email code, behind EXPLANIMATE_AUTH_ENABLED=1 (only the exact value "1"
  * turns it on; anything else is today's behaviour: no sign-in, no Turnstile, no per-account limit).
- * Better Auth with its emailOTP plugin, plus Google OAuth when its two settings are set. No passwords. Sessions last 7 days and are
+ * Better Auth with its emailOTP plugin, plus Google and GitHub OAuth when their settings are set. No passwords. Sessions last 7 days and are
  * refreshed daily; codes are 6 digits, valid 10 minutes, with 5 attempts. The database is D1 over
  * its REST API (see lib/db.ts), or a local SQLite file for tests and local dev; its tables are created on first use, once per process.
  * In local dev (anything but production) the secret and the SQLite file default, so sign-in works with no setup.
@@ -15,7 +15,8 @@ import { getMigrations } from "better-auth/db/migration";
 import { emailOTP } from "better-auth/plugins";
 import { APP_TABLE_COLUMNS, authTablesExist, createKysely, d1ConfigFromEnv, ensureTables, getD1Db, localD1Path, type D1Db } from "./db";
 import { createLocalD1Db, createLocalKysely } from "./db-local";
-import { sendOtpEmail } from "./email";
+import { emailCaptureDir, sendOtpEmail } from "./email";
+import { rejectTempEmail } from "./email-guard";
 import { clientIp, rateLimit } from "./guard";
 import { verifyTurnstile } from "./turnstile";
 
@@ -28,6 +29,15 @@ export const authEnabled = (): boolean => process.env.EXPLANIMATE_AUTH_ENABLED =
  * and /api/auth-config).
  */
 export function googleEnabled(clientId: string | undefined, clientSecret: string | undefined): boolean {
+  return Boolean(clientId?.trim() && clientSecret?.trim());
+}
+
+/**
+ * GitHub sign-in is on only when both OAuth settings are set and non-blank. Pure, so
+ * tests drive it directly; callers pass the two environment values (see buildAuth below
+ * and /api/auth-config). The callback is /api/auth/callback/github.
+ */
+export function githubEnabled(clientId: string | undefined, clientSecret: string | undefined): boolean {
   return Boolean(clientId?.trim() && clientSecret?.trim());
 }
 
@@ -55,16 +65,26 @@ function buildAuth() {
   const googleId = process.env.GOOGLE_CLIENT_ID?.trim();
   const googleSecret = process.env.GOOGLE_CLIENT_SECRET?.trim();
   const google = googleEnabled(googleId, googleSecret);
+  const githubId = process.env.GITHUB_CLIENT_ID?.trim();
+  const githubSecret = process.env.GITHUB_CLIENT_SECRET?.trim();
+  const github = githubEnabled(githubId, githubSecret);
   return betterAuth({
     secret,
     baseURL,
     trustedOrigins: [baseURL],
     session: { expiresIn: 60 * 60 * 24 * 7, updateAge: 60 * 60 * 24 },
-    // Google OAuth only when both settings are set; the email-code flow is unchanged.
-    // A Google login with the same verified email links to the existing account, so
+    // Google and GitHub OAuth only when both settings are set; the email-code flow is unchanged.
+    // A social login with the same verified email links to the existing account, so
     // daily limits and the admin list (both keyed by email/user id) keep working.
-    ...(google ? { socialProviders: { google: { clientId: googleId as string, clientSecret: googleSecret as string } } } : {}),
-    account: { accountLinking: { enabled: true, trustedProviders: ["google", "email-otp"] } },
+    ...(google || github
+      ? {
+          socialProviders: {
+            ...(google ? { google: { clientId: googleId as string, clientSecret: googleSecret as string } } : {}),
+            ...(github ? { github: { clientId: githubId as string, clientSecret: githubSecret as string } } : {}),
+          },
+        }
+      : {}),
+    account: { accountLinking: { enabled: true, trustedProviders: ["google", "github", "email-otp"] } },
     // no sweep of expired codes on every verify: the sweep is two extra sequential D1
     // round trips, and expiry is still enforced when a code is checked.
     verification: { disableCleanup: true },
@@ -98,6 +118,10 @@ function buildAuth() {
             throw new APIError("TOO_MANY_REQUESTS", { message: "Too many codes requested. Try again in a few minutes." });
           if (email && rateLimit(`otp-email:${email}`, 5, 60 * 60_000))
             throw new APIError("TOO_MANY_REQUESTS", { message: "Too many codes for this address. Try again in an hour." });
+          // temporary inboxes never get a code; the MX lookup is skipped when codes are
+          // captured locally instead of sent (end-to-end tests only, never production)
+          const rejected = await rejectTempEmail(email, { skipMx: emailCaptureDir() !== undefined });
+          if (rejected) throw new APIError("BAD_REQUEST", { message: rejected });
           const token =
             req.headers.get("x-turnstile-token") ?? (typeof ctx.body?.turnstileToken === "string" ? ctx.body.turnstileToken : "");
           const v = await verifyTurnstile(token, ip);

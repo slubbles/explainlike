@@ -19,6 +19,7 @@ type AuthState = {
   enabled: boolean;
   siteKey: string;
   google: boolean;
+  github: boolean;
   email?: string;
   videos?: { used: number; limit: number; left: number };
 };
@@ -58,10 +59,11 @@ export default function Home() {
         enabled: true,
         siteKey: j.turnstileSiteKey ?? "",
         google: j.google === true,
+        github: j.github === true,
         email: j.user?.email,
         videos: j.videos ?? undefined,
       });
-    else setAuth({ enabled: false, siteKey: "", google: false });
+    else setAuth({ enabled: false, siteKey: "", google: false, github: false });
   };
   useEffect(() => {
     refreshAuth();
@@ -195,6 +197,7 @@ export default function Home() {
         <SignIn
           siteKey={auth.siteKey}
           google={auth.google}
+          github={auth.github}
           onCancel={() => setSignin(false)}
           onDone={async () => {
             setSignin(false);
