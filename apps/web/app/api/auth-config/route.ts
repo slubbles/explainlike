@@ -21,7 +21,7 @@ export const GET = withErrors("auth-config.GET", async (req: Request) => {
   const github = githubEnabled(process.env.GITHUB_CLIENT_ID, process.env.GITHUB_CLIENT_SECRET);
   const user = await sessionUser(req);
   if (!user) return NextResponse.json({ enabled: true, turnstileSiteKey: siteKey, user: null, videos: null, google, github });
-  const videos = await videosLeftToday(user.id).catch(() => null);
+  const videos = await videosLeftToday(user.id, Date.now(), undefined, user.email).catch(() => null);
   return NextResponse.json({
     enabled: true,
     turnstileSiteKey: siteKey,

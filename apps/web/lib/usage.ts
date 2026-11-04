@@ -28,8 +28,22 @@ export function defaultDailyVideos(): number {
   return Number.isFinite(n) && n > 0 ? Math.floor(n) : DEFAULT_DAILY_VIDEOS;
 }
 
-/** The limit for one user: their override row, or the default. */
-export async function dailyLimitFor(userId: string, db: D1Db = getD1Db()): Promise<number> {
+/**
+ * Whether an address skips the daily per-account cap (the admin list, case-insensitive).
+ * Mirrors admin.ts without importing it (admin.ts imports usage.ts).
+ */
+export function isUnlimitedEmail(email: string | null | undefined): boolean {
+  if (!email) return false;
+  const list = (process.env.EXPLANIMATE_ADMIN_EMAILS || process.env.ADMIN_EMAILS || "")
+    .split(",")
+    .map((s) => s.trim().toLowerCase())
+    .filter(Boolean);
+  return list.includes(email.trim().toLowerCase());
+}
+
+/** The limit for one user: null (unlimited) for admin addresses, else their override row, or the default. */
+export async function dailyLimitFor(userId: string, db: D1Db = getD1Db(), email?: string | null): Promise<number | null> {
+  if (isUnlimitedEmail(email)) return null;
   await ensureUsageTables(db);
   const row = await db.prepare("SELECT daily_videos AS n FROM user_limits WHERE user_id = ?").bind(userId).first<{ n: number }>();
   const n = Number(row?.n);
@@ -52,16 +66,27 @@ export async function videosUsedToday(userId: string, nowMs = Date.now(), db: D1
   return Number(row?.n) || 0;
 }
 
-export type Claim = { ok: true; used: number; limit: number } | { ok: false; error: string; status: 429 };
+export type Claim = { ok: true; used: number; limit: number | null } | { ok: false; error: string; status: 429 };
 
 /**
  * Claim one of today's videos for a user, before the job starts. The upsert only counts
  * when the stored count is still under the limit, and it is one statement, so two parallel
  * claims cannot both pass: the loser sees no row back and gets the 429.
+ * Admin addresses (see isUnlimitedEmail) still count up, but never refuse: limit is null.
  */
-export async function claimVideoSlot(userId: string, nowMs = Date.now(), db: D1Db = getD1Db()): Promise<Claim> {
+export async function claimVideoSlot(userId: string, nowMs = Date.now(), db: D1Db = getD1Db(), email?: string | null): Promise<Claim> {
   await ensureUsageTables(db);
-  const limit = await dailyLimitFor(userId, db);
+  if (isUnlimitedEmail(email)) {
+    const row = await db
+      .prepare(
+        "INSERT INTO usage (user_id, day, videos) VALUES (?, ?, 1) " +
+          "ON CONFLICT (user_id, day) DO UPDATE SET videos = videos + 1 RETURNING videos",
+      )
+      .bind(userId, utcDay(nowMs))
+      .first<{ videos: number }>();
+    return { ok: true, used: Number(row?.videos) || 0, limit: null };
+  }
+  const limit = (await dailyLimitFor(userId, db, email)) ?? defaultDailyVideos();
   const row = await db
     .prepare(
       "INSERT INTO usage (user_id, day, videos) VALUES (?, ?, 1) " +
@@ -105,15 +130,16 @@ export async function usageHistoryFor(userId: string, days = 30, db: D1Db = getD
   return rows.map((r) => ({ day: r.day, videos: Number(r.videos) || 0 }));
 }
 
-/** Videos left today, for the "N of M left" line near the create button. */
+/** Videos left today, for the "N of M left" line near the create button. Limit and left are null when unlimited. */
 export async function videosLeftToday(
   userId: string,
   nowMs = Date.now(),
   db: D1Db = getD1Db(),
-): Promise<{ used: number; limit: number; left: number }> {
-  const limit = await dailyLimitFor(userId, db);
+  email?: string | null,
+): Promise<{ used: number; limit: number | null; left: number | null }> {
+  const limit = await dailyLimitFor(userId, db, email);
   const used = await videosUsedToday(userId, nowMs, db);
-  return { used, limit, left: Math.max(0, limit - used) };
+  return { used, limit, left: limit === null ? null : Math.max(0, limit - used) };
 }
 
 export type LimitSet = { ok: true; userId: string; limit: number } | { ok: false; error: string };

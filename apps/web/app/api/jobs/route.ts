@@ -28,10 +28,12 @@ export const POST = withErrors("jobs.POST", async (req: Request) => {
   const limited = limitRequest(req, "jobs");
   if (limited) return limited;
   let userId: string | undefined;
+  let userEmail: string | undefined;
   if (authEnabled()) {
     const u = await sessionUser(req);
     if (!u) return NextResponse.json({ error: SIGNIN_ERROR }, { status: 401 });
     userId = u.id;
+    userEmail = u.email;
   }
   const read = await readBody(req);
   if ("error" in read) return read.error;
@@ -59,7 +61,7 @@ export const POST = withErrors("jobs.POST", async (req: Request) => {
   const no = admit(clientIp(req));
   if (no) return NextResponse.json({ error: no }, { status: 429 });
   if (userId) {
-    const claim = await claimVideoSlot(userId).catch(() => null);
+    const claim = await claimVideoSlot(userId, Date.now(), undefined, userEmail).catch(() => null);
     if (!claim) return NextResponse.json({ error: "Could not check your video limit. Try again in a moment." }, { status: 500 });
     if (!claim.ok) return NextResponse.json({ error: claim.error }, { status: 429 });
   }

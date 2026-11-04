@@ -28,14 +28,14 @@ export default async function OverviewPage() {
   const db = getD1Db();
   await ensureUsageTables(db);
   const jobs = listJobs();
-  const [quota, videos] = await Promise.all([videosLeftToday(user.id), listVideosForUser(user.id, jobs, db)]);
+  const [quota, videos] = await Promise.all([videosLeftToday(user.id, Date.now(), db, user.email), listVideosForUser(user.id, jobs, db)]);
   const active = jobs
     .filter((j) => j.owner === `u:${user.id}` && (j.state === "queued" || j.state === "running"))
     .sort((a, b) => b.started - a.started)[0];
   const steps = active ? stepsFor(active) : [];
   const states = active ? stepStates(steps, active.stage, active.state) : [];
-  const segs = Math.min(Math.max(quota.limit, 1), 12);
-  const filled = Math.round((quota.left / Math.max(quota.limit, 1)) * segs);
+  const segs = Math.min(Math.max(quota.limit ?? 12, 1), 12);
+  const filled = quota.limit === null || quota.left === null ? segs : Math.round((quota.left / Math.max(quota.limit, 1)) * segs);
 
   return (
     <>
@@ -63,8 +63,14 @@ export default async function OverviewPage() {
             <Link href="/app/usage">Usage →</Link>
           </div>
           <div className="app-count">
-            {quota.left}
-            <small> / {quota.limit}</small>
+            {quota.limit === null ? (
+              "Unlimited"
+            ) : (
+              <>
+                {quota.left}
+                <small> / {quota.limit}</small>
+              </>
+            )}
           </div>
           <div className="app-segs" aria-hidden="true">
             {Array.from({ length: segs }, (_, i) => (
