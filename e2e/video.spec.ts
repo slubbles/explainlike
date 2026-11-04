@@ -51,3 +51,21 @@ test("cross-site job requests are refused", async ({ request }) => {
   });
   expect(res.status()).toBeGreaterThanOrEqual(400);
 });
+
+test("nobody can list other visitors' jobs or see server paths", async ({ request }) => {
+  const res = await request.post("/api/jobs", {
+    data: { input: "how TLS works", voice: "silent" },
+    headers: { origin: test.info().project.use.baseURL! },
+  });
+  const { id } = await res.json();
+  const all = await request.get("/api/jobs");
+  expect(await all.json()).toEqual([]);
+  expect(all.headers()["cache-control"]).toContain("no-store");
+  const clips = await request.get(`/api/jobs?parent=${id}`);
+  expect(await clips.json()).toEqual([]);
+  const job = await request.get(`/api/jobs/${id}`);
+  const body = await job.json();
+  expect(body.id).toBe(id);
+  expect(body.args).toBeUndefined();
+  expect(JSON.stringify(body)).not.toMatch(/\/tmp\/|\/data\/|\/home\//);
+});
