@@ -26,6 +26,8 @@ export type Job = {
   via?: "voice";
   /** this browser (or account) started it, so it may cancel it */
   mine?: boolean;
+  /** its owner stopped it */
+  cancelled?: boolean;
   outputs?: { mp4?: string; tldr?: string; excalidraw?: string; contactSheet?: string };
 };
 /** A follow-up clip as the jobs list returns it for one parent video. */
