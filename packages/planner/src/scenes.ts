@@ -32,10 +32,13 @@ import {
   type NoteItem,
   type Scene,
   type SourceDoc,
+  promptFacts,
+  type FactsManifest,
 } from "@explanimate/core";
 import { sparkJson, type CostLedger } from "@explanimate/models";
 import { SHAPES, WHAT_IF, analogyRule, shapeFor, type Shape } from "./shapes.js";
 import { checkBeats, beatAnchors, boardBeats, readmePromises, type BeatReport } from "./beats.js";
+import { checkFormatBeats, checkHookQuestion, checkManifestNumbers, checkPayoffAnswersHook, checkScenePurpose, checkVisualReasoning, formatRule, scoreRubric, shouldRejectRubric } from "./quality.js";
 
 /** Plain words are literal words: the newcomer test kept passing narration that swapped jargon for a riddle. */
 const PLAIN =
@@ -147,7 +150,7 @@ export function groundToReadme(arch: Architecture, readme: string, head = 12_000
 // ---------------------------------------------------------------------------
 // Repo: tell one request's journey on one evolving canvas (docs/explaining-playbook.md).
 // ---------------------------------------------------------------------------
-function repoSystem(arch: Architecture, L: ExplainSpec, lo: number, hi: number): string {
+function repoSystem(arch: Architecture, L: ExplainSpec, lo: number, hi: number, manifest?: FactsManifest): string {
   const shape = shapeFor(L.brief.approach);
   const S = SHAPES[shape];
   const { path, side } = journeyOrder(arch);
@@ -162,6 +165,11 @@ function repoSystem(arch: Architecture, L: ExplainSpec, lo: number, hi: number):
     STYLE,
     VOICE_EXAMPLES,
     L.voice,
+    formatRule(L.format),
+    "The hook asks one question the viewer can't answer yet and never answers it in its first line; the recap answers it in plain words for 'you'.",
+    "Every layer, walkthrough, scale and notes scene advances the mechanism (because/therefore), shows evidence (a real command, file, row, or number), or poses the next question; a scene that only lists parts is cut.",
+    "Show one specific mechanism drawing (the actual hops and what each hop knows, not labels that would work on any topic) plus failure or evidence visuals.",
+    ...(manifest?.length ? [`Numbers come only from this facts manifest (value plus source); any other number is cut. Stars are adoption only, benchmarks are phrased as "the project claims", line counts as "about N lines": ${JSON.stringify(promptFacts(manifest))}`] : []),
     analogyRule(shape, analogy),
     "Scene order and rules:",
     `1. one 'hook' scene, 3 or 4 sentences, shown big on screen as it is spoken. ${S.hook} Whatever the shape, right after the hook line say what this project is, who it's for and why they'd care, in plain everyday words with no jargon, like '${arch.one_liner}'; someone who doesn't write code and hears only that knows what the thing is for and whether it's for them. add_components empty.`,
@@ -951,6 +959,7 @@ export async function planRepoScenes(o: {
   spec: ExplainSpec;
   readme?: string;
   source?: string;
+  manifest?: FactsManifest;
   progress?: Progress;
 }): Promise<
   ScenePlan & {
@@ -960,6 +969,7 @@ export async function planRepoScenes(o: {
     polish: { rewritten: number; kept: string[]; issues: string[] };
     beats: BeatReport;
     ear: string[];
+    rubric: { total: number; issues: string[] };
   }
 > {
   const L = o.spec;
@@ -984,7 +994,7 @@ export async function planRepoScenes(o: {
       fix_detail: s.fix_detail,
     })),
   };
-  const sys = repoSystem(o.arch, L, lo, hi);
+  const sys = repoSystem(o.arch, L, lo, hi, o.manifest);
   const user = `${promiseRule(readmePromises(o.readme ?? ""))}${JSON.stringify(compact)}${o.readme ? `\n\nREADME excerpt (copy commands, output rows and numbers from here only; the Features list is for why-lines about parts and steps already in the video, like a safety promise the README makes, never a new part or scene):\n${o.readme}` : ""}`;
   const promises = readmePromises(o.readme ?? "");
   const ask = (extra: { role: "assistant" | "user"; content: string }[] = []) =>
@@ -1014,6 +1024,12 @@ export async function planRepoScenes(o: {
   const beatsOf = (p: ScenePlan) => checkBeats(p, { arch: o.arch, source, wps: L.tempo.wps });
   const found = (p: ScenePlan, arch: Architecture, c: Critique | undefined) => [
     ...checkStory(p, arch, L.brief.analogy, shapeFor(L.brief.approach)),
+    ...checkHookQuestion(p),
+    ...checkPayoffAnswersHook(p),
+    ...checkScenePurpose(p, arch),
+    ...checkFormatBeats(p, L.format, arch, L.tempo.wps),
+    ...checkVisualReasoning(p, L.format, arch),
+    ...(o.manifest ? checkManifestNumbers(p, o.manifest, arch) : []),
     ...beatsOf(p).report.issues,
     ...(c?.undefined_terms ?? []).filter((t) => said(p, t.term)).map((t) => termIssue(t)),
     ...(c?.odd_phrases ?? []).filter((t) => said(p, t.phrase)).map((t) => oddIssue(t)),
@@ -1034,18 +1050,20 @@ export async function planRepoScenes(o: {
   let [pol, crit] = await Promise.all([polish(plan), critique(plan)]);
   let arch = renamedArch(pol.renames);
   const first = found(pol.plan, arch, crit);
-  let final = first,
+  let rubric = scoreRubric(pol.plan, { arch, manifest: o.manifest, format: L.format, wps: L.tempo.wps });
+  let final = [...first, ...rubric.issues],
     revised = false,
     story = pol.plan;
-  if (first.some(structural)) {
-    // the board itself is wrong (scene order, what each scene draws): the whole plan is redone once
-    o.progress?.({ stage: "plan", message: `self-check: ${first.length} issue(s), revising the plan once` });
+  if (first.some(structural) || shouldRejectRubric(rubric)) {
+    // the board itself is wrong, or the rubric rejects a weak script: the whole plan is redone once
+    const why = shouldRejectRubric(rubric) ? `, rubric ${rubric.total}/10` : "";
+    o.progress?.({ stage: "plan", message: `self-check: ${final.length} issue(s)${why}, revising the plan once` });
     plan = repairRepoPlan(
       await ask([
         { role: "assistant", content: JSON.stringify(raw) },
         {
           role: "user",
-          content: `A newcomer test of this plan found these problems. Return the full corrected plan, keeping what works:\n${first.map((x, i) => `${i + 1}. ${x}`).join("\n")}`,
+          content: `A newcomer test of this plan found these problems. Return the full corrected plan, keeping what works:\n${final.map((x, i) => `${i + 1}. ${x}`).join("\n")}`,
         },
       ]),
       o.arch,
@@ -1055,7 +1073,8 @@ export async function planRepoScenes(o: {
     [pol, crit] = await Promise.all([polish(plan), critique(plan)]);
     arch = renamedArch(pol.renames);
     story = pol.plan;
-    final = found(story, arch, crit);
+    rubric = scoreRubric(story, { arch, manifest: o.manifest, format: L.format, wps: L.tempo.wps });
+    final = [...found(story, arch, crit), ...rubric.issues];
   }
   const fixed = await fixWording({
     ledger: o.ledger,
@@ -1080,6 +1099,7 @@ export async function planRepoScenes(o: {
   }
   // every rewrite above may have moved a line: the beats are cut again from the final narration and checked
   const b = beatsOf(story);
+  rubric = scoreRubric({ ...story, scenes: b.plan.scenes }, { arch, manifest: o.manifest, format: L.format, wps: L.tempo.wps });
   return {
     ...plan,
     scenes: b.plan.scenes,
@@ -1088,6 +1108,7 @@ export async function planRepoScenes(o: {
     polish: { rewritten: pol.rewritten, kept: pol.kept, issues: pol.issues },
     beats: b.report,
     ear: ear.notes,
+    rubric: { total: rubric.total, issues: rubric.issues },
   };
 }
 
@@ -1665,7 +1686,7 @@ export async function planConceptScenes(o: {
   spec: ExplainSpec;
   icons: string;
   progress?: Progress;
-}): Promise<ScenePlan & { repairs: string[] }> {
+}): Promise<ScenePlan & { repairs: string[]; rubric: { total: number; issues: string[] } }> {
   const L = o.spec;
   // no set length: as many boards as the core needs, with six boards as the ceiling
   const [, hi] = coverageSeconds(L, { components: 0, steps: 0, scale: 0, boards: 6 });
@@ -1685,6 +1706,9 @@ export async function planConceptScenes(o: {
       : `You turn a dense ${o.doc.kind === "x-post" ? "X post" : "article"} into a whiteboard explainer video.`,
     STYLE,
     L.voice,
+    formatRule(L.format),
+    "The hook asks one question the viewer can't answer yet and never answers it in its first line; the recap answers it.",
+    "Every board, notes, and cut-in scene advances the mechanism, shows evidence from the source, or poses the next question.",
     "Scenes:",
     o.doc.kind === "topic" ? `1. 'hook': ${S.hook}` : `1. 'hook': the one question this source answers, in plain words. ${S.hook}`,
     `${o.doc.kind === "topic" ? "2. optionally one 'source' scene, and only when the source's own words carry weight (a standard, a study, a spec): the reader sees a card with the sources' text (say where it comes from, e.g. 'the standard says'). When the viewer just wants to see how the thing works, skip it and start the boards." : "2. 'source' scene(s): the reader sees the real post/article screenshot"}. highlights: 2 to 4 phrases (2 to 10 words) copied VERBATIM from the source text, each with a 1 to 3 word note and a color (red = problem/claim to question, orange = key idea, green = result/fix, blue = actor/entity). Narration explains why those phrases matter.`,
@@ -1715,10 +1739,12 @@ export async function planConceptScenes(o: {
     ],
   });
   let { plan: fixed, dropped, unsaid } = validateConcept(plan, o.doc.text);
+  let rubric = scoreRubric(fixed, { arch: NO_ARCH, format: L.format, wps: L.tempo.wps, source: o.doc.text });
   // a cut-in that lost too many rows to stand is dropped whole, so even one bad row is worth a re-plan then
   const cutIns = (p: ScenePlan) => p.scenes.filter((s) => s.kind === "chart" || s.kind === "timeline" || s.kind === "map").length;
-  if (dropped.length > 2 || cutIns(fixed) < cutIns(plan)) {
-    o.progress?.({ stage: "plan", message: `re-planning: ${dropped.length} quotes were not in the source` });
+  if (dropped.length > 2 || cutIns(fixed) < cutIns(plan) || shouldRejectRubric(rubric)) {
+    const why = shouldRejectRubric(rubric) ? `; rubric ${rubric.total}/10` : "";
+    o.progress?.({ stage: "plan", message: `re-planning: ${dropped.length} quotes were not in the source${why}` });
     plan = await sparkJson({
       ledger: o.ledger,
       step: "concept-plan-revise",
@@ -1734,11 +1760,12 @@ export async function planConceptScenes(o: {
         { role: "assistant", content: JSON.stringify(plan) },
         {
           role: "user",
-          content: `These rows failed the source check (a quote not copied verbatim, a chart or timeline quote that does not state its number or date, or a map place that is not a real country or city named in its quote). Replace each with an exact copied phrase that does, or remove it:\n${dropped.join("\n")}\nReturn the full corrected plan.`,
+          content: `These rows failed the source check (a quote not copied verbatim, a chart or timeline quote that does not state its number or date, or a map place that is not a real country or city named in its quote). Replace each with an exact copied phrase that does, or remove it:\n${dropped.join("\n")}${rubric.issues.length ? `\n\nWeak-script rubric (${rubric.total}/10):\n${rubric.issues.join("\n")}` : ""}\nReturn the full corrected plan.`,
         },
       ],
     });
     ({ plan: fixed, dropped, unsaid } = validateConcept(plan, o.doc.text));
+    rubric = scoreRubric(fixed, { arch: NO_ARCH, format: L.format, wps: L.tempo.wps, source: o.doc.text });
   }
   // a dropped row still named next to a kept one ("from china through persia to rome") needs a real rewrite of that scene
   const retold: string[] = [];
@@ -1778,7 +1805,8 @@ export async function planConceptScenes(o: {
       `speech: ${slips.length} problem(s), ${f.changed.length} scene(s) rewritten, ${left.length} left${left.length ? `: ${left.join("; ")}` : ""}`,
     );
   }
-  return { ...fixed, repairs: [...dropped.map((d) => `dropped unquoted: ${d}`), ...retold] };
+  rubric = scoreRubric(fixed, { arch: NO_ARCH, format: L.format, wps: L.tempo.wps, source: o.doc.text });
+  return { ...fixed, repairs: [...dropped.map((d) => `dropped unquoted: ${d}`), ...retold], rubric: { total: rubric.total, issues: rubric.issues } };
 }
 
 const LineCards = z.object({

@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import crypto from "node:crypto";
+import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import {
   getTheme,
@@ -12,6 +13,7 @@ import {
   withLegacyDir,
   userCacheDir,
   copyeditPlan,
+  buildFactsManifest,
   DEFAULT_BRIEF,
   type Ask,
   type Brief,
@@ -22,6 +24,7 @@ import {
   type ScenePlan,
   type SourceDoc,
   type SourceKind,
+  type FactsManifest,
 } from "@explanimate/core";
 import { CostLedger, museTranscribe } from "@explanimate/models";
 import { ingestRepo, collectWorkingChanges, formatWorkingChanges } from "@explanimate/ingest";
@@ -40,6 +43,7 @@ import {
   checkBeats,
   readmeExcerpt,
   groundToReadme,
+  dropUntiedSides,
 } from "@explanimate/planner";
 import { pickVoice, wordOverlap, voiceUsd, type VoiceProvider } from "@explanimate/voice";
 import {
@@ -244,7 +248,7 @@ export async function runExplanimate(o: RunOptions) {
   let repoDir: string | undefined;
   const notes: string[] = [];
   // the engine decides how to explain: approach, depth, tempo and look come from Muse Spark's brief
-  let spec: ExplainSpec = specFromBrief(DEFAULT_BRIEF);
+  let spec: ExplainSpec = specFromBrief(DEFAULT_BRIEF, undefined, kind);
   // a bare working-changes question ("explain my current changes") is about this checkout
   if (!fs.existsSync(input) && !/^[a-z][a-z0-9+.-]*:\/\//i.test(input)) {
     if (isThisFeatureQuestion(input)) {
@@ -274,9 +278,9 @@ export async function runExplanimate(o: RunOptions) {
   if (lang.note) notes.push(lang.note);
   const decide = async (file: string, kindOf: SourceKind, name: string, text: string) => {
     const b = await timed("brief", () => cacheJson<Brief>(file, () => planBrief({ ledger, kind: kindOf, name, text, ask, progress: P })));
-    spec = specFromBrief(b, ask);
+    spec = specFromBrief(b, ask, kindOf);
     if (lang.instruction) spec = { ...spec, voice: `${spec.voice} ${lang.instruction}` };
-    notes.push(`brief: ${b.approach}, ${b.depth}, ${b.complexity} -> ${spec.tempo.id} tempo, ${b.look}; ${b.why}`);
+    notes.push(`brief: ${b.approach}, ${b.depth} (${spec.format}), ${b.complexity} -> ${spec.tempo.id} tempo, ${b.look}; ${b.why}`);
   };
 
   if (kind === "repo") {
@@ -334,7 +338,7 @@ export async function runExplanimate(o: RunOptions) {
       if (!fs.existsSync(archFile)) throw new Error(`follow-up clips need an earlier run: ${archFile} not found (pass --from <out dir>)`);
       arch = JSON.parse(fs.readFileSync(archFile, "utf8")) as Architecture;
       const briefFile = path.join(o.from ?? out, "brief.json");
-      if (fs.existsSync(briefFile)) spec = specFromBrief(JSON.parse(fs.readFileSync(briefFile, "utf8")));
+      if (fs.existsSync(briefFile)) spec = specFromBrief(JSON.parse(fs.readFileSync(briefFile, "utf8")), ask, "repo");
       // a re-run of the same follow-up into the same folder reuses its plan, so re-rendering costs nothing
       const key = o.focus ? `focus:${o.focus}` : `what-if:${o.whatIf}`;
       const done = path.join(out, "follow-up.json");
@@ -449,10 +453,24 @@ export async function runExplanimate(o: RunOptions) {
         arch = g.arch;
         if (g.dropped.length) notes.push(`scope: ${g.dropped.join("; ")}`);
       }
+      {
+        const u = dropUntiedSides(arch!);
+        arch = u.arch;
+        if (u.dropped.length) notes.push(`scope: ${u.dropped.join("; ")}`);
+      }
+      let commitDate: string | undefined;
+      try {
+        commitDate = execFileSync("git", ["-C", r.repoDir!, "log", "-1", "--format=%ci"], { encoding: "utf8" }).trim();
+      } catch {
+        /* local folder without git history: the manifest skips the commit date */
+      }
+      const manifest: FactsManifest = buildFactsManifest({ repoUrl: r.url, commit: r.commit, commitDate, readme: readme(), digestText: src, files: r.digest.files, read: (p, max) => r.digest.read(p, max) });
+      writeAtomic(path.join(out, "facts.json"), JSON.stringify(manifest, null, 1));
+      notes.push(`facts: ${manifest.length} anchors (numbers the script may state)`);
       plan = await timed("scene plan", () =>
         cacheJson(path.join(out, "plan.json"), () => {
           P({ stage: "plan", message: "writing the scene plan", pct: 32 });
-          return planRepoScenes({ ledger, arch: arch!, spec, readme: readme(), source: src, progress: P });
+          return planRepoScenes({ ledger, arch: arch!, spec, readme: readme(), source: src, manifest, progress: P });
         }),
       );
       await recheckSpeech(arch);
@@ -487,6 +505,8 @@ export async function runExplanimate(o: RunOptions) {
         notes.push(
           `plan self-check: ${chk.first.length} issue(s)${chk.revised ? `, revised once, ${chk.final.length} left` : ""}${chk.final.length ? `: ${chk.final.join("; ")}` : ""}`,
         );
+      const rub = (plan as { rubric?: { total: number; issues: string[] } }).rubric;
+      if (rub) notes.push(`rubric: ${rub.total}/10${rub.issues.length ? `: ${rub.issues.join("; ")}` : ""}`);
     }
     repoDir = r.repoDir;
   } else {
@@ -540,6 +560,8 @@ export async function runExplanimate(o: RunOptions) {
           .map(([k, n]) => `${k} ${n}`)
           .join(", ")})${beats.report.repairs.length ? `; fixed: ${beats.report.repairs.join("; ")}` : ""}`,
       );
+      const rubC = (plan as { rubric?: { total: number; issues: string[] } }).rubric;
+      if (rubC) notes.push(`rubric: ${rubC.total}/10${rubC.issues.length ? `: ${rubC.issues.join("; ")}` : ""}`);
     }
     P({ stage: "plan", message: "finding the quoted lines on the page", pct: 30 });
     const quotes = plan.scenes.flatMap((s) => s.highlights.map((h) => h.quote));
