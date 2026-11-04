@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { looksLikeTopic } from "@explanimate/core/topic";
 import { privateHostname } from "@explanimate/core/private";
+import { TOPIC_MAX } from "./form";
 
 /** What the web app will hand to the CLI: public URLs (never the server's own network), a topic in words, local paths only when allowed. */
 export function validInput(s: string): boolean {
@@ -18,7 +19,7 @@ export function validInput(s: string): boolean {
     return !privateHostname(h);
   }
   // a topic in words ("how DNS works"): the engine reads reputable pages about it
-  if (s.length <= 300 && !/^[/~.]/.test(s) && looksLikeTopic(s)) return true;
+  if (s.length <= TOPIC_MAX && !/^[/~.]/.test(s) && looksLikeTopic(s)) return true;
   // local paths only when explicitly allowed (self-hosted use)
   return process.env.EXPLANIMATE_ALLOW_LOCAL === "1" && path.isAbsolute(s) && fs.existsSync(s);
 }

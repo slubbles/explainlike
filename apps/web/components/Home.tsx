@@ -7,7 +7,7 @@ import JobBar from "./JobBar";
 import SignIn from "./SignIn";
 import Steps from "./Steps";
 import ResultView from "./ResultView";
-import { DEFAULT_FORM, formFromJob, type Form } from "../lib/form";
+import { DEFAULT_FORM, formFromJob, normalizeInput, type Form } from "../lib/form";
 import { trackEvent } from "../lib/analytics";
 import { fileUrl, postJson, useGallery, useClips, useJob, type Explain } from "../lib/client";
 
@@ -19,9 +19,13 @@ type AuthState = { enabled: boolean; siteKey: string; email?: string; videos?: {
 /** The home UI: the start page, or a job when ?job=<id> is set. app/page.tsx wraps it with the head. */
 export default function Home() {
   const [form, setForm] = useState<Form>(DEFAULT_FORM);
-  const set = (f: Partial<Form>) => setForm((x) => ({ ...x, ...f }));
   const [jobId, setJobId] = useState<string>();
   const [err, setErr] = useState("");
+  // a new link or topic clears the reason the last one was refused
+  const set = (f: Partial<Form>) => {
+    if (f.input !== undefined) setErr("");
+    setForm((x) => ({ ...x, ...f }));
+  };
   const [map, setMap] = useState<Interactive>();
   const [picked, setPicked] = useState<string>();
   const [expl, setExpl] = useState<Explain | null>(null);
@@ -104,7 +108,9 @@ export default function Home() {
   async function submit() {
     setErr("");
     setPosting(true);
-    const r = await postJson<{ id: string; warnings?: string[] }>("/api/jobs", { ...form, input: form.input.trim() });
+    const input = normalizeInput(form.input);
+    if (input !== form.input) setForm((x) => ({ ...x, input }));
+    const r = await postJson<{ id: string; warnings?: string[] }>("/api/jobs", { ...form, input });
     setPosting(false);
     if (!r.ok) return setErr(r.error);
     trackEvent("video_create");
