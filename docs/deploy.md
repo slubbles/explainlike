@@ -189,6 +189,73 @@ Then:
 
 A plain `CNAME` is not allowed on the bare domain, which is why Railway needs `ALIAS`, `ANAME` or CNAME flattening there. Cloudflare flattens by default. If you use Cloudflare's proxy (orange cloud), set SSL to "Full (strict)".
 
+## Cloudflare in front
+
+With the domain on Cloudflare, the edge and the server each do one job. Cloudflare handles TLS to
+visitors, caching, the firewall and rate limits. The server runs the app behind Caddy and only
+answers on 443 with a real certificate.
+
+| Setting              | Value                                                                | Why                                                         |
+| -------------------- | -------------------------------------------------------------------- | ----------------------------------------------------------- |
+| DNS `@` and `www`    | Proxied (orange cloud)                                               | Visitors never see the server's address                     |
+| SSL/TLS mode         | Full (strict)                                                        | Caddy's Let's Encrypt certificate is checked, not just used |
+| Always Use HTTPS     | On                                                                   | Plain `http://` links redirect at the edge                  |
+| Minimum TLS          | 1.2                                                                  | Old protocol versions are refused                           |
+| HSTS                 | On, 6 months, no subdomains, no preload, `nosniff`                   | Browsers stop trying plain HTTP                             |
+| Bot Fight Mode       | On                                                                   | Known bad bots are challenged before they reach the app     |
+| Cache rule           | `/api/*` not cached, except `/api/gallery/*` images and videos       | Job and account answers are never shared between visitors   |
+| Rate limit rule      | Non-GET `/api/*`: 20 requests per 10 s per IP, then blocked for 10 s | A cheap first wall in front of the app's own per-IP limits  |
+| Custom firewall rule | Block `.env`, `.git`, `wp-`, `.php`, `phpmyadmin`, `cgi-bin` paths   | Scanner noise never reaches the server                      |
+
+`/_next/static/*` is cached by default (Next sends `immutable`), and HTML is not, because every page
+carries a fresh CSP nonce. Check it with:
+
+```bash
+curl -sI https://example.com/_next/static/chunks/<any>.js | grep -i cf-cache-status   # HIT
+curl -sI https://example.com/api/health | grep -i cf-cache-status                     # DYNAMIC
+curl -sI https://example.com/ | grep -i strict-transport-security
+```
+
+The Bot Fight Mode challenge can also catch scripts and uptime checkers that call the site through
+Cloudflare. Check health on the server itself (`curl http://127.0.0.1:3000/api/health`), as the deploy
+workflow below does.
+
+## Deploy from GitHub Actions
+
+`.github/workflows/deploy.yml` deploys `main` after CI passes on it, or by hand from the Actions tab.
+It stays off until you set it up:
+
+1. On the server, make a deploy script that pulls, rebuilds and checks health, for example
+   `/root/deploy-from-ci.sh`:
+
+   ```bash
+   #!/usr/bin/env bash
+   set -euo pipefail
+   bash /root/deploy-explanimate.sh          # your existing pull + docker build + restart
+   chown -R 1000:1000 /var/lib/docker/volumes/explanimate-data/_data
+   for i in $(seq 1 30); do
+     curl -fsS http://127.0.0.1:3000/api/health | grep -q '"ok":true' && { echo healthy; exit 0; }
+     sleep 2
+   done
+   echo "health check failed" >&2; exit 1
+   ```
+
+2. Make a key pair used only for this (`ssh-keygen -t ed25519 -f explanimate-deploy -N ""`) and add
+   the public half to the server's `~/.ssh/authorized_keys` with a forced command, so the key can run
+   the deploy and nothing else:
+
+   ```text
+   command="/root/deploy-from-ci.sh",no-port-forwarding,no-agent-forwarding,no-X11-forwarding,no-pty ssh-ed25519 AAAA... explanimate-deploy
+   ```
+
+3. In the GitHub repository, under Settings → Secrets and variables → Actions, add the secrets
+   `DEPLOY_SSH_KEY` (the private half), `DEPLOY_HOST` (`root@your-server`) and `DEPLOY_KNOWN_HOSTS`
+   (the output of `ssh-keyscan your-server`), then the variable `DEPLOY_ENABLED` = `true`.
+   Optionally add required reviewers to the `production` environment the job uses.
+
+Delete the key pair from your computer once the private half is in GitHub. No key ever goes in the
+repository.
+
 ## Build and start without Docker
 
 ```bash
