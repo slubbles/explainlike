@@ -52,7 +52,7 @@ test("flag off: creating a video works without a session, exactly as today", asy
 
 test("flag off: reading stays open and the auth endpoints stay dark", async () => {
   const { GET: jobs } = await postJobs();
-  assert.equal((await jobs()).status, 200);
+  assert.equal((await jobs(new Request("http://x/api/jobs"))).status, 200);
   const { GET: config } = await authConfig();
   assert.deepEqual(await (await config(new Request("http://x/api/auth-config"))).json(), { enabled: false });
   const { GET: all } = await authAll();
@@ -108,7 +108,7 @@ test("flag on: reading still stays open, and auth-config names the site key", as
   try {
     await quiet(async () => {
       const { GET: jobs } = await postJobs();
-      assert.equal((await jobs()).status, 200);
+      assert.equal((await jobs(new Request("http://x/api/jobs"))).status, 200);
       const { GET: config } = await authConfig();
       const body = (await (await config(new Request("http://x/api/auth-config"))).json()) as Record<string, unknown>;
       assert.deepEqual(body, { enabled: true, turnstileSiteKey: "test-site-key", user: null, videos: null });

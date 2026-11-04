@@ -9,7 +9,7 @@ import Steps from "./Steps";
 import ResultView from "./ResultView";
 import { DEFAULT_FORM, formFromJob, type Form } from "../lib/form";
 import { trackEvent } from "../lib/analytics";
-import { fileUrl, postJson, useGallery, useJob, useJobs, type Explain } from "../lib/client";
+import { fileUrl, postJson, useGallery, useClips, useJob, type Explain } from "../lib/client";
 
 const urlJob = () => new URLSearchParams(location.search).get("job") ?? undefined;
 
@@ -34,7 +34,7 @@ export default function Home() {
   const [auth, setAuth] = useState<AuthState | null>(null);
   const [signin, setSignin] = useState(false);
   const job = useJob(jobId);
-  const listed = useJobs(bump);
+  const listed = useClips(jobId, bump);
   const examples = useGallery();
 
   const refreshAuth = async () => {
@@ -145,7 +145,7 @@ export default function Home() {
     setStarted((f) => [r.data.id, ...f]);
   }
 
-  const clips = job ? [...new Set([...started, ...listed.filter((j) => j.parent === job.id).map((j) => j.id)])] : [];
+  const clips = job ? [...new Set([...started, ...listed.map((j) => j.id)])] : [];
   const quota: Quota = !auth?.enabled ? null : !auth.email ? "signin" : (auth.videos ?? null);
 
   return (

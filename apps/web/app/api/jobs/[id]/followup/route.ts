@@ -3,6 +3,7 @@ import { admit, startFollowUp } from "../../../../../lib/jobs";
 import { SIGNIN_ERROR, authEnabled, sessionUser } from "../../../../../lib/auth";
 import { clientIp, field, limitRequest, readBody } from "../../../../../lib/guard";
 import { claimVideoSlot, recordVideo, releaseVideoSlot } from "../../../../../lib/usage";
+import { claimOwner } from "../../../../../lib/owner";
 import { withErrors } from "../../../../../lib/route";
 import { checkOrigin } from "../../../../../lib/security";
 
@@ -34,11 +35,14 @@ export const POST = withErrors("followup.POST", async (req: Request, ctx: { para
     if (!claim) return NextResponse.json({ error: "Could not check your video limit. Try again in a moment." }, { status: 500 });
     if (!claim.ok) return NextResponse.json({ error: claim.error }, { status: 429 });
   }
-  const r = startFollowUp(id, { focus, whatIf });
+  const owner = await claimOwner(req, userId);
+  const r = startFollowUp(id, { focus, whatIf }, owner.key);
   if (typeof r === "string") {
     if (userId) await releaseVideoSlot(userId).catch(() => {});
     return NextResponse.json({ error: r }, { status: 400 });
   }
   if (userId) await recordVideo(r.id, userId, r.input);
-  return NextResponse.json({ id: r.id });
+  const res = NextResponse.json({ id: r.id });
+  if (owner.setCookie) res.headers.append("set-cookie", owner.setCookie);
+  return res;
 });

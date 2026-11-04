@@ -6,6 +6,7 @@ import { MAX_INPUT_CHARS, limitRequest, readBody } from "../../../../lib/guard";
 import { claimVideoSlot, recordVideo } from "../../../../lib/usage";
 import { checkRepo } from "../../../../lib/reach";
 import { START_TOOL, readStart, takeSentences, voiceSystem, type Turn } from "../../../../lib/voice";
+import { anonKey, ownerToken } from "../../../../lib/owner";
 import { withErrors } from "../../../../lib/route";
 import { checkOrigin } from "../../../../lib/security";
 
@@ -29,6 +30,9 @@ export const POST = withErrors("voice-turn.POST", async (req: Request) => {
     if (!u) return Response.json({ error: SIGNIN_ERROR }, { status: 401 });
     userId = u.id;
   }
+  // voice runs on localhost only; a job it starts belongs to this browser's owner cookie when there is one
+  const t = ownerToken(req);
+  const owner = t ? anonKey(t) : undefined;
   const limited = limitRequest(req, "voice-turn");
   if (limited) return limited;
   const b = budgetNow();
@@ -101,6 +105,7 @@ export const POST = withErrors("voice-turn.POST", async (req: Request) => {
                   voice,
                   { goal: read.req.goal, audience: read.req.audience, depth: read.req.depth, also: read.req.also },
                   "voice",
+                  userId ? `u:${userId}` : owner,
                 );
                 if (userId) await recordVideo(job.id, userId, read.req.input);
                 send("say", { text: read.confirm });

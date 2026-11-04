@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { admit, budgetNow, listJobs, startJob, validInput } from "../../../lib/jobs";
-import { asSeen } from "../../../lib/steps";
+import { NO_STORE, listFor } from "../../../lib/view";
+import { claimOwner, viewerKey } from "../../../lib/owner";
 import { SIGNIN_ERROR, authEnabled, sessionUser } from "../../../lib/auth";
 import { MAX_INPUT_CHARS, clientIp, limitRequest, readBody } from "../../../lib/guard";
 import { claimVideoSlot, recordVideo } from "../../../lib/usage";
@@ -9,28 +10,11 @@ import { checkOrigin } from "../../../lib/security";
 
 export const runtime = "nodejs";
 
-export const GET = withErrors("jobs.GET", async () => {
-  return NextResponse.json(
-    listJobs()
-      .slice(0, 40)
-      .map(asSeen)
-      .map(({ id, kind, input, approach, voice, state, title, parent, focus, whatIf, costUsd, started, durationSec, outputs }) => ({
-        id,
-        kind,
-        input,
-        approach,
-        voice,
-        state,
-        title,
-        parent,
-        focus,
-        whatIf,
-        costUsd,
-        started,
-        durationSec,
-        mp4: outputs?.mp4,
-      })),
-  );
+/** Only the viewer's own jobs, or the clips of a video whose id they hold (?parent=<id>); never anyone else's submissions. */
+export const GET = withErrors("jobs.GET", async (req: Request) => {
+  const parent = new URL(req.url).searchParams.get("parent");
+  const viewer = parent ? undefined : await viewerKey(req);
+  return NextResponse.json(listFor(listJobs(), viewer, parent), { headers: NO_STORE });
 });
 
 export const POST = withErrors("jobs.POST", async (req: Request) => {
@@ -58,7 +42,10 @@ export const POST = withErrors("jobs.POST", async (req: Request) => {
     if (!claim) return NextResponse.json({ error: "Could not check your video limit. Try again in a moment." }, { status: 500 });
     if (!claim.ok) return NextResponse.json({ error: claim.error }, { status: 429 });
   }
-  const job = startJob(input, read.body.voice === "silent" ? "silent" : "deepgram");
+  const owner = await claimOwner(req, userId);
+  const job = startJob(input, read.body.voice === "silent" ? "silent" : "deepgram", undefined, undefined, owner.key);
   if (userId) await recordVideo(job.id, userId, input);
-  return NextResponse.json({ id: job.id, warnings: budgetNow().warnings });
+  const res = NextResponse.json({ id: job.id, warnings: budgetNow().warnings }, { headers: NO_STORE });
+  if (owner.setCookie) res.headers.append("set-cookie", owner.setCookie);
+  return res;
 });
