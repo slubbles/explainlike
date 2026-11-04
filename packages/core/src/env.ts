@@ -31,4 +31,35 @@ export function userCacheDir(sub: string, home: string = os.homedir()): string {
   return withLegacyDir(path.join(home, ".cache", "explanimate", sub), path.join(home, ".cache", "explainlike", sub));
 }
 
+/**
+ * Copy the KEY=VALUE lines of .env text into env without printing anything: only
+ * uppercase names, only when unset or empty, with one layer of surrounding quotes
+ * stripped. Comments, blank lines and anything else are ignored.
+ */
+export function applyDotenvText(text: string, env: Record<string, string | undefined> = process.env): void {
+  for (const line of text.split("\n")) {
+    const m = line.match(/^\s*([A-Z0-9_]+)\s*=\s*(.*)\s*$/);
+    if (m && !env[m[1]]) env[m[1]] = m[2].replace(/^["']|["']$/g, "");
+  }
+}
+
+/**
+ * Load .env files in order (later files only fill what is still unset or empty),
+ * then adopt any pre-rename names. Missing files are skipped. `io` is stubbed in tests.
+ */
+export function loadDotenvFiles(
+  files: string[],
+  env: Record<string, string | undefined> = process.env,
+  io: { exists: (f: string) => boolean; read: (f: string) => string } = {
+    exists: (f) => fs.existsSync(f),
+    read: (f) => fs.readFileSync(f, "utf8"),
+  },
+): void {
+  for (const f of files) {
+    if (!io.exists(f)) continue;
+    applyDotenvText(io.read(f), env);
+  }
+  adoptLegacyEnv(env);
+}
+
 adoptLegacyEnv();
