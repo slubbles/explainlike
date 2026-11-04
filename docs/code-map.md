@@ -143,12 +143,12 @@ Tests sit in each package's `test/` folder and use Node's built-in test runner. 
    and a fix pass applies the reviewer's patches.
 4. **Scenes.** Muse writes the narration scene by scene, with the heading, the board nodes and the exact
    phrases the drawing will sync to. The plan is then polished for speech, renamed to plain keywords,
-   self-checked, and repaired — a structural problem replans once, a wording problem gets a small rewrite and a second look, up to two rounds.
+   self-checked, and repaired. A structural problem replans once, and a wording problem gets a small rewrite and a second look, up to two rounds.
 5. **Compose.** The plan becomes a `Film`: element positions and start times, camera keys, captions with
    per-word timings, headings, fades. No pixels yet.
 6. **Voice.** Each scene is spoken, 8 at a time, and cut to word timings; the narration is mixed to one
    24 kHz track at the timeline offsets.
-7. **Placement.** The film is checked against its own geometry — 7 rules, up to 8 fix passes, then a
+7. **Placement.** The film is checked against its own geometry: 7 rules, up to 8 fix passes, then a
    fallback pass that may widen the shot past the readable size.
 8. **Boards.** `.tldr` and `.excalidraw` are written, read back, and compared to the sketch.
 9. **Frames.** Skia draws each 1080p frame on a few threads (headless Chrome is the fallback), into a
@@ -164,7 +164,7 @@ Tests sit in each package's `test/` folder and use Node's built-in test runner. 
 | architecture evidence                | `planner/src/architecture.ts` | components are dropped and the reviewer's patches applied; never silent |
 | scene self-check                     | `planner/src/scenes.ts`       | structural → replan once; wording → one targeted rewrite                |
 | speech (articles, agreement, filler) | `core` + `planner`            | the same targeted rewrite                                               |
-| placement                            | `render/src/placement.ts`     | **throws** — no video                                                   |
+| placement                            | `render/src/placement.ts`     | **throws**: no video                                                    |
 | captions match narration             | `render/src/check.ts`         | **throws**                                                              |
 | board read-back                      | `render/src/boardcheck.ts`    | **throws**                                                              |
 | frame check                          | `render/src/framecheck.ts`    | recorded in `manifest.json` and the notes only                          |
@@ -173,7 +173,7 @@ Tests sit in each package's `test/` folder and use Node's built-in test runner. 
 
 So "nothing ships unchecked" is true, and "nothing ships broken" is not: a film whose frames slipped
 past the placement model still encodes, with the problem written into the manifest. That is a deliberate
-trade — a late frame issue should not throw away six minutes of drawing — but it means the manifest is
+trade: a late frame issue should not throw away six minutes of drawing, but it means the manifest is
 the place to look, not the exit code.
 
 ## Money and time, measured
@@ -243,12 +243,12 @@ Renders past `EXPLANIMATE_MAX_CONCURRENT` wait for a slot (`pump` in `apps/web/l
 stored on disk, so a restart picks it back up instead of failing it. With frames at ~20/s, a four-minute video
 is a six-minute wait, longer when several draw at once on the same CPU.
 A live "watch it make one" beat cannot fit in a three-minute demo; and the "30 second cached re-render"
-in the older docs is wrong — the cache skips planning and voice (`0 s, $0.00`), then every frame is
+in the older docs is wrong. The cache skips planning and voice (`0 s, $0.00`), then every frame is
 redrawn, because the frames folder is deleted at the start of each run (`packages/cli/src/pipeline.ts:310`).
 
 **2. A result opens paused on a still.**
 Browsers block unmuted autoplay without a gesture. `Player` catches the rejection, seeks to 55% and
-leaves it paused (`apps/web/components/Player.tsx:30-32`), so a link opened cold — `/?job=<id>` —
+leaves it paused (`apps/web/components/Player.tsx:30-32`), so a link opened cold (`/?job=<id>`)
 looks like a frozen frame with no narration. Enter through the form or the mic so a
 click has happened, or click play once before the reveal.
 

@@ -25,7 +25,7 @@ settings this mentions are listed in [`.env.example`](../.env.example) and
 
 Every handler runs inside `withErrors` (`lib/route.ts`): a throw is logged as structured JSON,
 persisted to the error store, and answered as a generic 500 carrying the request id. Nothing
-internal — no stack, no sentence from the code — reaches the caller.
+internal reaches the caller: no stack and no sentence from the code.
 
 Every POST checks the `Origin` header first (`checkOrigin`): a mismatched origin gets a 403.
 Requests without one (curl, server-to-server) pass, because they carry no cookies to forge.
@@ -66,7 +66,7 @@ Notes:
   verified email links to the existing account): sending a code costs 5 per IP per 10
   minutes and 5 per address per hour plus a Turnstile check; verifying costs 10 per IP per
   10 minutes. Trusted origins are the app's own base URL.
-- **Admin** (`/admin`, `/api/admin/*`) answers 404 — never 403 — unless sign-in is on and
+- **Admin** (`/admin`, `/api/admin/*`) answers 404, never 403, unless sign-in is on and
   the signed-in address is in `EXPLANIMATE_ADMIN_EMAILS` (comma list, case-insensitive).
   The check runs on the server for every route and for the page.
 - **Reads stay open**: the landing page, gallery, `/docs`, `/api/health` and job reads work
@@ -97,7 +97,7 @@ Notes:
   `lib/admin.ts`): values travel in `params`, never in the statement text. The only
   statement built in code is the `videos` column migration, from constant strings.
 - Logs (`lib/log.ts`) are structured JSON on stdout. Emails are masked, and tokens, codes,
-  cookies, secrets and passwords are redacted — in free text and under matching keys.
+  cookies, secrets and passwords are redacted, in free text and under matching keys.
 - API keys are read only in server code; a test fails if a client component touches
   `process.env` or a key. The browser learns only public values: the Turnstile site key
   through `/api/auth-config`, and the GA id from the root layout, which reads
