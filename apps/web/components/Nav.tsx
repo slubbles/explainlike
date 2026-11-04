@@ -3,7 +3,7 @@ import { useState } from "react";
 import AuthNav from "./AuthNav";
 import Logo from "./Logo";
 
-export default function Nav() {
+export default function Nav({ initialEmail }: { initialEmail?: string | null }) {
   const [open, setOpen] = useState(false);
   return (
     <nav className="nav">
@@ -22,7 +22,7 @@ export default function Nav() {
           <a className="gh" href="https://github.com/slubbles/explanimate" target="_blank" rel="noreferrer">
             GitHub
           </a>
-          <AuthNav />
+          <AuthNav initialEmail={initialEmail} />
           <div className="navmenu">
             <button type="button" className="menubtn" aria-label="Menu" aria-expanded={open} onClick={() => setOpen((v) => !v)}>
               <span aria-hidden="true">☰</span>

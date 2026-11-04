@@ -14,7 +14,16 @@ import { trackEvent } from "../../../lib/analytics";
 import { fileUrl, postJson, useClips, useJob, type Explain } from "../../../lib/client";
 
 /** The dashboard's creation flow: the prompt box, then the job bar, progress and result. /app/new starts before a job exists; /app/videos/[id] starts with one. A creation lands on the video page, so refreshes and shares keep working. */
-export default function VideoWorkspace({ jobId: initialId, prompt }: { jobId?: string; prompt?: string }) {
+export default function VideoWorkspace({
+  jobId: initialId,
+  prompt,
+  initial,
+}: {
+  jobId?: string;
+  prompt?: string;
+  /** What the page already read on the server: today's quota and the sign-in panel's public settings. When set, the workspace starts with them instead of asking. */
+  initial?: { quota: { used: number; limit: number; left: number }; siteKey: string; google: boolean };
+}) {
   const router = useRouter();
   const [form, setForm] = useState<Form>({ ...DEFAULT_FORM, input: prompt ?? "" });
   const [jobId, setJobId] = useState<string | undefined>(initialId);
@@ -34,9 +43,9 @@ export default function VideoWorkspace({ jobId: initialId, prompt }: { jobId?: s
   // a follow-up starts a paid clip: one tap, one clip, even on a double-click
   const [followingUp, setFollowingUp] = useState(false);
   const [notes, setNotes] = useState<string[]>([]);
-  const [quota, setQuota] = useState<Quota>(null);
-  const [siteKey, setSiteKey] = useState("");
-  const [google, setGoogle] = useState(false);
+  const [quota, setQuota] = useState<Quota>(initial?.quota ?? null);
+  const [siteKey, setSiteKey] = useState(initial?.siteKey ?? "");
+  const [google, setGoogle] = useState(initial?.google ?? false);
   const [signin, setSignin] = useState(false);
   const job = useJob(jobId);
   const listed = useClips(jobId, bump);
@@ -51,7 +60,7 @@ export default function VideoWorkspace({ jobId: initialId, prompt }: { jobId?: s
     }
   };
   useEffect(() => {
-    refreshQuota();
+    if (!initial) refreshQuota();
   }, []);
 
   useEffect(() => {
