@@ -2,11 +2,11 @@ import { notFound } from "next/navigation";
 import { headers } from "next/headers";
 import Nav from "../../components/Nav";
 import LimitForm from "./LimitForm";
-import { listAdminUsers, listAdminVideos, requireAdmin, spendSummary, usagePerDay } from "../../lib/admin";
-import { d1Configured } from "../../lib/db";
+import Live from "./Live";
+import { getAdminLive, listAdminUsers, listAdminVideos, requireAdmin } from "../../lib/admin";
 import { countErrorsSince, listRecentErrors } from "../../lib/errors";
 import { checkHealth } from "../../lib/health";
-import { JOBS_DIR, budgetNow, listJobs } from "../../lib/jobs";
+import { JOBS_DIR, budgetNow, listJobs, queueOrder } from "../../lib/jobs";
 import { formatMs, jobMetrics, jobTiming, systemMetrics } from "../../lib/metrics";
 import "./admin.css";
 
@@ -17,7 +17,10 @@ export const metadata = { title: "Admin — Explanimate" };
 const when = (iso: string) => (iso.length > 16 ? `${iso.slice(0, 10)} ${iso.slice(11, 16)}` : iso);
 const money = (n: number) => `$${n.toFixed(3)}`;
 
-/** The admin portal. Gated on the server: anyone but a listed admin gets the 404 page. */
+/**
+ * The admin portal. Gated on the server: anyone but a listed admin gets the 404 page.
+ * The live half refreshes every 5 s; the tables below are the full record at load time.
+ */
 export default async function AdminPage() {
   const h = await headers();
   const init: Record<string, string> = {};
@@ -28,17 +31,15 @@ export default async function AdminPage() {
   if (!gate.ok) notFound();
 
   const jobs = listJobs();
-  const [users, videos, days, errors, errors24h] = await Promise.all([
+  const [live, users, videos, errors, errors24h] = await Promise.all([
+    getAdminLive({ jobs, queue: queueOrder(), jobsDir: JOBS_DIR }),
     listAdminUsers().catch(() => null),
     listAdminVideos(jobs).catch(() => null),
-    usagePerDay().catch(() => null),
     listRecentErrors(20).catch(() => []),
     countErrorsSince(Date.now() - 24 * 3600_000).catch(() => 0),
   ]);
-  const spend = spendSummary(jobs, JOBS_DIR);
   const sys = systemMetrics();
   const health = checkHealth(JOBS_DIR, budgetNow().ok);
-  const dbOff = !d1Configured();
   const now = Date.now();
   const m24 = jobMetrics(jobs, now - 24 * 3600_000);
   const mAll = jobMetrics(jobs);
@@ -52,42 +53,14 @@ export default async function AdminPage() {
         <div className="wrap">
           <h1>Admin</h1>
           <p className="muted">Signed in as {gate.user.email}</p>
-          {dbOff && (
+          {live.dbOff && (
             <p className="note" role="status">
-              The sign-in database (D1) is not configured, so users, videos and usage per day are unavailable. Spend, errors and health
-              below still work.
+              The sign-in database (D1) is not answering, so accounts and usage are unavailable. Spend, jobs, errors and health below still
+              work.
             </p>
           )}
 
-          <section aria-label="Spend">
-            <h2>Spend</h2>
-            <div className="stats">
-              <div>
-                <span>Today (UTC)</span>
-                <b>
-                  {money(spend.today)} of {money(spend.dailyCap)}
-                </b>
-                {!spend.dailyOk && <em>paused until 00:00 UTC</em>}
-              </div>
-              <div>
-                <span>Lifetime Meta (Muse)</span>
-                <b>
-                  {money(spend.lifetime.meta)} of {money(spend.caps.meta)}
-                </b>
-              </div>
-              <div>
-                <span>Lifetime Deepgram</span>
-                <b>
-                  {money(spend.lifetime.voice)} of {money(spend.caps.voice)}
-                </b>
-              </div>
-            </div>
-            {spend.warnings.map((w) => (
-              <p className="note" role="status" key={w}>
-                {w}
-              </p>
-            ))}
-          </section>
+          <Live initial={live} />
 
           <section aria-label="Jobs">
             <h2>Jobs</h2>
@@ -172,7 +145,7 @@ export default async function AdminPage() {
             )}
           </section>
 
-          <section aria-label="Users">
+          <section aria-label="Users" id="users">
             <h2>Users</h2>
             {!users ? (
               <p className="muted">Unavailable right now.</p>
@@ -246,36 +219,6 @@ export default async function AdminPage() {
                         <td className="prompt">
                           {v.input} <span className="muted">({v.inputLen} chars)</span>
                         </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </section>
-
-          <section aria-label="Usage per day">
-            <h2>Usage per day</h2>
-            {!days ? (
-              <p className="muted">Unavailable right now.</p>
-            ) : days.length === 0 ? (
-              <p className="muted">No usage yet.</p>
-            ) : (
-              <div className="scroll">
-                <table>
-                  <thead>
-                    <tr>
-                      <th scope="col">Day (UTC)</th>
-                      <th scope="col">Videos</th>
-                      <th scope="col">Accounts</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {days.map((d) => (
-                      <tr key={d.day}>
-                        <td className="nowrap">{d.day}</td>
-                        <td>{d.videos}</td>
-                        <td>{d.users}</td>
                       </tr>
                     ))}
                   </tbody>
