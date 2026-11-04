@@ -5,6 +5,11 @@ import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import {
   getTheme,
+  formatCap,
+  estimateFilmSeconds,
+  resolveLook,
+  titleForPlan,
+  trimPlanToCap,
   looksLikeTopic,
   isThisFeatureQuestion,
   isVagueQuestion,
@@ -41,6 +46,7 @@ import {
   planWhatIf,
   kindColor,
   checkBeats,
+  fixNarration,
   readmeExcerpt,
   groundToReadme,
   dropUntiedSides,
@@ -74,6 +80,8 @@ export interface RunOptions {
   input: string;
   out?: string;
   name?: string;
+  /** "dark" renders on a black board; otherwise the brief picks the look */
+  look?: "dark" | "default";
   voice?: string;
   /** extra icon/component packs: built-in ids (cloudflare, cloud-generic) or folders. Default: every built-in pack, used only where it detects something */
   packs?: string[];
@@ -163,6 +171,15 @@ const slug = (s: string) =>
     .replace(/^-|-$/g, "")
     .slice(0, 60);
 
+const EMPTY_ARCH: Architecture = {
+  product: "",
+  one_liner: "",
+  components: [],
+  connections: [],
+  walkthrough: { name: "", steps: [] },
+  scale: [],
+};
+
 export function detectKind(input: string): SourceKind {
   if (/^(https?:\/\/)?(www\.)?(x|twitter)\.com\/[^/]+\/status\/\d+/i.test(input)) return "x-post";
   if (/^(https?:\/\/)?(www\.)?github\.com\//i.test(input) || fs.existsSync(input)) return "repo";
@@ -241,6 +258,7 @@ export async function runExplanimate(o: RunOptions) {
 
   let plan: ScenePlan & { repairs?: string[] };
   let arch: Architecture | undefined;
+  let beatSource = "";
   let doc: SourceDoc;
   let shot: SourceShot | undefined;
   let out: string;
@@ -332,6 +350,7 @@ export async function runExplanimate(o: RunOptions) {
     const readme = () => (readmeFile ? readmeExcerpt(r.digest.read(readmeFile, 200_000)) : "");
     const resolve = (n: string) => resolveIcon(pack, n);
     const fb = (k: string) => FALLBACK_ICON[k] ?? "box";
+    beatSource = `${src}\n${readme()}`;
     if (o.focus || o.whatIf) {
       // follow-up clip: same diagram as the earlier run, new scenes
       const archFile = path.join(o.from ?? out, "architecture.json");
@@ -538,6 +557,7 @@ export async function runExplanimate(o: RunOptions) {
     fs.mkdirSync(tmpOut, { recursive: true });
     const c = kind === "topic" ? await ingestTopic(input) : await ingestConcept(input, tmpOut);
     doc = c.doc;
+    beatSource = doc.text;
     out = o.out ?? path.join(defaultOutRoot(), slug(o.name ?? doc.title));
     if (out !== tmpOut) {
       fs.mkdirSync(path.dirname(out), { recursive: true });
@@ -585,6 +605,47 @@ export async function runExplanimate(o: RunOptions) {
     shot = await c.locate(quotes, path.join(out, "source.png"));
   }
 
+  // the job name wins over the planned title: it is the title card and the manifest title
+  const named = titleForPlan(plan.title, o.name);
+  if (named !== plan.title) {
+    plan = { ...plan, title: named };
+    writeAtomic(path.join(out, "plan.json"), JSON.stringify(plan, null, 1));
+  }
+  // a narration past the format's hard cap gets one rewrite aimed at length, then a deterministic
+  // trim; the line visuals are cut again from whatever is voiced
+  await timed("length cap", async () => {
+    const cap = formatCap(spec.format);
+    if (estimateFilmSeconds(plan, spec.tempo.wps, spec.tempo.tail) <= cap) return;
+    const over = Math.ceil(estimateFilmSeconds(plan, spec.tempo.wps, spec.tempo.tail) - cap);
+    const replan = await fixNarration({
+      ledger,
+      plan,
+      arch: arch ?? EMPTY_ARCH,
+      issues: [
+        `the narration runs about ${over} seconds over the ${cap} second cap for a ${spec.format} video; shorten every scene until the whole narration fits, keeping one idea per sentence and every name it says`,
+      ],
+      audience: spec.audience,
+      step: "length-cap",
+    }).catch(() => undefined);
+    if (replan?.changed.length) {
+      plan = { ...plan, scenes: replan.plan.scenes };
+      notes.push(`length cap: ${replan.changed.join(", ")} rewritten to fit ${cap}s`);
+    }
+    const t = trimPlanToCap(plan, cap, spec.tempo.wps, spec.tempo.tail);
+    if (t.trimmed.length) {
+      plan = { ...plan, scenes: t.plan.scenes };
+      notes.push(`length cap: ${t.trimmed.join(", ")} trimmed to fit ${cap}s`);
+    }
+    if (replan?.changed.length || t.trimmed.length) {
+      const beats = checkBeats(plan, { arch: arch ?? EMPTY_ARCH, source: beatSource, wps: spec.tempo.wps });
+      plan = { ...plan, scenes: beats.plan.scenes };
+      writeAtomic(path.join(out, "plan.json"), JSON.stringify(plan, null, 1));
+    }
+  });
+  if (o.look === "dark" && spec.look !== "chalk-dark") {
+    spec = { ...spec, look: resolveLook(o.look, spec.look) };
+    notes.push("look: dark board requested (--look dark)");
+  }
   const theme = getTheme(spec.look);
 
   // ---------- voice ----------
@@ -610,6 +671,27 @@ export async function runExplanimate(o: RunOptions) {
     ),
   );
   audio.sort((a, b) => plan.scenes.findIndex((s) => s.id === a.sceneId) - plan.scenes.findIndex((s) => s.id === b.sceneId));
+  // the voice is the ground truth: if it still runs past the cap, trim and re-voice the cut scenes
+  {
+    const cap = formatCap(spec.format);
+    const real = audio.reduce((t, a) => t + a.duration, 0) + plan.scenes.length * (0.3 + spec.tempo.tail) + 4.2;
+    if (real > cap) {
+      const t = trimPlanToCap(plan, cap - 2, spec.tempo.wps, spec.tempo.tail);
+      if (t.trimmed.length) {
+        plan = { ...plan, scenes: t.plan.scenes };
+        const beats = checkBeats(plan, { arch: arch ?? EMPTY_ARCH, source: beatSource, wps: spec.tempo.wps });
+        plan = { ...plan, scenes: beats.plan.scenes };
+        writeAtomic(path.join(out, "plan.json"), JSON.stringify(plan, null, 1));
+        for (const id of t.trimmed) {
+          const s = plan.scenes.find((x) => x.id === id)!;
+          audio[audio.findIndex((a) => a.sceneId === id)] = await voice.synthesize(id, s.narration, audioDir);
+        }
+        notes.push(
+          `length cap: the voice ran ${real.toFixed(0)}s past the ${cap}s cap, so ${t.trimmed.join(", ")} was trimmed and re-voiced`,
+        );
+      }
+    }
+  }
 
   // ---------- compose + render ----------
   P({ stage: "compose", message: "laying out the canvas", pct: 44 });
