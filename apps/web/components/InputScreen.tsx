@@ -1,7 +1,7 @@
 "use client";
 import { VOICES, type Form, shortLink } from "../lib/form";
 import type { GalleryItem } from "../lib/gallery";
-import type { Quota } from "../app/page";
+import type { Quota } from "./Home";
 import Footer from "./Footer";
 import GalleryGrid from "./GalleryGrid";
 import { Arrow, Mic } from "./Icons";

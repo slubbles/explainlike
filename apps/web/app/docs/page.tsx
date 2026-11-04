@@ -3,12 +3,9 @@ import Nav from "../../components/Nav";
 import Footer from "../../components/Footer";
 import ConfigBlock from "../../components/ConfigBlock";
 import { MCP_SNIPPETS } from "../../lib/mcp";
+import { pageMetadata } from "../../lib/seo";
 
-export const metadata: Metadata = {
-  title: "Docs · Explanimate",
-  description:
-    "Connect the Explanimate MCP server to your coding tool once, then ask for a whiteboard explainer video from inside your editor.",
-};
+export const metadata: Metadata = pageMetadata("docs");
 
 const INSTALL = `git clone https://github.com/slubbles/explanimate && cd explanimate
 pnpm install
