@@ -22,7 +22,7 @@ export default function VideoWorkspace({
   jobId?: string;
   prompt?: string;
   /** What the page already read on the server: today's quota and the sign-in panel's public settings. When set, the workspace starts with them instead of asking. */
-  initial?: { quota: { used: number; limit: number; left: number }; siteKey: string; google: boolean };
+  initial?: { quota: { used: number; limit: number; left: number }; siteKey: string; google: boolean; github: boolean };
 }) {
   const router = useRouter();
   const [form, setForm] = useState<Form>({ ...DEFAULT_FORM, input: prompt ?? "" });
@@ -46,6 +46,7 @@ export default function VideoWorkspace({
   const [quota, setQuota] = useState<Quota>(initial?.quota ?? null);
   const [siteKey, setSiteKey] = useState(initial?.siteKey ?? "");
   const [google, setGoogle] = useState(initial?.google ?? false);
+  const [github, setGithub] = useState(initial?.github ?? false);
   const [signin, setSignin] = useState(false);
   const job = useJob(jobId);
   const listed = useClips(jobId, bump);
@@ -56,6 +57,7 @@ export default function VideoWorkspace({
     if (j?.enabled) {
       setSiteKey(j.turnstileSiteKey ?? "");
       setGoogle(j.google === true);
+      setGithub(j.github === true);
       setQuota(j.videos ?? null);
     }
   };
@@ -163,6 +165,7 @@ export default function VideoWorkspace({
         <SignIn
           siteKey={siteKey}
           google={google}
+          github={github}
           onCancel={() => setSignin(false)}
           onDone={async () => {
             setSignin(false);

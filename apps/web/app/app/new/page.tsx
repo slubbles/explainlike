@@ -1,5 +1,5 @@
 import { requireAppUser } from "../../../lib/appuser";
-import { googleEnabled } from "../../../lib/auth";
+import { githubEnabled, googleEnabled } from "../../../lib/auth";
 import { getD1Db } from "../../../lib/db";
 import { ensureUsageTables, videosLeftToday } from "../../../lib/usage";
 import VideoWorkspace from "../components/VideoWorkspace";
@@ -24,6 +24,7 @@ export default async function NewPage({ searchParams }: { searchParams: Promise<
           quota,
           siteKey: process.env.EXPLANIMATE_TURNSTILE_SITE_KEY ?? "",
           google: googleEnabled(process.env.GOOGLE_CLIENT_ID, process.env.GOOGLE_CLIENT_SECRET),
+          github: githubEnabled(process.env.GITHUB_CLIENT_ID, process.env.GITHUB_CLIENT_SECRET),
         }}
       />
     </>

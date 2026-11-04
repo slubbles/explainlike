@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { Check } from "../../components/Icons";
 import { requireAppUser } from "../../lib/appuser";
-import { googleEnabled } from "../../lib/auth";
+import { githubEnabled, googleEnabled } from "../../lib/auth";
 import { getD1Db } from "../../lib/db";
 import { shortLink, sourceKind } from "../../lib/form";
 import { listJobs } from "../../lib/jobs";
@@ -51,6 +51,7 @@ export default async function OverviewPage() {
               quota,
               siteKey: process.env.EXPLANIMATE_TURNSTILE_SITE_KEY ?? "",
               google: googleEnabled(process.env.GOOGLE_CLIENT_ID, process.env.GOOGLE_CLIENT_SECRET),
+              github: githubEnabled(process.env.GITHUB_CLIENT_ID, process.env.GITHUB_CLIENT_SECRET),
             }}
           />
           <p className="app-hint">Short is a quick overview. Deep goes further. Anatomy breaks one part down.</p>
