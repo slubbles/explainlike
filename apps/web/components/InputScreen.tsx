@@ -33,8 +33,8 @@ type Props = {
   quota: Quota;
 };
 
-/** The prompt box the hero and the closing CTA share: same field, voice toggle, mic and send. */
-function PromptBox({
+/** The prompt box the landing page and the dashboard share: same field, voice toggle, mic and send. */
+export function PromptBox({
   form,
   set,
   go,
