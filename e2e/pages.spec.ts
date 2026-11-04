@@ -27,9 +27,9 @@ test("security headers are on every page", async ({ request }) => {
 
 test("the landing page explains the product and links the docs", async ({ page }) => {
   await page.goto("/");
-  await expect(page.getByRole("heading", { level: 1 })).toContainText("whiteboard");
+  await expect(page.getByRole("heading", { level: 1 })).toContainText("Explained in a video");
   await expect(page.getByLabel("Link or topic to explain").first()).toBeVisible();
-  await expect(page.getByRole("heading", { name: "How it works" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Watch your video draw itself." })).toBeVisible();
   await page.getByRole("link", { name: "Docs" }).first().click();
   await expect(page).toHaveURL(/\/docs$/);
 });
