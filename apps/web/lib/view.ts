@@ -4,6 +4,7 @@
  * key stay on the server. Lists are narrower still: only the viewer's own jobs, or the follow-up
  * clips of a video whose id the viewer already holds.
  */
+import { NO_STORE_VALUE } from "./cache";
 import { asSeen } from "./steps";
 import type { Job } from "./jobs";
 
@@ -53,4 +54,4 @@ export function listFor(all: Job[], viewer: string | undefined, parent: string |
     .map(ownRow);
 }
 
-export const NO_STORE = { "cache-control": "no-store" };
+export const NO_STORE = { "cache-control": NO_STORE_VALUE };
