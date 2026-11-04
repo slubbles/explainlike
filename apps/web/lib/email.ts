@@ -7,6 +7,7 @@
  */
 import fs from "node:fs";
 import path from "node:path";
+import { SITE_URL } from "./seo";
 
 export type EmailFrom = { name: string; address: string };
 
@@ -32,6 +33,48 @@ export function emailCaptureDir(): string | undefined {
   return d ? d : undefined;
 }
 
+const escapeHtml = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+
+export type OtpEmail = { subject: string; text: string; html: string };
+
+/**
+ * The login-code message: a plain-text part plus a designed HTML part. The HTML is
+ * tables with inline CSS only (no style blocks, scripts or SVG), so it renders in
+ * strict email clients; the logo is a PNG served from public/email/logo.png.
+ */
+export function buildOtpEmail(otp: string): OtpEmail {
+  const subject = `Your Explanimate code: ${otp}`;
+  const text = `Your Explanimate code is ${otp}. It expires in 10 minutes. If you did not ask for this, ignore it.`;
+  const code = escapeHtml(otp);
+  const font = "font-family:Inter,-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;";
+  const html =
+    `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>` +
+    `<body style="margin:0;padding:0;background-color:#0a0a0a;">` +
+    `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#0a0a0a;">` +
+    `<tr><td align="center" style="padding:32px 16px;">` +
+    `<table role="presentation" width="480" cellpadding="0" cellspacing="0" style="width:480px;max-width:100%;background-color:#111111;border:1px solid #1f1f1f;border-radius:12px;">` +
+    `<tr><td style="padding:32px 32px 28px 32px;${font}">` +
+    `<table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr>` +
+    `<td width="36" style="width:36px;vertical-align:middle;"><img src="${SITE_URL}/email/logo.png" width="28" height="28" alt="Explanimate" style="display:block;width:28px;height:28px;border:0;"></td>` +
+    `<td style="font-size:15px;font-weight:600;color:#ededed;vertical-align:middle;">Explanimate</td>` +
+    `</tr></table>` +
+    `<h1 style="margin:24px 0 8px 0;font-size:22px;font-weight:600;line-height:1.3;color:#ffffff;">Your sign-in code</h1>` +
+    `<p style="margin:0 0 20px 0;font-size:14px;line-height:1.5;color:#a1a1a1;">Enter this code on explanimate.co to finish signing in.</p>` +
+    `<table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr>` +
+    `<td align="center" style="background-color:#0a0a0a;border:1px solid #262626;border-left:3px solid #0082fb;border-radius:6px;padding:20px 16px 20px 26px;">` +
+    `<span style="font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,'Liberation Mono',monospace;font-size:36px;letter-spacing:10px;color:#ffffff;">${code}</span>` +
+    `</td></tr></table>` +
+    `<p style="margin:20px 0 0 0;font-size:13px;line-height:1.5;color:#8a8a8a;">It expires in 10 minutes. If you didn&apos;t ask for this code, you can ignore this email.</p>` +
+    `<table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr>` +
+    `<td style="padding:24px 0 16px 0;border-bottom:1px solid #1f1f1f;"></td>` +
+    `</tr></table>` +
+    `<p style="margin:16px 0 0 0;font-size:12px;line-height:1.5;color:#666666;">Explanimate turns any repo, article or idea into a narrated whiteboard video.<br><a href="${SITE_URL}" style="color:#0082fb;text-decoration:none;">explanimate.co</a></p>` +
+    `</td></tr></table>` +
+    `</td></tr></table>` +
+    `</body></html>`;
+  return { subject, text, html };
+}
+
 /** Send a 6-digit login code. `fetchImpl` is stubbed in tests. */
 export async function sendOtpEmail(to: string, otp: string, fetchImpl: typeof fetch = fetch): Promise<EmailResult> {
   const capture = emailCaptureDir();
@@ -49,9 +92,7 @@ export async function sendOtpEmail(to: string, otp: string, fetchImpl: typeof fe
     return { ok: false, error: FAIL };
   }
   const from = parseEmailFrom(process.env.EXPLANIMATE_EMAIL_FROM);
-  const subject = `Your Explanimate code: ${otp}`;
-  const text = `Your Explanimate code is ${otp}. It expires in 10 minutes. If you did not ask for this, ignore it.`;
-  const html = `<p>Your Explanimate code is <b>${otp}</b>.</p><p>It expires in 10 minutes. If you did not ask for this, ignore it.</p>`;
+  const { subject, text, html } = buildOtpEmail(otp);
   let res: Response;
   try {
     res = await fetchImpl(`https://api.cloudflare.com/client/v4/accounts/${account}/email/sending/send`, {
