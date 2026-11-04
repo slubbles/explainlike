@@ -20,9 +20,6 @@ export default function GalleryGrid({ videos }: { videos: GalleryItem[] }) {
               ) : (
                 <video src={`${v.src}#t=1`} muted playsInline preload="metadata" tabIndex={-1} aria-hidden="true" />
               )}
-              <span className="t" aria-hidden="true">
-                {v.title}
-              </span>
               <span className="play" aria-hidden="true">
                 <svg width="12" height="12" viewBox="0 0 12 12">
                   <path d="M3 1.5 L10 6 L3 10.5Z" fill="currentColor" />
