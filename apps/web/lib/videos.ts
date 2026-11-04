@@ -233,7 +233,8 @@ export async function deleteUserVideo(
 /**
  * Delete an account and everything it made: every job folder, its videos rows, its usage and
  * limit rows, then its sign-in rows (sessions and linked logins first, the user row last).
- * Each statement is best effort except the user row itself, which must go.
+ * Each statement is best effort except the user row itself, which must go. Login-code rows
+ * stay: they expire within 10 minutes and are useless without the account.
  */
 export async function deleteUserAccount(userId: string, db: D1Db, remove: (id: string) => void): Promise<{ videos: number }> {
   const rows = await db.prepare("SELECT id FROM videos WHERE user_id = ?").bind(userId).all<{ id: string }>();
