@@ -53,7 +53,9 @@ test("a long hook line must become one short problem-or-payoff line of about 8 s
 test("long sentences go back for short lines of one idea each; short ones pass", () => {
   const paced = (n: string) => speechIssues(plan(sc("layer", n)), arch).filter((i) => /short lines of one idea/.test(i));
   assert.equal(
-    paced("The team chat takes every message you type and hands it to the front door, which checks who you are before letting anything through the gate.").length,
+    paced(
+      "The team chat takes every message you type and hands it to the front door, which checks who you are before letting anything through the gate.",
+    ).length,
     1,
   );
   assert.deepEqual(paced("You type a note in the team chat, and it goes to the front door."), []);
@@ -66,11 +68,7 @@ test("the recap opens with what it does for you, then the retrace", () => {
 });
 
 test("more filler goes back: delving, game changers and nutshells", () => {
-  assert.deepEqual(fillerIn("Let's delve into the code. It is a game changer, in a nutshell."), [
-    "delve",
-    "game changer",
-    "in a nutshell",
-  ]);
+  assert.deepEqual(fillerIn("Let's delve into the code. It is a game changer, in a nutshell."), ["delve", "game changer", "in a nutshell"]);
   assert.deepEqual(fillerIn("Needless to say, at the end of the day it goes without saying."), [
     "needless to say",
     "at the end of the day",
