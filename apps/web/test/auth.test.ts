@@ -16,6 +16,8 @@ Object.assign(process.env, {
 });
 delete process.env.EXPLANIMATE_AUTH_ENABLED;
 delete process.env.BETTER_AUTH_SECRET;
+delete process.env.GOOGLE_CLIENT_ID;
+delete process.env.GOOGLE_CLIENT_SECRET;
 
 const postJobs = () => import("../app/api/jobs/route.ts");
 const postFollowUp = () => import("../app/api/jobs/[id]/followup/route.ts");
@@ -54,7 +56,7 @@ test("flag off: reading stays open and the auth endpoints stay dark", async () =
   const { GET: jobs } = await postJobs();
   assert.equal((await jobs(new Request("http://x/api/jobs"))).status, 200);
   const { GET: config } = await authConfig();
-  assert.deepEqual(await (await config(new Request("http://x/api/auth-config"))).json(), { enabled: false });
+  assert.deepEqual(await (await config(new Request("http://x/api/auth-config"))).json(), { enabled: false, google: false });
   const { GET: all } = await authAll();
   const r = await all(new Request("http://x/api/auth/session"));
   assert.equal(r.status, 404);
@@ -111,7 +113,7 @@ test("flag on: reading still stays open, and auth-config names the site key", as
       assert.equal((await jobs(new Request("http://x/api/jobs"))).status, 200);
       const { GET: config } = await authConfig();
       const body = (await (await config(new Request("http://x/api/auth-config"))).json()) as Record<string, unknown>;
-      assert.deepEqual(body, { enabled: true, turnstileSiteKey: "test-site-key", user: null, videos: null });
+      assert.deepEqual(body, { enabled: true, turnstileSiteKey: "test-site-key", user: null, videos: null, google: false });
     });
   } finally {
     delete process.env.EXPLANIMATE_AUTH_ENABLED;

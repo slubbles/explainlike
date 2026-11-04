@@ -51,7 +51,11 @@ export default defineConfig({
   reporter: process.env.CI ? [["list"], ["html", { open: "never" }]] : "list",
   use: { trace: "retain-on-failure", ...chrome },
   projects: [
-    { name: "auth", testMatch: ["signup.spec.ts", "limits.spec.ts"], use: { baseURL: "http://localhost:3124" } },
+    {
+      name: "auth",
+      testMatch: ["signup.spec.ts", "limits.spec.ts", "google.spec.ts"],
+      use: { baseURL: "http://localhost:3124" },
+    },
     {
       name: "auth-env",
       testMatch: ["daily-env.spec.ts"],
