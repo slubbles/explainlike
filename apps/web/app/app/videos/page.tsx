@@ -12,7 +12,7 @@ import VideoWhen from "../components/VideoWhen";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-export const metadata = { title: "My videos — Explanimate" };
+export const metadata = { title: "My videos · Explanimate" };
 
 const FORMATS = [
   { id: "", label: "All" },
@@ -161,7 +161,7 @@ export default async function VideosPage({ searchParams }: { searchParams: Promi
                         </div>
                       </div>
                     </td>
-                    <td className="mono">{mss(v.durationSec) ?? "—"}</td>
+                    <td className="mono">{mss(v.durationSec) ?? "n/a"}</td>
                     <td>
                       <span className="app-fmt">{formatLabel(v.format)}</span>
                     </td>

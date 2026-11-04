@@ -95,7 +95,7 @@ test("a fallback shows in the manifest as a second Spark model or a joined voice
 });
 
 test("durations read plainly", () => {
-  assert.equal(formatMs(null), "—");
+  assert.equal(formatMs(null), "n/a");
   assert.equal(formatMs(4200), "4.2s");
   assert.equal(formatMs(83500), "1m 24s");
 });
