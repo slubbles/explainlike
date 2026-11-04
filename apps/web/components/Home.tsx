@@ -54,7 +54,12 @@ export default function Home() {
     // the nav's Sign in button opens the same panel
     const open = () => setSignin(true);
     addEventListener("explanimate:signin", open);
-    return () => removeEventListener("explanimate:signin", open);
+    // signing out in the nav refreshes the quota here too
+    addEventListener("explanimate:auth-changed", refreshAuth);
+    return () => {
+      removeEventListener("explanimate:signin", open);
+      removeEventListener("explanimate:auth-changed", refreshAuth);
+    };
   }, []);
 
   // ?job=<id> reopens a saved job (jobs are kept on disk); back and forward move between jobs and the start page
@@ -175,7 +180,8 @@ export default function Home() {
           onCancel={() => setSignin(false)}
           onDone={async () => {
             setSignin(false);
-            await refreshAuth();
+            // the nav and this page's quota both refresh off this (see useEffect above)
+            dispatchEvent(new CustomEvent("explanimate:auth-changed"));
             await submit();
           }}
         />

@@ -12,3 +12,15 @@ test("sending the code needs the CAPTCHA token, whether by button or Enter", () 
   assert.match(s, /if \(!token\) return setErr\("Finish the CAPTCHA check first/);
   assert.match(s, /if \(e\.key === "Enter"\) send\(\)/);
 });
+
+test("signing in tells the nav, so it shows the account without a reload", () => {
+  assert.match(src("components/Home.tsx"), /dispatchEvent\(new CustomEvent\("explanimate:auth-changed"\)\)/);
+  assert.match(src("components/AuthNav.tsx"), /addEventListener\("explanimate:auth-changed"/);
+});
+
+test("signing out refreshes the nav and the page instead of reloading", () => {
+  const nav = src("components/AuthNav.tsx");
+  assert.match(nav, /if \(r\?\.ok\) dispatchEvent\(new CustomEvent\("explanimate:auth-changed"\)\)/);
+  assert.doesNotMatch(nav, /location\.reload/);
+  assert.match(src("components/Home.tsx"), /addEventListener\("explanimate:auth-changed"/);
+});
