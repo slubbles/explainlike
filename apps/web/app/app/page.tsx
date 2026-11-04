@@ -15,7 +15,7 @@ import VideoWorkspace from "./components/VideoWorkspace";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-export const metadata = { title: "Overview — Explanimate" };
+export const metadata = { title: "Overview · Explanimate" };
 
 const CONNECT = MCP_SNIPPETS.find((s) => s.id === "claude-code");
 const TOOLS = ["claude-code", "cursor", "codex", "muse-code"]

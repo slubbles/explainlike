@@ -21,7 +21,7 @@ export type PageKey = "home" | "docs" | "gallery" | "privacy" | "terms";
 
 export const PAGES: Record<PageKey, { title: string; description: string; path: string }> = {
   home: {
-    title: "Explanimate — whiteboard explainers from any repo, post, article or topic",
+    title: "Explanimate: whiteboard explainers from any repo, post, article or topic",
     description:
       "Paste a GitHub repo, X post, article or topic. Get a whiteboard explainer video and an editable board that opens in tldraw.com. Powered by Meta Muse models.",
     path: "/",
