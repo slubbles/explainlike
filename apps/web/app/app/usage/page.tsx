@@ -5,7 +5,7 @@ import { dailyLimitFor, ensureUsageTables, usageHistoryFor, videosLeftToday } fr
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-export const metadata = { title: "Usage — Explanimate" };
+export const metadata = { title: "Usage · Explanimate" };
 
 /** Today's quota against the daily limit, and the videos started per day. */
 export default async function UsagePage() {
