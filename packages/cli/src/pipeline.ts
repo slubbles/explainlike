@@ -478,7 +478,16 @@ export async function runExplanimate(o: RunOptions) {
       plan = await timed("scene plan", () =>
         cacheJson(path.join(out, "plan.json"), () => {
           P({ stage: "plan", message: "writing the scene plan", pct: 32 });
-          return planRepoScenes({ ledger, arch: arch!, spec, readme: readme(), source: src, manifest, progress: P });
+          return planRepoScenes({
+            ledger,
+            arch: arch!,
+            spec,
+            readme: readme(),
+            source: src,
+            manifest,
+            progress: P,
+            read: (p, max) => r.digest.read(p, max),
+          });
         }),
       );
       await recheckSpeech(arch);
