@@ -4,6 +4,9 @@ import path from "node:path";
 import crypto from "node:crypto";
 import { validInput } from "./validate";
 import { withLegacyDir } from "@explanimate/core/env";
+import { buildErrorRow, recordError } from "./errors";
+import { log } from "./log";
+import { jobTiming } from "./metrics";
 import { budget, caps, dailyBudget, dailyCap, dailyReserve, recordSpend, reserve, spent, spentToday, type Budget } from "./guard";
 export { validInput };
 
@@ -244,6 +247,7 @@ function launch(job: Job) {
     if (ended) return;
     ended = true;
     save(job);
+    noteEnd(job);
     pump();
   };
   child.on("error", (e) => {
@@ -304,6 +308,26 @@ function launch(job: Job) {
       });
     end();
   });
+}
+
+/** One structured log line per finished job, with its timings; a failed render also lands in the error store. */
+function noteEnd(job: Job) {
+  const t = jobTiming(job);
+  log(job.state === "done" ? "info" : "warn", "job", `job ${job.state}`, {
+    jobId: job.id,
+    kind: t.kind,
+    state: job.state,
+    waitMs: t.waitMs,
+    renderMs: t.renderMs,
+    totalMs: t.totalMs,
+    videoSec: t.videoSec,
+    costUsd: Number(t.cost.toFixed(4)),
+  });
+  if (job.state === "error") {
+    const e = new Error(job.error || "render failed");
+    e.name = "RenderError";
+    void recordError(buildErrorRow(`job/${job.kind}`, "server", e, job.id)).catch(() => {});
+  }
 }
 
 function newJob(p: Omit<Job, "id" | "state" | "stage" | "message" | "pct" | "started">): Job {
