@@ -1,7 +1,7 @@
 /**
  * Sign-in by one-time email code, behind EXPLANIMATE_AUTH_ENABLED=1 (only the exact value "1"
  * turns it on; anything else is today's behaviour: no sign-in, no Turnstile, no per-account limit).
- * Better Auth with its emailOTP plugin only: no passwords, no OAuth. Sessions last 7 days and are
+ * Better Auth with its emailOTP plugin, plus Google OAuth when its two settings are set. No passwords. Sessions last 7 days and are
  * refreshed daily; codes are 6 digits, valid 10 minutes, with 5 attempts. The database is D1 over
  * its REST API (see lib/db.ts), or a local SQLite file for tests; its tables are created on first use, once per process.
  */
@@ -21,6 +21,15 @@ import { verifyTurnstile } from "./turnstile";
 /** Only the exact value "1" turns auth on. */
 export const authEnabled = (): boolean => process.env.EXPLANIMATE_AUTH_ENABLED === "1";
 
+/**
+ * Google sign-in is on only when both OAuth settings are set and non-blank. Pure, so
+ * tests drive it directly; callers pass the two environment values (see buildAuth below
+ * and /api/auth-config).
+ */
+export function googleEnabled(clientId: string | undefined, clientSecret: string | undefined): boolean {
+  return Boolean(clientId?.trim() && clientSecret?.trim());
+}
+
 export const SIGNIN_ERROR = "Sign in to make a video.";
 
 const SEND_PATH = "/email-otp/send-verification-otp";
@@ -30,11 +39,19 @@ function buildAuth() {
   const secret = process.env.BETTER_AUTH_SECRET;
   if (!secret) throw new Error("BETTER_AUTH_SECRET is not set");
   const baseURL = process.env.BETTER_AUTH_URL ?? "http://localhost:3000";
+  const googleId = process.env.GOOGLE_CLIENT_ID?.trim();
+  const googleSecret = process.env.GOOGLE_CLIENT_SECRET?.trim();
+  const google = googleEnabled(googleId, googleSecret);
   return betterAuth({
     secret,
     baseURL,
     trustedOrigins: [baseURL],
     session: { expiresIn: 60 * 60 * 24 * 7, updateAge: 60 * 60 * 24 },
+    // Google OAuth only when both settings are set; the email-code flow is unchanged.
+    // A Google login with the same verified email links to the existing account, so
+    // daily limits and the admin list (both keyed by email/user id) keep working.
+    ...(google ? { socialProviders: { google: { clientId: googleId as string, clientSecret: googleSecret as string } } } : {}),
+    account: { accountLinking: { enabled: true, trustedProviders: ["google", "email-otp"] } },
     // no sweep of expired codes on every verify: the sweep is two extra sequential D1
     // round trips, and expiry is still enforced when a code is checked.
     verification: { disableCleanup: true },

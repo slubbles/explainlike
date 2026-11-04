@@ -4,7 +4,7 @@ import { withErrors } from "../../../../lib/route";
 
 export const runtime = "nodejs";
 
-/** Better Auth (email codes only), or a 404 when sign-in is off. Tables are created on first use. */
+/** Better Auth (email codes, plus Google when configured), or a 404 when sign-in is off. Tables are created on first use. */
 async function handle(req: Request): Promise<Response> {
   if (!authEnabled()) return Response.json({ error: "Not found." }, { status: 404 });
   const limited = limitRequest(req, "auth");
