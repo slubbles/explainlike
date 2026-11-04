@@ -1,15 +1,15 @@
 /**
  * Request checks and response headers shared by every route: the same-origin check for POSTs,
- * the Google Analytics measurement id (the browser learns it only through /api/runtime-config),
+ * the Google Analytics measurement id (a server setting the root layout hands to the browser),
  * and the Content Security Policy plus the rest of the security headers (sent by middleware.ts).
  */
 
 /**
- * The GA4 measurement id, if the deploy sets one. NEXT_PUBLIC_GA_ID wins; GA_MEASUREMENT_ID
- * still works for servers set up before the rename. Anything non-empty counts; unset loads nothing.
+ * The GA4 measurement id, if the deploy sets one (GA_MEASUREMENT_ID, read on the server at
+ * request time). Anything non-empty counts; unset loads nothing from Google.
  */
 export function gaMeasurementId(): string | undefined {
-  const v = (process.env.NEXT_PUBLIC_GA_ID ?? process.env.GA_MEASUREMENT_ID ?? "").trim();
+  const v = (process.env.GA_MEASUREMENT_ID ?? "").trim();
   return v ? v : undefined;
 }
 
