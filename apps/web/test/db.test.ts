@@ -1,7 +1,17 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { sql } from "kysely";
-import { D1RestDialect, createD1Db, createKysely, d1ConfigFromEnv, d1Configured, ensureTables, getD1Db, type D1Config } from "../lib/db.ts";
+import {
+  D1RestDialect,
+  authTablesExist,
+  createD1Db,
+  createKysely,
+  d1ConfigFromEnv,
+  d1Configured,
+  ensureTables,
+  getD1Db,
+  type D1Config,
+} from "../lib/db.ts";
 
 const TOKEN = "test-token-never-logged";
 const base: D1Config = { accountId: "acct", databaseId: "db", token: TOKEN };
@@ -188,6 +198,195 @@ test("the Kysely dialect runs queries through D1 REST with no-op transactions", 
   assert.throws(() => conn.streamQuery({ sql: "select 1", parameters: [] } as never, 100), /streaming/);
   await driver.releaseConnection(conn);
   await driver.destroy();
+});
+
+/** Production D1 refuses (SQLITE_AUTH, code 7500) any query touching its internal _cf_ tables. */
+function strictD1(
+  seen: string[],
+  tables: { name: string; type: string; sql: string } = [
+    { name: "account", type: "table", sql: "CREATE TABLE account (id TEXT PRIMARY KEY)" },
+    { name: "session", type: "table", sql: "CREATE TABLE session (id TEXT PRIMARY KEY)" },
+    { name: "usage", type: "table", sql: "CREATE TABLE usage (user_id TEXT)" },
+    { name: "user", type: "table", sql: "CREATE TABLE user (id TEXT PRIMARY KEY)" },
+    { name: "verification", type: "table", sql: "CREATE TABLE verification (id TEXT PRIMARY KEY)" },
+  ],
+  opts: { failIndexDiscovery?: boolean } = {},
+) {
+  const refusals: string[] = [];
+  const deny = (sql: string) => {
+    refusals.push(sql);
+    return new Response(JSON.stringify({ success: false, errors: [{ code: 7500, message: "SQLITE_AUTH" }] }), { status: 400 });
+  };
+  const f = (async (_url: string, init?: RequestInit) => {
+    const body = JSON.parse(String(init?.body)) as { sql: string; params: unknown[] };
+    seen.push(body.sql);
+    if (/\bpragma\s+table_list\b/i.test(body.sql)) return deny(body.sql);
+    if (/_cf_[A-Za-z0-9_]+/.test(body.sql)) return deny(body.sql);
+    if (opts.failIndexDiscovery && body.sql.includes("pragma_index_list")) return deny(body.sql);
+    if (/\bsqlite_(temp_)?(master|schema)\b/i.test(body.sql) && !/_cf_/i.test(body.sql)) return deny(body.sql);
+    const pragmaParam =
+      (/\bpragma_(table_info|table_xinfo|index_list|index_info|foreign_key_list)\s*\(\s*\?/i.test(body.sql) ||
+        /^\s*pragma\s+\w+\s*\(\s*\?\s*\)/i.test(body.sql)) &&
+      body.params.some((p) => typeof p === "string" && p.startsWith("_cf_"));
+    if (pragmaParam) return deny(body.sql);
+    if (body.sql.includes("pragma_index_list")) return d1ok([]);
+    if (/\bpragma_table_info\s*\(/i.test(body.sql)) return d1ok([{ name: "id", type: "TEXT", notnull: 1, dflt_value: null, pk: 1 }]);
+    if (/\bAS schema\b/i.test(body.sql) && /\bsqlite_master\b/i.test(body.sql))
+      return d1ok(tables.map((t) => ({ schema: "main", name: t.name, type: t.type, ncol: 0, wr: 0, strict: 0 })));
+    if (/\bsqlite_(temp_)?(master|schema)\b/i.test(body.sql)) return d1ok(tables);
+    if (/^\s*pragma\s+table_info\b/i.test(body.sql)) return d1ok([]);
+    return d1ok([]);
+  }) as typeof fetch & { seen: string[]; refusals: string[] };
+  f.seen = seen;
+  f.refusals = refusals;
+  return f;
+}
+
+test("schema scans reach D1 with the _cf_ tables filtered out, never as PRAGMA table_list", async () => {
+  const seen: string[] = [];
+  const fetchImpl = strictD1(seen);
+  const db = createD1Db({ ...base, fetchImpl });
+  await ensureTables(db);
+  const tables = await createKysely({ ...base, fetchImpl }).introspection.getTables();
+  assert.deepEqual(
+    tables.map((t) => t.name),
+    ["account", "session", "usage", "user", "verification"],
+  );
+  // Better Auth's index discovery joins sqlite_master to pragma_index_list with no _cf_
+  // filter of its own (better-auth/db migration); our layer adds one before D1 sees it.
+  const indexDiscovery = `SELECT tables.name AS "tableName", index_list.name AS "indexName",
+    index_info.name AS "columnName", index_list."unique" AS "isUnique",
+    index_list.partial AS "isPartial", index_info.seqno AS "columnPosition"
+    FROM sqlite_master AS tables
+    INNER JOIN pragma_index_list(tables.name) AS index_list
+    INNER JOIN pragma_index_info(index_list.name) AS index_info
+    WHERE tables.type = 'table'`;
+  assert.deepEqual(await db.prepare(indexDiscovery).bind().all(), []);
+  const sent = seen.find((s) => s.includes("pragma_index_list")) ?? "";
+  assert.match(sent, /_cf_/);
+  // a bare schema scan is guarded too
+  assert.equal((await db.prepare("SELECT name FROM sqlite_master").bind().all()).length, 5);
+  // PRAGMA table_list would read the internals, so it goes out as a filtered scan
+  const listed = await db.prepare("PRAGMA table_list").bind().all<{ name: string }>();
+  assert.deepEqual(
+    listed.map((r) => r.name),
+    ["account", "session", "usage", "user", "verification"],
+  );
+  assert.ok(
+    seen.every((s) => !/\bpragma\s+table_list\b/i.test(s)),
+    "PRAGMA table_list never reaches D1",
+  );
+  // a direct read of an internal table still fails loudly, with its code
+  await logged(() => db.prepare("SELECT * FROM _cf_KV").bind().all()).then(
+    () => assert.fail("a direct _cf_KV read must be refused"),
+    (e: Error) => assert.match(e.message, /codes 7500/),
+  );
+  assert.equal(fetchImpl.refusals.length, 1);
+});
+
+test("a pragma aimed at an internal table answers empty without touching D1", async () => {
+  const seen: string[] = [];
+  const fetchImpl = strictD1(seen);
+  const db = createD1Db({ ...base, fetchImpl });
+  assert.deepEqual(await db.prepare('PRAGMA table_info("_cf_KV")').bind().all(), []);
+  assert.deepEqual(await db.prepare("PRAGMA index_list('_cf_KV')").bind().all(), []);
+  assert.deepEqual(await db.prepare("PRAGMA foreign_key_list(_cf_KV)").bind().all(), []);
+  assert.deepEqual(await db.prepare("SELECT * FROM pragma_table_info(?)").bind("_cf_KV").all(), []);
+  assert.deepEqual(await db.prepare("SELECT * FROM pragma_index_list(?)").bind("_cf_KV").all(), []);
+  assert.equal(seen.length, 0);
+  assert.equal(fetchImpl.refusals.length, 0);
+});
+
+test("a refused query reports the first 120 chars of its SQL, never the params", async () => {
+  const secret = "otp-value-never-logged-8f3e";
+  const statement =
+    "SELECT * FROM verification WHERE identifier = ? AND value = ? /* padding xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx */";
+  assert.ok(statement.length > 120);
+  const fetchImpl = stub(new Response(JSON.stringify({ success: false, errors: [{ code: 7500 }] }), { status: 400 }));
+  const err = await logged(() =>
+    createD1Db({ ...base, fetchImpl })
+      .prepare(statement)
+      .bind("a@example.com", secret)
+      .all(),
+  ).then(
+    () => null,
+    (e) => e as Error & { lines: string[] },
+  );
+  assert.ok(err);
+  const snippet = statement.replace(/\s+/g, " ").trim().slice(0, 120);
+  assert.ok(err.lines.join("\n").includes(snippet), "the log carries the SQL snippet");
+  assert.doesNotMatch(err.lines.join("\n"), new RegExp(secret));
+  assert.ok(err.message.includes(snippet), "the error carries the SQL snippet");
+  assert.doesNotMatch(err.message, new RegExp(secret));
+});
+
+test("authTablesExist needs user, session, account and verification", async () => {
+  const names = (rows: string[]) => stub(d1ok(rows.map((name) => ({ name }))));
+  assert.equal(
+    await authTablesExist(createD1Db({ ...base, fetchImpl: names(["user", "session", "account", "verification", "usage"]) })),
+    true,
+  );
+  assert.equal(await authTablesExist(createD1Db({ ...base, fetchImpl: names(["user", "session", "account"]) })), false);
+  const fetchImpl = names(["user", "session", "account", "verification"]);
+  await authTablesExist(createD1Db({ ...base, fetchImpl }));
+  assert.match(String(fetchImpl.calls[0].body.sql), /_cf_/);
+});
+
+/** Runs a function with the auth/D1 settings set and global fetch answered by a fake D1. */
+async function withStrictAuthEnv<T>(fetchImpl: typeof fetch, fn: () => Promise<T>): Promise<{ result: T; errs: string[] }> {
+  const saved = {
+    BETTER_AUTH_SECRET: process.env.BETTER_AUTH_SECRET,
+    EXPLANIMATE_CF_ACCOUNT_ID: process.env.EXPLANIMATE_CF_ACCOUNT_ID,
+    EXPLANIMATE_D1_DATABASE_ID: process.env.EXPLANIMATE_D1_DATABASE_ID,
+    EXPLANIMATE_D1_TOKEN: process.env.EXPLANIMATE_D1_TOKEN,
+  };
+  process.env.BETTER_AUTH_SECRET = "test-secret-for-auth-schema";
+  process.env.EXPLANIMATE_CF_ACCOUNT_ID = "acct";
+  process.env.EXPLANIMATE_D1_DATABASE_ID = "db";
+  process.env.EXPLANIMATE_D1_TOKEN = TOKEN;
+  const realFetch = globalThis.fetch;
+  globalThis.fetch = fetchImpl as unknown as typeof fetch;
+  const errs: string[] = [];
+  const _warns: string[] = [];
+  const origErr = console.error;
+  const origWarn = console.warn;
+  console.error = (...a: unknown[]) => void errs.push(a.map(String).join(" "));
+  console.warn = (...a: unknown[]) => void _warns.push(a.map(String).join(" "));
+  try {
+    const result = await fn();
+    return { result, errs };
+  } finally {
+    console.error = origErr;
+    console.warn = origWarn;
+    globalThis.fetch = realFetch;
+    for (const [k, v] of Object.entries(saved)) {
+      if (v === undefined) delete process.env[k];
+      else process.env[k] = v;
+    }
+  }
+}
+
+test("migrations run cleanly against a strict D1, with the index scan guarded", async () => {
+  const { ensureAuthSchema, resetAuthForTests } = await import("../lib/auth.ts");
+  resetAuthForTests();
+  const seen: string[] = [];
+  const fetchImpl = strictD1(seen);
+  const { errs } = await withStrictAuthEnv(fetchImpl, () => ensureAuthSchema());
+  assert.equal(fetchImpl.refusals.length, 0);
+  const sent = seen.find((s) => s.includes("pragma_index_list")) ?? "";
+  assert.match(sent, /_cf_/, "the real index-discovery query went out guarded");
+  assert.equal(errs.join("\n"), "");
+});
+
+test("ensureAuthSchema still resolves when migrations fail but the sign-in tables exist", async () => {
+  const { ensureAuthSchema, resetAuthForTests } = await import("../lib/auth.ts");
+  resetAuthForTests();
+  const seen: string[] = [];
+  const fetchImpl = strictD1(seen, undefined, { failIndexDiscovery: true });
+  const { errs } = await withStrictAuthEnv(fetchImpl, () => ensureAuthSchema());
+  assert.equal(fetchImpl.refusals.length, 1);
+  assert.match(fetchImpl.refusals[0], /_cf_/);
+  assert.match(errs.join("\n"), /already exist/);
 });
 
 test("introspection skips D1's internal _cf_ tables, which D1 refuses to describe", async () => {
