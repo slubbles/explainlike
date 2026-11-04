@@ -248,6 +248,25 @@ footer .wrap.tiny { display: block; }
 .track { height: 6px; border-radius: 999px; background: rgba(255, 255, 255, .08); overflow: hidden; margin: 10px 0 4px; }
 .track i { display: block; height: 100%; background: var(--blue1); border-radius: 999px; transition: width .6s ease; }
 
+/* docs page: same tokens, narrower column, config blocks that scroll inside themselves */
+.docs { padding-top: 120px; }
+.wrap.narrow { --wrap: 860px; }
+.docs h1 { font-size: clamp(30px, 1.1vw + 26px, 42px); letter-spacing: -.025em; margin: 0; }
+.docs h2 { font-size: 26px; margin: 56px 0 0; letter-spacing: -.02em; }
+.docs h3 { font-size: 17px; font-weight: 600; margin: 32px 0 0; letter-spacing: -.01em; }
+.docs p, .docs li { font-size: 15.5px; line-height: 1.6; color: #d4d4d8; }
+.docs .lead { color: var(--mut); }
+.docs strong { color: var(--ink); }
+.docs ul, .docs ol { padding-left: 22px; margin: 12px 0 0; }
+.docs li + li { margin-top: 10px; }
+.docs h3 + p { margin-top: 8px; }
+.cfg { margin-top: 12px; border: 1px solid var(--line); border-radius: 14px; background: var(--panel); overflow: hidden; min-width: 0; }
+.cfghead { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 12px 10px 16px; border-bottom: 1px solid var(--line); font-size: 12.5px; color: var(--dim); }
+.copy { flex: none; font-size: 12.5px; font-weight: 600; padding: 6px 14px; border-radius: 999px; border: 1px solid var(--line2); background: rgba(255, 255, 255, .04); color: var(--ink); }
+.copy:hover { border-color: rgba(255, 255, 255, .3); }
+.cfg pre { margin: 0; padding: 16px; overflow-x: auto; }
+.cfg pre code { background: none; padding: 0; font-size: 13px; line-height: 1.6; white-space: pre; overflow-wrap: normal; }
+
 /* responsive: 1440 -> 1024 -> 768 -> 390, never scrolling sideways */
 h1 { font-size: clamp(32px, 1.2vw + 27px, 56px); }
 h1 .hand { font-size: 1.1em; }
@@ -288,6 +307,12 @@ h2 { font-size: clamp(28px, 1.1vw + 24px, 40px); }
   .steps5 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .grid { grid-template-columns: minmax(0, 1fr); }
   .stage { padding: 16px; border-radius: 16px; }
+  .docs { padding-top: 88px; }
+  .docs h2 { font-size: 23px; margin-top: 44px; }
+  .docs p, .docs li { font-size: 14.5px; }
+  .ask { padding: 18px; }
+  .cfg pre { padding: 12px; }
+  .cfg pre code { font-size: 12.5px; }
   .cta { padding: 56px 20px; border-radius: 22px; }
   .facts div { padding: 20px 0; }
   footer .wrap { flex-direction: column; align-items: flex-start; }
