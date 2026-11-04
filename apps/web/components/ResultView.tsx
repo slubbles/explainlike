@@ -3,6 +3,7 @@ import Player, { type Interactive } from "./Player";
 import { fileUrl, money, secs, useJob, type Explain, type Job } from "../lib/client";
 import { Info } from "./Icons";
 import { cap } from "../lib/steps";
+import { noBoxesNote } from "../lib/form";
 
 /** The answer's opening sentence, so the cited points lead. */
 function firstSentence(s: string) {
@@ -110,6 +111,12 @@ export default function ResultView({ job, map, picked, expl, explBusy, clips, pi
             </div>
           )}
         </div>
+        {!job.interactive && job.kind === "video" && (
+          <div className="tip" data-testid="no-boxes">
+            <Info />
+            {noBoxesNote(job.input)}
+          </div>
+        )}
         {map && (
           <div className="tip">
             <Info />
