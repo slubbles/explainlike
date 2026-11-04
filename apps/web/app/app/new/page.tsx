@@ -14,7 +14,7 @@ export default async function NewPage({ searchParams }: { searchParams: Promise<
   const user = await requireAppUser();
   const db = getD1Db();
   await ensureUsageTables(db);
-  const quota = await videosLeftToday(user.id);
+  const quota = await videosLeftToday(user.id, Date.now(), db, user.email);
   return (
     <>
       <h1 className="app-h1">New video</h1>

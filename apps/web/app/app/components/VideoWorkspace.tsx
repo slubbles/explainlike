@@ -22,7 +22,7 @@ export default function VideoWorkspace({
   jobId?: string;
   prompt?: string;
   /** What the page already read on the server: today's quota and the sign-in panel's public settings. When set, the workspace starts with them instead of asking. */
-  initial?: { quota: { used: number; limit: number; left: number }; siteKey: string; google: boolean; github: boolean };
+  initial?: { quota: { used: number; limit: number | null; left: number | null }; siteKey: string; google: boolean; github: boolean };
 }) {
   const router = useRouter();
   const [form, setForm] = useState<Form>({ ...DEFAULT_FORM, input: prompt ?? "" });
