@@ -3,7 +3,9 @@
  * The sender defaults to Explanimate <login@explanimate.co>; EXPLANIMATE_EMAIL_FROM
  * ("Name <addr>") overrides it. Failures log Cloudflare's error codes, never the token.
  * For end-to-end tests, EXPLANIMATE_EMAIL_CAPTURE_DIR captures each code to a file
- * instead of sending it.
+ * instead of sending it. In local dev (anything but production) with no email keys,
+ * the code is logged to the server console instead of failing, so sign-in works
+ * with no setup.
  */
 import fs from "node:fs";
 import path from "node:path";
@@ -89,6 +91,10 @@ export async function sendOtpEmail(to: string, otp: string, fetchImpl: typeof fe
   const account = process.env.EXPLANIMATE_CF_ACCOUNT_ID;
   const token = process.env.EXPLANIMATE_CF_EMAIL_TOKEN;
   if (!account || !token) {
+    if (process.env.NODE_ENV !== "production") {
+      console.log(`[email] dev login code for ${to}: ${otp}`);
+      return { ok: true };
+    }
     console.error("[email] not configured: EXPLANIMATE_CF_ACCOUNT_ID or EXPLANIMATE_CF_EMAIL_TOKEN is missing");
     return { ok: false, error: FAIL };
   }

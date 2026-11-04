@@ -9,6 +9,8 @@ delete process.env.BETTER_AUTH_SECRET;
 delete process.env.EXPLANIMATE_TURNSTILE_SITE_KEY;
 delete process.env.GOOGLE_CLIENT_ID;
 delete process.env.GOOGLE_CLIENT_SECRET;
+// in-memory sign-in database so the dev defaults never touch the repo checkout
+process.env.EXPLANIMATE_D1_LOCAL_PATH = ":memory:";
 
 const auth = () => import("../lib/auth.ts");
 const authConfig = () => import("../app/api/auth-config/route.ts");
@@ -23,11 +25,14 @@ test.afterEach(() => {
 /** The signed-out path logs why the session check failed; keep the test output quiet. */
 async function quiet<T>(fn: () => Promise<T>): Promise<T> {
   const orig = console.error;
+  const origWarn = console.warn;
   console.error = () => {};
+  console.warn = () => {};
   try {
     return await fn();
   } finally {
     console.error = orig;
+    console.warn = origWarn;
   }
 }
 

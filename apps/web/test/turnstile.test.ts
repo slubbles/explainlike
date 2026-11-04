@@ -66,17 +66,36 @@ test("a network error, a missing token, a missing secret, or no hostname list fa
     assert.deepEqual(await verifyTurnstile("", "9.9.9.9", unused), { ok: false, error: "That check did not pass. Try again." });
     assert.equal(unused.seen.length, 0, "no token, no call");
   });
-  await withEnv({ EXPLANIMATE_TURNSTILE_SECRET: undefined, EXPLANIMATE_TURNSTILE_HOSTNAMES: "explanimate.co" }, async () => {
-    const orig = console.error;
-    console.error = () => {};
-    const r = await verifyTurnstile("tok", "9.9.9.9", siteverify({ success: true, action: "login", hostname: "explanimate.co" }));
-    console.error = orig;
-    assert.deepEqual(r, { ok: false, error: "That check did not pass. Try again." });
-  });
+  await withEnv(
+    { EXPLANIMATE_TURNSTILE_SECRET: undefined, EXPLANIMATE_TURNSTILE_HOSTNAMES: "explanimate.co", NODE_ENV: "production" },
+    async () => {
+      const orig = console.error;
+      console.error = () => {};
+      const r = await verifyTurnstile("tok", "9.9.9.9", siteverify({ success: true, action: "login", hostname: "explanimate.co" }));
+      console.error = orig;
+      assert.deepEqual(r, { ok: false, error: "That check did not pass. Try again." });
+    },
+  );
   await withEnv({ EXPLANIMATE_TURNSTILE_SECRET: "secret", EXPLANIMATE_TURNSTILE_HOSTNAMES: undefined }, async () => {
     const r = await verifyTurnstile("tok", "9.9.9.9", siteverify({ success: true, action: "login", hostname: "explanimate.co" }));
     assert.deepEqual(r, { ok: false, error: "That check did not pass. Try again." }, "no list, nothing passes");
   });
+});
+
+test("outside production a missing secret skips the check with no network call", async () => {
+  await withEnv(
+    { EXPLANIMATE_TURNSTILE_SECRET: undefined, EXPLANIMATE_TURNSTILE_HOSTNAMES: undefined, NODE_ENV: "development" },
+    async () => {
+      const orig = console.warn;
+      console.warn = () => {};
+      try {
+        const r = await verifyTurnstile("", "9.9.9.9", (() => assert.fail("must not call fetch")) as unknown as typeof fetch);
+        assert.deepEqual(r, { ok: true });
+      } finally {
+        console.warn = orig;
+      }
+    },
+  );
 });
 
 test("the documented test secret plus the dummy token passes with no network call", async () => {
