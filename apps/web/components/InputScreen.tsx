@@ -221,8 +221,8 @@ export default function InputScreen({ form, set, go, busy, err, examples, talkin
                 <path d="M7 9 L27 8.5 L27.5 22 L7.5 22.5 Z" />
                 <path d="M24 18 L36 30 L30 30.5 L33 37" />
               </svg>
-              <b>Interactive</b>
-              <p>Tap a box to ask about it, render a deep dive on it, or ask what breaks at 10x traffic.</p>
+              <b>Interactive on repos</b>
+              <p>On a repo video, tap a box to ask about it, render a deep dive on it, or ask what breaks at 10x traffic.</p>
             </div>
             <div className="fcard">
               <svg

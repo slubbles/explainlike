@@ -25,3 +25,11 @@ export function sourceKind(input: string): "repo" | "X post" | "article" | "topi
 
 /** A link as people read it: no scheme, no trailing slash. */
 export const shortLink = (s: string) => s.replace(/^https?:\/\/(www\.)?/i, "").replace(/\/$/, "");
+
+/** Why a finished video has no boxes to tap: only repo videos map each box to real files. */
+export function noBoxesNote(input: string): string {
+  const kind = sourceKind(input);
+  if (kind === "repo") return "This video has no box map, so there is nothing to tap. Tap-to-ask and what-if clips need one.";
+  const what = kind === "topic" ? "a topic" : kind === "X post" ? "an X post" : "an article";
+  return `Tap-to-ask and what-if clips work on GitHub repo videos, where every box maps to real files. This one explains ${what}, so it has no boxes to tap.`;
+}
