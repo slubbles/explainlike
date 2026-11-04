@@ -61,9 +61,11 @@ with a 415 and caps the size (16 KB, 96 KB for voice turns, 4 KB for client erro
 
 Notes:
 
-- **Sign-in** (`/api/auth/*`) is Better Auth's email-OTP plugin only: sending a code costs
-  5 per IP per 10 minutes and 5 per address per hour plus a Turnstile check; verifying costs
-  10 per IP per 10 minutes. Trusted origins are the app's own base URL.
+- **Sign-in** (`/api/auth/*`) is Better Auth's email-OTP plugin, plus Google OAuth when
+  `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` are set (a Google login with the same
+  verified email links to the existing account): sending a code costs 5 per IP per 10
+  minutes and 5 per address per hour plus a Turnstile check; verifying costs 10 per IP per
+  10 minutes. Trusted origins are the app's own base URL.
 - **Admin** (`/admin`, `/api/admin/*`) answers 404 — never 403 — unless sign-in is on and
   the signed-in address is in `EXPLANIMATE_ADMIN_EMAILS` (comma list, case-insensitive).
   The check runs on the server for every route and for the page.
