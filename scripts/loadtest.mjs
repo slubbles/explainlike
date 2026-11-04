@@ -68,6 +68,17 @@ if (dry) {
 }
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+/** Wait after a 429: the server's retry-after when present, else 5s doubling to 30s. */
+const retryAfterMs = (r, attempt) => {
+  const v = r.headers.get("retry-after");
+  if (v) {
+    const s = Number(v);
+    if (Number.isFinite(s) && s >= 0) return Math.min(s * 1000, 30000);
+    const t = Date.parse(v);
+    if (Number.isFinite(t)) return Math.min(Math.max(t - Date.now(), 0), 30000);
+  }
+  return Math.min(5000 * 2 ** attempt, 30000);
+};
 const ms = (n) => `${(n / 1000).toFixed(1)}s`;
 const percentile = (sorted, p) => {
   if (!sorted.length) return null;
@@ -75,17 +86,39 @@ const percentile = (sorted, p) => {
 };
 const avg = (xs) => (xs.length ? xs.reduce((s, x) => s + x, 0) / xs.length : null);
 
-/** POST one job; throws with the server's message on refusal. */
+/**
+ * POST one job. A 429 waits out the server's retry-after (5s doubling to 30s without one)
+ * and tries again; any other refusal is retried 5 times, then throws for that job only.
+ */
 async function submit(i) {
-  const r = await fetch(`${baseUrl.origin}/api/jobs`, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify(payload),
-  });
-  const body = await r.json().catch(() => ({}));
-  if (r.status === 401) throw new Error("the server needs sign-in; load test a local server with auth off");
-  if (!r.ok) throw new Error(`job ${i + 1} refused (${r.status}): ${body.error ?? "no reason given"}`);
-  return { id: body.id, posted: Date.now() };
+  let limited = 0;
+  let failures = 0;
+  for (;;) {
+    let r;
+    try {
+      r = await fetch(`${baseUrl.origin}/api/jobs`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+    } catch (e) {
+      if (++failures > 5) throw new Error(`job ${i + 1} refused: ${e.message ?? e}`);
+      await sleep(1000 * failures);
+      continue;
+    }
+    const body = await r.json().catch(() => ({}));
+    if (r.status === 401) throw new Error("the server needs sign-in; load test a local server with auth off");
+    if (r.status === 429) {
+      await sleep(retryAfterMs(r, limited++));
+      continue;
+    }
+    if (!r.ok) {
+      if (++failures > 5) throw new Error(`job ${i + 1} refused (${r.status}): ${body.error ?? "no reason given"}`);
+      await sleep(1000 * failures);
+      continue;
+    }
+    return { id: body.id, posted: Date.now() };
+  }
 }
 
 // Server CPU/RAM samples from the admin-only metrics endpoint, taken in the background.
@@ -122,9 +155,39 @@ async function follow(job) {
   const deadline = Date.now() + timeoutS * 1000;
   let pickedUp;
   let last = null;
+  let limited = 0;
+  let failures = 0;
+  const timedOut = (now) => {
+    const t = last?.timings ?? {};
+    const queueMs = typeof t.waitMs === "number" ? t.waitMs : (pickedUp ?? now) - job.posted;
+    return { id: job.id, state: "timeout", queueMs, renderWaitMs: 0, waitMs: queueMs, totalMs: now - job.posted };
+  };
+  const failed = (error) => {
+    const now = Date.now();
+    const t = last?.timings ?? {};
+    const queueMs = typeof t.waitMs === "number" ? t.waitMs : (pickedUp ?? now) - job.posted;
+    return { id: job.id, state: "error", error, queueMs, renderWaitMs: 0, waitMs: queueMs, totalMs: now - job.posted };
+  };
   for (;;) {
-    const r = await fetch(`${baseUrl.origin}/api/jobs/${job.id}`, { headers: { "cache-control": "no-store" } });
-    if (!r.ok) throw new Error(`job ${job.id}: poll failed (${r.status})`);
+    let r;
+    try {
+      r = await fetch(`${baseUrl.origin}/api/jobs/${job.id}`, { headers: { "cache-control": "no-store" } });
+    } catch (e) {
+      if (++failures > 5) return failed(String(e.message ?? e));
+      await sleep(1000 * failures);
+      continue;
+    }
+    if (r.status === 429) {
+      if (Date.now() > deadline) return timedOut(Date.now());
+      await sleep(retryAfterMs(r, limited++));
+      continue;
+    }
+    if (!r.ok) {
+      if (++failures > 5) return failed(`poll failed (${r.status})`);
+      await sleep(1000 * failures);
+      continue;
+    }
+    failures = 0;
     const j = await r.json();
     last = j;
     const now = Date.now();
@@ -136,24 +199,57 @@ async function follow(job) {
       const totalMs = typeof t.totalMs === "number" ? t.totalMs : now - job.posted;
       return { id: job.id, state: j.state, error: j.error, queueMs, renderWaitMs, waitMs: queueMs + renderWaitMs, totalMs };
     }
-    if (now > deadline) {
-      const t = last?.timings ?? {};
-      const queueMs = typeof t.waitMs === "number" ? t.waitMs : (pickedUp ?? now) - job.posted;
-      return { id: job.id, state: "timeout", queueMs, renderWaitMs: 0, waitMs: queueMs, totalMs: now - job.posted };
-    }
-    await sleep(1000);
+    if (now > deadline) return timedOut(now);
+    await sleep(3000);
   }
 }
 
 const t0 = Date.now();
-const jobs = await Promise.all([...Array(count).keys()].map(submit)).catch((e) => {
-  console.error(String(e.message ?? e));
+const submitted = await Promise.all(
+  [...Array(count).keys()].map((i) =>
+    submit(i).then(
+      (job) => ({ job }),
+      (e) => ({ error: e }),
+    ),
+  ),
+);
+const fatal = submitted.find((s) => s.error && /needs sign-in/.test(s.error.message ?? ""));
+if (fatal) {
+  console.error(String(fatal.error.message ?? fatal.error));
   process.exit(1);
-});
-console.log(`submitted ${jobs.length} jobs, polling to done (timeout ${timeoutS}s each)...`);
+}
+const jobs = submitted.filter((s) => s.job).map((s) => s.job);
+const refused = submitted
+  .map((s, i) => ({ s, i }))
+  .filter(({ s }) => !s.job)
+  .map(({ s, i }) => ({
+    id: `job-${i + 1}`,
+    state: "error",
+    error: String(s.error.message ?? s.error),
+    queueMs: 0,
+    renderWaitMs: 0,
+    waitMs: 0,
+    totalMs: 0,
+  }));
+console.log(
+  `submitted ${jobs.length} jobs${refused.length ? `, ${refused.length} refused` : ""}, polling to done (timeout ${timeoutS}s each)...`,
+);
 const stop = { done: false };
 const sampling = sampleMetrics(stop);
-const results = await Promise.all(jobs.map(follow));
+const followed = await Promise.all(
+  jobs.map((job) =>
+    follow(job).catch((e) => ({
+      id: job.id,
+      state: "error",
+      error: String(e.message ?? e),
+      queueMs: 0,
+      renderWaitMs: 0,
+      waitMs: 0,
+      totalMs: Date.now() - job.posted,
+    })),
+  ),
+);
+const results = [...refused, ...followed];
 stop.done = true;
 await sampling;
 const done = results.filter((r) => r.state === "done");
