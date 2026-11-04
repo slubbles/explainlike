@@ -1,7 +1,10 @@
+"use client";
+import { useState } from "react";
 import AuthNav from "./AuthNav";
 import Logo from "./Logo";
 
 export default function Nav() {
+  const [open, setOpen] = useState(false);
   return (
     <nav className="nav">
       <div className="wrap">
@@ -20,18 +23,20 @@ export default function Nav() {
             GitHub
           </a>
           <AuthNav />
-          <details className="navmenu">
-            <summary aria-label="Menu">
+          <div className="navmenu">
+            <button type="button" className="menubtn" aria-label="Menu" aria-expanded={open} onClick={() => setOpen((v) => !v)}>
               <span aria-hidden="true">☰</span>
-            </summary>
-            <div className="navdrop">
-              <a href="/gallery">Examples</a>
-              <a href="/docs">Docs</a>
-              <a href="https://github.com/slubbles/explanimate" target="_blank" rel="noreferrer">
-                GitHub
-              </a>
-            </div>
-          </details>
+            </button>
+            {open && (
+              <div className="navdrop">
+                <a href="/gallery">Examples</a>
+                <a href="/docs">Docs</a>
+                <a href="https://github.com/slubbles/explanimate" target="_blank" rel="noreferrer">
+                  GitHub
+                </a>
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </nav>

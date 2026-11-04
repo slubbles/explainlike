@@ -39,14 +39,15 @@ test("the nav stays one row on phones, with the links behind a menu button", () 
   assert.doesNotMatch(navRules, /flex-wrap:\s*wrap/);
   assert.match(mid, /\.navr > a\.navl[^}]*display:\s*none/);
   assert.match(mid, /\.navmenu\s*\{[^}]*display:\s*block/);
-  // the menu is a closed dropdown: hidden on desktop, its panel hidden until opened
+  // the menu is a button dropdown: hidden on desktop, its links render when opened
   assert.match(css, /\.navmenu\s*\{\s*display:\s*none/);
-  assert.match(css, /\.navmenu:not\(\[open\]\) \.navdrop\s*\{[^}]*display:\s*none/);
   // the menu carries the same three links as the desktop bar, and the sign-in stays put
   const nav = fs.readFileSync(path.join(import.meta.dirname, "../components/Nav.tsx"), "utf8");
   for (const href of ['href="/gallery"', 'href="/docs"', 'href="https://github.com/slubbles/explanimate"'])
     assert.equal(nav.split(href).length - 1, 2, `${href} appears inline and in the menu`);
-  assert.match(nav, /<summary aria-label="Menu">/);
+  assert.match(nav, /<button[^>]*aria-label="Menu"/);
+  assert.match(nav, /aria-expanded=\{open\}/);
+  assert.match(nav, /\{open && \(/);
   assert.match(nav, /<AuthNav \/>/);
 });
 
