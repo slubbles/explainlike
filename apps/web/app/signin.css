@@ -87,8 +87,8 @@
   color: var(--dim);
   cursor: default;
 }
-.gg,
-.gh {
+.gbtn .gg,
+.gbtn .gh {
   width: 18px;
   height: 18px;
   flex: none;
