@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
+import { trackEvent } from "../lib/analytics";
 import type { GalleryItem } from "../lib/gallery";
 
 /** A duration in seconds as m:ss, for the card corner. Nothing without a real number. */
@@ -46,7 +47,10 @@ export default function GalleryGrid({ videos }: { videos: GalleryItem[] }) {
                 if (el) playRefs.current.set(v.id, el);
                 else playRefs.current.delete(v.id);
               }}
-              onClick={() => setPlaying(v.id)}
+              onClick={() => {
+                setPlaying(v.id);
+                trackEvent("gallery_play");
+              }}
               aria-label={`Play ${v.title}`}
             >
               {v.poster ? (

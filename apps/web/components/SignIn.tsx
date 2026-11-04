@@ -126,8 +126,12 @@ export default function SignIn({
         body: JSON.stringify({ email: email.trim(), otp: code.trim() }),
       }).catch(() => null);
       if (!r) return setErr("Could not reach the server. Check your connection and try again.");
-      if (!r.ok) return setErr(said(await r.json().catch(() => ({})), r.status));
-      trackEvent("signin_success");
+      const data = await r.json().catch(() => ({}));
+      if (!r.ok) return setErr(said(data, r.status));
+      // a session whose user was just created reads as a new account, anything else as a login
+      const created = (data as { user?: { createdAt?: unknown } })?.user?.createdAt;
+      const age = Date.now() - Date.parse(typeof created === "string" ? created : "");
+      trackEvent("signin_success", { new_account: Number.isFinite(age) && age >= 0 && age < 120000 });
       onDone();
     } finally {
       setBusy(false);
