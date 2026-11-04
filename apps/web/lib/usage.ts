@@ -73,13 +73,19 @@ export async function releaseVideoSlot(userId: string, nowMs = Date.now(), db: D
   await db.prepare("UPDATE usage SET videos = MAX(0, videos - 1) WHERE user_id = ? AND day = ?").bind(userId, utcDay(nowMs)).run();
 }
 
-/** Note which account started which job. Audit only: a failure is logged, never thrown. */
+/** Note which account started which job: owner, job id, prompt, prompt length, status and cost. Audit only: a failure is logged, never thrown. */
 export async function recordVideo(jobId: string, userId: string, input: string, nowMs = Date.now(), db: D1Db = getD1Db()): Promise<void> {
   await ensureUsageTables(db).catch(() => {});
-  await db
-    .prepare("INSERT INTO videos (id, user_id, input, created_at) VALUES (?, ?, ?, ?)")
-    .bind(jobId, userId, input, nowMs)
-    .run()
+  const full = () =>
+    db
+      .prepare("INSERT INTO videos (id, user_id, input, created_at, input_len, status, cost) VALUES (?, ?, ?, ?, ?, ?, ?)")
+      .bind(jobId, userId, input, nowMs, input.length, "started", 0)
+      .run();
+  await full()
+    // databases from before the input_len/status/cost columns keep the old four-column row
+    .catch(() =>
+      db.prepare("INSERT INTO videos (id, user_id, input, created_at) VALUES (?, ?, ?, ?)").bind(jobId, userId, input, nowMs).run(),
+    )
     .catch((e) => console.error(`[usage] could not record video ${jobId}: ${(e as Error).message}`));
 }
 
