@@ -1,4 +1,5 @@
 import { authEnabled, ensureAuthSchema, getAuth } from "../../../../lib/auth";
+import { withErrors } from "../../../../lib/route";
 
 export const runtime = "nodejs";
 
@@ -13,5 +14,5 @@ async function handle(req: Request): Promise<Response> {
   return getAuth().handler(req);
 }
 
-export const GET = handle;
-export const POST = handle;
+export const GET = withErrors("auth.GET", handle);
+export const POST = withErrors("auth.POST", handle);

@@ -4,10 +4,12 @@ import { asSeen } from "../../../lib/steps";
 import { SIGNIN_ERROR, authEnabled, sessionUser } from "../../../lib/auth";
 import { MAX_INPUT_CHARS, clientIp, limitRequest, readBody } from "../../../lib/guard";
 import { claimVideoSlot, recordVideo } from "../../../lib/usage";
+import { withErrors } from "../../../lib/route";
+import { checkOrigin } from "../../../lib/security";
 
 export const runtime = "nodejs";
 
-export async function GET() {
+export const GET = withErrors("jobs.GET", async () => {
   return NextResponse.json(
     listJobs()
       .slice(0, 40)
@@ -29,9 +31,11 @@ export async function GET() {
         mp4: outputs?.mp4,
       })),
   );
-}
+});
 
-export async function POST(req: Request) {
+export const POST = withErrors("jobs.POST", async (req: Request) => {
+  const crossSite = checkOrigin(req);
+  if (crossSite) return crossSite;
   const limited = limitRequest(req, "jobs");
   if (limited) return limited;
   let userId: string | undefined;
@@ -57,4 +61,4 @@ export async function POST(req: Request) {
   const job = startJob(input, read.body.voice === "silent" ? "silent" : "deepgram");
   if (userId) await recordVideo(job.id, userId, input);
   return NextResponse.json({ id: job.id, warnings: budgetNow().warnings });
-}
+});

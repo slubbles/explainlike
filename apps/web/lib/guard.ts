@@ -44,6 +44,11 @@ export const MAX_FIELD_CHARS = 300;
 
 /** Read a JSON body of at most MAX_BODY_BYTES; anything larger or unparsable is refused with a plain message. */
 export async function readBody(req: Request, max = MAX_BODY_BYTES): Promise<{ body: Record<string, unknown> } | { error: Response }> {
+  // a stated content type must be JSON (a cross-origin form cannot fake one); no header means an
+  // empty body from a non-browser client, which reads as {} and fails the field checks instead
+  const contentType = req.headers.get("content-type")?.split(";")[0].trim().toLowerCase();
+  if (contentType && contentType !== "application/json" && !contentType.endsWith("+json"))
+    return { error: Response.json({ error: "That request needs a JSON body." }, { status: 415 }) };
   const len = Number(req.headers.get("content-length") ?? 0);
   const tooBig = () => ({
     error: Response.json({ error: `That request is too large (over ${Math.round(max / 1024)} KB).` }, { status: 413 }),
