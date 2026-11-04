@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Check } from "../../../components/Icons";
+import { Check } from "../../components/Icons";
 import { requireAppUser } from "../../lib/appuser";
 import { getD1Db } from "../../lib/db";
 import { shortLink, sourceKind } from "../../lib/form";
