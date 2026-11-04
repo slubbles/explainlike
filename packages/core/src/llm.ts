@@ -17,25 +17,47 @@ export type LlmProvider = {
 
 type Env = Record<string, string | undefined>;
 
+const OPENROUTER_BASE = "https://openrouter.ai/api/v1";
+const OPENROUTER_SPARK = "meta/muse-spark-1.3";
+const META_BASE = "https://api.meta.ai/v1";
+const META_SPARK = "muse-spark-1.3-contributor";
+
 export function llmProvider(env: Env = process.env): LlmProvider {
   const pick = (env.EXPLANIMATE_LLM_PROVIDER ?? "").trim().toLowerCase() || (env.OPENROUTER_API_KEY ? "openrouter" : "meta");
   if (pick === "openrouter")
     return {
       id: "openrouter",
       service: "OpenRouter",
-      base: env.OPENROUTER_API_BASE ?? "https://openrouter.ai/api/v1",
+      base: env.OPENROUTER_API_BASE ?? OPENROUTER_BASE,
       keyVar: "OPENROUTER_API_KEY",
-      model: env.EXPLANIMATE_SPARK_MODEL ?? "meta/muse-spark-1.3",
+      model: env.EXPLANIMATE_SPARK_MODEL ?? OPENROUTER_SPARK,
     };
   if (pick === "meta")
     return {
       id: "meta",
       service: "Meta Muse",
-      base: env.META_API_BASE ?? "https://api.meta.ai/v1",
+      base: env.META_API_BASE ?? META_BASE,
       keyVar: "MODEL_API_KEY",
-      model: env.EXPLANIMATE_SPARK_MODEL ?? "muse-spark-1.3-contributor",
+      model: env.EXPLANIMATE_SPARK_MODEL ?? META_SPARK,
     };
   throw new Error(`EXPLANIMATE_LLM_PROVIDER must be "openrouter" or "meta", not "${env.EXPLANIMATE_LLM_PROVIDER}".`);
+}
+
+/**
+ * The backup chat provider: when Muse Spark runs on Meta and an OpenRouter key is set, a failed
+ * Meta call is tried once on OpenRouter's Muse Spark. Otherwise there is no backup (OpenRouter is
+ * already primary, or its key is missing). EXPLANIMATE_SPARK_MODEL is not applied: it names the
+ * model on the primary provider.
+ */
+export function llmFallback(env: Env = process.env): LlmProvider | undefined {
+  if (llmProvider(env).id !== "meta" || !env.OPENROUTER_API_KEY) return undefined;
+  return {
+    id: "openrouter",
+    service: "OpenRouter",
+    base: env.OPENROUTER_API_BASE ?? OPENROUTER_BASE,
+    keyVar: "OPENROUTER_API_KEY",
+    model: OPENROUTER_SPARK,
+  };
 }
 
 /** Muse Spark 1.3 list price per token, the same on Meta and on OpenRouter's meta/muse-spark-1.3 ($1.25 / 1M in, $4.25 / 1M out). */

@@ -8,7 +8,16 @@
  *  - muse-voice-transcribe-1.0  checks the voiceover says what the script says
  */
 import { z } from "zod";
-import { strictJsonSchema, fetchRetry, ServiceError, llmProvider, chatUsd, type CostEntry, type LlmProvider } from "@explanimate/core";
+import {
+  strictJsonSchema,
+  fetchRetry,
+  ServiceError,
+  llmProvider,
+  llmFallback,
+  chatUsd,
+  type CostEntry,
+  type LlmProvider,
+} from "@explanimate/core";
 
 const BASE = process.env.META_API_BASE ?? "https://api.meta.ai/v1";
 export const IMAGE = "muse-image-1.0";
@@ -85,12 +94,38 @@ export type ChatMessage = { role: "system" | "user" | "assistant"; content: stri
 const LOWER = { high: "medium", medium: "low", low: "minimal", minimal: "minimal" } as const;
 
 /**
+ * Whether a failed Muse Spark call is worth one try on the backup provider: the request itself was
+ * fine, Meta just could not answer (a network error, a timeout, 429, a 5xx, an answer that was not
+ * JSON, or two empty answers in a row). Key, credit and request errors (401, 402, 403, 413, ...) are
+ * not: the same call would fail the same way there, and the message says what to fix.
+ */
+export function llmFallbackable(e: unknown): boolean {
+  if (e instanceof SyntaxError || e instanceof z.ZodError) return true;
+  if (e instanceof Error && e.message.startsWith("Muse Spark ") && e.message.endsWith(", twice")) return true;
+  if (e instanceof ServiceError) {
+    if (e.timedOut || e.status === undefined) return true;
+    // a 200 here carried an answer that was not JSON (postTo reports the HTTP status on those)
+    return e.status === 200 || e.status === 429 || e.status >= 500;
+  }
+  return false;
+}
+
+/** The first line of an error for the fallback log, short and without any key (service messages never carry one). */
+function shortReason(e: unknown): string {
+  return String((e as Error)?.message ?? e)
+    .split("\n")[0]!
+    .slice(0, 160);
+}
+
+/**
  * Muse Spark with strict structured output validated by zod. When the reasoning eats the whole token budget,
  * the answer comes back empty or cut off; that try is retried once with one step less effort and 1.5x the room.
  * With `timeoutMs`, a try that has not answered by then is dropped and retried once the same way, so a slow
  * call costs at most two time limits instead of hanging through four five-minute retries.
  * `wire` is the schema sent to the API when it carries limits (max items, max length) the parse should not enforce.
  * `hedge` sends the same request more than once side by side (see hedgeCopies) and keeps the first good answer.
+ * When Meta is the provider and a call fails after its retries, it is tried once on the backup
+ * provider (see llmFallback), so a Meta outage costs one log line instead of the run.
  */
 export async function sparkJson<T extends z.ZodType>(opts: {
   ledger: CostLedger;
@@ -106,11 +141,14 @@ export async function sparkJson<T extends z.ZodType>(opts: {
 }): Promise<z.infer<T>> {
   const copies = opts.hedge ? hedgeCopies() : 1;
   const llm = llmProvider(),
-    SPARK = llm.model;
+    backup = llmFallback();
   let won: number | undefined;
   // a copy that answers after another copy already won is still paid for, so it is logged under its own step name
   const stepOf = (i: number) => (won !== undefined && won !== i ? `${opts.step}-hedge` : opts.step);
-  return firstOf(copies, async (i) => {
+  // hedged copies share one fallback line: they are one call, and Meta being down is one fact
+  let fellBack = false;
+  const attemptOn = async (p: LlmProvider, i: number): Promise<z.infer<T>> => {
+    const SPARK = p.model;
     let effort = opts.effort ?? "low",
       maxTokens = opts.maxTokens ?? 12000;
     for (let attempt = 0; ; attempt++) {
@@ -129,7 +167,7 @@ export async function sparkJson<T extends z.ZodType>(opts: {
       };
       let out;
       try {
-        out = await postTo(llm, "/chat/completions", body, opts.timeoutMs ?? 300_000, !opts.timeoutMs);
+        out = await postTo(p, "/chat/completions", body, opts.timeoutMs ?? 300_000, !opts.timeoutMs);
       } catch (e) {
         if (!(e instanceof ServiceError && e.timedOut) || attempt >= 1) throw e;
         // what a dropped try cost is not reported back, so it is logged at zero with the time it took
@@ -172,6 +210,18 @@ export async function sparkJson<T extends z.ZodType>(opts: {
       if (attempt >= 1) throw new Error(`Muse Spark ${why} on ${opts.step}, twice`);
       effort = LOWER[effort];
       maxTokens = Math.min(32000, Math.round(maxTokens * 1.5));
+    }
+  };
+  return firstOf(copies, async (i) => {
+    try {
+      return await attemptOn(llm, i);
+    } catch (e) {
+      if (!backup || !llmFallbackable(e)) throw e;
+      if (!fellBack) {
+        fellBack = true;
+        console.warn(`Meta Muse failed on ${opts.step} (${shortReason(e)}); falling back to OpenRouter`);
+      }
+      return attemptOn(backup, i);
     }
   });
 }
