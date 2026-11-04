@@ -38,6 +38,8 @@ export interface JobRequest {
   also?: string;
   /** explanation format; default: the engine decides (anatomy tours a repo's parts) */
   format?: "short" | "deep" | "anatomy";
+  /** "dark" renders on a black board; default: the engine picks the look */
+  look?: "dark" | "default";
 }
 
 export type JobState = "running" | "done" | "error" | "cancelled";
@@ -203,7 +205,8 @@ export class JobRunner extends EventEmitter {
       throw new JobError("voice is deepgram, cartesia or silent");
     if (req.depth && !["overview", "working", "deep"].includes(req.depth)) throw new JobError("depth is overview, working or deep");
     if (req.format && !["short", "deep", "anatomy"].includes(req.format)) throw new JobError("format is short, deep or anatomy");
-    for (const k of ["goal", "audience", "also"] as const) {
+    if (req.look && req.look !== "dark" && req.look !== "default") throw new JobError("look is dark or default");
+    for (const k of ["goal", "audience", "also", "name"] as const) {
       if (req[k] !== undefined && (typeof req[k] !== "string" || req[k]!.length > 500))
         throw new JobError(`${k} is text of at most 500 characters`);
     }
@@ -231,6 +234,7 @@ export class JobRunner extends EventEmitter {
     this.jobs.set(job.id, job);
     const args = [this.cli, input, "--out", out, "--json"];
     if (req.name) args.push("--name", req.name);
+    if (req.look) args.push("--look", req.look);
     if (req.voice) args.push("--voice", req.voice);
     if (req.fresh) args.push("--fresh");
     if (req.music === false) args.push("--no-music");

@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { runExplanimate } from "./pipeline.js";
-import { checkFollowUpArgs, checkPackValues, isExplainRequest, parseVoice, parseWorkers } from "./args.js";
+import { checkFollowUpArgs, checkPackValues, isExplainRequest, parseLook, parseVoice, parseWorkers } from "./args.js";
 import { builtinPackIds } from "@explanimate/render";
 import { adoptLegacyEnv } from "@explanimate/core";
 
@@ -28,7 +28,8 @@ const HELP = `explanimate <github-url | local-repo-dir | x.com post url | articl
   the depth, the tempo and the look. There are no levels or themes to pick.
 
   --out <dir>                              output folder (default ./explanimate-out/<name>)
-  --name <owner/repo>                      display name (useful for local folders)
+  --name <owner/repo>                      display name (useful for local folders); also the title card
+  --look <dark|default>                    dark renders on a black board (default: the engine picks the look)
   --voice <deepgram|cartesia|silent>         default: deepgram when DEEPGRAM_API_KEY is set (Cartesia when it fails and CARTESIA_API_KEY is set)
   --pack <id|dir>                          icon/component pack: built-in ${builtinPackIds().join(", ")} or a folder (repeatable;
                                            default: all built-in packs, used only where they detect something)
@@ -113,9 +114,11 @@ if (format && !["short", "deep", "anatomy"].includes(format)) {
 }
 let workers: number | undefined;
 let voice: string | undefined;
+let look: "dark" | "default" | undefined;
 try {
   workers = parseWorkers(opt("--workers"));
   voice = parseVoice(opt("--voice"));
+  look = parseLook(opt("--look"));
   checkFollowUpArgs(opt("--focus"), whatIf, opt("--from"));
   checkPackValues([...many("--pack"), ...many("--icons")]);
 } catch (e) {
@@ -136,6 +139,7 @@ runExplanimate({
   input: fs.existsSync(input) ? path.resolve(input) : input,
   out: opt("--out") && path.resolve(opt("--out")!),
   name: opt("--name"),
+  look,
   voice,
   ask: Object.values(ask).some(Boolean) ? ask : undefined,
   packs: argv.includes("--no-packs")

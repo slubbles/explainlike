@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { checkFollowUpArgs, checkPackValues, isExplainRequest, parseVoice, parseWorkers } from "../src/args.ts";
+import { checkFollowUpArgs, checkPackValues, isExplainRequest, parseLook, parseVoice, parseWorkers } from "../src/args.ts";
 
 test("explain runs only for component questions, never for a topic starting with explain", () => {
   assert.equal(isExplainRequest(["explain", "--from", "out", "--component", "api"]), true);
@@ -29,6 +29,13 @@ test("--voice takes deepgram, cartesia or silent, never a silent typo", () => {
 test("--pack with a missing value is refused instead of throwing a TypeError", () => {
   assert.deepEqual(checkPackValues(["a", "b"]), ["a", "b"]);
   assert.throws(() => checkPackValues(["a", undefined]), /--pack needs a value/);
+});
+
+test("--look takes dark or default, and is unset when the engine picks", () => {
+  assert.equal(parseLook(undefined), undefined);
+  assert.equal(parseLook("dark"), "dark");
+  assert.equal(parseLook("default"), "default");
+  assert.throws(() => parseLook("neon"), /dark or default/);
 });
 
 test("--focus and --what-if need --from, and only one of them", () => {
