@@ -7,7 +7,7 @@ const POLL_MS = 5000;
 
 const when = (iso: string) => (iso.length > 16 ? `${iso.slice(0, 10)} ${iso.slice(11, 16)}` : iso);
 const money = (n: number) => `$${n.toFixed(3)}`;
-const pct = (r: number | null) => (r === null ? "—" : `${Math.round(r * 100)}%`);
+const pct = (r: number | null) => (r === null ? "n/a" : `${Math.round(r * 100)}%`);
 
 /**
  * The live half of the admin dashboard: queue, spend, render stats, usage, signups and failures,
@@ -105,7 +105,7 @@ export default function Live({ initial }: { initial: AdminLive }) {
                         {j.state === "queued" ? "waiting for a slot" : `${j.stage}: ${j.message} · ${j.pct}%`}
                       </div>
                     </td>
-                    <td className="nowrap">{j.queuePosition === null ? "—" : `#${j.queuePosition}`}</td>
+                    <td className="nowrap">{j.queuePosition === null ? "n/a" : `#${j.queuePosition}`}</td>
                     <td className="nowrap">{money(j.cost)}</td>
                   </tr>
                 ))}
@@ -171,7 +171,7 @@ export default function Live({ initial }: { initial: AdminLive }) {
           </div>
           <div>
             <span>Cost per video (avg)</span>
-            <b>{m.avgCostDone === null ? "—" : money(m.avgCostDone)}</b>
+            <b>{m.avgCostDone === null ? "n/a" : money(m.avgCostDone)}</b>
           </div>
           <div>
             <span>Fallbacks (LLM · voice)</span>
@@ -282,7 +282,7 @@ export default function Live({ initial }: { initial: AdminLive }) {
                       </div>
                     </td>
                     <td className="prompt">{f.error}</td>
-                    <td className="prompt">{f.input || "—"}</td>
+                    <td className="prompt">{f.input || "n/a"}</td>
                   </tr>
                 ))}
               </tbody>
