@@ -20,3 +20,4 @@ export * from "./framecheck.js";
 export * from "./boardcheck.js";
 export * from "./renderer.js";
 export * from "./cards.js";
+export * from "./renderslots.js";
