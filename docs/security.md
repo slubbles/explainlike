@@ -33,23 +33,24 @@ with a 415 and caps the size (16 KB, 96 KB for voice turns, 4 KB for client erro
 
 | Route                            | Auth when sign-in is on                                      | Rate limit              | Input validation                                    |
 | -------------------------------- | ------------------------------------------------------------ | ----------------------- | --------------------------------------------------- |
-| `GET /api/health`                | public (count only, no details)                              | no (15 s cache)         | none                                                |
-| `GET /api/auth-config`           | public read                                                  | no                      | none                                                |
-| `GET /api/runtime-config`        | public read (GA id only)                                     | no                      | none                                                |
-| `GET /api/gallery`               | public                                                       | no                      | none                                                |
-| `GET /api/gallery/[name]`        | public                                                       | no                      | manifest allowlist + file-name pattern              |
-| `GET /api/jobs`                  | own jobs (account or `ex_owner` cookie), or `?parent=` clips | no                      | none                                                |
+| `GET /api/health`                | public (`{ok}` only)                                         | per-IP (15 s cache)     | none                                                |
+| `GET /api/auth-config`           | public read                                                  | per-IP                  | none                                                |
+| `GET /api/runtime-config`        | public read (GA id only)                                     | per-IP                  | none                                                |
+| `GET /api/gallery`               | public                                                       | per-IP                  | none                                                |
+| `GET /api/gallery/[name]`        | public                                                       | per-IP                  | manifest allowlist + file-name pattern              |
+| `GET /api/jobs`                  | own jobs (account or `ex_owner` cookie), or `?parent=` clips | per-IP                  | `?parent=` id pattern                               |
 | `POST /api/jobs`                 | 401 without a session                                        | per-IP + hourly + daily | JSON, link ≤ 2048 chars, URL/topic checks           |
-| `GET /api/jobs/[id]`             | read by id, server fields stripped                           | no                      | id is a map lookup, never a path                    |
-| `GET /api/jobs/[id]/file/[name]` | public read                                                  | no                      | id + name patterns, `job.json` excluded             |
+| `GET /api/jobs/[id]`             | read by id, server fields stripped                           | per-IP                  | 12-hex id, then a map lookup, never a path          |
+| `GET /api/jobs/[id]/file/[name]` | public read                                                  | per-IP                  | id + name patterns, `job.json` excluded             |
+| `GET /api/jobs/[id]/captions`    | public read (the player's captions track)                    | per-IP                  | 12-hex id, captions from the film, or 404           |
 | `POST /api/jobs/[id]/followup`   | 401 without a session                                        | per-IP + hourly + daily | JSON, component/`10x`/`100x` shape before claim     |
 | `POST /api/jobs/[id]/explain`    | 401 without a session                                        | per-IP                  | JSON, component id pattern, spend budget            |
 | `POST /api/voice/token`          | localhost + 401 without a session                            | per-IP                  | no body                                             |
 | `POST /api/voice/turn`           | localhost + 401 without a session                            | per-IP + hourly + daily | JSON, 30 turns ≤ 2000 chars, typed link validated   |
 | `GET /api/voice/speak`           | localhost + 401 without a session                            | per-IP                  | `text` param ≤ 400 chars, voice budget              |
 | `POST /api/client-error`         | public by design (signed-out pages report too)               | per-IP                  | 4 KB JSON, message/digest/path lengths + path shape |
-| `GET /api/auth/[...all]`         | Better Auth's own session cookies                            | OTP send/verify limits  | Better Auth + Turnstile on send (see below)         |
-| `POST /api/auth/[...all]`        | Better Auth's own session cookies                            | OTP send/verify limits  | Better Auth + Turnstile on send (see below)         |
+| `GET /api/auth/[...all]`         | Better Auth's own session cookies                            | per-IP + OTP limits     | Better Auth + Turnstile on send (see below)         |
+| `POST /api/auth/[...all]`        | Better Auth's own session cookies                            | per-IP + OTP limits     | Better Auth + Turnstile on send (see below)         |
 | `GET /api/admin/users`           | 404 unless an admin (see below)                              | per-IP                  | none                                                |
 | `GET /api/admin/videos`          | 404 unless an admin                                          | per-IP                  | none                                                |
 | `GET /api/admin/usage`           | 404 unless an admin                                          | per-IP                  | none                                                |
@@ -80,7 +81,7 @@ Notes:
 
 ## Abuse and budget checks
 
-- Per-IP limits on every mutating or costly endpoint (`EXPLANIMATE_REQ_PER_MIN`, default 12).
+- Per-IP limits on every API route (`EXPLANIMATE_REQ_PER_MIN`, default 12).
 - Per-user daily video quota when sign-in is on (default 3, overridable per account), claimed
   atomically so parallel requests cannot both pass; the global hourly cap, spend caps and
   daily cap apply either way.
@@ -99,5 +100,5 @@ Notes:
   `process.env` or a key. The browser learns only public values through `/api/auth-config`
   (Turnstile site key) and `/api/runtime-config` (GA id).
 - Errors persist to the D1 `errors` table when D1 is configured (rows older than 14 days
-  are pruned), otherwise to an in-memory ring of 200. `/api/health` exposes only the
-  24-hour count; details live in the admin portal.
+  are pruned), otherwise to an in-memory ring of 200. `/api/health` answers only `{ok}`;
+  the checks, problems and 24-hour error count live behind `/api/admin/health`.

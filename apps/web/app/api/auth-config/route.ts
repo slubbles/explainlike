@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { authEnabled, sessionUser } from "../../../lib/auth";
 import { defaultDailyVideos, videosLeftToday } from "../../../lib/usage";
+import { limitRequest } from "../../../lib/guard";
 import { withErrors } from "../../../lib/route";
 
 export const runtime = "nodejs";
@@ -11,6 +12,8 @@ export const dynamic = "force-dynamic";
  * who is signed in, and their videos left today. Never any secrets.
  */
 export const GET = withErrors("auth-config.GET", async (req: Request) => {
+  const limited = limitRequest(req, "auth-config");
+  if (limited) return limited;
   if (!authEnabled()) return NextResponse.json({ enabled: false });
   const siteKey = process.env.EXPLANIMATE_TURNSTILE_SITE_KEY ?? "";
   const user = await sessionUser(req);

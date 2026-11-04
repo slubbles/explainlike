@@ -9,7 +9,7 @@ import { withErrors } from "../../../../lib/route";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-/** The same data as /api/health, plus the 24 h error count. Admins only (else 404). */
+/** Full health detail for admins: checks, problems, fallbacks and the 24 h error count. Admins only (else 404). */
 export const GET = withErrors("admin-health.GET", async (req: Request) => {
   const gate = await requireAdmin(req);
   if (!gate.ok) return gate.response;

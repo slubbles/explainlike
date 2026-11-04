@@ -13,6 +13,8 @@ export const runtime = "nodejs";
 
 /** Only the viewer's own jobs, or the clips of a video whose id they hold (?parent=<id>); never anyone else's submissions. */
 export const GET = withErrors("jobs.GET", async (req: Request) => {
+  const limited = limitRequest(req, "jobs-list");
+  if (limited) return limited;
   const parent = new URL(req.url).searchParams.get("parent");
   const viewer = parent ? undefined : await viewerKey(req);
   return NextResponse.json(listFor(listJobs(), viewer, parent), { headers: NO_STORE });
