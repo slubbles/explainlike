@@ -5,7 +5,13 @@ export type Step = { stage: string; label: string };
 export type StepState = "ok" | "now" | "todo" | "fail";
 
 const TAIL = (voice: string): Step[] => [
-  { stage: "voice", label: voice === "silent" ? "no voice: timing captions at speaking pace" : "recording the voiceover (Deepgram Aura)" },
+  {
+    stage: "voice",
+    label:
+      voice === "silent"
+        ? "no voice: timing captions at speaking pace"
+        : `recording the voiceover (${voice === "cartesia" ? "Cartesia Sonic" : "Deepgram Aura"})`,
+  },
   { stage: "compose", label: "laying out the canvas" },
   { stage: "render", label: "drawing frames" },
   { stage: "encode", label: "encoding the mp4" },

@@ -37,7 +37,7 @@ import {
   readmeExcerpt,
   groundToReadme,
 } from "@explanimate/planner";
-import { pickVoice, wordOverlap, DeepgramVoice, type VoiceProvider } from "@explanimate/voice";
+import { pickVoice, wordOverlap, voiceUsd, type VoiceProvider } from "@explanimate/voice";
 import {
   captionMismatches,
   loadIconPack,
@@ -168,7 +168,7 @@ export async function runExplanimate(o: RunOptions) {
   let voiceRef: VoiceProvider | undefined;
   const spend = () => {
     const meta = ledger.total,
-      voice = voiceRef instanceof DeepgramVoice ? voiceRef.usd : 0;
+      voice = voiceRef ? voiceUsd(voiceRef) : 0;
     return { meta: Number(meta.toFixed(4)), voice: Number(voice.toFixed(4)), total: Number((meta + voice).toFixed(4)) };
   };
   const P: Progress = (e) => o.progress?.({ ...e, usd: spend() });
@@ -489,7 +489,10 @@ export async function runExplanimate(o: RunOptions) {
   voiceRef = voice;
   P({
     stage: "voice",
-    message: voice.id === "silent" ? "no voice: timing captions at speaking pace" : "recording the voiceover (Deepgram Aura)",
+    message:
+      voice.id === "silent"
+        ? "no voice: timing captions at speaking pace"
+        : `recording the voiceover (${voice.id === "cartesia" ? "Cartesia Sonic" : "Deepgram Aura"})`,
     pct: 36,
   });
   const audioDir = path.join(out, "audio");
@@ -688,7 +691,7 @@ export async function runExplanimate(o: RunOptions) {
     fs.copyFileSync(cap.html, path.join(out, "stage.html"));
     const qa = await qaRun;
 
-    const voiceUsd = voice instanceof DeepgramVoice ? voice.usd : 0;
+    const voiceCost = voiceUsd(voice);
     const manifest = {
       tool: "explanimate",
       input: o.input,
@@ -726,7 +729,7 @@ export async function runExplanimate(o: RunOptions) {
         metaUsd: Number(ledger.total.toFixed(4)),
         byModel: ledger.byModel(),
         entries: ledger.entries,
-        voiceUsd: Number(voiceUsd.toFixed(4)),
+        voiceUsd: Number(voiceCost.toFixed(4)),
         voice: voice.id,
       },
       seconds: Math.round((Date.now() - t0) / 1000),
