@@ -1,9 +1,9 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { requireAppUser } from "../../../lib/appuser";
-import { googleEnabled } from "../../../lib/auth";
-import { getD1Db } from "../../../lib/db";
-import { ensureUsageTables, videosLeftToday } from "../../../lib/usage";
+import { requireAppUser } from "../../../../lib/appuser";
+import { googleEnabled } from "../../../../lib/auth";
+import { getD1Db } from "../../../../lib/db";
+import { ensureUsageTables, videosLeftToday } from "../../../../lib/usage";
 import VideoWorkspace from "../../components/VideoWorkspace";
 
 export const runtime = "nodejs";
