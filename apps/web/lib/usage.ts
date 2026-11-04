@@ -36,6 +36,12 @@ export async function dailyLimitFor(userId: string, db: D1Db = getD1Db()): Promi
   return Number.isFinite(n) && n > 0 ? Math.floor(n) : defaultDailyVideos();
 }
 
+/** One UTC day's video count for the usage page. */
+export interface UsageDay {
+  day: string;
+  videos: number;
+}
+
 /** How many videos this user has started today (UTC). */
 export async function videosUsedToday(userId: string, nowMs = Date.now(), db: D1Db = getD1Db()): Promise<number> {
   await ensureUsageTables(db);
@@ -87,6 +93,16 @@ export async function recordVideo(jobId: string, userId: string, input: string, 
       db.prepare("INSERT INTO videos (id, user_id, input, created_at) VALUES (?, ?, ?, ?)").bind(jobId, userId, input, nowMs).run(),
     )
     .catch((e) => console.error(`[usage] could not record video ${jobId}: ${(e as Error).message}`));
+}
+
+/** This user's videos started per UTC day, newest first, for the usage page. */
+export async function usageHistoryFor(userId: string, days = 30, db: D1Db = getD1Db()): Promise<UsageDay[]> {
+  await ensureUsageTables(db);
+  const rows = await db
+    .prepare("SELECT day, videos FROM usage WHERE user_id = ? ORDER BY day DESC LIMIT ?")
+    .bind(userId, days)
+    .all<{ day: string; videos: number }>();
+  return rows.map((r) => ({ day: r.day, videos: Number(r.videos) || 0 }));
 }
 
 /** Videos left today, for the "N of M left" line near the create button. */

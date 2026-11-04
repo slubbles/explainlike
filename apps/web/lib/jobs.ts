@@ -8,6 +8,8 @@ import { buildErrorRow, recordError } from "./errors";
 import { log } from "./log";
 import { jobTiming } from "./metrics";
 import { budget, caps, dailyBudget, dailyCap, dailyReserve, recordSpend, reserve, spent, spentToday, type Budget } from "./guard";
+import type { D1Db } from "./db";
+import { updateVideoResult } from "./videos";
 export { validInput };
 
 export type JobState = "queued" | "running" | "done" | "error";
@@ -30,7 +32,7 @@ export interface Job {
   parent?: string;
   focus?: string;
   whatIf?: string;
-  outputs?: { mp4?: string; tldr?: string; excalidraw?: string; contactSheet?: string };
+  outputs?: { mp4?: string; tldr?: string; excalidraw?: string; contactSheet?: string; poster?: string };
   /** live cost meter while running, final spend when done (Meta models + voice, USD) */
   usd?: { meta: number; voice: number; total: number };
   costUsd?: number;
@@ -50,6 +52,8 @@ export interface Job {
   owner?: string;
   /** the owner stopped it (lib/owner.ts decides who may); it ends as an error that is not a failure */
   cancelled?: boolean;
+  /** deleted through /api/me: dropped from memory and disk, never written back nor sent out */
+  deleted?: boolean;
 }
 export type Ask = {
   goal?: string;
@@ -118,8 +122,10 @@ export function resumeInterrupted(): Job | undefined {
 
 const saveTimers = new Map<string, ReturnType<typeof setTimeout>>();
 function save(job: Job, soon = false) {
+  if (job.deleted) return;
   const write = () => {
     saveTimers.delete(job.id);
+    if (job.deleted) return;
     fs.mkdirSync(path.join(JOBS_DIR, job.id), { recursive: true });
     fs.writeFileSync(path.join(JOBS_DIR, job.id, "job.json"), JSON.stringify(job, null, 1));
   };
@@ -128,6 +134,89 @@ function save(job: Job, soon = false) {
     return write();
   }
   if (!saveTimers.has(job.id)) saveTimers.set(job.id, setTimeout(write, 1000));
+}
+
+/** The videos table when sign-in storage exists, else null (auth off, or D1 unreachable). Loaded late so renders never wait on it. */
+async function videosDb(): Promise<D1Db | null> {
+  try {
+    const [{ getD1Db }, { ensureUsageTables }] = await Promise.all([import("./db"), import("./usage")]);
+    const db = getD1Db();
+    await ensureUsageTables(db);
+    return db;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * One still frame from the finished mp4, saved as poster.jpg beside it for the dashboard
+ * thumbnails. The frame sits just past the middle, where the board is fullest (the player
+ * previews from the same spot). Nothing without an mp4 on disk; a missing or failing ffmpeg
+ * only skips the still.
+ */
+function savePosterFrame(job: Job): Promise<string | undefined> {
+  return new Promise((resolve) => {
+    const mp4 = job.outputs?.mp4 ? path.join(JOBS_DIR, job.id, job.outputs.mp4) : undefined;
+    if (!mp4 || job.deleted) return resolve(undefined);
+    fs.stat(mp4, (err, st) => {
+      if (err || !st.isFile()) return resolve(undefined);
+      const dur = job.durationSec ?? 0;
+      const at = dur > 2 ? (dur * 0.55).toFixed(1) : "1";
+      const out = path.join(JOBS_DIR, job.id, "poster.jpg");
+      const child = spawn("ffmpeg", ["-y", "-v", "error", "-ss", at, "-i", mp4, "-frames:v", "1", "-q:v", "4", out], {
+        stdio: "ignore",
+      });
+      child.on("error", () => resolve(undefined));
+      child.on("close", (code) => resolve(code === 0 && !job.deleted && fs.existsSync(out) ? "poster.jpg" : undefined));
+    });
+  });
+}
+
+/**
+ * A finished render's result lands on its videos row (title, format, duration, file names,
+ * status and cost), and a still frame is saved beside the mp4. Best effort throughout: noting
+ * the result must never break a render that already succeeded.
+ */
+function finishVideoResult(job: Job): void {
+  void (async () => {
+    const db = await videosDb();
+    if (db && !job.deleted) {
+      const o = job.outputs ?? {};
+      await updateVideoResult(
+        job.id,
+        {
+          title: job.title ?? "",
+          format: job.ask?.format ?? "",
+          durationSec: job.durationSec ?? 0,
+          files: {
+            ...(o.mp4 ? { mp4: o.mp4 } : {}),
+            ...(o.tldr ? { tldr: o.tldr } : {}),
+            ...(o.excalidraw ? { excalidraw: o.excalidraw } : {}),
+            ...(o.contactSheet ? { contactSheet: o.contactSheet } : {}),
+          },
+          status: "done",
+          cost: job.costUsd ?? job.usd?.total ?? 0,
+        },
+        db,
+      );
+    }
+    const poster = await savePosterFrame(job);
+    if (poster && db && !job.deleted) {
+      job.outputs = { ...job.outputs, poster };
+      save(job);
+      await updateVideoResult(job.id, { poster }, db);
+    }
+  })().catch(() => {});
+}
+
+/** A failed or cancelled render's final status lands on its videos row, best effort. Done renders are noted by finishVideoResult instead. */
+function noteVideoStatus(job: Job): void {
+  if (job.deleted || job.state === "done") return;
+  void (async () => {
+    const db = await videosDb();
+    if (db && !job.deleted)
+      await updateVideoResult(job.id, { status: job.cancelled ? "cancelled" : job.state, cost: job.costUsd ?? job.usd?.total ?? 0 }, db);
+  })().catch(() => {});
 }
 
 // ---- guard rails for any shared deployment: a per-client hourly cap, a very high ceiling on waiting jobs, an optional demo-only switch
@@ -344,6 +433,7 @@ function launch(job: Job) {
             ),
           });
           save(job);
+          finishVideoResult(job);
         } else if (e.type === "error") {
           Object.assign(job, { state: "error", error: e.message, finished: Date.now() });
           save(job);
@@ -379,6 +469,7 @@ function launch(job: Job) {
 
 /** One structured log line per finished job, with its timings; a failed render also lands in the error store. */
 function noteEnd(job: Job) {
+  noteVideoStatus(job);
   const t = jobTiming(job);
   const what = job.cancelled ? "cancelled" : job.state;
   log(job.state === "done" || job.cancelled ? "info" : "warn", "job", `job ${what}`, {
@@ -500,6 +591,34 @@ export function cancelJob(id: string): Job | undefined {
     }, 5000).unref();
   } else noteEnd(job);
   return job;
+}
+
+/**
+ * Forget a job entirely: stop it when it is still waiting or drawing, drop it from memory,
+ * and remove its folder. A killed render's close handler still runs, but save() skips a
+ * deleted job, so nothing is written back. Returns whether a job or a folder was there.
+ */
+export function removeJob(id: string): boolean {
+  if (!ID.test(id)) return false;
+  const job = jobs.get(id);
+  if (job) {
+    job.deleted = true;
+    cancelJob(id);
+    jobs.delete(id);
+    const t = saveTimers.get(id);
+    if (t) {
+      clearTimeout(t);
+      saveTimers.delete(id);
+    }
+  }
+  const i = line().indexOf(id);
+  if (i >= 0) {
+    line().splice(i, 1);
+    persistLine();
+  }
+  const hadDir = fs.existsSync(path.join(JOBS_DIR, id));
+  fs.rmSync(path.join(JOBS_DIR, id), { recursive: true, force: true });
+  return !!job || hadDir;
 }
 
 export const getJob = (id: string) => jobs.get(id);

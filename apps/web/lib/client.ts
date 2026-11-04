@@ -34,7 +34,7 @@ export type Job = {
   mine?: boolean;
   /** its owner stopped it */
   cancelled?: boolean;
-  outputs?: { mp4?: string; tldr?: string; excalidraw?: string; contactSheet?: string };
+  outputs?: { mp4?: string; tldr?: string; excalidraw?: string; contactSheet?: string; poster?: string };
 };
 /** A follow-up clip as the jobs list returns it for one parent video. */
 export type Listed = Pick<Job, "id" | "kind" | "state" | "title" | "parent" | "focus" | "whatIf"> & { started: number };
