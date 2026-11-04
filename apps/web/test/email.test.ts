@@ -63,6 +63,7 @@ test("the code goes out through Cloudflare Email with text and designed HTML par
       for (const part of [body.text, body.html]) {
         assert.match(part, /123456/);
         assert.match(part, /expires in 10 minutes/);
+        assert.match(part, /https:\/\/explanimate\.co\/copy\?c=123456/);
       }
       assert.match(body.text, /if you did not ask for this, ignore it/i);
       assert.match(body.html, /Your sign-in code/);
@@ -71,20 +72,33 @@ test("the code goes out through Cloudflare Email with text and designed HTML par
   );
 });
 
-test("the designed HTML carries the code and the logo, and escapes anything unsafe", () => {
+test("the subject names the code, and the text part carries the code and the copy link", () => {
+  const { subject, text } = buildOtpEmail("123456");
+  assert.equal(subject, "Your Explanimate code: 123456");
+  assert.match(text, /123456/);
+  assert.match(text, /expires in 10 minutes/);
+  assert.match(text, /https:\/\/explanimate\.co\/copy\?c=123456/);
+});
+
+test("the designed HTML matches v2: the code on the left, a Copy code button on the right", () => {
   const { html } = buildOtpEmail("123456");
-  assert.match(html, /123456/);
+  assert.match(html, /<td align="left"[^>]*>123456<\/td>/);
+  assert.match(html, /<a href="https:\/\/explanimate\.co\/copy\?c=123456"[^>]*>/);
+  assert.match(html, />Copy code<\/a>/);
   assert.match(html, /Your sign-in code/);
   assert.match(html, /<table/);
   assert.match(html, /<img[^>]*alt="Explanimate"/);
   assert.match(html, /https:\/\/explanimate\.co\/email\/logo\.png/);
+  assert.match(html, /<img[^>]*src="https:\/\/explanimate\.co\/email\/copy\.png"[^>]*>/);
   assert.match(html, /border-left:3px solid #0082fb/);
   assert.doesNotMatch(html, /<style|<script|<svg|<link/);
   assert.ok(fs.existsSync(new URL("../public/email/logo.png", import.meta.url)), "the logo PNG is served from public/");
+  assert.ok(fs.existsSync(new URL("../public/email/copy.png", import.meta.url)), "the copy-icon PNG is served from public/");
 
   const nasty = buildOtpEmail(`1<svg onload=alert(1)>&`).html;
   assert.doesNotMatch(nasty, /<svg/);
   assert.match(nasty, /1&lt;svg onload=alert\(1\)&gt;&amp;/);
+  assert.match(nasty, /copy\?c=1%3Csvg/);
 });
 
 test("a refused send logs the Cloudflare error codes and tells the user something plain", async () => {
