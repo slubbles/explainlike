@@ -454,3 +454,21 @@ test("the spend summary reads today, the daily cap and the lifetime caps", () =>
     Object.assign(process.env, saved);
   }
 });
+
+test("the live dashboard shows every spec section and fits a 390px phone", () => {
+  const web = path.resolve(import.meta.dirname, "..");
+  const live = fs.readFileSync(path.join(web, "app/admin/Live.tsx"), "utf8");
+  for (const section of ["Live queue", "Spend", "Renders", "Videos per day", "Recent signups", "Recent failures"]) {
+    assert.match(live, new RegExp(`aria-label="${section}"`), section);
+  }
+  assert.match(live, /queuePosition/, "active jobs carry their place in the wait line");
+  assert.match(live, /live\.spend\.caps\.meta/, "Meta spend reads against its cap");
+  assert.match(live, /live\.spend\.caps\.voice/, "Deepgram spend reads against its cap");
+  assert.match(live, /live\.fallbacks\.llm.*live\.fallbacks\.tts/s, "LLM and voice fallback counts");
+  assert.match(live, /medianRenderMs.*p95RenderMs/s, "render p50 and p95");
+  assert.match(live, /\/api\/admin\/live/, "the sections repaint from the live snapshot");
+  const css = fs.readFileSync(path.join(web, "app/admin/admin.css"), "utf8");
+  assert.match(css, /\.adm \.scroll \{[^}]*overflow-x: auto/, "wide tables scroll inside their card");
+  assert.match(css, /\.adm \.stats \{[^}]*minmax\(150px, 1fr\)/, "stat cards shrink to two columns");
+  assert.match(css, /@media \(max-width: 560px\)/, "a narrow-screen pass for phones");
+});
