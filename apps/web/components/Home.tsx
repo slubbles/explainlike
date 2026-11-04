@@ -14,7 +14,13 @@ import { fileUrl, postJson, useGallery, useClips, useJob, type Explain } from ".
 const urlJob = () => new URLSearchParams(location.search).get("job") ?? undefined;
 
 export type Quota = "signin" | { used: number; limit: number; left: number } | null;
-type AuthState = { enabled: boolean; siteKey: string; email?: string; videos?: { used: number; limit: number; left: number } };
+type AuthState = {
+  enabled: boolean;
+  siteKey: string;
+  google: boolean;
+  email?: string;
+  videos?: { used: number; limit: number; left: number };
+};
 
 /** The home UI: the start page, or a job when ?job=<id> is set. app/page.tsx wraps it with the head. */
 export default function Home() {
@@ -46,8 +52,15 @@ export default function Home() {
   const refreshAuth = async () => {
     const r = await fetch("/api/auth-config").catch(() => null);
     const j = await r?.json().catch(() => null);
-    if (j?.enabled) setAuth({ enabled: true, siteKey: j.turnstileSiteKey ?? "", email: j.user?.email, videos: j.videos ?? undefined });
-    else setAuth({ enabled: false, siteKey: "" });
+    if (j?.enabled)
+      setAuth({
+        enabled: true,
+        siteKey: j.turnstileSiteKey ?? "",
+        google: j.google === true,
+        email: j.user?.email,
+        videos: j.videos ?? undefined,
+      });
+    else setAuth({ enabled: false, siteKey: "", google: false });
   };
   useEffect(() => {
     refreshAuth();
@@ -177,6 +190,7 @@ export default function Home() {
       {signin && auth?.enabled && (
         <SignIn
           siteKey={auth.siteKey}
+          google={auth.google}
           onCancel={() => setSignin(false)}
           onDone={async () => {
             setSignin(false);
