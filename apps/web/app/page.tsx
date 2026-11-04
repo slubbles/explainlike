@@ -8,6 +8,7 @@ import SignIn from "../components/SignIn";
 import Steps from "../components/Steps";
 import ResultView from "../components/ResultView";
 import { DEFAULT_FORM, formFromJob, type Form } from "../lib/form";
+import { trackEvent } from "../lib/analytics";
 import { fileUrl, postJson, useGallery, useJob, useJobs, type Explain } from "../lib/client";
 
 const urlJob = () => new URLSearchParams(location.search).get("job") ?? undefined;
@@ -95,6 +96,7 @@ export default function Home() {
     const r = await postJson<{ id: string; warnings?: string[] }>("/api/jobs", { ...form, input: form.input.trim() });
     setPosting(false);
     if (!r.ok) return setErr(r.error);
+    trackEvent("video_create");
     setNotes(r.data.warnings ?? []);
     refreshAuth();
     history.pushState(null, "", `?job=${r.data.id}`);
@@ -104,6 +106,7 @@ export default function Home() {
 
   // voice mode started the job itself: open it like any other
   function voiceJob(j: { id: string }) {
+    trackEvent("video_create");
     setTalking(false);
     history.pushState(null, "", `?job=${j.id}`);
     setJobId(j.id);
