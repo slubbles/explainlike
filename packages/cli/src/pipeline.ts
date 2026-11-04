@@ -189,6 +189,18 @@ export function detectKind(input: string): SourceKind {
   return looksLikeTopic(input) ? "topic" : "article";
 }
 
+/**
+ * How many scenes voice at once. Scenes are independent, so they are recorded side by side;
+ * SCENE_CONCURRENCY bounds it, 1 to 16, default 8 (EXPLANIMATE_SCENE_CONCURRENCY wins when both
+ * are set). A value that is not a number keeps the default instead of stalling or flooding the voice provider.
+ */
+export function sceneConcurrency(env: Record<string, string | undefined> = process.env): number {
+  const raw = env.EXPLANIMATE_SCENE_CONCURRENCY ?? env.SCENE_CONCURRENCY;
+  const n = Math.floor(Number(raw));
+  if (raw === undefined || raw === "" || !Number.isFinite(n)) return 8;
+  return Math.max(1, Math.min(16, n));
+}
+
 export async function runExplanimate(o: RunOptions) {
   const ledger = new CostLedger();
   // every progress event carries the running cost (the cost meter in the CLI and web app)
@@ -667,10 +679,10 @@ export async function runExplanimate(o: RunOptions) {
   const audioDir = path.join(out, "audio");
   const audio: SceneAudio[] = [];
   const queue = [...plan.scenes];
-  // scenes are independent, so they are recorded 8 at a time (the provider retries a rate limit)
+  // scenes are independent, so they are recorded side by side, bounded by sceneConcurrency() (the provider retries a rate limit)
   await timed("voice", () =>
     Promise.all(
-      [...Array(8).keys()].map(async () => {
+      [...Array(sceneConcurrency()).keys()].map(async () => {
         for (let s = queue.shift(); s; s = queue.shift()) audio.push(await voice.synthesize(s.id, s.narration, audioDir));
       }),
     ),
