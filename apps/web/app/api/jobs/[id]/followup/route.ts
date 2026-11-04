@@ -3,10 +3,14 @@ import { admit, startFollowUp } from "../../../../../lib/jobs";
 import { SIGNIN_ERROR, authEnabled, sessionUser } from "../../../../../lib/auth";
 import { clientIp, field, limitRequest, readBody } from "../../../../../lib/guard";
 import { claimVideoSlot, recordVideo, releaseVideoSlot } from "../../../../../lib/usage";
+import { withErrors } from "../../../../../lib/route";
+import { checkOrigin } from "../../../../../lib/security";
 
 export const runtime = "nodejs";
 
-export async function POST(req: Request, ctx: { params: Promise<{ id: string }> }) {
+export const POST = withErrors("followup.POST", async (req: Request, ctx: { params: Promise<{ id: string }> }) => {
+  const crossSite = checkOrigin(req);
+  if (crossSite) return crossSite;
   const { id } = await ctx.params;
   const limited = limitRequest(req, "followup");
   if (limited) return limited;
@@ -37,4 +41,4 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
   }
   if (userId) await recordVideo(r.id, userId, r.input);
   return NextResponse.json({ id: r.id });
-}
+});

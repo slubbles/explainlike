@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import localFont from "next/font/local";
+import Analytics from "../components/Analytics";
 import "./globals.css";
 import "./signin.css";
 
@@ -12,10 +13,16 @@ export const metadata: Metadata = {
     "Paste a GitHub repo, X post or article. Get a whiteboard explainer video and an editable board that opens in tldraw.com. Powered by Meta Muse models.",
 };
 
+// every page renders per request, so middleware's CSP nonce lands on the inline scripts Next emits
+export const dynamic = "force-dynamic";
+
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" className={`${sans.variable} ${hand.variable}`}>
-      <body>{children}</body>
+      <body>
+        <Analytics />
+        {children}
+      </body>
     </html>
   );
 }

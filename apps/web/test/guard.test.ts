@@ -35,11 +35,17 @@ test("X-Forwarded-For is only believed behind a trusted proxy", () => {
 });
 
 test("oversized and broken bodies are refused with a plain message", async () => {
-  const big = await readBody(new Request("http://x/", { method: "POST", body: JSON.stringify({ input: "a".repeat(20_000) }) }));
+  // like the site's own requests: a fetch string body would default to text/plain and answer 415 instead
+  const json = { "content-type": "application/json" };
+  const big = await readBody(
+    new Request("http://x/", { method: "POST", headers: json, body: JSON.stringify({ input: "a".repeat(20_000) }) }),
+  );
   assert.ok("error" in big && big.error.status === 413);
-  const bad = await readBody(new Request("http://x/", { method: "POST", body: "{not json" }));
+  const bad = await readBody(new Request("http://x/", { method: "POST", headers: json, body: "{not json" }));
   assert.ok("error" in bad && bad.error.status === 400);
-  const ok = await readBody(new Request("http://x/", { method: "POST", body: JSON.stringify({ input: "https://github.com/a/b" }) }));
+  const ok = await readBody(
+    new Request("http://x/", { method: "POST", headers: json, body: JSON.stringify({ input: "https://github.com/a/b" }) }),
+  );
   assert.deepEqual("body" in ok && ok.body, { input: "https://github.com/a/b" });
 });
 

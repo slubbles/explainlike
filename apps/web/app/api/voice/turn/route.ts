@@ -2,10 +2,12 @@ import { chatUsd, llmProvider } from "@explanimate/core/llm";
 import { localOnly } from "../../../../lib/local";
 import { admit, budgetNow, noteSpend, startJob, validInput } from "../../../../lib/jobs";
 import { SIGNIN_ERROR, authEnabled, sessionUser } from "../../../../lib/auth";
-import { limitRequest, readBody } from "../../../../lib/guard";
+import { MAX_INPUT_CHARS, limitRequest, readBody } from "../../../../lib/guard";
 import { claimVideoSlot, recordVideo } from "../../../../lib/usage";
 import { checkRepo } from "../../../../lib/reach";
 import { START_TOOL, readStart, takeSentences, voiceSystem, type Turn } from "../../../../lib/voice";
+import { withErrors } from "../../../../lib/route";
+import { checkOrigin } from "../../../../lib/security";
 
 export const runtime = "nodejs";
 
@@ -16,7 +18,9 @@ type Msg = { role: string; content: string | null; tool_calls?: unknown[]; tool_
  * and its reply streams back as server-sent events, one whole sentence at a time so the browser can voice it.
  * When Muse Spark calls start_video, the normal job starts here and its id goes back with the confirm line.
  */
-export async function POST(req: Request) {
+export const POST = withErrors("voice-turn.POST", async (req: Request) => {
+  const crossSite = checkOrigin(req);
+  if (crossSite) return crossSite;
   const no = localOnly(req);
   if (no) return no;
   let userId: string | undefined;
@@ -37,7 +41,9 @@ export async function POST(req: Request) {
     .filter((t: Turn) => (t?.role === "user" || t?.role === "assistant") && typeof t.content === "string" && t.content.trim())
     .slice(-30)
     .map((t: Turn) => ({ role: t.role, content: t.content.slice(0, 2000) }));
-  const typed = typeof body.typed === "string" && validInput(body.typed.trim()) ? body.typed.trim() : undefined;
+  // the typed link keeps the same length cap as the create box; longer text reads as no link
+  const typedText = typeof body.typed === "string" ? body.typed.trim().slice(0, MAX_INPUT_CHARS + 1) : "";
+  const typed = typedText && typedText.length <= MAX_INPUT_CHARS && validInput(typedText) ? typedText : undefined;
   const voice = body.voice === "silent" ? "silent" : "deepgram";
   const messages: Msg[] = [{ role: "system", content: voiceSystem(typed) }, ...turns];
 
@@ -126,7 +132,7 @@ export async function POST(req: Request) {
     },
   });
   return new Response(stream, { headers: { "content-type": "text/event-stream", "cache-control": "no-store", connection: "keep-alive" } });
-}
+});
 
 /** Muse Spark, streamed: the reply split into sentences to voice one by one, or a start_video call collected whole. */
 async function spark(messages: Msg[], signal: AbortSignal) {
