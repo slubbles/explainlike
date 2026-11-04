@@ -6,7 +6,11 @@ import SignInPanel from "./SignInPanel";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-export const metadata = { title: "Sign in — Explanimate", robots: { index: false } };
+export const metadata = {
+  title: "Sign in — Explanimate",
+  description: "Sign in to Explanimate to make whiteboard explainer videos from your repos, posts, articles and topics.",
+  robots: { index: false },
+};
 
 /** Where to land after signing in: a local path, never someone else's site. */
 const safeNext = (v: unknown): string => (typeof v === "string" && v.startsWith("/") && !v.startsWith("//") ? v : "/app");
