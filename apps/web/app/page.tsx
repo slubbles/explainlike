@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { Interactive } from "../components/Player";
 import Nav from "../components/Nav";
 import InputScreen from "../components/InputScreen";
@@ -69,6 +69,16 @@ export default function Home() {
   useEffect(() => {
     if (job) setForm(formFromJob(job));
   }, [job?.id]);
+  // report a finish only for a job this tab watched run, not for an old one reopened from a link
+  const watching = useRef<string | null>(null);
+  useEffect(() => {
+    if (!job) return;
+    if (job.state === "queued" || job.state === "running") watching.current = job.id;
+    else if (watching.current === job.id) {
+      watching.current = null;
+      trackEvent(job.state === "done" ? "video_finished" : "video_failed");
+    }
+  }, [job?.id, job?.state]);
   useEffect(() => {
     if (job?.state === "done") setBump((b) => b + 1);
     if (job?.state === "done" && job.interactive && !map)
