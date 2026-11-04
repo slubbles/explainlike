@@ -146,10 +146,9 @@ export default async function AdminPage() {
                       <tr key={t.id}>
                         <td className="nowrap">
                           <a href={`/?job=${t.id}`}>{t.id}</a>
-                          <span className="muted">
-                            {" "}
-                            · {t.kind} · {when(new Date(t.started).toISOString())}
-                          </span>
+                          <div className="muted sub">
+                            {t.kind} · {when(new Date(t.started).toISOString())}
+                          </div>
                         </td>
                         <td>
                           <span className={`pill ${t.state}`}>{t.state}</span>
