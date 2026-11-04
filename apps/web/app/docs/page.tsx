@@ -47,6 +47,11 @@ export default function Docs() {
                 <strong>A Deepgram key (DEEPGRAM_API_KEY) for the narration.</strong> Without it the video renders silent, with timed
                 captions.
               </li>
+              <li>
+                <strong>Backup keys, optional.</strong> When Meta is the provider and a call fails, planning falls back to OpenRouter if{" "}
+                <code>OPENROUTER_API_KEY</code> is set; when Deepgram fails, the narration falls back to Cartesia if{" "}
+                <code>CARTESIA_API_KEY</code> is set.
+              </li>
             </ul>
 
             <h2 id="install">Install it</h2>

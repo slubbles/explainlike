@@ -31,9 +31,9 @@ in an in-memory first-in, first-out line and their page shows the first step in 
 | `packages/cli`     | 1.2k  | `pipeline.ts` runs one video start to finish, in order, and writes `manifest.json`. `bin.ts` is the argument parser and progress emitter.                                                                                                                     |
 | `packages/core`    | 2.0k  | Shared contracts (`ExplainSpec`, `ScenePlan`, `Architecture`, `Film`), the validators that read narration, the repo digest, URL fetching, plan cache keys. No I/O beyond HTTP and git.                                                                        |
 | `packages/planner` | 1.9k  | Four Muse calls that decide how to explain: `brief` picks analogy, depth, tempo, look; `architecture` finds the components and one request path; `scenes` writes the narration and the boards; `followups` makes the 15 s deep-dive and the what-if-10x clip. |
-| `packages/voice`   | 0.6k  | Per-scene speech through Deepgram Aura, word timings, the respelling table for words Aura mispronounces, and the silent fallback when there is no key.                                                                                                        |
+| `packages/voice`   | 0.6k  | Per-scene speech through Deepgram Aura (Cartesia Sonic when Deepgram fails), word timings, the respelling table for words Aura mispronounces, and the silent fallback when there is no key.                                                                   |
 | `packages/render`  | 3.9k  | The picture: layout, drawing, camera, captions, music and sound effects, `.tldr`/`.excalidraw` writers, the placement and frame checks, and frames (Skia by default, Chrome fallback) into ffmpeg.                                                            |
-| `packages/models`  | 0.4k  | One client for Muse Spark (on OpenRouter or Meta, picked by `llmProvider` in `packages/core/src/llm.ts`), Meta Muse image, SAM and Transcribe, and Deepgram, with the cost ledger and retries.                                                                |
+| `packages/models`  | 0.4k  | One client for Muse Spark (on OpenRouter or Meta, picked by `llmProvider`; OpenRouter backs up Meta), Meta Muse image, SAM and Transcribe, and Deepgram, with the cost ledger and retries.                                                                    |
 | `apps/web`         | 1.9k  | The UI, six job routes, the example gallery (`lib/gallery.ts`, read from `EXPLANIMATE_GALLERY_DIR`), the voice loop, the spend guard, rate limits, health.                                                                                                    |
 
 Two other packages carry the packs and the API/MCP surface; they are not on the demo path.
@@ -82,10 +82,10 @@ explanimate/
 │   └── src/followups.ts      15-second deep dives and "what if 10x traffic?" clips
 │
 ├── packages/models/          ── TALKING TO THE AI
-│   └── src/index.ts          Muse Spark via OpenRouter or Meta, plus image, SAM and Transcribe; costs, retries, raced calls
+│   └── src/index.ts          Muse Spark via OpenRouter or Meta (Meta falls back to OpenRouter), plus image, SAM and Transcribe; costs, retries, raced calls
 │
 ├── packages/voice/           ── THE VOICEOVER
-│   └── src/index.ts          Deepgram Aura speech with word timings, a fix-up table for misread words, a silent fallback
+│   └── src/index.ts          Deepgram Aura speech with word timings (Cartesia backup), a fix-up table for misread words, a silent fallback
 │
 ├── packages/core/            ── SHARED RULES AND SHAPES
 │   ├── src/schemas.ts        the data shapes: Scene, Beat, visual types
@@ -197,13 +197,14 @@ overspending. Cached re-runs are genuinely free: `$0.000` on the run above.
 
 ## Outside services (setting names only, never values)
 
-| Service                                                 | Used for                                                                                                                                                                | Setting              |
-| ------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------- |
-| **OpenRouter → Muse Spark 1.3** (`meta/muse-spark-1.3`) | all planning and script writing, plus voice-mode chat. The default when its key is set.                                                                                 | `OPENROUTER_API_KEY` |
-| **Meta Model API**                                      | Muse Spark backup (`muse-spark-1.3-contributor`), doodle icons (Muse Image + SAM, which cuts an image out of its background), and the voiceover check (Muse Transcribe) | `MODEL_API_KEY`      |
-| **Deepgram**                                            | Aura voice (`aura-2-arcas-en` for videos, `aura-2-thalia-en` for chat), Nova-3 speech-to-text in voice mode                                                             | `DEEPGRAM_API_KEY`   |
+| Service                                                 | Used for                                                                                                                                                                           | Setting              |
+| ------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------- |
+| **OpenRouter → Muse Spark 1.3** (`meta/muse-spark-1.3`) | all planning and script writing, plus voice-mode chat. The default when its key is set, and the backup when Meta is primary.                                                       | `OPENROUTER_API_KEY` |
+| **Meta Model API**                                      | Muse Spark on Meta's own API (`muse-spark-1.3-contributor`), doodle icons (Muse Image + SAM, which cuts an image out of its background), and the voiceover check (Muse Transcribe) | `MODEL_API_KEY`      |
+| **Deepgram**                                            | Aura voice (`aura-2-arcas-en` for videos, `aura-2-thalia-en` for chat), Nova-3 speech-to-text in voice mode                                                                        | `DEEPGRAM_API_KEY`   |
+| **Cartesia**                                            | Sonic voice when Deepgram fails, with word timings estimated at speaking pace                                                                                                      | `CARTESIA_API_KEY`   |
 
-With no Deepgram key, videos render silent with timed captions. Keys live in a gitignored `.env` or `apps/web/.env.local`.
+With no Deepgram key, videos render silent with timed captions. When Deepgram fails and a Cartesia key is set, the narration falls back to Cartesia Sonic. Keys live in a gitignored `.env` or `apps/web/.env.local`.
 
 ## Key settings
 
