@@ -1,7 +1,7 @@
 import Link from "next/link";
-import { requireAppUser } from "../../lib/appuser";
-import { getD1Db } from "../../lib/db";
-import { dailyLimitFor, ensureUsageTables, usageHistoryFor, videosLeftToday } from "../../lib/usage";
+import { requireAppUser } from "../../../lib/appuser";
+import { getD1Db } from "../../../lib/db";
+import { dailyLimitFor, ensureUsageTables, usageHistoryFor, videosLeftToday } from "../../../lib/usage";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";

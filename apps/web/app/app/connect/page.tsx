@@ -1,5 +1,5 @@
 import ConfigBlock from "../../../components/ConfigBlock";
-import { MCP_SNIPPETS } from "../../lib/mcp";
+import { MCP_SNIPPETS } from "../../../lib/mcp";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";

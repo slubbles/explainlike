@@ -1,11 +1,11 @@
 import Link from "next/link";
-import { requireAppUser } from "../../lib/appuser";
-import { getD1Db } from "../../lib/db";
-import { sourceKind } from "../../lib/form";
-import { jobFile, listJobs } from "../../lib/jobs";
-import { cap } from "../../lib/steps";
-import { ensureUsageTables } from "../../lib/usage";
-import { formatLabel, listVideosForUser, mss, when, type UserVideo } from "../../lib/videos";
+import { requireAppUser } from "../../../lib/appuser";
+import { getD1Db } from "../../../lib/db";
+import { sourceKind } from "../../../lib/form";
+import { jobFile, listJobs } from "../../../lib/jobs";
+import { cap } from "../../../lib/steps";
+import { ensureUsageTables } from "../../../lib/usage";
+import { formatLabel, listVideosForUser, mss, when, type UserVideo } from "../../../lib/videos";
 import DeleteVideoButton from "../components/DeleteVideoButton";
 import VideoThumb from "../components/VideoThumb";
 
