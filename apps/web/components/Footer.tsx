@@ -8,6 +8,8 @@ export default function Footer() {
         <div>Powered by Meta Muse models · voice by Deepgram · drawn with rough.js and Excalifont</div>
         <div className="l">
           <a href="/gallery">Examples</a>
+          <a href="/privacy">Privacy</a>
+          <a href="/terms">Terms</a>
           <a href="https://github.com/slubbles/explanimate" target="_blank" rel="noreferrer">
             GitHub
           </a>

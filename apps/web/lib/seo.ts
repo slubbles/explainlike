@@ -17,7 +17,7 @@ export const OG_IMAGE = {
   alt: "Explanimate: whiteboard explainers from any repo, post, article or topic",
 };
 
-export type PageKey = "home" | "docs" | "gallery";
+export type PageKey = "home" | "docs" | "gallery" | "privacy" | "terms";
 
 export const PAGES: Record<PageKey, { title: string; description: string; path: string }> = {
   home: {
@@ -37,6 +37,16 @@ export const PAGES: Record<PageKey, { title: string; description: string; path: 
     description:
       "Example whiteboard explainer videos made with Explanimate, from repos, posts, articles and topics. Each runs about 85 to 175 seconds at 1080p.",
     path: "/gallery",
+  },
+  privacy: {
+    title: "Privacy · Explanimate",
+    description: "What Explanimate stores about you, what it sends to AI and voice providers to make a video, and how to ask for deletion.",
+    path: "/privacy",
+  },
+  terms: {
+    title: "Terms · Explanimate",
+    description: "The short terms for using Explanimate: a free hackathon project, offered as is, with daily limits and no abuse.",
+    path: "/terms",
   },
 };
 
@@ -99,6 +109,8 @@ export function sitemapEntries(): MetadataRoute.Sitemap {
     { url: pageUrl("home"), changeFrequency: "weekly", priority: 1 },
     { url: pageUrl("gallery"), changeFrequency: "weekly", priority: 0.7 },
     { url: pageUrl("docs"), changeFrequency: "monthly", priority: 0.8 },
+    { url: pageUrl("privacy"), changeFrequency: "monthly", priority: 0.5 },
+    { url: pageUrl("terms"), changeFrequency: "monthly", priority: 0.5 },
   ];
 }
 
