@@ -241,6 +241,10 @@ footer .wrap.tiny { display: block; }
 .busy { margin: 12px 0 0; font-size: 13px; color: var(--mut); }
 .btn.wide { width: 100%; margin-top: 14px; padding: 11px 16px; white-space: normal; }
 .row2 { display: flex; gap: 8px; } .row2 .btn { flex: 1; }
+.btn.stop { color: var(--red); border-color: rgba(255, 128, 128, .35); }
+.btn.stop:hover { border-color: var(--red); }
+.confirm { margin-top: 14px; padding: 12px 14px; border-radius: 12px; border: 1px solid var(--line2); background: rgba(255, 255, 255, .03); }
+.confirm p { margin: 0 0 10px; font-size: 14px; color: var(--ink); line-height: 1.45; }
 .clip { display: flex; gap: 12px; align-items: center; } .clip + .clip { margin-top: 14px; }
 .clip .screen { width: 128px; flex: none; border-radius: 8px; }
 .clip .mini { position: absolute; inset: 0; display: grid; place-items: center; } .clip .mini .bar { width: 70%; height: 4px; background: #1d1f24; }
