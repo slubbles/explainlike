@@ -63,12 +63,12 @@ export function stepStates(steps: Step[], stage: string, state: "queued" | "runn
 }
 
 /**
- * How a job looks from outside the server. A job waiting for a render slot shows as just started: first step in
- * progress, 0%, no position and no word "queued". Nothing is faked: it has not run yet, and once it does the
- * steps follow the real pipeline.
+ * How a job looks from outside the server. A job waiting for a render slot shows the normal progress screen
+ * with a "starting soon" state: first step in progress, 0%, no position and no word "queued". Nothing is
+ * faked: it has not run yet, and once it does the steps follow the real pipeline.
  */
 export function asSeen<J extends { state: string; stage: string; message: string; pct: number }>(job: J): J {
-  return job.state === "queued" ? { ...job, state: "running", stage: "start", message: "starting", pct: 0 } : job;
+  return job.state === "queued" ? { ...job, state: "running", stage: "start", message: "starting soon", pct: 0 } : job;
 }
 
 /** A step label as the page shows it: first letter capitalized. */
