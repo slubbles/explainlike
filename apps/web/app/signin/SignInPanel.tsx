@@ -26,6 +26,7 @@ export default function SignInPanel({ next, enabled }: { next: string; enabled: 
   return (
     <SignIn
       siteKey={siteKey}
+      google={google}
       onCancel={() => {
         location.href = "/";
       }}
