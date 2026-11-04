@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { SourceKind } from "./schemas.js";
 
 /**
  * The explainer brief: Muse Spark reads the source first and decides how to explain it
@@ -112,8 +113,58 @@ export type Tempo = { id: TempoId; minBeat: number; maxCutsPerMin: number; move:
 export const MIN_CUTS_PER_MIN = 8;
 export const tempoOf = (id: TempoId): Tempo => ({ id, ...TEMPOS[id] });
 
+/**
+ * The two explanation formats. Short covers one idea in four beats; deep covers a repo or a piece of
+ * code in six. A longer video adds beats, never just runtime: a repo that cannot fit its code trace
+ * in 60 seconds is deep, not a slower short.
+ */
+export type ExplainFormat = "short" | "deep";
+export interface FormatBeat {
+  id: string;
+  label: string;
+  /** short beats carry a time budget; deep beats fill the format's range together */
+  seconds?: [number, number];
+}
+export interface FormatSpec {
+  seconds: [number, number];
+  beats: FormatBeat[];
+  /** visual reasoning moments the format needs (one mechanism drawing plus evidence) */
+  visuals: number;
+}
+export const FORMATS: Record<ExplainFormat, FormatSpec> = {
+  short: {
+    seconds: [45, 60],
+    visuals: 2,
+    beats: [
+      { id: "hook", label: "hook and stakes", seconds: [5, 8] },
+      { id: "mechanism", label: "core mechanism", seconds: [20, 25] },
+      { id: "evidence", label: "failure case or concrete example", seconds: [10, 15] },
+      { id: "payoff", label: "payoff", seconds: [5, 8] },
+    ],
+  },
+  deep: {
+    seconds: [90, 120],
+    visuals: 3,
+    beats: [
+      { id: "problem", label: "problem" },
+      { id: "model", label: "mental model" },
+      { id: "mechanism", label: "mechanism" },
+      { id: "trace", label: "code trace or worked example" },
+      { id: "failure", label: "failure case or tradeoff" },
+      { id: "payoff", label: "payoff" },
+    ],
+  },
+};
+
+/** Repos are always deep; anything else follows the brief's depth. */
+export function formatFor(kind: SourceKind | undefined, depth: Brief["depth"]): ExplainFormat {
+  if (kind === "repo") return "deep";
+  return depth === "overview" ? "short" : "deep";
+}
+
 /** Everything the planner and renderer need, derived from a brief. */
 export interface ExplainSpec {
+  format: ExplainFormat;
   brief: Brief;
   audience: string;
   minComponents: number;
@@ -136,7 +187,7 @@ const DEPTH = {
   deep: { minComponents: 6, maxComponents: 10, perScene: 3, scaleItems: 1, scaleAt: ["10x"], wordsPerScene: 32, extras: 1 },
 } as const;
 
-export function specFromBrief(b: Brief, ask?: Ask): ExplainSpec {
+export function specFromBrief(b: Brief, ask?: Ask, kind?: SourceKind): ExplainSpec {
   const d = DEPTH[b.depth];
   const tempoId: TempoId = b.complexity === "technical" ? "slow" : b.complexity === "simple" ? "brisk" : "steady";
   // technical topics add fewer boxes per beat so each one gets time on screen
@@ -161,6 +212,7 @@ export function specFromBrief(b: Brief, ask?: Ask): ExplainSpec {
     .filter(Boolean)
     .join(" ");
   return {
+    format: formatFor(kind, b.depth),
     brief: b,
     audience: b.audience,
     minComponents: d.minComponents,
