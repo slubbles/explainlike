@@ -54,7 +54,7 @@ test("every touch target is at least 44px", () => {
         ".send",
         ".gh",
         ".navl",
-        ".navmenu summary",
+        ".navmenu .menubtn",
         ".navdrop a",
         ".brand",
         ".go",
