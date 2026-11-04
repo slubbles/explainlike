@@ -6,7 +6,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import crypto from "node:crypto";
-import { fetchRetry, userCacheDir, type SceneAudio, type WordTiming } from "@explanimate/core";
+import { fetchRetry, ServiceError, userCacheDir, type SceneAudio, type WordTiming } from "@explanimate/core";
 
 export interface VoiceProvider {
   id: string;
@@ -17,20 +17,37 @@ const CACHE = process.env.EXPLANIMATE_TTS_CACHE ?? userCacheDir("tts");
 const tokens = (s: string) => s.replace(/\s+/g, " ").trim().split(" ").filter(Boolean);
 const normW = (w: string) => w.toLowerCase().replace(/[^a-z0-9]/g, "");
 
+/**
+ * Words spread at a natural speaking pace, longer words taking longer. SilentVoice's whole timing
+ * and Cartesia's fallback timing (stretched onto the real recording by fitWords) share this.
+ */
+export function estimateWords(text: string, wps = 2.6): { words: WordTiming[]; duration: number } {
+  const ws = tokens(text);
+  const words: WordTiming[] = [];
+  let t = 0.25;
+  for (const w of ws) {
+    const d = Math.max(0.18, (0.6 + w.replace(/[^a-z0-9]/gi, "").length / 6) / wps / 0.95);
+    words.push({ word: w, start: t, end: t + d * 0.9 });
+    t += d + (/[.!?]$/.test(w) ? 0.35 : /[,;:]$/.test(w) ? 0.12 : 0);
+  }
+  return { words, duration: t + 0.3 };
+}
+
+/** Stretch estimated word timings onto a real recording's length, keeping their rhythm. */
+export function fitWords(words: WordTiming[], duration: number): WordTiming[] {
+  const raw = words.length ? words[words.length - 1]!.end : 0;
+  if (!raw || !Number.isFinite(duration) || duration <= 0) return words;
+  const k = duration / raw;
+  return words.map((w) => ({ word: w.word, start: w.start * k, end: w.end * k }));
+}
+
 /** No audio: words are spread at a natural speaking pace so captions and sync still work. */
 export class SilentVoice implements VoiceProvider {
   id = "silent";
   constructor(private wps = 2.6) {}
   async synthesize(sceneId: string, text: string): Promise<SceneAudio> {
-    const ws = tokens(text);
-    const words: WordTiming[] = [];
-    let t = 0.25;
-    for (const w of ws) {
-      const d = Math.max(0.18, (0.6 + w.replace(/[^a-z0-9]/gi, "").length / 6) / this.wps / 0.95);
-      words.push({ word: w, start: t, end: t + d * 0.9 });
-      t += d + (/[.!?]$/.test(w) ? 0.35 : /[,;:]$/.test(w) ? 0.12 : 0);
-    }
-    return { sceneId, duration: t + 0.3, words };
+    const { words, duration } = estimateWords(text, this.wps);
+    return { sceneId, duration, words };
   }
 }
 
@@ -262,6 +279,90 @@ export class DeepgramVoice implements VoiceProvider {
   }
 }
 
+export const CARTESIA_VERSION = "2026-08-14";
+export const CARTESIA_DEFAULT_MODEL = "sonic-3.6";
+/** A stock English voice; any voice UUID from play.cartesia.ai/voices works via CARTESIA_VOICE_ID. */
+export const CARTESIA_DEFAULT_VOICE = "78ab82d5-25be-4f7d-82b3-7ad64e5b85b2";
+/** About $50 per 1M characters (October 2026 list: $37-65 per 1M by plan), so the spend guard sees roughly the right number. */
+const CARTESIA_USD_PER_CHAR = 0.00005;
+
+export interface CartesiaOptions {
+  apiKey?: string;
+  model?: string;
+  voice?: string;
+}
+
+/**
+ * Cartesia Sonic text-to-speech over POST https://api.cartesia.ai/tts/bytes: one call, one 24 kHz
+ * wav, so the pipeline handles it like a Deepgram take. The bytes endpoint returns no word
+ * timestamps, so timings are estimated at speaking pace and stretched onto the real recording (the
+ * renderer only needs one timing per word, in order). There is no name retake: the speech-to-text
+ * that would hear a misread word is Deepgram's, and Cartesia only speaks when Deepgram has failed.
+ */
+export class CartesiaVoice implements VoiceProvider {
+  id = "cartesia";
+  usage = { ttsChars: 0 };
+  private key: string;
+  model: string;
+  voice: string;
+  constructor(o: CartesiaOptions = {}) {
+    const k = o.apiKey ?? process.env.CARTESIA_API_KEY;
+    if (!k) throw new Error("CARTESIA_API_KEY is not set");
+    this.key = k;
+    this.model = o.model ?? process.env.CARTESIA_MODEL ?? CARTESIA_DEFAULT_MODEL;
+    this.voice = o.voice ?? process.env.CARTESIA_VOICE_ID ?? CARTESIA_DEFAULT_VOICE;
+  }
+  get usd() {
+    return this.usage.ttsChars * CARTESIA_USD_PER_CHAR;
+  }
+
+  async synthesize(sceneId: string, text: string, outDir: string): Promise<SceneAudio> {
+    fs.mkdirSync(CACHE, { recursive: true });
+    const sayAs = spokenWords(text),
+      said = sayAs.join(" ");
+    const h = crypto.createHash("sha1").update(`cartesia\n${this.model}\n${this.voice}\n${said}`).digest("hex").slice(0, 16);
+    const wavCache = path.join(CACHE, `${h}.wav`),
+      jsonCache = path.join(CACHE, `${h}.json`);
+    let cached: { words: WordTiming[]; duration: number } | undefined =
+      fs.existsSync(wavCache) && fs.existsSync(jsonCache) ? JSON.parse(fs.readFileSync(jsonCache, "utf8")) : undefined;
+    if (!cached) {
+      const r = await fetchRetry(
+        "https://api.cartesia.ai/tts/bytes",
+        () => ({
+          method: "POST",
+          headers: {
+            // X-API-Key is Cartesia's long-standing auth header; the current API reference shows a
+            // Bearer token instead, so both go along and the call works either way
+            "X-API-Key": this.key,
+            Authorization: `Bearer ${this.key}`,
+            "Cartesia-Version": CARTESIA_VERSION,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            model_id: this.model,
+            transcript: said,
+            voice: { id: this.voice },
+            language: "en",
+            output_format: { container: "wav", encoding: "pcm_s16le", sample_rate: 24000 },
+          }),
+        }),
+        { service: "Cartesia", keyVar: "CARTESIA_API_KEY", timeoutMs: 90_000, attempts: 4, baseMs: 1500 },
+      );
+      const wav = Buffer.from(await r.arrayBuffer());
+      if (wav.length < 44) throw new ServiceError("Cartesia sent back an answer too short to be audio. Try again.", "Cartesia");
+      this.usage.ttsChars += said.length;
+      const duration = wavDuration(wav);
+      cached = { words: scriptTimes(text, sayAs, fitWords(estimateWords(said).words, duration)), duration };
+      fs.writeFileSync(wavCache, wav);
+      fs.writeFileSync(jsonCache, JSON.stringify(cached));
+    }
+    fs.mkdirSync(outDir, { recursive: true });
+    const file = path.join(outDir, `${sceneId}.wav`);
+    fs.copyFileSync(wavCache, file);
+    return { sceneId, file, duration: wavDuration(fs.readFileSync(file)), words: cached.words };
+  }
+}
+
 /** Fold timings for the spoken form ("min BPE") back onto the script's words ("minbpe"). */
 export function scriptTimes(script: string, sayAs: string[], said: WordTiming[]): WordTiming[] {
   const ws = tokens(script);
@@ -292,9 +393,48 @@ export function wavDuration(wav: Buffer): number {
   return dataLen / byteRate;
 }
 
+/** What a voice spent, or 0 when it does not count (silent). */
+export function voiceUsd(v: VoiceProvider): number {
+  const u = (v as { usd?: unknown }).usd;
+  return typeof u === "number" && Number.isFinite(u) ? u : 0;
+}
+
+/** Try the primary voice, and on any failure use the backup once. Each scene falls back on its own. */
+export class FallbackVoice implements VoiceProvider {
+  private fellBack = false;
+  constructor(
+    private primary: VoiceProvider,
+    private backup: VoiceProvider,
+  ) {}
+  /** the primary's id, plus the backup's once a scene has fallen back, so the manifest says what spoke */
+  get id(): string {
+    return this.fellBack ? `${this.primary.id}+${this.backup.id}` : this.primary.id;
+  }
+  get usd(): number {
+    return voiceUsd(this.primary) + voiceUsd(this.backup);
+  }
+  async synthesize(sceneId: string, text: string, outDir: string): Promise<SceneAudio> {
+    try {
+      return await this.primary.synthesize(sceneId, text, outDir);
+    } catch (e) {
+      this.fellBack = true;
+      console.warn(
+        `${this.primary.id} voice failed for scene ${sceneId} (${String((e as Error)?.message ?? e)
+          .split("\n")[0]!
+          .slice(0, 160)}); falling back to ${this.backup.id}`,
+      );
+      return this.backup.synthesize(sceneId, text, outDir);
+    }
+  }
+}
+
 export function pickVoice(name?: string): VoiceProvider {
   if (name === "silent") return new SilentVoice();
-  if (name === "deepgram" || (!name && process.env.DEEPGRAM_API_KEY)) return new DeepgramVoice();
+  if (name === "cartesia") return new CartesiaVoice();
+  if (name === "deepgram" || (!name && process.env.DEEPGRAM_API_KEY)) {
+    const d = new DeepgramVoice();
+    return process.env.CARTESIA_API_KEY ? new FallbackVoice(d, new CartesiaVoice()) : d;
+  }
   return new SilentVoice();
 }
 

@@ -25,7 +25,7 @@ const HELP = `explanimate <github-url | local-repo-dir | x.com post url | articl
 
   --out <dir>                              output folder (default ./explanimate-out/<name>)
   --name <owner/repo>                      display name (useful for local folders)
-  --voice <deepgram|silent>                default: deepgram when DEEPGRAM_API_KEY is set
+  --voice <deepgram|cartesia|silent>         default: deepgram when DEEPGRAM_API_KEY is set (Cartesia when it fails and CARTESIA_API_KEY is set)
   --pack <id|dir>                          icon/component pack: built-in ${builtinPackIds().join(", ")} or a folder (repeatable;
                                            default: all built-in packs, used only where they detect something)
   --no-packs                               only the base doodle icons
