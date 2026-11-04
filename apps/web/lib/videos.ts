@@ -273,15 +273,41 @@ export function mss(sec?: number): string | undefined {
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
-/** When a video was made, in UTC: "Today, 9:12 PM", "Yesterday", "Nov 2", or "Nov 2, 2025". */
-export function when(ts: number, nowMs = Date.now()): string {
-  const d = new Date(ts);
-  const day = (t: number) => new Date(t).toISOString().slice(0, 10);
-  const hm = `${d.getUTCHours() % 12 || 12}:${String(d.getUTCMinutes()).padStart(2, "0")} ${d.getUTCHours() < 12 ? "AM" : "PM"}`;
-  if (day(ts) === day(nowMs)) return `Today, ${hm}`;
-  if (day(ts) === day(nowMs - 86400_000)) return "Yesterday";
-  const md = `${MONTHS[d.getUTCMonth()]} ${d.getUTCDate()}`;
-  return d.getUTCFullYear() === new Date(nowMs).getUTCFullYear() ? md : `${md}, ${d.getUTCFullYear()}`;
+/** A timestamp broken into calendar parts in one time zone, read from Intl. */
+function zonedParts(t: number, timeZone?: string) {
+  const found = new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    year: "numeric",
+    month: "numeric",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+  })
+    .formatToParts(new Date(t))
+    .reduce<Record<string, string>>((acc, p) => {
+      acc[p.type] = p.value;
+      return acc;
+    }, {});
+  return {
+    year: Number(found.year),
+    month: Number(found.month),
+    day: Number(found.day),
+    hour: Number(found.hour),
+    minute: found.minute,
+    dayPeriod: found.dayPeriod,
+  };
+}
+
+/** When a video was made, in the viewer's time zone: "Today, 9:12 PM", "Yesterday", "Nov 2", or "Nov 2, 2025". */
+export function when(ts: number, nowMs = Date.now(), timeZone?: string): string {
+  const d = zonedParts(ts, timeZone);
+  const n = zonedParts(nowMs, timeZone);
+  const day = (p: { year: number; month: number; day: number }) => Date.UTC(p.year, p.month - 1, p.day);
+  if (day(d) === day(n)) return `Today, ${d.hour}:${d.minute} ${d.dayPeriod}`;
+  if (day(d) === day(n) - 86400_000) return "Yesterday";
+  const md = `${MONTHS[d.month - 1]} ${d.day}`;
+  return d.year === n.year ? md : `${md}, ${d.year}`;
 }
 
 /** How long ago a job started: "12s ago", "1m 40s ago", "3h 5m ago". */
