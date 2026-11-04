@@ -1,6 +1,7 @@
 "use client";
 import { VOICES, type Form, shortLink } from "../lib/form";
 import type { GalleryItem } from "../lib/gallery";
+import type { Quota } from "../app/page";
 import Footer from "./Footer";
 import GalleryGrid from "./GalleryGrid";
 import { Arrow, Mic } from "./Icons";
@@ -26,6 +27,7 @@ type Props = {
   talking: boolean;
   talk: (on: boolean) => void;
   onVoiceJob: (job: StartedJob) => void;
+  quota: Quota;
 };
 
 /** The prompt box the hero and the closing CTA share: same field, voice toggle, mic and send. */
@@ -35,12 +37,14 @@ function PromptBox({
   go,
   busy,
   talk,
+  quota,
 }: {
   form: Form;
   set: (f: Partial<Form>) => void;
   go: () => void;
   busy: boolean;
   talk: () => void;
+  quota: Quota;
 }) {
   const ready = !!form.input.trim() && !busy;
   return (
@@ -93,11 +97,18 @@ function PromptBox({
           </button>
         </div>
       </div>
+      {quota === "signin" ? (
+        <p className="quota">Sign in to make a video.</p>
+      ) : quota ? (
+        <p className="quota">
+          {quota.left} of {quota.limit} videos left today
+        </p>
+      ) : null}
     </form>
   );
 }
 
-export default function InputScreen({ form, set, go, busy, err, examples, talking, talk, onVoiceJob }: Props) {
+export default function InputScreen({ form, set, go, busy, err, examples, talking, talk, onVoiceJob, quota }: Props) {
   const board = examples[0];
   return (
     <>
@@ -119,7 +130,7 @@ export default function InputScreen({ form, set, go, busy, err, examples, talkin
             {talking ? (
               <VoiceMode typed={form.input.trim() || undefined} voice={form.voice} onJob={onVoiceJob} onEnd={() => talk(false)} />
             ) : (
-              <PromptBox form={form} set={set} go={go} busy={busy} talk={() => talk(true)} />
+              <PromptBox form={form} set={set} go={go} busy={busy} talk={() => talk(true)} quota={quota} />
             )}
           </div>
           {err && (
@@ -306,7 +317,7 @@ export default function InputScreen({ form, set, go, busy, err, examples, talkin
               {talking ? (
                 <VoiceMode typed={form.input.trim() || undefined} voice={form.voice} onJob={onVoiceJob} onEnd={() => talk(false)} />
               ) : (
-                <PromptBox form={form} set={set} go={go} busy={busy} talk={() => talk(true)} />
+                <PromptBox form={form} set={set} go={go} busy={busy} talk={() => talk(true)} quota={quota} />
               )}
             </div>
             <p className="note">Private and localhost links are blocked.</p>

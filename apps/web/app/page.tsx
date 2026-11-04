@@ -4,12 +4,16 @@ import type { Interactive } from "../components/Player";
 import Nav from "../components/Nav";
 import InputScreen from "../components/InputScreen";
 import JobBar from "../components/JobBar";
+import SignIn from "../components/SignIn";
 import Steps from "../components/Steps";
 import ResultView from "../components/ResultView";
 import { DEFAULT_FORM, formFromJob, type Form } from "../lib/form";
 import { fileUrl, postJson, useGallery, useJob, useJobs, type Explain } from "../lib/client";
 
 const urlJob = () => new URLSearchParams(location.search).get("job") ?? undefined;
+
+export type Quota = "signin" | { used: number; limit: number; left: number } | null;
+type AuthState = { enabled: boolean; siteKey: string; email?: string; videos?: { used: number; limit: number; left: number } };
 
 export default function Home() {
   const [form, setForm] = useState<Form>(DEFAULT_FORM);
@@ -25,9 +29,25 @@ export default function Home() {
   const [talking, setTalking] = useState(false);
   const [posting, setPosting] = useState(false);
   const [notes, setNotes] = useState<string[]>([]);
+  const [auth, setAuth] = useState<AuthState | null>(null);
+  const [signin, setSignin] = useState(false);
   const job = useJob(jobId);
   const listed = useJobs(bump);
   const examples = useGallery();
+
+  const refreshAuth = async () => {
+    const r = await fetch("/api/auth-config").catch(() => null);
+    const j = await r?.json().catch(() => null);
+    if (j?.enabled) setAuth({ enabled: true, siteKey: j.turnstileSiteKey ?? "", email: j.user?.email, videos: j.videos ?? undefined });
+    else setAuth({ enabled: false, siteKey: "" });
+  };
+  useEffect(() => {
+    refreshAuth();
+    // the nav's Sign in button opens the same panel
+    const open = () => setSignin(true);
+    addEventListener("explanimate:signin", open);
+    return () => removeEventListener("explanimate:signin", open);
+  }, []);
 
   // ?job=<id> reopens a saved job (jobs are kept on disk); back and forward move between jobs and the start page
   useEffect(() => {
@@ -59,14 +79,24 @@ export default function Home() {
 
   const busy = job?.state === "running";
 
+  // signed out with auth on: the submit opens the sign-in panel, which sends the request after
   async function go() {
     if (posting) return;
+    if (auth?.enabled && !auth.email) {
+      setSignin(true);
+      return;
+    }
+    await submit();
+  }
+
+  async function submit() {
     setErr("");
     setPosting(true);
     const r = await postJson<{ id: string; warnings?: string[] }>("/api/jobs", { ...form, input: form.input.trim() });
     setPosting(false);
     if (!r.ok) return setErr(r.error);
     setNotes(r.data.warnings ?? []);
+    refreshAuth();
     history.pushState(null, "", `?job=${r.data.id}`);
     setJobId(r.data.id);
     scrollTo({ top: 0 });
@@ -97,14 +127,27 @@ export default function Home() {
     setErr("");
     const r = await postJson<{ id: string }>(`/api/jobs/${job.id}/followup`, body);
     if (!r.ok) return setErr(r.error);
+    refreshAuth();
     setStarted((f) => [r.data.id, ...f]);
   }
 
   const clips = job ? [...new Set([...started, ...listed.filter((j) => j.parent === job.id).map((j) => j.id)])] : [];
+  const quota: Quota = !auth?.enabled ? null : !auth.email ? "signin" : (auth.videos ?? null);
 
   return (
     <>
       <Nav />
+      {signin && auth?.enabled && (
+        <SignIn
+          siteKey={auth.siteKey}
+          onCancel={() => setSignin(false)}
+          onDone={async () => {
+            setSignin(false);
+            await refreshAuth();
+            await submit();
+          }}
+        />
+      )}
       <main className={jobId ? "page job" : "page"}>
         {!jobId && (
           <InputScreen
@@ -117,6 +160,7 @@ export default function Home() {
             talking={talking}
             talk={setTalking}
             onVoiceJob={voiceJob}
+            quota={quota}
           />
         )}
         {jobId && (
@@ -128,6 +172,7 @@ export default function Home() {
               busy={busy || posting}
               fold={job?.state === "done"}
               quiet={job?.state === "done" && form.input.trim() === job.input && form.voice === job.voice}
+              quota={quota}
             />
             {notes.map((n) => (
               <p className="note" role="status" key={n}>

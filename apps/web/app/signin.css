@@ -1,0 +1,121 @@
+/* Sign-in panel, quota line and nav account bit. Same dark panel and blue button as the rest. */
+
+.signin-back {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  background: rgba(0, 0, 0, 0.65);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+.signin {
+  position: relative;
+  width: min(400px, 100%);
+  background: var(--panel2);
+  border: 1px solid var(--line2);
+  border-radius: 20px;
+  padding: 28px;
+}
+.signin h2 {
+  margin: 0;
+  font-size: 20px;
+  letter-spacing: -0.01em;
+}
+.ssub {
+  margin: 10px 0 0;
+  font-size: 14px;
+  color: var(--mut);
+  overflow-wrap: anywhere;
+}
+.sfield {
+  width: 100%;
+  margin-top: 16px;
+  padding: 12px 14px;
+  font-size: 15px;
+  color: var(--ink);
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--line2);
+  border-radius: 12px;
+  outline: none;
+}
+.sfield:focus {
+  border-color: rgba(255, 255, 255, 0.35);
+}
+.sfield.code {
+  font-size: 22px;
+  letter-spacing: 0.35em;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+.scap {
+  margin-top: 16px;
+}
+.scap:empty {
+  display: none;
+}
+.signin .btn.wide {
+  margin-top: 16px;
+}
+.sx {
+  position: absolute;
+  top: 10px;
+  right: 12px;
+  padding: 8px;
+  font-size: 20px;
+  line-height: 1;
+  color: var(--dim);
+  background: none;
+  border: 0;
+}
+.sx:hover {
+  color: #fff;
+}
+.sback {
+  display: block;
+  margin: 14px auto 0;
+  padding: 4px;
+  font-size: 13.5px;
+  color: var(--mut);
+  background: none;
+  border: 0;
+}
+.sback:hover {
+  color: #fff;
+}
+
+/* "N of 3 videos left today" under the create button */
+.quota {
+  margin: 12px 0 0;
+  font-size: 13px;
+  color: var(--dim);
+  text-align: center;
+}
+
+/* nav account bit */
+button.navl {
+  background: none;
+  border: 0;
+  cursor: pointer;
+  font: inherit;
+}
+.navuser {
+  font-size: 13px;
+  color: var(--dim);
+  max-width: 280px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.navout {
+  padding: 0;
+  font-size: 13px;
+  color: #d4d4d8;
+  background: none;
+  border: 0;
+  cursor: pointer;
+}
+.navout:hover {
+  color: #fff;
+}
