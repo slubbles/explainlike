@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
+import { trackEvent } from "../lib/analytics";
 
 declare global {
   interface Window {
@@ -77,6 +78,7 @@ export default function SignIn({ siteKey, onDone, onCancel }: { siteKey: string;
       }).catch(() => null);
       if (!r) return setErr("Could not reach the server. Check your connection and try again.");
       if (!r.ok) return setErr(said(await r.json().catch(() => ({})), r.status));
+      trackEvent("signin_code_sent");
       setStep("code");
     } finally {
       setBusy(false);
@@ -97,6 +99,7 @@ export default function SignIn({ siteKey, onDone, onCancel }: { siteKey: string;
       }).catch(() => null);
       if (!r) return setErr("Could not reach the server. Check your connection and try again.");
       if (!r.ok) return setErr(said(await r.json().catch(() => ({})), r.status));
+      trackEvent("signin_success");
       onDone();
     } finally {
       setBusy(false);
