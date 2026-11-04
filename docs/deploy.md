@@ -354,5 +354,5 @@ spend, per-user limits, recent errors (failed renders included) and health. To a
 - Sign-in and the per-account daily quota exist but are off by default; turn them on with `EXPLANIMATE_AUTH_ENABLED=1` before a public launch.
 - The private-address check resolves the name, then fetches. A DNS server that answers differently the second time could still slip through (DNS rebinding). Pinning the checked address in the connection needs the `undici` package. Until then, block the metadata address and your private ranges in the host's firewall as well.
 - Chromium loads images named in a page's card (avatars, preview images) without that check. It can only show them as pictures, but a firewall rule covers it too.
-- `/api/jobs` still lists the newest jobs to anyone who asks. The home page no longer shows them, but the list and each job are readable by id. Limit it to the caller (or turn it off) before a public launch.
+- Each job is readable by anyone who has its id (the share link). Ids are 12 random hex characters; tie jobs to accounts if links should be private.
 - The GitHub Actions in CI still run on Node 20 and print deprecation notices. Move `actions/checkout`, `pnpm/action-setup` and `actions/setup-node` to their latest majors.

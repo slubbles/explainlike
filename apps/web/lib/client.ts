@@ -103,12 +103,16 @@ export function useJob(id?: string) {
   return job;
 }
 
-/** The saved jobs list; `bump` refetches it. */
-export function useJobs(bump: unknown = 0) {
+/** The follow-up clips made from one job; `bump` refetches them. */
+export function useJobs(parent: string | undefined, bump: unknown = 0) {
   const [jobs, setJobs] = useState<Listed[]>([]);
   useEffect(() => {
     let stop = false;
-    fetch("/api/jobs")
+    if (!parent) {
+      setJobs([]);
+      return;
+    }
+    fetch(`/api/jobs?parent=${encodeURIComponent(parent)}`)
       .then((r) => (r.ok ? r.json() : []))
       .then((j) => {
         if (!stop) setJobs(j);
@@ -117,7 +121,7 @@ export function useJobs(bump: unknown = 0) {
     return () => {
       stop = true;
     };
-  }, [bump]);
+  }, [parent, bump]);
   return jobs;
 }
 
