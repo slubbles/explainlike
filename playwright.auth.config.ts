@@ -53,7 +53,7 @@ export default defineConfig({
   projects: [
     {
       name: "auth",
-      testMatch: ["signup.spec.ts", "limits.spec.ts", "google.spec.ts"],
+      testMatch: ["signup.spec.ts", "limits.spec.ts", "google.spec.ts", "dashboard.spec.ts"],
       use: { baseURL: "http://localhost:3124" },
     },
     {
