@@ -2,7 +2,11 @@
  * One-time login codes go out through Cloudflare's Email Service REST API (no SDK).
  * The sender defaults to Explanimate <login@explanimate.co>; EXPLANIMATE_EMAIL_FROM
  * ("Name <addr>") overrides it. Failures log Cloudflare's error codes, never the token.
+ * For end-to-end tests, EXPLANIMATE_EMAIL_CAPTURE_DIR captures each code to a file
+ * instead of sending it.
  */
+import fs from "node:fs";
+import path from "node:path";
 
 export type EmailFrom = { name: string; address: string };
 
@@ -22,8 +26,22 @@ export type EmailResult = { ok: true } | { ok: false; error: string };
 
 const FAIL = "Could not send the code. Try again in a moment.";
 
+/** Where captured codes go in tests (EXPLANIMATE_EMAIL_CAPTURE_DIR); unset in production. */
+export function emailCaptureDir(): string | undefined {
+  const d = process.env.EXPLANIMATE_EMAIL_CAPTURE_DIR?.trim();
+  return d ? d : undefined;
+}
+
 /** Send a 6-digit login code. `fetchImpl` is stubbed in tests. */
 export async function sendOtpEmail(to: string, otp: string, fetchImpl: typeof fetch = fetch): Promise<EmailResult> {
+  const capture = emailCaptureDir();
+  if (capture) {
+    fs.mkdirSync(capture, { recursive: true });
+    const row = JSON.stringify({ to, otp, at: Date.now() });
+    fs.appendFileSync(path.join(capture, "outbox.jsonl"), row + "\n");
+    fs.writeFileSync(path.join(capture, `${to.replace(/[^a-zA-Z0-9@._-]+/g, "_")}.json`), row + "\n");
+    return { ok: true };
+  }
   const account = process.env.EXPLANIMATE_CF_ACCOUNT_ID;
   const token = process.env.EXPLANIMATE_CF_EMAIL_TOKEN;
   if (!account || !token) {
