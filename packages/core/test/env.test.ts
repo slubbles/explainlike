@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { adoptLegacyEnv, withLegacyDir, userCacheDir } from "@explanimate/core";
+import { adoptLegacyEnv, withLegacyDir, userCacheDir, applyDotenvText, loadDotenvFiles } from "@explanimate/core";
 
 test("old EXPLAINLIKE_* settings are copied to EXPLANIMATE_*, and a new name set as well wins", () => {
   const env: Record<string, string | undefined> = {
@@ -46,4 +46,36 @@ test("the shared cache dir honours the same fallback under a home folder", () =>
   } finally {
     fs.rmSync(home, { recursive: true, force: true });
   }
+});
+
+test(".env text sets only missing or empty uppercase names, strips one layer of quotes, ignores the rest", () => {
+  const env: Record<string, string | undefined> = { KEPT: "old", BLANK: "" };
+  applyDotenvText(
+    `# a comment\n\nKEPT=new\nBLANK=filled\nADDED=plain\nQUOTED="spaced value"\nSINGLE='x'\nEMPTY=\nlower=ignored\nDASHED-NAME=ignored\n`,
+    env,
+  );
+  assert.equal(env.KEPT, "old");
+  assert.equal(env.BLANK, "filled");
+  assert.equal(env.ADDED, "plain");
+  assert.equal(env.QUOTED, "spaced value");
+  assert.equal(env.SINGLE, "x");
+  assert.equal(env.EMPTY, "");
+  assert.equal(env.lower, undefined);
+  assert.equal(env["DASHED-NAME"], undefined);
+});
+
+test(".env files load in order with later files only filling gaps, then legacy names adopt", () => {
+  const files: Record<string, string> = {
+    "/r/.env": "FIRST=1\nSHARED=one\n",
+    "/r/.env.local": "SHARED=two\nSECOND=2\nEXPLAINLIKE_TRUST_PROXY=1\n",
+  };
+  const env: Record<string, string | undefined> = {};
+  loadDotenvFiles(["/r/.env", "/r/.env.local", "/r/missing"], env, {
+    exists: (f) => files[f] !== undefined,
+    read: (f) => files[f],
+  });
+  assert.equal(env.FIRST, "1");
+  assert.equal(env.SHARED, "one");
+  assert.equal(env.SECOND, "2");
+  assert.equal(env.EXPLANIMATE_TRUST_PROXY, "1");
 });
