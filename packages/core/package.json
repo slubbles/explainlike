@@ -11,7 +11,8 @@
     "./env": "./src/env.ts",
     "./llm": "./src/llm.ts",
     "./private": "./src/private.ts",
-    "./repopath": "./src/repopath.ts"
+    "./repopath": "./src/repopath.ts",
+    "./concurrency": "./src/concurrency.ts"
   },
   "dependencies": {
     "zod": "^4.1.0"

@@ -17,3 +17,4 @@ export * from "./private.js";
 export * from "./figures.js";
 export * from "./facts.js";
 export * from "./repopath.js";
+export * from "./concurrency.js";
