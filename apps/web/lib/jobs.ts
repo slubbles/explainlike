@@ -7,6 +7,7 @@ import { withLegacyDir } from "@explanimate/core/env";
 import { buildErrorRow, recordError } from "./errors";
 import { log } from "./log";
 import { jobTiming } from "./metrics";
+import { poolSize } from "./pool";
 import { budget, caps, dailyBudget, dailyCap, dailyReserve, recordSpend, reserve, spent, spentToday, type Budget } from "./guard";
 import type { D1Db } from "./db";
 import { updateVideoResult } from "./videos";
@@ -258,8 +259,8 @@ const num = (name: string, dflt: number) => {
   const n = Number(process.env[name]);
   return Number.isFinite(n) && n > 0 ? n : dflt;
 };
-// EXPLANIMATE_CONCURRENCY still works for servers set up before the rename; the new name wins when both are set
-const slots = () => Math.floor(num("EXPLANIMATE_MAX_CONCURRENT", num("EXPLANIMATE_CONCURRENCY", 10)));
+// render slots come from lib/pool.ts: an explicit setting when set, else a default that fits the machine
+const slots = () => poolSize();
 const line = (): string[] => (g.__explanimateLine ??= []);
 const seen = (): Map<string, number> => (g.__explanimateSeen ??= new Map());
 const kids = (): Map<string, ReturnType<typeof spawnCli>> => (g.__explanimateKids ??= new Map());
@@ -329,7 +330,7 @@ const roomFor = (n: number) => {
   const b = budget(spent(JOBS_DIR, all), caps(), { meta: r.meta * n, voice: r.voice * n });
   if (!b.ok) return b;
   // the lifetime caps hold a full reserve per concurrent render, so even a worst-case wave cannot cross
-  // them; the daily cap throttles admission instead (one reserve, as in admit), so the default ten slots fit under it
+  // them; the daily cap throttles admission instead (one reserve, as in admit), so the default slots fit under it
   const d = dailyBudget(spentToday(JOBS_DIR, all), dailyCap(), dailyReserve());
   return d.ok ? b : { ...b, ok: false, error: d.error };
 };
