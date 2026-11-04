@@ -1,0 +1,65 @@
+/* Route error fallback: narrow centered note with a retry button. */
+
+.page {
+  background: #0a0a0a;
+  color: #ededed;
+  font-family: var(--font-sans, var(--sans, Inter, system-ui, -apple-system, sans-serif));
+  padding: 200px 0 160px;
+}
+
+.wrap {
+  width: min(560px, 100% - 32px);
+  margin: 0 auto;
+  text-align: center;
+}
+
+.crumb {
+  color: #4ea1ff;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.wrap h2 {
+  font-size: 36px;
+  font-weight: 450;
+  letter-spacing: -0.9px;
+  line-height: 1.1;
+  margin: 10px 0 0;
+  text-wrap: balance;
+}
+
+.lead {
+  font-size: 17px;
+  color: #a1a1a1;
+  line-height: 1.55;
+  margin: 14px 0 0;
+}
+
+.retry {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  margin-top: 28px;
+  padding: 9px 18px;
+  border: 0;
+  border-radius: 10px;
+  background: #0866ff;
+  color: #fff;
+  font: inherit;
+  font-weight: 600;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.retry:hover {
+  filter: brightness(1.1);
+}
+
+@media (max-width: 560px) {
+  .page {
+    padding: 160px 0 120px;
+  }
+  .wrap h2 {
+    font-size: 30px;
+  }
+}
