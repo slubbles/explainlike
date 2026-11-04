@@ -21,6 +21,7 @@ const dir = fs.mkdtempSync(path.join(os.tmpdir(), "el-admin-"));
 Object.assign(process.env, { EXPLANIMATE_JOBS_DIR: dir, EXPLANIMATE_RESUME: "0" });
 delete process.env.EXPLANIMATE_AUTH_ENABLED;
 delete process.env.EXPLANIMATE_ADMIN_EMAILS;
+delete process.env.ADMIN_EMAILS;
 
 test.after(() => fs.rmSync(dir, { recursive: true, force: true }));
 
@@ -85,6 +86,18 @@ class FakeD1 implements D1Db {
     return { bind };
   };
 }
+
+test("ADMIN_EMAILS works as a short alias, and the long name wins when both are set", () => {
+  try {
+    process.env.ADMIN_EMAILS = "alias@example.com";
+    assert.deepEqual(adminEmails(), ["alias@example.com"]);
+    process.env.EXPLANIMATE_ADMIN_EMAILS = "long@example.com";
+    assert.deepEqual(adminEmails(), ["long@example.com"]);
+  } finally {
+    delete process.env.ADMIN_EMAILS;
+    delete process.env.EXPLANIMATE_ADMIN_EMAILS;
+  }
+});
 
 test("the admin list parses as lowercase addresses and matches case-insensitively", () => {
   const saved = process.env.EXPLANIMATE_ADMIN_EMAILS;
