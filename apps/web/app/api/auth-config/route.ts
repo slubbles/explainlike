@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { authEnabled, sessionUser } from "../../../lib/auth";
 import { defaultDailyVideos, videosLeftToday } from "../../../lib/usage";
+import { withErrors } from "../../../lib/route";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -9,7 +10,7 @@ export const dynamic = "force-dynamic";
  * What the client needs to know: whether sign-in is on, the (public) Turnstile site key,
  * who is signed in, and their videos left today. Never any secrets.
  */
-export async function GET(req: Request) {
+export const GET = withErrors("auth-config.GET", async (req: Request) => {
   if (!authEnabled()) return NextResponse.json({ enabled: false });
   const siteKey = process.env.EXPLANIMATE_TURNSTILE_SITE_KEY ?? "";
   const user = await sessionUser(req);
@@ -21,4 +22,4 @@ export async function GET(req: Request) {
     user: { email: user.email },
     videos: videos ?? { used: 0, limit: defaultDailyVideos(), left: defaultDailyVideos() },
   });
-}
+});
