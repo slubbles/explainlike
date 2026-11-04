@@ -226,7 +226,7 @@ The project used to be called Explain Like. Settings with the old `EXPLAINLIKE_`
 | `EXPLANIMATE_GALLERY_DIR`        | unset (`/data/gallery` in Docker)              | Folder of example videos and their `gallery.json`. Unset or empty: no examples.                                                                                                                                                                                                                                                                           |
 | `EXPLANIMATE_ALLOW_LOCAL`        | 0                                              | Accept folder paths on the server. Leave off in public.                                                                                                                                                                                                                                                                                                   |
 | `EXPLANIMATE_ALLOW_PRIVATE_URLS` | 0                                              | Read links that resolve to private addresses. Leave off in public; set to 1 (or pass `--allow-private` to the CLI) only to read a local intranet. A host whose DNS hands out proxy addresses (198.18.0.0/15, as some sandboxes and "fake-IP" proxies do) fails every link with the guard on; give such a host real DNS rather than turning the guard off. |
-| `GA_MEASUREMENT_ID`              | (optional)                                     | Google Analytics 4 id (`G-â€¦`). When set, pages load gtag.js with IP anonymization and report page views plus `video_create`, `signin_code_sent` and `signin_success` events; when unset, nothing from Google loads.                                                                                                                                     |
+| `GA_MEASUREMENT_ID`              | (optional)                                     | Google Analytics 4 id (`G-…`). When set, pages load gtag.js with IP anonymization and report page views plus `video_create`, `video_finished`, `video_failed`, `signin_code_sent` and `signin_success` events; when unset, nothing from Google loads.                                                                                                     |
 
 ## Sign-in by email code (optional)
 
@@ -235,25 +235,25 @@ check, and signs in with a 6-digit code (valid 10 minutes, 5 tries). Sessions la
 account gets 3 videos a day by default. The landing page, gallery and `/docs` stay open without
 an account.
 
-Set `EXPLANIMATE_AUTH_ENABLED=1` â€” only the exact value `1` turns it on; unset or anything else
+Set `EXPLANIMATE_AUTH_ENABLED=1` — only the exact value `1` turns it on; unset or anything else
 is today's behaviour (no sign-in, no per-account limit; the per-IP limits and spend caps still
-apply) â€” plus:
+apply) — plus:
 
-| Variable                          | Default                              | What it does                                                                                  |
-| --------------------------------- | ------------------------------------ | --------------------------------------------------------------------------------------------- |
-| `BETTER_AUTH_SECRET`              | (required)                           | Random secret for session cookies (`openssl rand -base64 32`).                                |
-| `BETTER_AUTH_URL`                 | `http://localhost:3000`              | Public base URL of the app (`https://explanimate.co` in production); also the trusted origin. |
-| `EXPLANIMATE_CF_ACCOUNT_ID`       | (required)                           | Cloudflare account id for D1 and Email.                                                       |
-| `EXPLANIMATE_D1_DATABASE_ID`      | (required)                           | D1 database holding accounts, sessions and usage. Tables are created on first use.            |
-| `EXPLANIMATE_D1_TOKEN`            | (required)                           | API token with D1 read and write on that database.                                            |
-| `EXPLANIMATE_CF_EMAIL_TOKEN`      | (required)                           | API token allowed to send through Cloudflare Email Service.                                   |
-| `EXPLANIMATE_EMAIL_FROM`          | `Explanimate <login@explanimate.co>` | Sender line for login codes, `Name <addr>`.                                                   |
-| `EXPLANIMATE_TURNSTILE_SITE_KEY`  | (required, public)                   | Turnstile site key, shown on the sign-in form.                                                |
-| `EXPLANIMATE_TURNSTILE_SECRET`    | (required)                           | Turnstile secret for checking tokens.                                                         |
-| `EXPLANIMATE_TURNSTILE_HOSTNAMES` | (required)                           | Comma list of hostnames a token must come from.                                               |
-| `EXPLANIMATE_DAILY_VIDEOS`        | 3                                    | Videos per account per UTC day.                                                               |
-| `EXPLANIMATE_DAILY_CAP_USD`       | 3                                    | Combined Meta + voice cap per UTC day; works whether sign-in is on or off.                    |
-| `EXPLANIMATE_ADMIN_EMAILS`        | (empty)                              | Comma list of admin addresses (case-insensitive). Listed accounts get the `/admin` portal.    |
+| Variable                          | Default                              | What it does                                                                                                                 |
+| --------------------------------- | ------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------- |
+| `BETTER_AUTH_SECRET`              | (required)                           | Random secret for session cookies (`openssl rand -base64 32`).                                                               |
+| `BETTER_AUTH_URL`                 | `http://localhost:3000`              | Public base URL of the app (`https://explanimate.co` in production); also the trusted origin.                                |
+| `EXPLANIMATE_CF_ACCOUNT_ID`       | (required)                           | Cloudflare account id for D1 and Email.                                                                                      |
+| `EXPLANIMATE_D1_DATABASE_ID`      | (required)                           | D1 database holding accounts, sessions and usage. Tables are created on first use.                                           |
+| `EXPLANIMATE_D1_TOKEN`            | (required)                           | API token with D1 read and write on that database.                                                                           |
+| `EXPLANIMATE_CF_EMAIL_TOKEN`      | (required)                           | API token allowed to send through Cloudflare Email Service.                                                                  |
+| `EXPLANIMATE_EMAIL_FROM`          | `Explanimate <login@explanimate.co>` | Sender line for login codes, `Name <addr>`.                                                                                  |
+| `EXPLANIMATE_TURNSTILE_SITE_KEY`  | (required, public)                   | Turnstile site key, shown on the sign-in form.                                                                               |
+| `EXPLANIMATE_TURNSTILE_SECRET`    | (required)                           | Turnstile secret for checking tokens.                                                                                        |
+| `EXPLANIMATE_TURNSTILE_HOSTNAMES` | (required)                           | Comma list of hostnames a token must come from.                                                                              |
+| `EXPLANIMATE_DAILY_VIDEOS`        | 3                                    | Videos per account per UTC day.                                                                                              |
+| `EXPLANIMATE_DAILY_CAP_USD`       | 3                                    | Combined Meta + voice cap per UTC day; works whether sign-in is on or off.                                                   |
+| `EXPLANIMATE_ADMIN_EMAILS`        | (empty)                              | Comma list of admin addresses (case-insensitive). Listed accounts get the `/admin` portal. `ADMIN_EMAILS` works as an alias. |
 
 Sending a code is limited to 5 per IP per 10 minutes and 5 per address per hour; verifying to
 10 per IP per 10 minutes. To give one account its own daily limit (after it signs in once):
@@ -263,7 +263,8 @@ pnpm set-user-limit somebody@example.com 10
 ```
 
 With `EXPLANIMATE_ADMIN_EMAILS` set, a listed account that signs in gets the `/admin` portal:
-users, videos, usage per day, spend, per-user limits, recent errors and health. To anyone else
+jobs with wait, render time, video length and cost, timing medians, users, videos, usage per day,
+spend, per-user limits, recent errors (failed renders included) and health. To anyone else
 `/admin` and `/api/admin/*` answer 404. The per-route checks are audited in
 [`security.md`](security.md).
 
@@ -272,7 +273,7 @@ users, videos, usage per day, spend, per-user limits, recent errors and health. 
 - **Spend.** Each job records its Meta and Deepgram cost. Voice chat, speech and box explanations are added to `spend.jsonl` in the jobs folder. A warning appears past 80% of a cap. New work stops while the cap is less than one job's reserve away, and each render running at once holds back its own reserve, so a busy server starts waiting videos only as the budget allows.
 - **Rate and size.** Each IP is rate-limited. JSON bodies are capped at 16 KB (96 KB for voice turns), and links at 2,048 characters. Repos over the clone limit, private repos, and pages over 5 MB are refused with a plain message.
 - **Requests.** POSTs with a cross-origin `Origin` header get a 403, stated non-JSON content types a 415. Every response carries a strict Content Security Policy (with a per-request nonce), HSTS, `nosniff`, a tight referrer and permissions policy, and frame denial. See [`security.md`](security.md) for the per-route audit.
-- **Errors.** Structured JSON logs scrub emails, tokens, codes and cookies. Errors persist to D1 (or an in-memory ring without it) for the admin portal; `/api/health` shows only the 24-hour count.
+- **Errors.** Structured JSON logs scrub emails, tokens, codes and cookies. Every finished job logs one line with its wait, render and total time and its cost. Errors persist to D1 (or an in-memory ring without it) for the admin portal; `/api/health` shows only the 24-hour count.
 - **Keys.** API keys are read only in server code. A test fails if a client component touches `process.env` or an API key.
 - **Private networks.** A link, and every redirect from it, must resolve to a public address. Links to localhost, private ranges or the cloud metadata address (169.254.169.254) are refused.
 - **Voice mode** only answers requests to localhost.
