@@ -189,3 +189,32 @@ test("the Kysely dialect runs queries through D1 REST with no-op transactions", 
   await driver.releaseConnection(conn);
   await driver.destroy();
 });
+
+test("introspection skips D1's internal _cf_ tables, which D1 refuses to describe", async () => {
+  const seen: string[] = [];
+  const fetchImpl = (async (_url: string, init?: RequestInit) => {
+    const body = JSON.parse(String(init?.body)) as { sql: string; params: unknown[] };
+    seen.push(body.sql);
+    if (/sqlite_master/.test(body.sql)) {
+      // a real D1 would return _cf_KV here unless the query filters it out
+      if (!/_cf_/.test(body.sql))
+        return d1ok([
+          { name: "_cf_KV", type: "table", sql: "" },
+          { name: "usage", type: "table", sql: "" },
+        ]);
+      return d1ok([{ name: "usage", type: "table", sql: "CREATE TABLE usage (user_id TEXT)" }]);
+    }
+    if (/pragma_table_info/.test(body.sql)) {
+      if (body.params[0] === "_cf_KV") return new Response(JSON.stringify({ success: false, errors: [{ code: 7500 }] }), { status: 400 });
+      return d1ok([{ name: "user_id", type: "TEXT", notnull: 1, dflt_value: null, pk: 1 }]);
+    }
+    return d1ok();
+  }) as typeof fetch;
+  const tables = await createKysely({ ...base, fetchImpl }).introspection.getTables();
+  assert.deepEqual(
+    tables.map((t) => t.name),
+    ["usage"],
+  );
+  assert.equal(tables[0].columns[0].name, "user_id");
+  assert.equal(tables[0].columns[0].isNullable, false);
+});
