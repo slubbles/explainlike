@@ -19,9 +19,18 @@ export interface GalleryVideo {
   poster?: string;
   /** captions data in the folder: a ready .vtt, or a .json with film-style timed words to turn into one */
   captions?: string;
+  /**
+   * Whether the captions are already drawn into the video. Explanimate renders always draw them, so this is
+   * true unless the manifest says `"burnedCaptions": false`; a video with drawn-in captions gets no track.
+   */
+  burnedCaptions: boolean;
 }
 /** What the page gets: the entry plus the URLs to play it from. */
-export type GalleryItem = Omit<GalleryVideo, "file" | "poster" | "captions"> & { src: string; poster?: string; captions?: string };
+export type GalleryItem = Omit<GalleryVideo, "file" | "poster" | "captions" | "burnedCaptions"> & {
+  src: string;
+  poster?: string;
+  captions?: string;
+};
 
 const KINDS: GalleryKind[] = ["repo", "X post", "article", "topic"];
 const ID = /^[a-z0-9][a-z0-9-]{0,63}$/;
@@ -73,6 +82,7 @@ export function loadGallery(dir = galleryDir()): GalleryVideo[] {
       title,
       kind,
       file,
+      burnedCaptions: e.burnedCaptions !== false,
       ...(source && /^https:\/\//.test(source) ? { source } : {}),
       ...(Number.isFinite(d) && d > 0 ? { durationSec: d } : {}),
       ...(poster && IMAGE.test(poster) && inside(dir, poster) ? { poster } : {}),
@@ -118,11 +128,11 @@ export function galleryCaptionsVtt(id: string, dir = galleryDir(), videos = load
 /** The list the page renders, with the file names swapped for URLs. */
 export const galleryItems = (dir = galleryDir()): GalleryItem[] => {
   const videos = loadGallery(dir);
-  return videos.map(({ file, poster, captions, ...v }) => ({
+  return videos.map(({ file, poster, captions, burnedCaptions, ...v }) => ({
     ...v,
     src: galleryUrl(file),
     ...(poster ? { poster: galleryUrl(poster) } : {}),
-    ...(galleryCaptionsVtt(v.id, dir, videos) ? { captions: galleryCaptionsUrl(v.id) } : {}),
+    ...(!burnedCaptions && galleryCaptionsVtt(v.id, dir, videos) ? { captions: galleryCaptionsUrl(v.id) } : {}),
   }));
 };
 
