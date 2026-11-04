@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { isAnatomyQuestion } from "./intent.js";
 import type { SourceKind } from "./schemas.js";
 
 /**
@@ -92,6 +93,8 @@ export interface Ask {
   depth?: Brief["depth"];
   /** anything else they asked to have covered */
   also?: string;
+  /** explicit format override (--format, MCP/web); anatomy only applies to repos */
+  format?: ExplainFormat;
 }
 
 export const NotesSlot = z.object({ after: z.enum(["hook", "walkthrough", "scale"]), heading: z.string(), brief: z.string() });
@@ -114,11 +117,12 @@ export const MIN_CUTS_PER_MIN = 8;
 export const tempoOf = (id: TempoId): Tempo => ({ id, ...TEMPOS[id] });
 
 /**
- * The two explanation formats. Short covers one idea in four beats; deep covers a repo or a piece of
- * code in six. A longer video adds beats, never just runtime: a repo that cannot fit its code trace
+ * The three explanation formats. Short covers one idea in four beats; deep covers a repo or a piece of
+ * code in six; anatomy tours a repo's parts layer by layer in six, anchored on one traced request.
+ * A longer video adds beats, never just runtime: a repo that cannot fit its code trace
  * in 60 seconds is deep, not a slower short.
  */
-export type ExplainFormat = "short" | "deep";
+export type ExplainFormat = "short" | "deep" | "anatomy";
 export interface FormatBeat {
   id: string;
   label: string;
@@ -154,10 +158,23 @@ export const FORMATS: Record<ExplainFormat, FormatSpec> = {
       { id: "payoff", label: "payoff" },
     ],
   },
+  anatomy: {
+    seconds: [90, 150],
+    visuals: 4,
+    beats: [
+      { id: "hook", label: "hook question" },
+      { id: "entry", label: "entry point: where one request comes in" },
+      { id: "tour", label: "the parts in turn: what each owns, hands on, and why" },
+      { id: "trace", label: "one request traced end to end through real files and symbols" },
+      { id: "map", label: "the whole map lit up along the traced path" },
+      { id: "payoff", label: "payoff" },
+    ],
+  },
 };
 
-/** Repos are always deep; anything else follows the brief's depth. */
-export function formatFor(kind: SourceKind | undefined, depth: Brief["depth"]): ExplainFormat {
+/** Repos are deep, or anatomy when the viewer asked for a tour; anything else follows the brief's depth. */
+export function formatFor(kind: SourceKind | undefined, depth: Brief["depth"], goal?: string): ExplainFormat {
+  if (kind === "repo" && goal && isAnatomyQuestion(goal)) return "anatomy";
   if (kind === "repo") return "deep";
   return depth === "overview" ? "short" : "deep";
 }
@@ -211,8 +228,10 @@ export function specFromBrief(b: Brief, ask?: Ask, kind?: SourceKind): ExplainSp
   ]
     .filter(Boolean)
     .join(" ");
+  // an explicit format wins, except anatomy off a repo (it needs the map to tour)
+  const format = ask?.format && (ask.format !== "anatomy" || kind === "repo") ? ask.format : formatFor(kind, b.depth, ask?.goal);
   return {
-    format: formatFor(kind, b.depth),
+    format,
     brief: b,
     audience: b.audience,
     minComponents: d.minComponents,

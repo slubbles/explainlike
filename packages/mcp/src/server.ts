@@ -147,6 +147,10 @@ export function createExplanimateServer(runner = new JobRunner()) {
           .enum(["overview", "working", "deep"])
           .optional()
           .describe("How deep to go, if the user said. Default: the engine decides."),
+        format: z
+          .enum(["short", "deep", "anatomy"])
+          .optional()
+          .describe("Explanation format, if the user said. Default: the engine decides (anatomy tours a repo's parts layer by layer)."),
         alsoCover: z.string().max(500).optional().describe("Anything else the user wants covered."),
         waitSeconds,
       },
@@ -166,6 +170,7 @@ export function createExplanimateServer(runner = new JobRunner()) {
           audience: a.audience,
           depth: a.depth,
           also: a.alsoCover,
+          format: a.format,
         });
         return report((await follow(job.id, a.waitSeconds ?? DEFAULT_WAIT_SEC, extra as Extra)) ?? job);
       } catch (e) {
@@ -227,7 +232,7 @@ export function createExplanimateServer(runner = new JobRunner()) {
               `Make an Explanimate video for this request: ${request}`,
               "",
               '1. Find the source in the request: a GitHub repo URL, an x.com post URL, an article URL, or a local repo folder (use the current project folder if I say "this repo" without a link). With no link at all, use the topic itself in a few words ("how DNS works"). If I ask about "this feature", "my changes", "current changes", "this branch" or "what we are working on", use my current project folder as the source and pass my question as `question`, so the video explains the working changes (branch, diff, new files, recent commits).',
-              '2. Call the explain tool with it as `source`. If I asked about something specific ("what this repo is about" is general, "how auth works" is specific), pass that as `question`; pass `audience` or `depth` only if I said them.',
+              '2. Call the explain tool with it as `source`. If I asked about something specific ("what this repo is about" is general, "how auth works" is specific), pass that as `question`; pass `audience`, `depth` or `format` only if I said them.',
               "3. If it says it is still working, call explain_status with the jobId until it is done.",
               "4. Tell me in two or three plain sentences what the video covers, then give me the paths of the mp4, the .tldr and the .excalidraw files.",
             ].join("\n"),

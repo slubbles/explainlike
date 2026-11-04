@@ -25,6 +25,8 @@ export async function planBrief(o: {
       o.ask.goal && `- they want to understand: ${o.ask.goal}`,
       o.ask.audience && `- it is for: ${o.ask.audience} (write the audience as that viewer)`,
       o.ask.depth && `- depth: ${o.ask.depth}`,
+      o.ask.format &&
+        `- format: ${o.ask.format}${o.ask.format === "anatomy" ? " (a guided tour of the parts, layer by layer, anchored on one traced request)" : ""}`,
       o.ask.also && `- also cover: ${o.ask.also}`,
     ]
       .filter(Boolean)

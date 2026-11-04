@@ -22,7 +22,13 @@ export type Job = {
   focus?: string;
   whatIf?: string;
   parent?: string;
-  ask?: { goal?: string; audience?: string; depth?: "overview" | "working" | "deep"; also?: string };
+  ask?: {
+    goal?: string;
+    audience?: string;
+    depth?: "overview" | "working" | "deep";
+    also?: string;
+    format?: "short" | "deep" | "anatomy";
+  };
   via?: "voice";
   /** this browser (or account) started it, so it may cancel it */
   mine?: boolean;
