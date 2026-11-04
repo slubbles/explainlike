@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { formatMs, jobMetrics, jobTiming, percentile } from "../lib/metrics.ts";
+import { fallbacksFromManifest, formatMs, jobMetrics, jobTiming, percentile } from "../lib/metrics.ts";
 
 const T = 1_000_000;
 
@@ -53,7 +53,45 @@ test("metrics with no jobs are empty, not zero", () => {
   const m = jobMetrics([]);
   assert.equal(m.successRate, null);
   assert.equal(m.medianRenderMs, null);
+  assert.equal(m.p95RenderMs, null);
   assert.equal(m.avgCostDone, null);
+});
+
+test("render p50 and p95 come from the finished renders, slowest tail included", () => {
+  const jobs = [10, 20, 30, 40, 50, 60, 70, 80, 90, 100].map((s, i) => ({
+    id: `r${i}`,
+    state: "done",
+    started: T,
+    began: T,
+    finished: T + s * 1000,
+  }));
+  const m = jobMetrics(jobs, T);
+  assert.equal(m.medianRenderMs, 50000);
+  assert.equal(m.p90RenderMs, 90000);
+  assert.equal(m.p95RenderMs, 100000);
+});
+
+test("a fallback shows in the manifest as a second Spark model or a joined voice id", () => {
+  const spark = "muse-spark-1.3-contributor";
+  const plain = { cost: { voice: "deepgram", byModel: { [spark]: { calls: 3 } } } };
+  assert.deepEqual(fallbacksFromManifest(plain), { llm: false, tts: false });
+  assert.deepEqual(fallbacksFromManifest({ cost: { voice: "deepgram+cartesia", byModel: plain.cost.byModel } }), {
+    llm: false,
+    tts: true,
+  });
+  assert.deepEqual(
+    fallbacksFromManifest({ cost: { voice: "deepgram", byModel: { [spark]: { calls: 2 }, "meta/muse-spark-1.3": { calls: 1 } } } }),
+    { llm: true, tts: false },
+  );
+  // icons and the transcript check are other models, not a Spark fallback
+  assert.deepEqual(
+    fallbacksFromManifest({ cost: { voice: "silent", byModel: { [spark]: { calls: 1 }, "muse-image-1.0": { calls: 2 } } } }),
+    { llm: false, tts: false },
+  );
+  // a manifest that predates the cost block records no fallback either way
+  for (const m of [null, undefined, {}, { cost: {} }, { cost: { voice: "deepgram" } }]) {
+    assert.deepEqual(fallbacksFromManifest(m), { llm: false, tts: false }, JSON.stringify(m));
+  }
 });
 
 test("durations read plainly", () => {

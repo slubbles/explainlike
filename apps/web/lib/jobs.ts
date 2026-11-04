@@ -6,7 +6,7 @@ import { validInput } from "./validate";
 import { withLegacyDir } from "@explanimate/core/env";
 import { buildErrorRow, recordError } from "./errors";
 import { log } from "./log";
-import { jobTiming } from "./metrics";
+import { fallbacksFromManifest, jobTiming } from "./metrics";
 import { poolSize } from "./pool";
 import { budget, caps, dailyBudget, dailyCap, dailyReserve, recordSpend, reserve, spent, spentToday, type Budget } from "./guard";
 import type { D1Db } from "./db";
@@ -43,6 +43,8 @@ export interface Job {
   /** live cost meter while running, final spend when done (Meta models + voice, USD) */
   usd?: { meta: number; voice: number; total: number };
   costUsd?: number;
+  /** which backup providers answered during this run, from its done manifest (older jobs kept nothing) */
+  fallbacks?: { llm: boolean; tts: boolean };
   error?: string;
   title?: string;
   durationSec?: number;
@@ -314,6 +316,9 @@ export function touch(id: string) {
   if (jobs.has(id)) seen().set(id, Date.now());
 }
 
+/** The wait line, oldest first, as the admin dashboard shows it. A copy: only pump() moves jobs. */
+export const queueOrder = (): string[] => [...line()];
+
 /** Drop waiting jobs whose page went away (no poll for EXPLANIMATE_WAIT_IDLE_S, default 120), so they never take a slot. */
 function sweep(now = Date.now()) {
   const idle = num("EXPLANIMATE_WAIT_IDLE_S", 120) * 1000;
@@ -438,6 +443,7 @@ function launch(job: Job) {
             renderWaitMs: typeof m?.renderWaitMs === "number" ? m.renderWaitMs : job.renderWaitMs,
             costUsd: (m.cost?.metaUsd ?? 0) + (m.cost?.voiceUsd ?? 0),
             usd: { meta: m.cost?.metaUsd ?? 0, voice: m.cost?.voiceUsd ?? 0, total: (m.cost?.metaUsd ?? 0) + (m.cost?.voiceUsd ?? 0) },
+            fallbacks: fallbacksFromManifest(m),
             interactive: fs.existsSync(path.join(JOBS_DIR, job.id, "interactive.json")),
             outputs: Object.fromEntries(
               Object.entries(m.outputs ?? {})

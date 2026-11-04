@@ -84,6 +84,7 @@ export interface JobMetrics {
   successRate: number | null;
   medianRenderMs: number | null;
   p90RenderMs: number | null;
+  p95RenderMs: number | null;
   medianWaitMs: number | null;
   medianTotalMs: number | null;
   /** average spend per finished video, or null before one has finished */
@@ -113,6 +114,7 @@ export function jobMetrics(jobs: TimedJob[], sinceMs = 0): JobMetrics {
     successRate: ended ? done.length / ended : null,
     medianRenderMs: percentile(render, 0.5),
     p90RenderMs: percentile(render, 0.9),
+    p95RenderMs: percentile(render, 0.95),
     medianWaitMs: percentile(wait, 0.5),
     medianTotalMs: percentile(totals, 0.5),
     avgCostDone: done.length ? done.reduce((s, t) => s + t.cost, 0) / done.length : null,
@@ -143,6 +145,22 @@ export function systemMetrics(): SystemMetrics {
     process: { rss: m.rss, heapUsed: m.heapUsed, heapTotal: m.heapTotal, external: m.external },
     uptime: process.uptime(),
   };
+}
+
+/**
+ * Which backup providers answered during a run, read from its manifest.json cost block: the voice
+ * id joins primary and backup with "+" once a scene falls back (deepgram+cartesia), and one run
+ * uses one Muse Spark model, so a second Spark id means the backup provider answered at least one
+ * call. Anything unreadable records no fallback either way.
+ */
+export function fallbacksFromManifest(manifest: unknown): { llm: boolean; tts: boolean } {
+  const none = { llm: false, tts: false };
+  const cost = (manifest as { cost?: unknown } | null | undefined)?.cost;
+  if (!cost || typeof cost !== "object") return none;
+  const { voice, byModel } = cost as { voice?: unknown; byModel?: unknown };
+  const tts = typeof voice === "string" && voice.includes("+");
+  const models = byModel && typeof byModel === "object" ? Object.keys(byModel) : [];
+  return { llm: models.filter((m) => m.includes("muse-spark")).length >= 2, tts };
 }
 
 /** 83500 -> "1m 24s"; 4200 -> "4.2s"; null -> "—". */
