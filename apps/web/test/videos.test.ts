@@ -352,11 +352,18 @@ test("dashboard labels: formats, durations, dates and start times", () => {
   assert.equal(mss(0), undefined);
   assert.equal(mss(undefined), undefined);
   const noon = Date.parse("2026-05-01T12:00:00Z");
-  assert.equal(when(Date.parse("2026-05-01T21:12:00Z"), noon), "Today, 9:12 PM");
-  assert.equal(when(Date.parse("2026-05-01T00:40:00Z"), noon), "Today, 12:40 AM");
-  assert.equal(when(Date.parse("2026-04-30T18:00:00Z"), noon), "Yesterday");
-  assert.equal(when(Date.parse("2026-04-02T10:00:00Z"), noon), "Apr 2");
-  assert.equal(when(Date.parse("2025-12-31T10:00:00Z"), noon), "Dec 31, 2025");
+  assert.equal(when(Date.parse("2026-05-01T21:12:00Z"), noon, "UTC"), "Today, 9:12 PM");
+  assert.equal(when(Date.parse("2026-05-01T00:40:00Z"), noon, "UTC"), "Today, 12:40 AM");
+  assert.equal(when(Date.parse("2026-04-30T18:00:00Z"), noon, "UTC"), "Yesterday");
+  assert.equal(when(Date.parse("2026-04-02T10:00:00Z"), noon, "UTC"), "Apr 2");
+  assert.equal(when(Date.parse("2025-12-31T10:00:00Z"), noon, "UTC"), "Dec 31, 2025");
+  const manilaNow = Date.parse("2026-05-01T18:30:00Z"); // May 2, 2:30 AM in Manila
+  assert.equal(when(Date.parse("2026-05-01T18:27:00Z"), manilaNow, "Asia/Manila"), "Today, 2:27 AM");
+  assert.equal(when(Date.parse("2026-05-01T18:27:00Z"), manilaNow, "UTC"), "Today, 6:27 PM");
+  assert.equal(when(Date.parse("2026-05-01T15:00:00Z"), manilaNow, "Asia/Manila"), "Yesterday");
+  assert.equal(when(Date.parse("2026-05-01T15:00:00Z"), manilaNow, "UTC"), "Today, 3:00 PM");
+  assert.equal(when(Date.parse("2025-12-31T16:30:00Z"), Date.parse("2026-01-05T12:00:00Z"), "Asia/Manila"), "Jan 1");
+  assert.equal(when(Date.parse("2025-12-31T16:30:00Z"), Date.parse("2026-01-05T12:00:00Z"), "UTC"), "Dec 31, 2025");
   assert.equal(ago(noon - 12_000, noon), "12s ago");
   assert.equal(ago(noon - 100_000, noon), "1m 40s ago");
   assert.equal(ago(noon - (3 * 3600 + 5 * 60) * 1000, noon), "3h 5m ago");
