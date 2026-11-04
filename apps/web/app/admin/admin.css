@@ -49,6 +49,19 @@
 .adm .pill.done { color: #7fb0ff; border-color: rgba(77, 141, 255, .45); background: rgba(77, 141, 255, .1); }
 .adm .pill.error { color: #f5c86b; border-color: rgba(251, 191, 36, .35); background: rgba(251, 191, 36, .08); }
 .adm .pill.running, .adm .pill.queued { color: #ededed; }
+.adm .livebar { display: flex; align-items: center; gap: 8px; margin: 16px 0 0; font-size: 14px; color: #a1a1a1; }
+.adm .livebar .dot { width: 8px; height: 8px; border-radius: 50%; background: #4ade80; flex: none; animation: adm-pulse 2s infinite; }
+.adm .livebar.stale { color: #f5c86b; }
+.adm .livebar.stale .dot { background: #f5c86b; animation: none; }
+.adm .livebar.gone { color: #ff8080; }
+.adm .livebar.gone .dot { background: #ff8080; animation: none; }
+@keyframes adm-pulse { 0%, 100% { opacity: 1; } 50% { opacity: .35; } }
+@media (prefers-reduced-motion: reduce) { .adm .livebar .dot { animation: none; } }
+.adm .daybar { display: flex; align-items: center; gap: 10px; min-width: 160px; }
+.adm .daybar b { min-width: 3ch; font-weight: 600; }
+.adm .daybar .track { flex: 1; height: 8px; border-radius: 4px; background: rgba(255, 255, 255, .08); overflow: hidden; }
+.adm .daybar .fill { display: block; height: 100%; background: #4ea1ff; }
+.adm .jump { color: #4ea1ff; }
 @media (max-width: 560px) {
   .page.adm { padding: 104px 0 80px; }
   .adm .wrap { width: calc(100% - 32px); }
