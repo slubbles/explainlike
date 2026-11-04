@@ -1,39 +1,57 @@
-/* Admin portal: plain sections and tables in the site's dark style. Tables scroll
-   sideways on narrow screens, so the page works at 390px wide. */
-.page.adm { padding-top: 120px; }
-.adm h1 { font-size: 40px; margin: 0 0 4px; letter-spacing: -.025em; }
+/* Admin portal: plain sections and tables in the v4 dark style. Page-local and
+   self-sufficient: every token below is literal, so the page does not depend on
+   globals.css. Tables scroll sideways on narrow screens, so the page works at
+   390px wide. Keep the .adm td a and .adm .lform input rules at 44px: the
+   touch-target test reads them from this file. */
+.page.adm {
+  padding: 120px 0 120px;
+  background: #0a0a0a;
+  color: #ededed;
+  font-family: var(--font-sans, var(--sans, Inter, system-ui, -apple-system, sans-serif));
+}
+.adm .wrap { width: min(1152px, 100% - 48px); margin: 0 auto; }
+.adm h1 { font-size: 40px; font-weight: 450; letter-spacing: -.03em; margin: 0 0 4px; color: #ededed; }
+.adm .muted { color: #a1a1a1; }
 .adm section { margin-top: 40px; }
-.adm section h2 { font-size: 22px; margin: 0 0 14px; }
+.adm section h2 { font-size: 22px; font-weight: 450; letter-spacing: -.02em; margin: 0 0 14px; color: #ededed; }
 .adm .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
-.adm .stats > div { border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; background: var(--panel); }
-.adm .stats span { display: block; font-size: 12px; color: var(--mut); margin-bottom: 4px; }
-.adm .stats b { font-size: 17px; font-weight: 600; }
-.adm .stats em { display: block; font-style: normal; font-size: 13px; color: var(--amber-ink); margin-top: 2px; }
-.adm .scroll { overflow-x: auto; border: 1px solid var(--line); border-radius: 12px; background: var(--panel); }
+.adm .stats > div { border: 1px solid rgba(255, 255, 255, .08); border-radius: 10px; padding: 12px 14px; background: #111; }
+.adm .stats span { display: block; font-size: 12px; color: #a1a1a1; margin-bottom: 4px; }
+.adm .stats b { font-size: 17px; font-weight: 600; color: #ededed; }
+.adm .stats em { display: block; font-style: normal; font-size: 13px; color: #f5c86b; margin-top: 2px; }
+.adm .scroll { overflow-x: auto; border: 1px solid rgba(255, 255, 255, .08); border-radius: 10px; background: #111; }
 .adm table { width: 100%; border-collapse: collapse; font-size: 14px; min-width: 560px; }
-.adm th, .adm td { text-align: left; padding: 10px 14px; border-bottom: 1px solid var(--line); vertical-align: top; }
+.adm th, .adm td { text-align: left; padding: 10px 14px; border-bottom: 1px solid rgba(255, 255, 255, .08); vertical-align: top; }
 .adm tbody tr:last-child th, .adm tbody tr:last-child td { border-bottom: 0; }
-.adm th { font-size: 12px; color: var(--mut); font-weight: 600; white-space: nowrap; }
+.adm th { font-size: 12px; color: #a1a1a1; font-weight: 600; white-space: nowrap; }
+.adm td { color: #ededed; }
 .adm td.nowrap { white-space: nowrap; }
 .adm td.prompt { max-width: 340px; overflow-wrap: anywhere; }
-.adm td a { display: inline-flex; align-items: center; min-height: 44px; text-decoration: underline; text-underline-offset: 2px; text-decoration-color: rgba(255, 255, 255, .25); }
-.adm td a:hover { text-decoration-color: #fff; }
-.adm .note { margin: 12px 0 0; padding: 10px 14px; border: 1px solid var(--amber-line); border-radius: 10px; background: var(--amber-bg); color: var(--amber-ink); font-size: 14px; }
+.adm td a { display: inline-flex; align-items: center; min-height: 44px; color: #4ea1ff; text-decoration: underline; text-underline-offset: 2px; text-decoration-color: rgba(78, 161, 255, .4); }
+.adm td a:hover { text-decoration-color: #4ea1ff; }
+.adm .note { margin: 12px 0 0; padding: 10px 14px; border: 1px solid rgba(251, 191, 36, .35); border-radius: 10px; background: rgba(251, 191, 36, .08); color: #f5c86b; font-size: 14px; line-height: 1.55; }
+.adm .err { margin: 12px 0 0; padding: 10px 14px; border: 1px solid rgba(255, 128, 128, .35); border-radius: 10px; background: rgba(255, 128, 128, .08); color: #ff8080; font-size: 14px; line-height: 1.55; }
+.adm .btn { display: inline-flex; min-height: 44px; align-items: center; justify-content: center; padding: 9px 16px; border-radius: 10px; border: 1px solid rgba(255, 255, 255, .16); background: rgba(255, 255, 255, .04); color: #ededed; font: inherit; font-weight: 600; font-size: 14px; cursor: pointer; white-space: nowrap; }
+.adm .btn.solid { background: #0866ff; border-color: transparent; color: #fff; }
+.adm .btn.solid:hover { filter: brightness(1.1); }
+.adm .btn:disabled { background: rgba(255, 255, 255, .06); border-color: rgba(255, 255, 255, .08); color: #8f8f8f; cursor: default; filter: none; }
 .adm .lform { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end; }
-.adm .lform label { display: grid; gap: 6px; font-size: 13px; color: var(--mut); }
-.adm .lform input { background: rgba(255, 255, 255, .05); border: 1px solid var(--line2); border-radius: 10px; min-height: 44px; padding: 9px 12px; min-width: 220px; }
+.adm .lform label { display: grid; gap: 6px; font-size: 13px; color: #a1a1a1; }
+.adm .lform input { background: rgba(255, 255, 255, .05); border: 1px solid rgba(255, 255, 255, .16); border-radius: 10px; min-height: 44px; padding: 9px 12px; min-width: 220px; color: #ededed; font: inherit; font-size: 14px; color-scheme: dark; }
 .adm .lform .narrow input { min-width: 0; width: 110px; }
 .adm .lform .note, .adm .lform .err { flex-basis: 100%; margin-top: 4px; }
-.adm .lform .note { border-color: var(--line2); background: rgba(255, 255, 255, .04); color: var(--ink); }
-.adm .stats em.plain { color: var(--mut); }
+.adm .lform .note { border-color: rgba(255, 255, 255, .16); background: rgba(255, 255, 255, .04); color: #ededed; }
+.adm .stats em.plain { color: #a1a1a1; }
 .adm .small { font-size: 13px; margin: 10px 0 12px; }
 .adm td .small { margin: 4px 0 0; max-width: 280px; white-space: normal; }
 .adm td .sub { font-size: 12px; margin-top: 2px; }
-.adm .pill { display: inline-block; font-size: 12px; font-weight: 600; padding: 2px 9px; border-radius: 999px; border: 1px solid var(--line2); }
+.adm .pill { display: inline-block; font-size: 12px; font-weight: 600; padding: 2px 9px; border-radius: 999px; border: 1px solid rgba(255, 255, 255, .16); }
 .adm .pill.done { color: #7fb0ff; border-color: rgba(77, 141, 255, .45); background: rgba(77, 141, 255, .1); }
-.adm .pill.error { color: var(--amber-ink); border-color: var(--amber-line); background: var(--amber-bg); }
-.adm .pill.running, .adm .pill.queued { color: var(--ink); }
+.adm .pill.error { color: #f5c86b; border-color: rgba(251, 191, 36, .35); background: rgba(251, 191, 36, .08); }
+.adm .pill.running, .adm .pill.queued { color: #ededed; }
 @media (max-width: 560px) {
+  .page.adm { padding: 104px 0 80px; }
+  .adm .wrap { width: calc(100% - 32px); }
   .adm h1 { font-size: 32px; }
   .adm .lform input { min-width: 0; width: 100%; }
   .adm .lform label { flex: 1 1 100%; }
