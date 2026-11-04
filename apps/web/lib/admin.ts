@@ -1,7 +1,7 @@
 /**
  * The admin portal's gate and data. /admin and every /api/admin/* route answer 404 unless
- * sign-in is on AND the signed-in address is listed in EXPLANIMATE_ADMIN_EMAILS (a comma list,
- * matched case-insensitively). Never 403: to anyone else the portal does not exist.
+ * sign-in is on AND the signed-in address is listed in EXPLANIMATE_ADMIN_EMAILS (or its short
+ * alias ADMIN_EMAILS; a comma list, matched case-insensitively). Never 403: to anyone else the portal does not exist.
  * All D1 reads use bound parameters; nothing from the request is built into SQL.
  */
 import { authEnabled, sessionUser, type SessionUser } from "./auth";
@@ -9,9 +9,9 @@ import { getD1Db, type D1Db } from "./db";
 import { budget, caps, dailyBudget, dailyCap, dailyReserve, spent, spentToday } from "./guard";
 import { defaultDailyVideos, ensureUsageTables, utcDay } from "./usage";
 
-/** The admin addresses from the environment, lowercased. Empty when unset. */
+/** The admin addresses from the environment, lowercased. Empty when unset, which denies everyone. */
 export function adminEmails(): string[] {
-  return (process.env.EXPLANIMATE_ADMIN_EMAILS ?? "")
+  return (process.env.EXPLANIMATE_ADMIN_EMAILS || process.env.ADMIN_EMAILS || "")
     .split(",")
     .map((s) => s.trim().toLowerCase())
     .filter(Boolean);
