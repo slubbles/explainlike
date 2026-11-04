@@ -100,7 +100,7 @@ export default async function AdminPage() {
               <div>
                 <span>Last 24 h</span>
                 <b>
-                  {m24.done} done · {m24.failed} failed
+                  {m24.done} done · {m24.failed} failed{m24.cancelled ? ` · ${m24.cancelled} cancelled` : ""}
                 </b>
                 <em className="plain">success {pct(m24.successRate)}</em>
               </div>
@@ -124,7 +124,8 @@ export default async function AdminPage() {
               </div>
             </div>
             <p className="muted small">
-              All {mAll.total} jobs on this server: {mAll.done} done, {mAll.failed} failed, success {pct(mAll.successRate)}.
+              All {mAll.total} jobs on this server: {mAll.done} done, {mAll.failed} failed, {mAll.cancelled} cancelled, success{" "}
+              {pct(mAll.successRate)}.
             </p>
             {recentJobs.length === 0 ? (
               <p className="muted">No jobs yet.</p>

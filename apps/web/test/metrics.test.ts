@@ -61,3 +61,14 @@ test("durations read plainly", () => {
   assert.equal(formatMs(4200), "4.2s");
   assert.equal(formatMs(83500), "1m 24s");
 });
+
+test("a cancelled job is neither a success nor a failure", () => {
+  const jobs = [
+    { id: "1", state: "done", started: T, began: T, finished: T + 1000 },
+    { id: "2", state: "error", started: T, began: T, finished: T + 1000 },
+    { id: "3", state: "error", cancelled: true, started: T, began: T, finished: T + 500 },
+  ];
+  const m = jobMetrics(jobs, T);
+  assert.deepEqual([m.done, m.failed, m.cancelled], [1, 1, 1]);
+  assert.equal(m.successRate, 1 / 2);
+});
