@@ -82,6 +82,10 @@ button.pill:hover { color: #fff; }
 .send { white-space: nowrap; display: inline-flex; align-items: center; justify-content: center; gap: 8px; background: var(--g); color: #fff; border: 0; font-weight: 600; font-size: 14px; height: 44px; padding: 0 18px; border-radius: 999px; box-shadow: inset 0 1px 0 rgba(255, 255, 255, .22); }
 .send:hover { filter: brightness(1.08); }
 .send:disabled { cursor: default; background: rgba(255, 255, 255, .08); color: var(--dim); box-shadow: none; }
+.frow { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 10px; }
+.frow .pick { gap: 8px; }
+.frow .flab { font-size: 13px; color: var(--dim); }
+.fhint { font-size: 12.5px; color: var(--dim); }
 .chips { margin-top: 18px; display: flex; justify-content: center; flex-wrap: wrap; gap: 8px; align-items: center; font-size: 13px; color: #d4d4d8; }
 .chips .try { text-shadow: 0 1px 8px #000; }
 .chips .chip { max-width: 100%; overflow: hidden; text-overflow: ellipsis; }

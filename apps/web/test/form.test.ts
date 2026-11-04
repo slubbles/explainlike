@@ -6,6 +6,7 @@ test("reopening a saved job brings back its own link and voice", () => {
   assert.deepEqual(formFromJob({ input: "https://github.com/karpathy/minbpe", voice: "silent" }), {
     input: "https://github.com/karpathy/minbpe",
     voice: "silent",
+    format: "auto",
   });
 });
 
@@ -13,8 +14,9 @@ test("an old or broken job falls back to the defaults, and an old level is ignor
   assert.deepEqual(formFromJob({ input: "https://blog.vllm.ai/x", level: "senior", voice: "wizard" } as never), {
     input: "https://blog.vllm.ai/x",
     voice: "deepgram",
+    format: "auto",
   });
-  assert.deepEqual(formFromJob({}), { input: "", voice: "deepgram" });
+  assert.deepEqual(formFromJob({}), { input: "", voice: "deepgram", format: "auto" });
 });
 
 test("links are named and shortened the way the gallery shows them", () => {

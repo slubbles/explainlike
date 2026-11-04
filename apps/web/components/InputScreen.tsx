@@ -1,10 +1,10 @@
 "use client";
-import { LINK_MAX, VOICES, inputHint, type Form, shortLink } from "../lib/form";
+import { FORMATS, LINK_MAX, VOICES, inputHint, type Form, shortLink } from "../lib/form";
 import type { GalleryItem } from "../lib/gallery";
 import type { Quota } from "./Home";
 import Footer from "./Footer";
 import GalleryGrid from "./GalleryGrid";
-import { Arrow, Mic } from "./Icons";
+import { Arrow, Chevron, Mic } from "./Icons";
 import VoiceMode from "./VoiceMode";
 import { useEffect, useRef, useState } from "react";
 import { voiceHost } from "../lib/voiceHost";
@@ -127,6 +127,20 @@ function PromptBox({
             )}
           </button>
         </div>
+      </div>
+      <div className="frow">
+        <label className="pick">
+          <span className="flab">Format</span>
+          <select value={form.format} onChange={(e) => set({ format: e.target.value as Form["format"] })} aria-label="Format">
+            {FORMATS.map((f) => (
+              <option key={f.id} value={f.id}>
+                {f.label}
+              </option>
+            ))}
+          </select>
+          <Chevron />
+        </label>
+        <span className="fhint">Auto picks for you; anatomy is a tour of a repo&apos;s parts.</span>
       </div>
       {(hint.count || hint.over) && (
         <p className={`count${hint.over ? " over" : ""}`} id="input-hint" aria-live="polite">

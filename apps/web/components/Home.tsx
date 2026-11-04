@@ -7,7 +7,7 @@ import JobBar from "./JobBar";
 import SignIn from "./SignIn";
 import Steps from "./Steps";
 import ResultView from "./ResultView";
-import { DEFAULT_FORM, formFromJob, normalizeInput, type Form } from "../lib/form";
+import { DEFAULT_FORM, formatForRequest, formFromJob, normalizeInput, type Form } from "../lib/form";
 import { trackEvent } from "../lib/analytics";
 import { fileUrl, postJson, useGallery, useClips, useJob, type Explain } from "../lib/client";
 
@@ -117,7 +117,8 @@ export default function Home() {
     setPosting(true);
     const input = normalizeInput(form.input);
     if (input !== form.input) setForm((x) => ({ ...x, input }));
-    const r = await postJson<{ id: string; warnings?: string[] }>("/api/jobs", { ...form, input });
+    const { format, ...rest } = form;
+    const r = await postJson<{ id: string; warnings?: string[] }>("/api/jobs", { ...rest, input, ...formatForRequest(format) });
     setPosting(false);
     if (!r.ok) return setErr(r.error);
     trackEvent("video_create");
@@ -209,7 +210,12 @@ export default function Home() {
               go={go}
               busy={busy || posting}
               fold={job?.state === "done"}
-              quiet={job?.state === "done" && form.input.trim() === job.input && form.voice === job.voice}
+              quiet={
+                job?.state === "done" &&
+                form.input.trim() === job.input &&
+                form.voice === job.voice &&
+                form.format === (job.ask?.format ?? "auto")
+              }
               quota={quota}
             />
             {notes.map((n) => (
