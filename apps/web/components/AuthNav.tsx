@@ -40,8 +40,14 @@ export default function AuthNav() {
         type="button"
         className="navout"
         onClick={async () => {
-          const r = await fetch("/api/auth/sign-out", { method: "POST" }).catch(() => null);
+          const r = await fetch("/api/auth/sign-out", {
+            // Better Auth rejects a POST without a JSON content type (415)
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: "{}",
+          }).catch(() => null);
           if (r?.ok) dispatchEvent(new CustomEvent("explanimate:auth-changed"));
+          else location.reload();
         }}
       >
         Sign out
