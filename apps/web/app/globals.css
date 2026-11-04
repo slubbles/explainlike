@@ -149,7 +149,7 @@ h2 { font-size: 40px; line-height: 1.15; font-weight: 600; letter-spacing: -.025
 footer { border-top: 1px solid var(--line); padding: 36px 0 44px; margin-top: 40px; }
 footer .wrap { display: flex; justify-content: space-between; align-items: center; gap: 16px; font-size: 13px; color: var(--dim); }
 footer .flogo { color: var(--ink); font-size: 16px; font-weight: 600; }
-footer .l { display: flex; gap: 22px; }
+footer .l { display: flex; flex-wrap: wrap; gap: 0 22px; }
 footer .tiny { margin-top: 14px; font-size: 12px; color: var(--dim); }
 footer .l a, footer .flogo { display: inline-flex; align-items: center; min-height: 44px; }
 footer .wrap.tiny { display: block; }
