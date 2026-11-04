@@ -14,6 +14,7 @@
     "icons:generate": "tsx scripts/gen-icon-pack.ts",
     "og:generate": "node apps/web/scripts/gen-og-image.mjs",
     "email-logo:generate": "node apps/web/scripts/gen-email-logo.mjs",
+    "email-copy:generate": "node apps/web/scripts/gen-email-copy-icon.mjs",
     "test": "node --import tsx --import ./scripts/css-stub.mjs --test \"packages/*/test/*.test.ts\" \"apps/web/test/*.test.ts\"",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
