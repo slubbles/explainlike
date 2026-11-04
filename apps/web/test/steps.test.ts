@@ -37,12 +37,13 @@ test("step labels show with a capital first letter", () => {
   assert.equal(cap(""), "");
 });
 
-test("a job waiting for a render slot looks like one at its first step: no queue, no position, no fake progress", () => {
+test("a job waiting for a render slot shows the normal progress screen with a starting-soon state, never an error", () => {
   const waiting = { ...repo, id: "abc", state: "queued", stage: "start", message: "starting", pct: 0 };
   const seen = asSeen(waiting);
   assert.equal(seen.state, "running");
+  assert.equal(seen.message, "starting soon");
   assert.equal(seen.pct, 0);
-  assert.doesNotMatch(JSON.stringify(seen), /queued|in line|ahead/i);
+  assert.doesNotMatch(JSON.stringify(seen), /queued|in line|ahead|error/i);
   assert.deepEqual(stepStates(stepsFor(seen), seen.stage, seen.state as "running"), ["now", ...Array(9).fill("todo")]);
   // a running job passes through untouched, so the steps keep tracking the real pipeline
   const live = { ...waiting, state: "running", stage: "plan", message: "writing the scene plan", pct: 40 };

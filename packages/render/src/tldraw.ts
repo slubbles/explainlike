@@ -127,11 +127,28 @@ export async function toTldraw(raw: Sketch, opts: TldrOptions) {
     return r;
   };
   const assets = new Map<string, string>();
+  // every icon the board needs, inverted up front and side by side: the negate calls are
+  // independent, and awaiting them one by one is the slowest part of the export. The records
+  // below are still built in the same order, so the file is unchanged.
+  const warmed = new Map<string, Buffer>();
+  const wanted = new Map<string, { file: string; invert: boolean }>();
+  for (const im of sk.images) wanted.set(`${im.file}|false`, { file: im.file, invert: false });
+  for (const n of sk.nodes) if (n.icon) wanted.set(`${n.icon}|${!!opts.darkIcons}`, { file: n.icon, invert: !!opts.darkIcons });
+  await Promise.all(
+    [...wanted].map(async ([key, { file, invert }]) => {
+      let buf: Buffer = fs.readFileSync(file);
+      if (invert) buf = await sharp(buf).negate({ alpha: false }).png().toBuffer();
+      warmed.set(key, buf);
+    }),
+  );
   const asset = async (file: string, w: number, h: number, invert: boolean) => {
     const key = `${file}|${invert}`;
     if (!assets.has(key)) {
-      let buf: Buffer = fs.readFileSync(file);
-      if (invert) buf = await sharp(buf).negate({ alpha: false }).png().toBuffer();
+      let buf = warmed.get(key);
+      if (!buf) {
+        buf = fs.readFileSync(file);
+        if (invert) buf = await sharp(buf).negate({ alpha: false }).png().toBuffer();
+      }
       const a = id("asset");
       records.push({
         typeName: "asset",

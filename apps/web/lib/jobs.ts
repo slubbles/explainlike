@@ -66,11 +66,6 @@ const g = globalThis as unknown as {
   __explanimateKids?: Map<string, ReturnType<typeof spawnCli>>;
 };
 const jobs: Map<string, Job> = (g.__explanimateJobs ??= loadJobs());
-// first load after a restart: carry on with a job the restart cut off (EXPLANIMATE_RESUME=0 turns this off)
-if (!g.__explanimateResumed && process.env.EXPLANIMATE_RESUME !== "0") {
-  g.__explanimateResumed = true;
-  setTimeout(() => resumeInterrupted(), 0);
-}
 
 function loadJobs(): Map<string, Job> {
   const m = new Map<string, Job>();
@@ -83,12 +78,7 @@ function loadJobs(): Map<string, Job> {
       const j: Job = { kind: "video", ...JSON.parse(fs.readFileSync(f, "utf8")) };
       // the child process died with the old server: say so instead of spinning forever (resumeInterrupted may restart it)
       if (j.state === "running") Object.assign(j, { state: "error", error: INTERRUPTED, finished: Date.now() });
-      if (j.state === "queued")
-        Object.assign(j, {
-          state: "error",
-          error: "Interrupted by a server restart before it started. Start it again.",
-          finished: Date.now(),
-        });
+      // a job that was still waiting keeps its place: restoreQueue rebuilds the wait line below
       m.set(id, j);
       save(j);
     } catch {
@@ -164,18 +154,53 @@ const CLI = () => process.env.EXPLANIMATE_CLI ?? path.join(ROOT, "packages/cli/b
 // renders spawned here never read private-network links unless the server explicitly allows them for local use
 const CLI_ENV = { ...process.env, EXPLANIMATE_ALLOW_PRIVATE_URLS: process.env.EXPLANIMATE_ALLOW_PRIVATE_URLS ?? "0" };
 
-// ---- the wait line: up to EXPLANIMATE_CONCURRENCY renders at once; past that, jobs wait first in, first out.
+// ---- the wait line: up to EXPLANIMATE_MAX_CONCURRENT renders at once; past that, jobs wait first in, first out.
 // A waiting job looks like any job at its first step (the page never says "queued"); it is honest because nothing has run yet.
 const num = (name: string, dflt: number) => {
   const n = Number(process.env[name]);
   return Number.isFinite(n) && n > 0 ? n : dflt;
 };
-const slots = () => Math.floor(num("EXPLANIMATE_CONCURRENCY", 10));
+// EXPLANIMATE_CONCURRENCY still works for servers set up before the rename; the new name wins when both are set
+const slots = () => Math.floor(num("EXPLANIMATE_MAX_CONCURRENT", num("EXPLANIMATE_CONCURRENCY", 10)));
 const line = (): string[] => (g.__explanimateLine ??= []);
 const seen = (): Map<string, number> => (g.__explanimateSeen ??= new Map());
 const kids = (): Map<string, ReturnType<typeof spawnCli>> => (g.__explanimateKids ??= new Map());
 const running = () => [...jobs.values()].filter((j) => j.state === "running").length;
 const GONE = "Not started: the page was closed while it waited. Start it again.";
+
+/** The wait line on disk, so a restart picks up the same order. A line that cannot be written still runs in memory. */
+function persistLine() {
+  try {
+    fs.mkdirSync(JOBS_DIR, { recursive: true });
+    fs.writeFileSync(path.join(JOBS_DIR, "queue.json"), JSON.stringify(line()));
+  } catch {
+    /* ignore */
+  }
+}
+
+/**
+ * Rebuild the wait line after a restart: the stored order first, then any other queued job,
+ * oldest first. Each waiting job keeps its place for a fresh idle window, since its page is
+ * about to poll again after the downtime. Returns the restored line.
+ */
+export function restoreQueue(): string[] {
+  const queued = [...jobs.values()].filter((j) => j.state === "queued").sort((a, b) => a.started - b.started);
+  let stored: unknown = [];
+  try {
+    stored = JSON.parse(fs.readFileSync(path.join(JOBS_DIR, "queue.json"), "utf8"));
+  } catch {
+    /* no stored line: order by arrival */
+  }
+  const waiting = new Set(queued.map((j) => j.id));
+  const ordered = (Array.isArray(stored) ? stored : []).filter((id): id is string => typeof id === "string" && waiting.has(id));
+  for (const j of queued) if (!ordered.includes(j.id)) ordered.push(j.id);
+  const l = line();
+  l.length = 0;
+  l.push(...ordered);
+  for (const id of ordered) seen().set(id, Date.now());
+  persistLine();
+  return ordered;
+}
 
 /** The page polls its job every second; this is how the server knows someone is still watching a waiting job. */
 export function touch(id: string) {
@@ -185,15 +210,18 @@ export function touch(id: string) {
 /** Drop waiting jobs whose page went away (no poll for EXPLANIMATE_WAIT_IDLE_S, default 120), so they never take a slot. */
 function sweep(now = Date.now()) {
   const idle = num("EXPLANIMATE_WAIT_IDLE_S", 120) * 1000;
+  let dropped = false;
   for (const id of [...line()]) {
     const j = jobs.get(id);
     if (j && j.state === "queued" && now - (seen().get(id) ?? j.started) <= idle) continue;
     line().splice(line().indexOf(id), 1);
+    dropped = true;
     if (j?.state === "queued") {
       Object.assign(j, { state: "error", error: GONE, finished: now });
       save(j);
     }
   }
+  if (dropped) persistLine();
 }
 
 /** Room under the spend caps for this many renders at once, each holding back one job's reserve. */
@@ -202,19 +230,23 @@ const roomFor = (n: number) => {
   const all = [...jobs.values()];
   const b = budget(spent(JOBS_DIR, all), caps(), { meta: r.meta * n, voice: r.voice * n });
   if (!b.ok) return b;
-  const d = dailyBudget(spentToday(JOBS_DIR, all), dailyCap(), dailyReserve() * n);
+  // the lifetime caps hold a full reserve per concurrent render, so even a worst-case wave cannot cross
+  // them; the daily cap throttles admission instead (one reserve, as in admit), so the default ten slots fit under it
+  const d = dailyBudget(spentToday(JOBS_DIR, all), dailyCap(), dailyReserve());
   return d.ok ? b : { ...b, ok: false, error: d.error };
 };
 
 /** Start waiting jobs, oldest first, while a render slot is free. */
 function pump() {
   sweep();
+  let moved = false;
   while (line().length && running() < slots()) {
     const job = jobs.get(line()[0])!;
     // the spend guard holds back one reserve per running render: wait for one to finish before starting another
     const room = roomFor(running() + 1);
-    if (!room.ok && running() > 0) return;
+    if (!room.ok && running() > 0) break;
     line().shift();
+    moved = true;
     if (!room.ok) {
       Object.assign(job, { state: "error", error: room.error, finished: Date.now() });
       save(job);
@@ -222,6 +254,7 @@ function pump() {
     }
     launch(job);
   }
+  if (moved) persistLine();
 }
 
 /** Take a new job: start it now if a slot is free and nobody is waiting, otherwise it waits its turn. */
@@ -231,6 +264,7 @@ function run(job: Job, args: string[]) {
   line().push(job.id);
   save(job);
   pump();
+  persistLine();
 }
 
 const spawnCli = (args: string[]) =>
@@ -450,4 +484,16 @@ export function jobFile(id: string, name: string): string | undefined {
   if (!ID.test(id) || !/^[\w.-]+$/.test(name) || name === "job.json") return undefined;
   const f = path.join(JOBS_DIR, id, name);
   return fs.existsSync(f) ? f : undefined;
+}
+
+// first load after a restart: pick the stored wait line back up, and carry on with a job the
+// restart cut off (EXPLANIMATE_RESUME=0 turns the restarting off; the line is still rebuilt)
+if (!g.__explanimateResumed) {
+  g.__explanimateResumed = true;
+  restoreQueue();
+  if (process.env.EXPLANIMATE_RESUME !== "0")
+    setTimeout(() => {
+      resumeInterrupted();
+      pump();
+    }, 0);
 }

@@ -256,6 +256,8 @@ export class DeepgramVoice implements VoiceProvider {
     // a take older than the name check is listened to again from its stored transcript, which costs nothing
     let cached: Take | undefined =
       fs.existsSync(wavCache) && fs.existsSync(jsonCache) ? JSON.parse(fs.readFileSync(jsonCache, "utf8")) : undefined;
+    // the take's bytes stay in hand, so the scene file and its length come from one read, not three
+    let wav: Buffer | undefined;
     if (!cached || !cached.checked) {
       let take = cached ? { wav: fs.readFileSync(wavCache), ...cached } : await this.take(said);
       let miss = misheard(text, take.transcript);
@@ -269,13 +271,15 @@ export class DeepgramVoice implements VoiceProvider {
         }
       }
       cached = { words: take.words, duration: take.duration, transcript: take.transcript, checked: true, misheard: miss };
-      fs.writeFileSync(wavCache, take.wav);
+      wav = take.wav;
+      fs.writeFileSync(wavCache, wav);
       fs.writeFileSync(jsonCache, JSON.stringify(cached));
     }
     fs.mkdirSync(outDir, { recursive: true });
     const file = path.join(outDir, `${sceneId}.wav`);
-    fs.copyFileSync(wavCache, file);
-    return { sceneId, file, duration: wavDuration(fs.readFileSync(file)), words: scriptTimes(text, sayAs, alignWords(said, cached.words)) };
+    wav ??= fs.readFileSync(wavCache);
+    fs.writeFileSync(file, wav);
+    return { sceneId, file, duration: wavDuration(wav), words: scriptTimes(text, sayAs, alignWords(said, cached.words)) };
   }
 }
 
@@ -359,7 +363,8 @@ export class CartesiaVoice implements VoiceProvider {
     fs.mkdirSync(outDir, { recursive: true });
     const file = path.join(outDir, `${sceneId}.wav`);
     fs.copyFileSync(wavCache, file);
-    return { sceneId, file, duration: wavDuration(fs.readFileSync(file)), words: cached.words };
+    // the cached length is measured from these same bytes when the take is stored, so the file is not read back
+    return { sceneId, file, duration: cached.duration, words: cached.words };
   }
 }
 

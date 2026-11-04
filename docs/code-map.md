@@ -21,8 +21,8 @@ flowchart LR
 
 The web app is a thin shell: it stores one JSON file per job on disk, spawns `node packages/cli/bin/explanimate.mjs`
 as a child process, and polls that JSON. All the work is in the CLI and the four packages under it.
-There is no database. Up to `EXPLANIMATE_CONCURRENCY` renders (default 10) run at once; past that, jobs wait
-in an in-memory first-in, first-out line and their page shows the first step in progress.
+There is no database. Up to `EXPLANIMATE_MAX_CONCURRENT` renders (default 10) run at once; past that, jobs wait
+in a first-in, first-out line stored in `queue.json` next to the jobs, and their page shows the first step as starting soon.
 
 ## Packages
 
@@ -219,7 +219,7 @@ With no Deepgram key, videos render silent with timed captions. When Deepgram fa
 | `EXPLANIMATE_META_CAP_USD` / `_VOICE_CAP_USD`         | spend caps; new work pauses before crossing them, with a warning at 80%                               | 25 / 10                         |
 | `EXPLANIMATE_META_RESERVE_USD` / `_VOICE_RESERVE_USD` | room kept free for one more job                                                                       | 1 / 0.15                        |
 | `EXPLANIMATE_REQ_PER_MIN` / `_JOBS_PER_HOUR`          | rate limits: per visitor, and for everyone combined                                                   | 12 / 20                         |
-| `EXPLANIMATE_CONCURRENCY`                             | videos rendering at once; the rest wait in line                                                       | 10                              |
+| `EXPLANIMATE_MAX_CONCURRENT`                          | videos rendering at once; the rest wait in line (`EXPLANIMATE_CONCURRENCY` still works)               | 10                              |
 | `EXPLANIMATE_QUEUE_MAX`                               | most videos allowed to wait                                                                           | 200                             |
 | `EXPLANIMATE_WAIT_IDLE_S`                             | drop a waiting video this many seconds after its tab closes                                           | 120                             |
 | `EXPLANIMATE_DEMO_ONLY`                               | 1 = show the gallery only, refuse new videos                                                          | 0                               |
@@ -236,9 +236,9 @@ The full list is in `.env.example`.
 ## Where it can still bite you
 
 **1. The render is the clock.**
-Renders past `EXPLANIMATE_CONCURRENCY` wait for a slot (`pump` in `apps/web/lib/jobs.ts`), and a waiting job
-is lost if the server restarts. With frames at ~20/s, a four-minute video is a six-minute wait, longer when
-several draw at once on the same CPU.
+Renders past `EXPLANIMATE_MAX_CONCURRENT` wait for a slot (`pump` in `apps/web/lib/jobs.ts`); the line is
+stored on disk, so a restart picks it back up instead of failing it. With frames at ~20/s, a four-minute video
+is a six-minute wait, longer when several draw at once on the same CPU.
 A live "watch it make one" beat cannot fit in a three-minute demo; and the "30 second cached re-render"
 in the older docs is wrong — the cache skips planning and voice (`0 s, $0.00`), then every frame is
 redrawn, because the frames folder is deleted at the start of each run (`packages/cli/src/pipeline.ts:310`).
