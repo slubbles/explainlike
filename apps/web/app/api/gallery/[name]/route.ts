@@ -1,4 +1,5 @@
 import { TYPES, galleryFile } from "../../../../lib/gallery";
+import { IMMUTABLE } from "../../../../lib/cache";
 import { fileResponse } from "../../../../lib/serve";
 import { limitRequest } from "../../../../lib/guard";
 import { withErrors } from "../../../../lib/route";
@@ -11,5 +12,5 @@ export const GET = withErrors("gallery-file.GET", async (req: Request, ctx: { pa
   const { name } = await ctx.params;
   const f = galleryFile(name);
   if (!f) return new Response("not found", { status: 404 });
-  return fileResponse(req, f, { "content-type": TYPES[name.split(".").pop()!.toLowerCase()], "cache-control": "public, max-age=3600" });
+  return fileResponse(req, f, { "content-type": TYPES[name.split(".").pop()!.toLowerCase()], "cache-control": IMMUTABLE });
 });
