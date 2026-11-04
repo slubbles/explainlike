@@ -8,8 +8,9 @@ import { listJobs } from "../../lib/jobs";
 import { MCP_SNIPPETS } from "../../lib/mcp";
 import { cap, stepsFor, stepStates } from "../../lib/steps";
 import { ensureUsageTables, videosLeftToday } from "../../lib/usage";
-import { ago, formatLabel, listVideosForUser, mss, when } from "../../lib/videos";
+import { ago, formatLabel, listVideosForUser, mss } from "../../lib/videos";
 import VideoThumb from "./components/VideoThumb";
+import VideoWhen from "./components/VideoWhen";
 import VideoWorkspace from "./components/VideoWorkspace";
 
 export const runtime = "nodejs";
@@ -158,7 +159,9 @@ export default async function OverviewPage() {
                   <VideoThumb video={v} link={`/app/videos/${v.id}`} />
                   <p className="app-vt">{v.title}</p>
                   <p className="app-vm">
-                    {[mss(v.durationSec), formatLabel(v.format), when(v.createdAt)].filter(Boolean).join(" · ")}
+                    {[mss(v.durationSec), formatLabel(v.format)].filter(Boolean).join(" · ")}
+                    {" · "}
+                    <VideoWhen ts={v.createdAt} />
                     {" · "}
                     {cap(sourceKind(v.input))}
                   </p>
