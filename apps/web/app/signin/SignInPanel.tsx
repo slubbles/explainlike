@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
-import SignIn from "../components/SignIn";
+import SignIn from "../../components/SignIn";
 
 /** The sign-in panel on its own page: after signing in, land where the visit was headed. */
 export default function SignInPanel({ next, enabled }: { next: string; enabled: boolean }) {

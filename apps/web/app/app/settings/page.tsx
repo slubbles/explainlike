@@ -1,8 +1,8 @@
-import { requireAppUser } from "../../lib/appuser";
-import { getD1Db } from "../../lib/db";
-import { listJobs } from "../../lib/jobs";
-import { ensureUsageTables } from "../../lib/usage";
-import { listVideosForUser } from "../../lib/videos";
+import { requireAppUser } from "../../../lib/appuser";
+import { getD1Db } from "../../../lib/db";
+import { listJobs } from "../../../lib/jobs";
+import { ensureUsageTables } from "../../../lib/usage";
+import { listVideosForUser } from "../../../lib/videos";
 import { DeleteAccountButton, SignOutButton } from "./actions";
 
 export const runtime = "nodejs";

@@ -1,7 +1,7 @@
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
-import Nav from "../components/Nav";
-import { authEnabled, sessionUser } from "../lib/auth";
+import Nav from "../../components/Nav";
+import { authEnabled, sessionUser } from "../../lib/auth";
 import SignInPanel from "./SignInPanel";
 
 export const runtime = "nodejs";
