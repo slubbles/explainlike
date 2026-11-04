@@ -106,6 +106,8 @@ export interface ManifestSources {
   stars?: number;
   release?: { tag: string; date: string };
   retrievedAt?: string;
+  /** scoped run: file paths are relative to this folder, so source URLs point into it */
+  subpath?: string;
 }
 
 /**
@@ -124,7 +126,8 @@ export function buildFactsManifest(o: ManifestSources): FactsManifest {
     seen.add(k);
     out.push(a);
   };
-  const tree = commit ? `${o.repoUrl}/tree/${commit}` : o.repoUrl;
+  const scoped = o.subpath && /^https?:\/\//.test(o.repoUrl) ? `/${o.subpath}` : "";
+  const tree = commit ? `${o.repoUrl}/tree/${commit}${scoped}` : o.repoUrl;
   if (o.files && o.read) {
     const { lines } = countSourceLines(o.files, o.read);
     if (lines > 0)
@@ -163,7 +166,7 @@ export function buildFactsManifest(o: ManifestSources): FactsManifest {
       note: "adoption only, never proof of quality",
     });
   const readmePath = o.files?.find((f) => /^readme(\.md|\.markdown|\.txt)?$/i.test(f)) ?? "README.md";
-  const readmeUrl = commit ? `${o.repoUrl}/blob/${commit}/${readmePath}` : `${o.repoUrl}/${readmePath}`;
+  const readmeUrl = commit ? `${o.repoUrl}/blob/${commit}${scoped}/${readmePath}` : `${o.repoUrl}/${readmePath}`;
   for (const m of (o.readme ?? "").matchAll(DIGITS)) {
     const raw = m[0].trim();
     if (/^\d{1,2}$/.test(raw.replace(/,/g, "")) && Number(raw) <= 1) continue;

@@ -14,6 +14,15 @@ test("plans are shared per repo commit and ask, and never for a local folder", (
   assert.equal(planCacheDir({ url: "https://github.com/openai/swarm", commit: "local" }), undefined);
 });
 
+test("a scoped folder gets its own cache entry, and the whole repo keeps its old one", () => {
+  const root = planCacheDir({ url: "https://github.com/openai/swarm", commit: sha });
+  assert.equal(planCacheDir({ url: "https://github.com/openai/swarm", commit: sha, path: undefined }), root);
+  const scoped = planCacheDir({ url: "https://github.com/openai/swarm", commit: sha, path: "packages/cli" });
+  assert.ok(scoped);
+  assert.notEqual(scoped, root);
+  assert.notEqual(planCacheDir({ url: "https://github.com/openai/swarm", commit: sha, path: "packages/api" }), scoped);
+});
+
 test("EXPLANIMATE_PLAN_CACHE=0 turns the shared plan cache off", () => {
   process.env.EXPLANIMATE_PLAN_CACHE = "0";
   try {

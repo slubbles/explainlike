@@ -1,4 +1,6 @@
+import path from "node:path";
 import { NextResponse } from "next/server";
+import { normalizeRepoSubpath } from "@explanimate/core/repopath";
 import { admit, budgetNow, listJobs, startJob, validInput } from "../../../lib/jobs";
 import { NO_STORE, listFor } from "../../../lib/view";
 import { claimOwner, viewerKey } from "../../../lib/owner";
@@ -43,6 +45,17 @@ export const POST = withErrors("jobs.POST", async (req: Request) => {
   const format = field(read.body.format, 20);
   if (format !== undefined && format !== "short" && format !== "deep" && format !== "anatomy")
     return NextResponse.json({ error: "Format is short, deep or anatomy." }, { status: 400 });
+  const rawPath = typeof read.body.path === "string" ? read.body.path.trim() : "";
+  let repoPath: string | undefined;
+  if (rawPath) {
+    try {
+      repoPath = normalizeRepoSubpath(rawPath);
+    } catch (e) {
+      return NextResponse.json({ error: (e as Error).message }, { status: 400 });
+    }
+    if (!/^https?:\/\/(www\.)?github\.com\//i.test(input) && !path.isAbsolute(input))
+      return NextResponse.json({ error: "Path works with GitHub repo links and local folders." }, { status: 400 });
+  }
   const no = admit(clientIp(req));
   if (no) return NextResponse.json({ error: no }, { status: 429 });
   if (userId) {
@@ -51,7 +64,14 @@ export const POST = withErrors("jobs.POST", async (req: Request) => {
     if (!claim.ok) return NextResponse.json({ error: claim.error }, { status: 429 });
   }
   const owner = await claimOwner(req, userId);
-  const job = startJob(input, read.body.voice === "silent" ? "silent" : "deepgram", format ? { format } : undefined, undefined, owner.key);
+  const job = startJob(
+    input,
+    read.body.voice === "silent" ? "silent" : "deepgram",
+    format ? { format } : undefined,
+    undefined,
+    owner.key,
+    repoPath,
+  );
   if (userId) await recordVideo(job.id, userId, input);
   const res = NextResponse.json({ id: job.id, warnings: budgetNow().warnings }, { headers: NO_STORE });
   if (owner.setCookie) res.headers.append("set-cookie", owner.setCookie);

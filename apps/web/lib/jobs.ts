@@ -16,6 +16,8 @@ export interface Job {
   id: string;
   kind: JobKind;
   input: string;
+  /** subfolder inside the repo to explain (a .../tree/<branch>/<path> input scopes itself) */
+  path?: string;
   voice: string;
   approach?: string;
   state: JobState;
@@ -404,10 +406,11 @@ function newJob(p: Omit<Job, "id" | "state" | "stage" | "message" | "pct" | "sta
   return job;
 }
 
-export function startJob(input: string, voice: string, ask?: Ask, via?: "voice", owner?: string): Job {
-  const job = newJob({ kind: "video", input, voice, ask, via, owner });
+export function startJob(input: string, voice: string, ask?: Ask, via?: "voice", owner?: string, repoPath?: string): Job {
+  const job = newJob({ kind: "video", input, voice, ask, via, owner, path: repoPath });
   const args = [input, "--out", path.join(JOBS_DIR, job.id)];
   if (voice === "silent") args.push("--voice", "silent");
+  if (repoPath) args.push("--path", repoPath);
   for (const k of ["goal", "audience", "depth", "also", "format"] as const) if (ask?.[k]) args.push(`--${k}`, ask[k]!);
   run(job, args);
   return job;
@@ -428,8 +431,10 @@ export function startFollowUp(parentId: string, f: { focus?: string; whatIf?: st
     focus: f.focus,
     whatIf: f.whatIf,
     owner,
+    path: p.path,
   });
   const args = [p.input, "--out", path.join(JOBS_DIR, job.id), "--from", path.join(JOBS_DIR, p.id), "--no-qa"];
+  if (p.path) args.push("--path", p.path);
   if (f.focus) args.push("--focus", f.focus);
   else args.push("--what-if", f.whatIf!);
   if (p.voice === "silent") args.push("--voice", "silent");

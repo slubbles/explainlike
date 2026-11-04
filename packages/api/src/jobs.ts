@@ -5,7 +5,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { looksLikeTopic, privateHostname, allowPrivateUrls, withLegacyDir } from "@explanimate/core";
+import { looksLikeTopic, privateHostname, allowPrivateUrls, normalizeRepoSubpath, parseGithubUrl, withLegacyDir } from "@explanimate/core";
 
 /** What to explain and how. Only `input` is required: the engine picks the approach, depth, pace and look itself. */
 export interface JobRequest {
@@ -15,6 +15,8 @@ export interface JobRequest {
   out?: string;
   /** display name, e.g. owner/repo for a local folder */
   name?: string;
+  /** only explain this subfolder inside the repo, e.g. "packages/cli" (a .../tree/<branch>/<path> link scopes itself) */
+  path?: string;
   /** "deepgram" (default when DEEPGRAM_API_KEY is set), "cartesia" (Cartesia Sonic) or "silent" (captions only, no voice cost) */
   voice?: "deepgram" | "cartesia" | "silent";
   /** ignore the brief, diagram and plan cached in the output folder */
@@ -109,7 +111,12 @@ export function nameFor(input: string): string {
   const u = new URL(input);
   const host = u.hostname.replace(/^www\./, "");
   const parts = u.pathname.split("/").filter(Boolean);
-  if (/^github\.com$/i.test(host))
+  if (/^github\.com$/i.test(host)) {
+    const g = parseGithubUrl(input);
+    // a subfolder link gets its own folder (branch and path included, so neither collides)
+    if (g?.subpath) {
+      return slug([g.owner, g.repo, ...(g.ref ? [g.ref] : []), ...g.subpath.split("/")].join("-")) || "explanimate";
+    }
     return (
       slug(
         parts
@@ -118,6 +125,7 @@ export function nameFor(input: string): string {
           .replace(/\.git$/, ""),
       ) || "explanimate"
     );
+  }
   if (/^(x|twitter)\.com$/i.test(host)) return slug(`x-${parts[0] ?? ""}-${parts.at(-1) ?? ""}`);
   return slug(`${host}-${parts.join("-")}`) || "explanimate";
 }
@@ -206,6 +214,17 @@ export class JobRunner extends EventEmitter {
     if (req.depth && !["overview", "working", "deep"].includes(req.depth)) throw new JobError("depth is overview, working or deep");
     if (req.format && !["short", "deep", "anatomy"].includes(req.format)) throw new JobError("format is short, deep or anatomy");
     if (req.look && req.look !== "dark" && req.look !== "default") throw new JobError("look is dark or default");
+    let repoPath: string | undefined;
+    if (req.path !== undefined) {
+      if (typeof req.path !== "string") throw new JobError('path is a folder inside the repo, like "packages/cli"');
+      try {
+        repoPath = normalizeRepoSubpath(req.path);
+      } catch (e) {
+        throw new JobError((e as Error).message);
+      }
+      const g = /^https?:\/\//i.test(input) ? parseGithubUrl(input) : null;
+      if (!g && !path.isAbsolute(input)) throw new JobError("path works with GitHub repo links and local folders");
+    }
     for (const k of ["goal", "audience", "also", "name"] as const) {
       if (req[k] !== undefined && (typeof req[k] !== "string" || req[k]!.length > 500))
         throw new JobError(`${k} is text of at most 500 characters`);
@@ -216,7 +235,10 @@ export class JobRunner extends EventEmitter {
     // an ask changes the brief and the plan, so it gets its own folder instead of reusing a plain run's cache
     const ask = [req.goal, req.audience, req.depth, req.also, req.format].map((v) => v?.trim() ?? "");
     const askTag = ask.some(Boolean) ? "-ask-" + crypto.createHash("sha1").update(ask.join("\n")).digest("hex").slice(0, 8) : "";
-    const suffix = (req.focus ? `-focus-${req.focus}` : req.whatIf ? `-what-if-${req.whatIf}` : "") + askTag;
+    // an explicit path gets its own folder, unless the link already scoped to that same folder
+    const urlSub = parseGithubUrl(input)?.subpath;
+    const pathTag = repoPath && repoPath !== urlSub ? `-${slug(repoPath)}` : "";
+    const suffix = (req.focus ? `-focus-${req.focus}` : req.whatIf ? `-what-if-${req.whatIf}` : "") + askTag + pathTag;
     const out = path.resolve(req.out ?? path.join(this.outRoot, nameFor(input) + suffix));
     if (running.some((j) => j.out === out)) throw new JobError(`a job is already writing to ${out}`, 409);
     fs.mkdirSync(out, { recursive: true });
@@ -234,6 +256,7 @@ export class JobRunner extends EventEmitter {
     this.jobs.set(job.id, job);
     const args = [this.cli, input, "--out", out, "--json"];
     if (req.name) args.push("--name", req.name);
+    if (repoPath) args.push("--path", repoPath);
     if (req.look) args.push("--look", req.look);
     if (req.voice) args.push("--voice", req.voice);
     if (req.fresh) args.push("--fresh");
