@@ -1,9 +1,9 @@
-# agent-browser — narration rewrite (v4 draft, text only, no render)
+# agent-browser: narration rewrite (v4 draft, text only, no render)
 
 Facts come from:
 
 - `/workspace/timed-run/agent-browser-v3/out/plan.json` and `architecture.json`
-- the agent-browser README (re-checked 2026-11-03): client–daemon architecture, Rust CLI + Rust daemon using CDP, `agent-browser install` downloads Chrome for Testing, `snapshot` = "accessibility tree with refs", `click @e2` / `fill @e3`, auth vault "The LLM never sees passwords", daemon persists between commands.
+- the agent-browser README (re-checked 2026-11-03): client and daemon architecture, Rust CLI + Rust daemon using CDP, `agent-browser install` downloads Chrome for Testing, `snapshot` = "accessibility tree with refs", `click @e2` / `fill @e3`, auth vault "The LLM never sees passwords", daemon persists between commands.
 
 Rules applied (see PLAYBOOK.md):
 
