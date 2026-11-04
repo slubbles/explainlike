@@ -3,6 +3,7 @@ import localFont from "next/font/local";
 import Analytics from "../components/Analytics";
 import "./globals.css";
 import "./signin.css";
+import { gaMeasurementId } from "../lib/security";
 import { SITE_URL, organizationJsonLd, pageMetadata, websiteJsonLd } from "../lib/seo";
 
 const sans = localFont({ src: "./fonts/InterVariable.woff2", variable: "--sans", weight: "100 900", display: "swap" });
@@ -18,7 +19,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en" className={sans.variable}>
       <body>
-        <Analytics />
+        <Analytics measurementId={gaMeasurementId() ?? ""} />
         <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(organizationJsonLd()) }} />
         <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(websiteJsonLd()) }} />
         {children}

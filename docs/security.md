@@ -14,9 +14,9 @@ settings this mentions are listed in [`.env.example`](../.env.example) and
   it to Next, which stamps it on the inline scripts it renders) plus the Turnstile loader;
   styles allow inline; the browser talks back only to this site, Turnstile and the Deepgram
   listening socket (`wss://api.deepgram.com`, which voice mode opens from the browser). The
-  Google hosts join only when a GA4 measurement id is set (`NEXT_PUBLIC_GA_ID`, or the
-  legacy `GA_MEASUREMENT_ID`). Frames are Turnstile only, and
-  `frame-ancestors 'none'` with `X-Frame-Options: DENY` means nobody embeds us.
+  Google hosts join only when a GA4 measurement id is set (`GA_MEASUREMENT_ID`).
+  Frames are Turnstile only, and `frame-ancestors 'none'` with
+  `X-Frame-Options: DENY` means nobody embeds us.
 - `Strict-Transport-Security: max-age=63072000; includeSubDomains`.
 - `X-Content-Type-Options: nosniff`, `Referrer-Policy: strict-origin-when-cross-origin`.
 - `Permissions-Policy: microphone=(self), camera=(), geolocation=()` (voice mode needs the mic).
@@ -36,7 +36,6 @@ with a 415 and caps the size (16 KB, 96 KB for voice turns, 4 KB for client erro
 | -------------------------------- | ------------------------------------------------------------ | ----------------------- | --------------------------------------------------- |
 | `GET /api/health`                | public (`{ok}` only)                                         | per-IP (15 s cache)     | none                                                |
 | `GET /api/auth-config`           | public read                                                  | per-IP                  | none                                                |
-| `GET /api/runtime-config`        | public read (GA id only)                                     | per-IP                  | none                                                |
 | `GET /api/gallery`               | public                                                       | per-IP                  | none                                                |
 | `GET /api/gallery/[name]`        | public                                                       | per-IP                  | manifest allowlist + file-name pattern              |
 | `GET /api/jobs`                  | own jobs (account or `ex_owner` cookie), or `?parent=` clips | per-IP                  | `?parent=` id pattern                               |
@@ -100,8 +99,9 @@ Notes:
 - Logs (`lib/log.ts`) are structured JSON on stdout. Emails are masked, and tokens, codes,
   cookies, secrets and passwords are redacted — in free text and under matching keys.
 - API keys are read only in server code; a test fails if a client component touches
-  `process.env` or a key. The browser learns only public values through `/api/auth-config`
-  (Turnstile site key) and `/api/runtime-config` (GA id).
+  `process.env` or a key. The browser learns only public values: the Turnstile site key
+  through `/api/auth-config`, and the GA id from the root layout, which reads
+  `GA_MEASUREMENT_ID` on the server at request time and hands it to the Analytics loader.
 - Errors persist to the D1 `errors` table when D1 is configured (rows older than 14 days
   are pruned), otherwise to an in-memory ring of 200. `/api/health` answers only `{ok}`;
   the checks, problems and 24-hour error count live behind `/api/admin/health`.
