@@ -55,3 +55,11 @@ export function inputHint(raw: string): { count?: string; over?: string } {
     ? { count, over: `Topics are ${TOPIC_MAX} characters at most. Name it in a few words, or paste a link.` }
     : { count };
 }
+
+/** Why a finished video has no boxes to tap: only repo videos map each box to real files. */
+export function noBoxesNote(input: string): string {
+  const kind = sourceKind(input);
+  if (kind === "repo") return "This video has no box map, so there is nothing to tap. Tap-to-ask and what-if clips need one.";
+  const what = kind === "topic" ? "a topic" : kind === "X post" ? "an X post" : "an article";
+  return `Tap-to-ask and what-if clips work on GitHub repo videos, where every box maps to real files. This one explains ${what}, so it has no boxes to tap.`;
+}
