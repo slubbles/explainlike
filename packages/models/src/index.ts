@@ -11,6 +11,7 @@ import { z } from "zod";
 import {
   strictJsonSchema,
   fetchRetry,
+  providerLimiter,
   ServiceError,
   llmProvider,
   llmFallback,
@@ -76,10 +77,13 @@ async function postTo(p: LlmProvider, path: string, body: unknown, timeoutMs: nu
         : `${p.keyVar} is not set. Put your ${p.service} key in .env, or set EXPLANIMATE_LLM_PROVIDER=meta`,
     );
   const json = JSON.stringify(body);
-  const r = await fetchRetry(
-    p.base + path,
-    () => ({ method: "POST", headers: { Authorization: `Bearer ${k}`, "Content-Type": "application/json" }, body: json }),
-    { service: p.service, keyVar: p.keyVar, baseMs: MUSE.baseMs, timeoutMs, attempts: 4, retryTimeouts },
+  // one lane per provider, so hedged copies and parallel scenes do not trip a shared limit together
+  const r = await providerLimiter.run(p.id, () =>
+    fetchRetry(
+      p.base + path,
+      () => ({ method: "POST", headers: { Authorization: `Bearer ${k}`, "Content-Type": "application/json" }, body: json }),
+      { service: p.service, keyVar: p.keyVar, baseMs: MUSE.baseMs, timeoutMs, attempts: 4, retryTimeouts },
+    ),
   );
   const text = await r.text();
   try {
@@ -327,11 +331,13 @@ export async function museTranscribe(opts: {
   fd.append("request", new Blob([JSON.stringify(req)], { type: "application/json" }));
   fd.append("audio", new Blob([new Uint8Array(opts.wav)], { type: "audio/wav" }), "narration.wav");
   const k = key();
-  const r = await fetchRetry(`${BASE}/asr/transcribe`, () => ({ method: "POST", headers: { Authorization: `Bearer ${k}` }, body: fd }), {
-    ...MUSE,
-    timeoutMs: 180_000,
-    attempts: 3,
-  });
+  const r = await providerLimiter.run("meta", () =>
+    fetchRetry(`${BASE}/asr/transcribe`, () => ({ method: "POST", headers: { Authorization: `Bearer ${k}` }, body: fd }), {
+      ...MUSE,
+      timeoutMs: 180_000,
+      attempts: 3,
+    }),
+  );
   const out = JSON.parse(await r.text());
   const mins = (out.audioDurationMs ?? (opts.durationSec ?? 0) * 1000) / 60000;
   opts.ledger.add({ step: opts.step, model: TRANSCRIBE, seconds: (Date.now() - t) / 1000, usd: mins * PRICE.transcribePerMin });
