@@ -59,6 +59,18 @@ test("what the viewer asked for reaches the engine and gets its own folder", asy
   assert.equal(argv[argv.indexOf("--depth") + 1], "overview");
   assert.ok(!argv.includes("--audience"));
   assert.throws(() => runner.start({ input: "https://github.com/a/b", depth: "huge" as "deep" }), /depth/);
+  assert.throws(
+    () => runner.start({ input: "https://github.com/a/b", voice: "nope" as "silent" }),
+    /voice is deepgram, cartesia or silent/,
+  );
+});
+
+test("cartesia is an accepted voice and reaches the render", async () => {
+  const runner = new JobRunner({ cliPath, outRoot: tmp() });
+  const done = await runner.wait(runner.start({ input: "https://github.com/owner/repo", voice: "cartesia" }).id, 10_000);
+  assert.equal(done?.state, "done");
+  const { argv } = JSON.parse(fs.readFileSync(path.join(done!.out, "args.json"), "utf8"));
+  assert.equal(argv[argv.indexOf("--voice") + 1], "cartesia");
 });
 
 test("a failed render reports the reason, and only one render runs at a time", async () => {
@@ -84,6 +96,51 @@ test("links to localhost and private networks are refused unless local use allow
   assert.equal(checkInput("https://github.com/owner/repo"), "https://github.com/owner/repo");
   // explicit local-dev opt-out, without touching the process environment
   assert.equal(checkInput("http://127.0.0.1:8080/x", { EXPLANIMATE_ALLOW_PRIVATE_URLS: "1" }), "http://127.0.0.1:8080/x");
+});
+
+test("a bare private address is refused too, and a missing Windows folder is not a topic", () => {
+  for (const u of ["127.0.0.1/x", "10.0.0.5/", "192.168.1.1"]) {
+    assert.throws(() => checkInput(u), /private network/, u);
+  }
+  assert.equal(checkInput("127.0.0.1/x", { EXPLANIMATE_ALLOW_PRIVATE_URLS: "1" }), "https://127.0.0.1/x");
+  assert.throws(() => checkInput("C:\\no-such-dir-xyz"), /no folder/);
+  assert.throws(() => checkInput("foo\\no-such-dir-xyz"), /no folder/);
+  assert.equal(checkInput("github.com/owner/repo"), "https://github.com/owner/repo");
+});
+
+test("a crashed render reports its first stderr line, never a stack frame with a path", async () => {
+  const runner = new JobRunner({ cliPath, outRoot: tmp() });
+  const end = await runner.wait(runner.start({ input: "https://example.com/crash" }).id, 10_000);
+  assert.equal(end?.state, "error");
+  assert.equal(end?.error, "explanimate failed: could not read the repository");
+});
+
+test("health answers without the server paths, and a 500 stays generic", async () => {
+  const api = createApiServer({ runner: new JobRunner({ cliPath, outRoot: tmp() }) });
+  const port = await api.listen(0);
+  try {
+    const health = await (await fetch(`http://127.0.0.1:${port}/health`)).json();
+    assert.deepEqual(health, { ok: true });
+    const bad = createApiServer({
+      runner: {
+        start() {
+          throw new Error("boom /secret/server/path");
+        },
+        close() {},
+      } as unknown as JobRunner,
+    });
+    const port2 = await bad.listen(0);
+    try {
+      const r = await fetch(`http://127.0.0.1:${port2}/v1/jobs`, { method: "POST", body: JSON.stringify({ input: "x" }) });
+      assert.equal(r.status, 500);
+      const body = await r.json();
+      assert.equal(body.error, "The server had a problem. Try again in a moment.");
+    } finally {
+      await bad.close();
+    }
+  } finally {
+    await api.close();
+  }
 });
 
 test("a job for a private link is refused before anything renders", () => {

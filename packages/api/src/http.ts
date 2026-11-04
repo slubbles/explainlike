@@ -31,7 +31,7 @@ export function createApiServer(o: ApiServerOptions = {}) {
       if (req.headers.origin) return send(403, { error: "cross-origin requests are not accepted" });
       const url = new URL(req.url ?? "/", "http://localhost");
       const m = url.pathname.match(/^\/v1\/jobs(?:\/([a-f0-9]{12}))?\/?$/);
-      if (url.pathname === "/health") return send(200, { ok: true, outRoot: runner.outRoot });
+      if (url.pathname === "/health") return send(200, { ok: true });
       if (!m) return send(404, { error: "not found" });
       const id = m[1];
       if (!id && req.method === "POST") {
@@ -51,7 +51,9 @@ export function createApiServer(o: ApiServerOptions = {}) {
       return send(405, { error: "method not allowed" });
     } catch (e) {
       if (e instanceof JobError) return send(e.status, { error: e.message });
-      return send(500, { error: String((e as Error)?.message ?? e) });
+      // unexpected failures stay on the server: their messages carry paths and internals
+      console.error(`api error: ${String((e as Error)?.stack ?? e).slice(0, 500)}`);
+      return send(500, { error: "The server had a problem. Try again in a moment." });
     }
   });
   return {

@@ -5,6 +5,7 @@ export * from "./measure.js";
 export * from "./compose.js";
 export * from "./stage.js";
 export * from "./capture.js";
+export * from "./workers.js";
 export * from "./excalidraw.js";
 export * from "./tldraw.js";
 export * from "./reveal.js";

@@ -76,6 +76,7 @@ function loadJobs(): Map<string, Job> {
     if (!ID.test(id) || !fs.existsSync(f)) continue;
     try {
       const j: Job = { kind: "video", ...JSON.parse(fs.readFileSync(f, "utf8")) };
+      if (!Number.isFinite(j.started)) j.started = j.finished ?? Date.now();
       // the child process died with the old server: say so instead of spinning forever (resumeInterrupted may restart it)
       if (j.state === "running") Object.assign(j, { state: "error", error: INTERRUPTED, finished: Date.now() });
       // a job that was still waiting keeps its place: restoreQueue rebuilds the wait line below
@@ -131,7 +132,7 @@ export function admit(client: string): string | undefined {
   if (line().length >= num("EXPLANIMATE_QUEUE_MAX", 200)) return "Explanimate is very busy right now. Try again in a few minutes.";
   const b = budgetNow();
   if (!b.ok) return b.error;
-  const cap = Number(process.env.EXPLANIMATE_JOBS_PER_HOUR ?? 20);
+  const cap = num("EXPLANIMATE_JOBS_PER_HOUR", 20);
   const now = Date.now(),
     hits = (recent.get(client) ?? []).filter((t) => now - t < 3600_000);
   if (hits.length >= cap) return "Hourly limit reached for this client.";
@@ -297,6 +298,7 @@ function launch(job: Job) {
     end();
   });
   let buf = "";
+  let gotDone = false;
   child.stdout.on("data", (d: Buffer) => {
     buf += d.toString();
     let i: number;
@@ -314,6 +316,7 @@ function launch(job: Job) {
           Object.assign(job, { stage: e.stage, message: e.message, pct: e.pct ?? job.pct, usd: e.usd ?? job.usd });
           save(job, true);
         } else if (e.type === "done") {
+          gotDone = true;
           const m = e.manifest;
           Object.assign(job, {
             state: "done",
@@ -347,12 +350,21 @@ function launch(job: Job) {
     errTail = (errTail + d.toString()).slice(-2000);
   });
   child.on("close", (code) => {
-    if (job.state === "running")
+    if (job.state === "running") {
+      // exit 0 without a done event is a quiet death, not a success; the first stderr line says what failed
+      const ok = code === 0 && gotDone;
+      const firstErr = errTail
+        .split("\n")
+        .map((l) => l.trim())
+        .filter(Boolean)[0];
       Object.assign(job, {
-        state: code === 0 ? "done" : "error",
+        state: ok ? "done" : "error",
         finished: Date.now(),
-        error: code === 0 ? undefined : (errTail.split("\n").filter(Boolean).pop() ?? `exit ${code}`),
+        error: ok
+          ? undefined
+          : (firstErr ?? (code === 0 ? "The renderer finished without a video. Try again." : `the renderer stopped (exit ${code})`)),
       });
+    }
     end();
   });
 }
@@ -436,6 +448,8 @@ export function explain(jobId: string, component: string): Promise<unknown> {
     child.stdout.on("data", (d: Buffer) => {
       out += d.toString();
     });
+    // a child that never starts answers with an error instead of crashing the server
+    child.on("error", () => resolve({ type: "error", message: "Could not start the renderer." }));
     child.on("close", () => {
       try {
         const r = JSON.parse(out.trim().split("\n").pop() ?? "{}");
@@ -481,9 +495,13 @@ export const getJob = (id: string) => jobs.get(id);
 export const listJobs = () => [...jobs.values()].sort((a, b) => b.started - a.started);
 
 export function jobFile(id: string, name: string): string | undefined {
-  if (!ID.test(id) || !/^[\w.-]+$/.test(name) || name === "job.json") return undefined;
+  if (!ID.test(id) || !/^[\w.-]+$/.test(name) || name === "job.json" || name === "." || name === "..") return undefined;
   const f = path.join(JOBS_DIR, id, name);
-  return fs.existsSync(f) ? f : undefined;
+  try {
+    return fs.statSync(f).isFile() ? f : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 // first load after a restart: pick the stored wait line back up, and carry on with a job the

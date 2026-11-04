@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import type { Architecture, Scene } from "@explanimate/core";
 import { checkStory, fillerIn, speechIssues } from "@explanimate/planner";
-import { SHAPES } from "../src/shapes.ts";
+import { SHAPES, analogyRule } from "../src/shapes.ts";
 
 const arch = {
   product: "chatbot",
@@ -81,4 +81,23 @@ test("every shape hooks within about 8 seconds on the viewer's problem or payoff
   assert.match(SHAPES.build.hook, /about 8 seconds/);
   assert.match(SHAPES.build.hook, /you already get answers/);
   assert.match(SHAPES.fault.hook, /about 8 seconds/);
+});
+
+test("a hook line over 14 words goes back for one short line", () => {
+  const issues = checkStory(plan(sc("hook", "This chat app turns every single contact into a bot that does jobs for teams.")), arch);
+  assert.ok(
+    issues.some((i) => /first sentence has 15 words.*at most 14 words/.test(i)),
+    issues.join("; "),
+  );
+});
+
+test("the analogy counts only when its words are really said, not on a shared prefix", () => {
+  const told = (hook: string) => checkStory(plan(sc("hook", hook)), arch, "a hotel front desk").filter((i) => /analogy/.test(i));
+  assert.deepEqual(told("What if your stay were smoother? This app works like a hotel front desk for bots."), []);
+  assert.equal(told("What if your frontend shipped faster? This tool faces the backlog for you.").length, 1);
+});
+
+test("a build ends on a payoff for you plus a retrace, and analogies stay concrete", () => {
+  assert.match(SHAPES.build.close, /in one sentence for .you., then one short sentence retracing the limits/);
+  assert.match(analogyRule("journey", "a kitchen"), /concrete and familiar/);
 });

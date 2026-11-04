@@ -61,6 +61,7 @@ test("voice mode answers only requests made on this machine", async () => {
   const req = (h: Record<string, string>) => new Request("http://localhost:3000/api/voice/token", { headers: h });
   assert.equal(localOnly(req({ host: "localhost:3000", "x-forwarded-host": "localhost:3000", "x-forwarded-for": "::1" })), undefined);
   assert.equal(localOnly(req({ host: "127.0.0.1:3000", "x-forwarded-for": "::ffff:127.0.0.1" })), undefined);
+  assert.equal(localOnly(req({ host: "127.0.0.2:3000" })), undefined, "the whole loopback range is this machine");
   assert.equal(localOnly(req({ host: "localhost:3000", "x-forwarded-host": "abc.trycloudflare.com" }))?.status, 403);
   assert.equal(localOnly(req({ host: "localhost:3000", "x-forwarded-for": "203.0.113.9, ::1" }))?.status, 403);
   assert.equal(localOnly(req({ host: "192.168.1.5:3000" }))?.status, 403);

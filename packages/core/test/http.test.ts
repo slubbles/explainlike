@@ -8,7 +8,7 @@ const fake = (seq: (number | "net" | "slow")[], seen: string[] = []) =>
     const s = seq.shift() ?? 200;
     if (s === "net") throw new TypeError("fetch failed");
     if (s === "slow") return new Promise<Response>((_, rej) => init!.signal!.addEventListener("abort", () => rej(init!.signal!.reason)));
-    return new Response(s === 200 ? "{}" : "Bearer sk-abcdefghijklmnop leaked", {
+    return new Response(s === 200 ? "{}" : "Bearer abcdefghijklmnop leaked", {
       status: s,
       headers: s === 429 ? { "retry-after": "2" } : {},
     });
@@ -93,4 +93,22 @@ test("with retryTimeouts off, a timeout fails after one try and says it timed ou
       return true;
     },
   );
+});
+
+test("attempts below 1 still tries once instead of throwing undefined", async () => {
+  for (const attempts of [0, -2, Number.NaN]) {
+    let tries = 0;
+    const f = (async (...a: Parameters<typeof fetch>) => {
+      tries++;
+      return fake([200])(...a);
+    }) as typeof fetch;
+    const r = await fetchRetry("https://x.test/a", () => ({}), {
+      service: "s",
+      attempts,
+      sleep: async () => {},
+      fetchImpl: f,
+    });
+    assert.equal(r.status, 200, `attempts=${attempts}`);
+    assert.equal(tries, 1, `attempts=${attempts}`);
+  }
 });

@@ -14,6 +14,26 @@ export interface VoiceProvider {
 }
 
 const CACHE = process.env.EXPLANIMATE_TTS_CACHE ?? userCacheDir("tts");
+
+/** Read a cache entry, tolerating a half-written or corrupt file left by a crashed run. */
+function readCache<T>(wavCache: string, jsonCache: string): T | undefined {
+  if (!fs.existsSync(wavCache) || !fs.existsSync(jsonCache)) return undefined;
+  try {
+    return JSON.parse(fs.readFileSync(jsonCache, "utf8")) as T;
+  } catch {
+    return undefined;
+  }
+}
+
+/** Write a cache entry via temp files and renames, so parallel workers never leave half files. */
+function writeCache(wavCache: string, wav: Buffer, jsonCache: string, json: string): void {
+  const wtmp = `${wavCache}.${process.pid}.tmp`;
+  const jtmp = `${jsonCache}.${process.pid}.tmp`;
+  fs.writeFileSync(wtmp, wav);
+  fs.writeFileSync(jtmp, json);
+  fs.renameSync(wtmp, wavCache);
+  fs.renameSync(jtmp, jsonCache);
+}
 const tokens = (s: string) => s.replace(/\s+/g, " ").trim().split(" ").filter(Boolean);
 const normW = (w: string) => w.toLowerCase().replace(/[^a-z0-9]/g, "");
 
@@ -248,14 +268,14 @@ export class DeepgramVoice implements VoiceProvider {
       said = sayAs.join(" ");
     const h = crypto
       .createHash("sha1")
-      .update(this.model + "\n" + said)
+      // the recogniser model and the respell table shape the stored timings, so they are part of the key
+      .update([this.model, process.env.EXPLANIMATE_STT ?? "nova-3", JSON.stringify(RESPELL), said].join("\n"))
       .digest("hex")
       .slice(0, 16);
     const wavCache = path.join(CACHE, `${h}.wav`),
       jsonCache = path.join(CACHE, `${h}.json`);
     // a take older than the name check is listened to again from its stored transcript, which costs nothing
-    let cached: Take | undefined =
-      fs.existsSync(wavCache) && fs.existsSync(jsonCache) ? JSON.parse(fs.readFileSync(jsonCache, "utf8")) : undefined;
+    let cached: Take | undefined = readCache<Take>(wavCache, jsonCache);
     // the take's bytes stay in hand, so the scene file and its length come from one read, not three
     let wav: Buffer | undefined;
     if (!cached || !cached.checked) {
@@ -272,8 +292,7 @@ export class DeepgramVoice implements VoiceProvider {
       }
       cached = { words: take.words, duration: take.duration, transcript: take.transcript, checked: true, misheard: miss };
       wav = take.wav;
-      fs.writeFileSync(wavCache, wav);
-      fs.writeFileSync(jsonCache, JSON.stringify(cached));
+      writeCache(wavCache, take.wav, jsonCache, JSON.stringify(cached));
     }
     fs.mkdirSync(outDir, { recursive: true });
     const file = path.join(outDir, `${sceneId}.wav`);
@@ -327,8 +346,10 @@ export class CartesiaVoice implements VoiceProvider {
     const h = crypto.createHash("sha1").update(`cartesia\n${this.model}\n${this.voice}\n${said}`).digest("hex").slice(0, 16);
     const wavCache = path.join(CACHE, `${h}.wav`),
       jsonCache = path.join(CACHE, `${h}.json`);
-    let cached: { words: WordTiming[]; duration: number } | undefined =
-      fs.existsSync(wavCache) && fs.existsSync(jsonCache) ? JSON.parse(fs.readFileSync(jsonCache, "utf8")) : undefined;
+    let cached: { words: WordTiming[]; duration: number } | undefined = readCache<{ words: WordTiming[]; duration: number }>(
+      wavCache,
+      jsonCache,
+    );
     if (!cached) {
       const r = await fetchRetry(
         "https://api.cartesia.ai/tts/bytes",
@@ -357,8 +378,7 @@ export class CartesiaVoice implements VoiceProvider {
       this.usage.ttsChars += said.length;
       const duration = wavDuration(wav);
       cached = { words: scriptTimes(text, sayAs, fitWords(estimateWords(said).words, duration)), duration };
-      fs.writeFileSync(wavCache, wav);
-      fs.writeFileSync(jsonCache, JSON.stringify(cached));
+      writeCache(wavCache, wav, jsonCache, JSON.stringify(cached));
     }
     fs.mkdirSync(outDir, { recursive: true });
     const file = path.join(outDir, `${sceneId}.wav`);
@@ -388,14 +408,14 @@ export function wavDuration(wav: Buffer): number {
   while (off + 8 <= wav.length) {
     const id = wav.toString("ascii", off, off + 4),
       len = wav.readUInt32LE(off + 4);
-    if (id === "fmt ") byteRate = wav.readUInt32LE(off + 16);
+    if (id === "fmt " && off + 20 <= wav.length) byteRate = wav.readUInt32LE(off + 16);
     if (id === "data") {
       dataLen = Math.min(len, wav.length - off - 8);
       break;
     }
     off += 8 + len + (len % 2);
   }
-  return dataLen / byteRate;
+  return byteRate > 0 ? dataLen / byteRate : 0;
 }
 
 /** What a voice spent, or 0 when it does not count (silent). */

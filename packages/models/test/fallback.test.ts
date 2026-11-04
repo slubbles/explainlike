@@ -172,3 +172,30 @@ test("only Meta-side failures fall back, never key, credit or request errors", (
   assert.equal(llmFallbackable(new Error("another copy of architecture already answered")), false);
   assert.equal(llmFallbackable(new Error("boom")), false);
 });
+
+test("a hedged copy that lost does not pay for a fallback nobody waits on", async () => {
+  // the winner answers well; the loser misses the schema on its first try (immediate, still fallbackable)
+  const api = routedApi([{ content: `{"a":1}` }, { content: `{"a":"nope"}` }], [{ content: `{"a":2}` }], {
+    OPENROUTER_API_KEY: "test-or-key",
+  });
+  const warn = captureWarn();
+  const hedge = process.env.EXPLANIMATE_HEDGE;
+  process.env.EXPLANIMATE_HEDGE = "2";
+  try {
+    const ledger = new CostLedger();
+    assert.deepEqual(
+      await sparkJson({ ledger, step: "architecture", schema, name: "t", messages: [{ role: "user", content: "x" }], hedge: true }),
+      { a: 1 },
+    );
+    assert.deepEqual(
+      api.seen.map((s) => s.host),
+      ["api.meta.ai", "api.meta.ai"],
+      "the losing copy never reaches OpenRouter",
+    );
+  } finally {
+    api.restore();
+    warn.restore();
+    if (hedge === undefined) delete process.env.EXPLANIMATE_HEDGE;
+    else process.env.EXPLANIMATE_HEDGE = hedge;
+  }
+});
