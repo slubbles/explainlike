@@ -104,11 +104,11 @@ h2 { font-size: 40px; line-height: 1.15; font-weight: 600; letter-spacing: -.025
 .grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 20px; margin-top: 44px; }
 .vid .th { position: relative; border-radius: 14px; border: 1px solid var(--line); background: #0b0b0d; aspect-ratio: 16 / 9; overflow: hidden; display: block; width: 100%; padding: 0; cursor: pointer; font: inherit; }
 .vid .th img, .vid .th video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
-.vid .t { position: absolute; left: 16px; top: 12px; font-family: var(--hand); font-size: 17px; color: #f4f4f5; text-shadow: 0 1px 8px rgba(0, 0, 0, .8); }
 .vid .play { position: absolute; right: 14px; bottom: 14px; width: 34px; height: 34px; border-radius: 50%; background: rgba(255, 255, 255, .12); border: 1px solid rgba(255, 255, 255, .2); display: grid; place-items: center; color: #fff; }
 .vid .th:hover .play { background: rgba(255, 255, 255, .22); }
 .vid .meta { display: flex; justify-content: space-between; gap: 12px; margin-top: 12px; font-size: 15px; font-weight: 500; }
-.vid .meta span { color: var(--dim); font-size: 13px; font-weight: 400; white-space: nowrap; }
+.vid .meta > span:first-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.vid .meta span + span, .vid .meta a { color: var(--dim); font-size: 13px; font-weight: 400; white-space: nowrap; }
 .vid .meta a { text-decoration: underline; text-underline-offset: 2px; text-decoration-color: rgba(255, 255, 255, .25); }
 .vid .meta a:hover { text-decoration-color: #fff; }
 .vid video.big { position: absolute; inset: 0; width: 100%; height: 100%; }
