@@ -151,6 +151,14 @@ export default function Home() {
     setStarted((f) => [r.data.id, ...f]);
   }
 
+  // the page's poll (useJob) shows the job as cancelled a moment later
+  async function cancelRun() {
+    if (!job) return;
+    setErr("");
+    const r = await postJson(`/api/jobs/${job.id}/cancel`, {});
+    if (!r.ok) setErr(r.error);
+  }
+
   const clips = job ? [...new Set([...started, ...listed.map((j) => j.id)])] : [];
   const quota: Quota = !auth?.enabled ? null : !auth.email ? "signin" : (auth.videos ?? null);
 
@@ -217,7 +225,11 @@ export default function Home() {
               <div className="main">
                 <div className="col">
                   <div className="screen wait" aria-busy={job.state === "running"}>
-                    {job.state === "error" ? "No video: this run stopped before the end." : "The video shows up here when it is ready."}
+                    {job.cancelled
+                      ? "No video: you cancelled this run."
+                      : job.state === "error"
+                        ? "No video: this run stopped before the end."
+                        : "The video shows up here when it is ready."}
                   </div>
                   {err && (
                     <div className="err" role="alert">
@@ -225,7 +237,7 @@ export default function Home() {
                     </div>
                   )}
                 </div>
-                <Steps job={job} />
+                <Steps job={job} onCancel={cancelRun} />
               </div>
             )}
             {job?.state === "done" && (
