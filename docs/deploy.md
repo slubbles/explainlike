@@ -322,6 +322,8 @@ apply) — plus:
 | --------------------------------- | ------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------- |
 | `BETTER_AUTH_SECRET`              | (required)                           | Random secret for session cookies (`openssl rand -base64 32`).                                                               |
 | `BETTER_AUTH_URL`                 | `http://localhost:3000`              | Public base URL of the app (`https://explanimate.co` in production); also the trusted origin.                                |
+| `GOOGLE_CLIENT_ID`                | (empty)                              | Google OAuth client id. With the secret below, the sign-in panel offers "Continue with Google".                              |
+| `GOOGLE_CLIENT_SECRET`            | (empty)                              | Google OAuth client secret. Register `https://explanimate.co/api/auth/callback/google` as the redirect URI.                  |
 | `EXPLANIMATE_CF_ACCOUNT_ID`       | (required)                           | Cloudflare account id for D1 and Email.                                                                                      |
 | `EXPLANIMATE_D1_DATABASE_ID`      | (required)                           | D1 database holding accounts, sessions and usage. Tables are created on first use.                                           |
 | `EXPLANIMATE_D1_TOKEN`            | (required)                           | API token with D1 read and write on that database.                                                                           |
@@ -335,7 +337,13 @@ apply) — plus:
 | `EXPLANIMATE_ADMIN_EMAILS`        | (empty)                              | Comma list of admin addresses (case-insensitive). Listed accounts get the `/admin` portal. `ADMIN_EMAILS` works as an alias. |
 
 Sending a code is limited to 5 per IP per 10 minutes and 5 per address per hour; verifying to
-10 per IP per 10 minutes. To give one account its own daily limit (after it signs in once):
+10 per IP per 10 minutes. With the Google settings above, the sign-in panel also offers
+"Continue with Google" above the email box: a Google login with the same verified email
+links to the existing account, so daily limits and admin access carry over. Make the web
+OAuth client at https://console.cloud.google.com/apis/credentials and register the redirect
+URI from the table (for local tries, `http://localhost:3000/api/auth/callback/google`).
+
+To give one account its own daily limit (after it signs in once):
 
 ```bash
 pnpm set-user-limit somebody@example.com 10
