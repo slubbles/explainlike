@@ -25,7 +25,7 @@ export default defineConfig({
   ],
   webServer: {
     command: `pnpm --filter @explanimate/web exec next start -p ${PORT}`,
-    url: `http://localhost:${PORT}/api/health`,
+    url: `http://localhost:${PORT}/docs`,
     reuseExistingServer: !process.env.CI,
     timeout: 60_000,
     env: {
