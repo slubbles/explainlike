@@ -381,7 +381,7 @@ const anatomyTour = () => {
     sc(
       "layer",
       pad(
-        "Your words land in the team chat, which owns the screen you type in, because every request starts with you. It hands your message to the front door next, and it is popular with teams holding 1234 stars.",
+        "Your words land in the team chat, which owns the screen you type in, because every request starts with you. It hands your message from `src/chat.ts` to the front door next, and it is popular with teams holding 1234 stars.",
         60,
       ),
       {
@@ -392,7 +392,7 @@ const anatomyTour = () => {
     sc(
       "layer",
       pad(
-        "Opening a fresh browser for every command would be slow, so the front door keeps one browser open for you. It forwards your message to the bot harness, which runs the bot for you.",
+        "Opening a fresh browser for every command would be slow, so the front door keeps one browser open for you. It forwards your message through `src/door.ts` to the bot harness, which runs the bot for you.",
         60,
       ),
       { add_components: ["edge"] },
@@ -400,7 +400,7 @@ const anatomyTour = () => {
     sc(
       "layer",
       pad(
-        "Your agent cannot read a screen, so the bot harness keeps the running bots and hands each reply back through the front door for you. The agent drivers do the clicking, because pointing beats guessing.",
+        "Your agent cannot read a screen, so the bot harness keeps the running bots and hands each reply back through the front door for you. The agent drivers in `src/drivers.ts` do the clicking, because pointing beats guessing.",
         60,
       ),
       { add_components: ["srv", "bot"] },

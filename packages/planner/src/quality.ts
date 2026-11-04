@@ -194,11 +194,16 @@ export function checkFormatBeats(plan: ScenePlan, format: ExplainFormat, arch: A
       issues.push(
         "the anatomy format tours the parts layer by layer (entry point, core, data, infra); this plan has fewer than 2 layer scenes",
       );
-    for (const s of layers)
+    for (const s of layers) {
       if (!HANDOFF.test(s.narration))
         issues.push(
           `${s.id}: each part beat states what it owns, what it hands to the next part, and why it exists; this one never says what it hands on`,
         );
+      if (codeFactsIn(s.narration).length === 0)
+        issues.push(
+          `${s.id}: each part beat cites at least one file path or \`symbol\` from the facts manifest; this one names no file or symbol`,
+        );
+    }
     const traced = plan.scenes.some(
       (s) => s.kind === "walkthrough" && codeFactsIn(s.narration).length > 0 && pathPartsInOrder(s.narration, arch) >= 2,
     );
@@ -479,4 +484,18 @@ export function scoreRubric(plan: ScenePlan, o: RubricOpts): RubricScore {
 /** Weak scripts are rejected for one bounded rewrite: under 7/10 or any criterion at zero. */
 export function shouldRejectRubric(s: RubricScore): boolean {
   return s.total < 7 || [s.hook, s.causal, s.anchors, s.visual, s.payoff].includes(0);
+}
+
+/**
+ * A script with no verifiable anchors or no causal chain is not fixed by rewording: the whole plan
+ * is regenerated instead (up to the plan retry limit), because only a new draft can trace the
+ * request through real files or tie the parts to the mechanism.
+ */
+export function shouldRegeneratePlan(s: RubricScore): boolean {
+  return s.anchors === 0 || s.causal === 0;
+}
+
+/** The better of two rubric scores: the higher total wins, and fewer open issues break a tie. */
+export function isBetterRubric(next: RubricScore, best: RubricScore): boolean {
+  return next.total > best.total || (next.total === best.total && next.issues.length < best.issues.length);
 }

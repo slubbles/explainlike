@@ -48,6 +48,8 @@ import {
   formatRule,
   scoreRubric,
   shouldRejectRubric,
+  shouldRegeneratePlan,
+  isBetterRubric,
 } from "./quality.js";
 
 /** Plain words are literal words: the newcomer test kept passing narration that swapped jargon for a riddle. */
@@ -163,10 +165,66 @@ export function groundToReadme(arch: Architecture, readme: string, head = 12_000
 /** The anatomy tour: the parts layer by layer, each beat owning, handing on, and justified, on one traced request. */
 const ANATOMY_TOUR = [
   "Anatomy tour: visit the parts layer by layer in the order above: the entry point where one request comes in first, then the core engine, data and storage, infra and deploy, tests and CI where the map has them.",
-  "Each layer scene is one part beat: say what the part owns, what it hands to the next part, and why it exists (what would be slow, hard or impossible without it).",
-  "The walkthrough traces ONE request end to end through actual file paths and `symbols` from the code; name the file or symbol at each hop. The recap closes on the whole map lit up along that traced path, naming the parts in order.",
+  "Each layer scene is one part beat: say what the part owns, what it hands to the next part, and why it exists (what would be slow, hard or impossible without it). Every layer scene's narration cites at least one file path or `symbol` from the traced-request facts below; a beat that only names parts generically is cut.",
+  "The walkthrough traces ONE request end to end through actual file paths and `symbols` from the code; name the file or symbol at each hop, copied exactly from the traced-request facts (never invent a path). The recap closes on the whole map lit up along that traced path, naming the parts in order.",
 ].join(" ");
-function repoSystem(arch: Architecture, L: ExplainSpec, lo: number, hi: number, manifest?: FactsManifest): string {
+
+/**
+ * Exported symbols of one source file, so an anatomy tour names the real `handler` at each hop
+ * instead of a generic part name. Covers the export shapes of TS/JS, Python, Go and Rust; what it
+ * cannot parse yields nothing rather than a guess.
+ */
+export function exportedSymbols(text: string, max = 8): string[] {
+  const out: string[] = [];
+  const take = (name: string) => {
+    const n = name.trim();
+    if (/^[A-Za-z_$][\w$]{0,40}$/.test(n) && !out.includes(n) && out.length < max) out.push(n);
+  };
+  for (const m of text.matchAll(/^\s*export\s+(?:async\s+)?(?:function|class|interface|type|enum|const|let|var)\s+([A-Za-z_$][\w$]*)/gm))
+    take(m[1]);
+  for (const m of text.matchAll(/^\s*export\s*\{([^}\n]{1,200})\}/gm)) for (const n of m[1].split(",")) take(n.split(/\s+as\s+/).pop()!);
+  for (const m of text.matchAll(/^\s*export\s+default\s+(?:async\s+)?(?:function|class)\s+([A-Za-z_$][\w$]*)/gm)) take(m[1]);
+  for (const m of text.matchAll(/^\s*(?:module\.exports\.|exports\.)([A-Za-z_$][\w$]*)\s*=/gm)) take(m[1]);
+  for (const m of text.matchAll(/^\s*(?:pub\s+)?(?:async\s+)?fn\s+([A-Za-z_]\w*)/gm)) take(m[1]);
+  for (const m of text.matchAll(/^\s*pub\s+(?:struct|enum|trait|mod)\s+([A-Za-z_]\w*)/gm)) take(m[1]);
+  for (const m of text.matchAll(/^(?:async\s+)?(?:def|class)\s+([A-Za-z_]\w*)/gm)) if (!m[1].startsWith("_")) take(m[1]);
+  for (const m of text.matchAll(/^func\s+(?:\([^)]*\)\s*)?([A-Z]\w*)/gm)) take(m[1]);
+  return out;
+}
+
+/**
+ * The concrete anchors of one traced request: each walkthrough hop with the real file where it
+ * happens and that file's exported symbols, then every component's evidence file. The anatomy
+ * prompt quotes these so each layer beat can cite a path or `symbol` the repo really has.
+ */
+export function anatomyTraceAnchors(arch: Architecture, read?: (p: string, max?: number) => string): string[] {
+  const kw = (id: string) => arch.components.find((c) => c.id === id)?.keyword ?? id;
+  const connEvidence = (from: string, to: string) => arch.connections.find((c) => c.from === from && c.to === to)?.evidence ?? "";
+  const compEvidence = (id: string) => arch.components.find((c) => c.id === id)?.evidence[0] ?? "";
+  const withSymbols = (file: string) => {
+    if (!read || !file || file.endsWith("/")) return file;
+    const syms = exportedSymbols(read(file, 60000));
+    return syms.length ? `${file} (exports ${syms.map((s) => `\`${s}\``).join(", ")})` : file;
+  };
+  const lines = arch.walkthrough.steps.map((s, i) => {
+    const file = s.evidence || connEvidence(s.from, s.to) || compEvidence(s.from);
+    return `${i + 1}. ${kw(s.from)} -> ${kw(s.to)} (${s.label}): ${withSymbols(file)}`;
+  });
+  for (const c of arch.components) {
+    const file = c.evidence[0] ?? "";
+    if (file && !lines.some((l) => l.includes(file))) lines.push(`- ${c.keyword}: ${withSymbols(file)}`);
+  }
+  return lines;
+}
+
+export function repoSystem(
+  arch: Architecture,
+  L: ExplainSpec,
+  lo: number,
+  hi: number,
+  manifest?: FactsManifest,
+  read?: (p: string, max?: number) => string,
+): string {
   const shape = shapeFor(L.brief.approach);
   const S = SHAPES[shape];
   const { path, side } = journeyOrder(arch);
@@ -183,6 +241,11 @@ function repoSystem(arch: Architecture, L: ExplainSpec, lo: number, hi: number, 
     L.voice,
     formatRule(L.format),
     ...(L.format === "anatomy" ? [ANATOMY_TOUR] : []),
+    ...(L.format === "anatomy"
+      ? [
+          `Traced-request facts: one request hop by hop, with the real file and its exported symbols at each hop (cite these paths and \`symbols\` exactly; never invent a path):\n${anatomyTraceAnchors(arch, read).join("\n")}`,
+        ]
+      : []),
     "The hook asks one question the viewer can't answer yet and never answers it in its first line; the recap answers it in plain words for 'you'.",
     "Every layer, walkthrough, scale and notes scene advances the mechanism (because/therefore), shows evidence (a real command, file, row, or number), or poses the next question; a scene that only lists parts is cut.",
     "Show one specific mechanism drawing (the actual hops and what each hop knows, not labels that would work on any topic) plus failure or evidence visuals.",
@@ -982,6 +1045,8 @@ export async function planRepoScenes(o: {
   source?: string;
   manifest?: FactsManifest;
   progress?: Progress;
+  /** repo file reader, so anatomy tours quote the traced request's real files and exported symbols */
+  read?: (p: string, max?: number) => string;
 }): Promise<
   ScenePlan & {
     repairs: string[];
@@ -1015,7 +1080,7 @@ export async function planRepoScenes(o: {
       fix_detail: s.fix_detail,
     })),
   };
-  const sys = repoSystem(o.arch, L, lo, hi, o.manifest);
+  const sys = repoSystem(o.arch, L, lo, hi, o.manifest, o.read);
   const user = `${promiseRule(readmePromises(o.readme ?? ""))}${JSON.stringify(compact)}${o.readme ? `\n\nREADME excerpt (copy commands, output rows and numbers from here only; the Features list is for why-lines about parts and steps already in the video, like a safety promise the README makes, never a new part or scene):\n${o.readme}` : ""}`;
   const promises = readmePromises(o.readme ?? "");
   const ask = (extra: { role: "assistant" | "user"; content: string }[] = []) =>
@@ -1075,27 +1140,39 @@ export async function planRepoScenes(o: {
   let final = [...first, ...rubric.issues],
     revised = false,
     story = pol.plan;
-  if (first.some(structural) || shouldRejectRubric(rubric)) {
-    // the board itself is wrong, or the rubric rejects a weak script: the whole plan is redone once
+  // a weak draft gets up to PLAN_REVISIONS full rewrites: the board itself may be wrong, or the
+  // rubric may reject the script (no anchors or no causal chain always regenerates). Every attempt
+  // is scored, and the wording fixes start from the best-scoring draft, never just the last one.
+  let best = { plan: story, rubric, issues: final, attempt: 1, pol };
+  let attempts = 1;
+  let draft = raw;
+  let current = first;
+  while (attempts <= PLAN_REVISIONS && (current.some(structural) || shouldRejectRubric(rubric) || shouldRegeneratePlan(rubric))) {
+    attempts++;
     const why = shouldRejectRubric(rubric) ? `, rubric ${rubric.total}/10` : "";
-    o.progress?.({ stage: "plan", message: `self-check: ${final.length} issue(s)${why}, revising the plan once` });
-    plan = repairRepoPlan(
-      await ask([
-        { role: "assistant", content: JSON.stringify(raw) },
-        {
-          role: "user",
-          content: `A newcomer test of this plan found these problems. Return the full corrected plan, keeping what works:\n${final.map((x, i) => `${i + 1}. ${x}`).join("\n")}`,
-        },
-      ]),
-      o.arch,
-      L,
-    );
+    o.progress?.({ stage: "plan", message: `self-check: ${final.length} issue(s)${why}, revising the plan (attempt ${attempts})` });
+    draft = await ask([
+      { role: "assistant", content: JSON.stringify(draft) },
+      {
+        role: "user",
+        content: `A newcomer test of this plan found these problems. Return the full corrected plan, keeping what works:\n${final.map((x, i) => `${i + 1}. ${x}`).join("\n")}`,
+      },
+    ]);
+    plan = repairRepoPlan(draft, o.arch, L);
     revised = true;
     [pol, crit] = await Promise.all([polish(plan), critique(plan)]);
     arch = renamedArch(pol.renames);
-    story = pol.plan;
-    rubric = scoreRubric(story, { arch, manifest: o.manifest, format: L.format, wps: L.tempo.wps });
-    final = [...found(story, arch, crit), ...rubric.issues];
+    current = found(pol.plan, arch, crit);
+    rubric = scoreRubric(pol.plan, { arch, manifest: o.manifest, format: L.format, wps: L.tempo.wps });
+    final = [...current, ...rubric.issues];
+    if (isBetterRubric(rubric, best.rubric)) best = { plan: pol.plan, rubric, issues: final, attempt: attempts, pol };
+  }
+  if (revised) {
+    story = best.plan;
+    rubric = best.rubric;
+    final = best.issues;
+    pol = best.pol;
+    o.progress?.({ stage: "plan", message: `self-check: keeping attempt ${best.attempt} of ${attempts} (rubric ${best.rubric.total}/10)` });
   }
   const fixed = await fixWording({
     ledger: o.ledger,
@@ -1121,6 +1198,11 @@ export async function planRepoScenes(o: {
   // every rewrite above may have moved a line: the beats are cut again from the final narration and checked
   const b = beatsOf(story);
   rubric = scoreRubric({ ...story, scenes: b.plan.scenes }, { arch, manifest: o.manifest, format: L.format, wps: L.tempo.wps });
+  if (shouldRegeneratePlan(rubric))
+    o.progress?.({
+      stage: "plan",
+      message: `self-check: revision limit reached; the final cut still scores ${rubric.total}/10 (${rubric.issues[0] ?? "weak script"}), kept from the best draft (attempt ${best.attempt} of ${attempts}, rubric ${best.rubric.total}/10)`,
+    });
   return {
     ...plan,
     scenes: b.plan.scenes,
@@ -1287,6 +1369,8 @@ export async function fixWording(o: {
 
 /** Rounds of narration fix and second look after the newcomer check: each is two small calls. */
 const FIX_ROUNDS = 3;
+/** Full rewrites of the scene plan after the first draft, at most: each costs a plan call. */
+const PLAN_REVISIONS = 1;
 const termOf = (issue: string) => /^"(.+?)" \(/.exec(issue)?.[1] ?? "";
 const termIssue = (t: { term: string; scene: string }) =>
   `"${t.term}" (${t.scene}) is used without a plain-words explanation; explain it in the same sentence or drop it`;
