@@ -40,12 +40,14 @@ curl -s localhost:3000/api/health
   "checks": { "ffmpeg": true, "chrome": true, "modelKey": true, "voiceKey": true, "jobsDir": true },
   "paused": false,
   "problems": [],
-  "fallbacks": { "llm": true, "tts": false }
+  "fallbacks": { "llm": true, "tts": false },
+  "errors24h": 0
 }
 ```
 
 - Keys appear only as `true` or `false`, never their values.
 - `fallbacks` says which backup AI services are configured: OpenRouter for Meta Muse calls, Cartesia for Deepgram narration.
+- `errors24h` counts errors in the last 24 hours. No error details are public; they live in the admin portal.
 - `modelKey` is the key for the Muse Spark provider in use: `OPENROUTER_API_KEY` on OpenRouter, `MODEL_API_KEY` on Meta.
 - `voiceKey: false` is not a failure. Videos then render silent with captions.
 - `paused: true` means demo-only mode is on or a spend cap is reached. The server is still healthy.
@@ -176,12 +178,12 @@ Add these records for your domain at your registrar or DNS host (using explanima
 
 | Host             | Railway                                                                                           | Fly.io                             | VPS                                 |
 | ---------------- | ------------------------------------------------------------------------------------------------- | ---------------------------------- | ----------------------------------- |
-| `explanimate.co` | `ALIAS`/`ANAME` (or `CNAME` with flattening) to the target Railway gives under Settings → Domains | `A` and `AAAA` from `fly ips list` | `A` (and `AAAA`) to the server's IP |
+| `explanimate.co` | `ALIAS`/`ANAME` (or `CNAME` with flattening) to the target Railway gives under Settings â†’ Domains | `A` and `AAAA` from `fly ips list` | `A` (and `AAAA`) to the server's IP |
 | `www`            | `CNAME` to the same Railway target                                                                | `CNAME` to `explanimate.fly.dev`   | `CNAME` to `explanimate.co`         |
 
 Then:
 
-1. Add both names on the host: Settings → Domains on Railway, `fly certs add explanimate.co` and `fly certs add www.explanimate.co` on Fly, or the Caddyfile above on a VPS.
+1. Add both names on the host: Settings â†’ Domains on Railway, `fly certs add explanimate.co` and `fly certs add www.explanimate.co` on Fly, or the Caddyfile above on a VPS.
 2. Wait for the certificate. `fly certs show explanimate.co` or the Railway domain page shows when it is issued.
 3. Check `https://explanimate.co/api/health` returns `200`.
 
@@ -224,6 +226,7 @@ The project used to be called Explain Like. Settings with the old `EXPLAINLIKE_`
 | `EXPLANIMATE_GALLERY_DIR`        | unset (`/data/gallery` in Docker)              | Folder of example videos and their `gallery.json`. Unset or empty: no examples.                                                                                                                                                                                                                                                                           |
 | `EXPLANIMATE_ALLOW_LOCAL`        | 0                                              | Accept folder paths on the server. Leave off in public.                                                                                                                                                                                                                                                                                                   |
 | `EXPLANIMATE_ALLOW_PRIVATE_URLS` | 0                                              | Read links that resolve to private addresses. Leave off in public; set to 1 (or pass `--allow-private` to the CLI) only to read a local intranet. A host whose DNS hands out proxy addresses (198.18.0.0/15, as some sandboxes and "fake-IP" proxies do) fails every link with the guard on; give such a host real DNS rather than turning the guard off. |
+| `GA_MEASUREMENT_ID`              | (optional)                                     | Google Analytics 4 id (`G-â€¦`). When set, pages load gtag.js with IP anonymization and report page views plus `video_create`, `signin_code_sent` and `signin_success` events; when unset, nothing from Google loads.                                                                                                                                       |
 
 ## Sign-in by email code (optional)
 
@@ -232,9 +235,9 @@ check, and signs in with a 6-digit code (valid 10 minutes, 5 tries). Sessions la
 account gets 3 videos a day by default. The landing page, gallery and `/docs` stay open without
 an account.
 
-Set `EXPLANIMATE_AUTH_ENABLED=1` — only the exact value `1` turns it on; unset or anything else
+Set `EXPLANIMATE_AUTH_ENABLED=1` â€” only the exact value `1` turns it on; unset or anything else
 is today's behaviour (no sign-in, no per-account limit; the per-IP limits and spend caps still
-apply) — plus:
+apply) â€” plus:
 
 | Variable                          | Default                              | What it does                                                                                  |
 | --------------------------------- | ------------------------------------ | --------------------------------------------------------------------------------------------- |
@@ -250,6 +253,7 @@ apply) — plus:
 | `EXPLANIMATE_TURNSTILE_HOSTNAMES` | (required)                           | Comma list of hostnames a token must come from.                                               |
 | `EXPLANIMATE_DAILY_VIDEOS`        | 3                                    | Videos per account per UTC day.                                                               |
 | `EXPLANIMATE_DAILY_CAP_USD`       | 3                                    | Combined Meta + voice cap per UTC day; works whether sign-in is on or off.                    |
+| `EXPLANIMATE_ADMIN_EMAILS`        | (empty)                              | Comma list of admin addresses (case-insensitive). Listed accounts get the `/admin` portal.    |
 
 Sending a code is limited to 5 per IP per 10 minutes and 5 per address per hour; verifying to
 10 per IP per 10 minutes. To give one account its own daily limit (after it signs in once):
@@ -258,10 +262,17 @@ Sending a code is limited to 5 per IP per 10 minutes and 5 per address per hour;
 pnpm set-user-limit somebody@example.com 10
 ```
 
+With `EXPLANIMATE_ADMIN_EMAILS` set, a listed account that signs in gets the `/admin` portal:
+users, videos, usage per day, spend, per-user limits, recent errors and health. To anyone else
+`/admin` and `/api/admin/*` answer 404. The per-route checks are audited in
+[`security.md`](security.md).
+
 ## What is already guarded
 
 - **Spend.** Each job records its Meta and Deepgram cost. Voice chat, speech and box explanations are added to `spend.jsonl` in the jobs folder. A warning appears past 80% of a cap. New work stops while the cap is less than one job's reserve away, and each render running at once holds back its own reserve, so a busy server starts waiting videos only as the budget allows.
 - **Rate and size.** Each IP is rate-limited. JSON bodies are capped at 16 KB (96 KB for voice turns), and links at 2,048 characters. Repos over the clone limit, private repos, and pages over 5 MB are refused with a plain message.
+- **Requests.** POSTs with a cross-origin `Origin` header get a 403, stated non-JSON content types a 415. Every response carries a strict Content Security Policy (with a per-request nonce), HSTS, `nosniff`, a tight referrer and permissions policy, and frame denial. See [`security.md`](security.md) for the per-route audit.
+- **Errors.** Structured JSON logs scrub emails, tokens, codes and cookies. Errors persist to D1 (or an in-memory ring without it) for the admin portal; `/api/health` shows only the 24-hour count.
 - **Keys.** API keys are read only in server code. A test fails if a client component touches `process.env` or an API key.
 - **Private networks.** A link, and every redirect from it, must resolve to a public address. Links to localhost, private ranges or the cloud metadata address (169.254.169.254) are refused.
 - **Voice mode** only answers requests to localhost.
