@@ -1,16 +1,32 @@
 /** The choices on the input form. */
-export type Form = { input: string; voice: string };
+export type Form = { input: string; voice: string; format: FormatId };
 
 export const VOICES = [
   { id: "deepgram", label: "Narrated" },
   { id: "silent", label: "Captions only" },
 ] as const;
-export const DEFAULT_FORM: Form = { input: "", voice: "deepgram" };
 
-/** The form a saved job was made with, so reopening it shows its own link and voice instead of the defaults. */
-export function formFromJob(job: { input?: unknown; voice?: unknown }): Form {
+/** The explanation formats the picker offers; auto lets the engine decide. */
+export type FormatId = "auto" | "short" | "deep" | "anatomy";
+export const FORMATS: { id: FormatId; label: string }[] = [
+  { id: "auto", label: "Auto" },
+  { id: "short", label: "Short" },
+  { id: "deep", label: "Deep" },
+  { id: "anatomy", label: "Anatomy" },
+];
+export const DEFAULT_FORM: Form = { input: "", voice: "deepgram", format: "auto" };
+
+/** The format for the job request: left out when Auto, so the engine decides. */
+export function formatForRequest(f: FormatId): { format?: Exclude<FormatId, "auto"> } {
+  return f === "auto" ? {} : { format: f };
+}
+
+/** The form a saved job was made with, so reopening it shows its own link, voice and format instead of the defaults. */
+export function formFromJob(job: { input?: unknown; voice?: unknown; ask?: unknown }): Form {
   const voice = VOICES.some((v) => v.id === job.voice) ? String(job.voice) : DEFAULT_FORM.voice;
-  return { input: typeof job.input === "string" ? job.input : "", voice };
+  const asked = (job.ask as { format?: unknown } | undefined)?.format;
+  const format: FormatId = asked === "short" || asked === "deep" || asked === "anatomy" ? asked : "auto";
+  return { input: typeof job.input === "string" ? job.input : "", voice, format };
 }
 
 export const voiceLabel = (id?: string) => VOICES.find((v) => v.id === id)?.label ?? id ?? "";
