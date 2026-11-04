@@ -3,13 +3,14 @@
  * turns it on; anything else is today's behaviour: no sign-in, no Turnstile, no per-account limit).
  * Better Auth with its emailOTP plugin only: no passwords, no OAuth. Sessions last 7 days and are
  * refreshed daily; codes are 6 digits, valid 10 minutes, with 5 attempts. The database is D1 over
- * its REST API (see lib/db.ts); its tables are created on first use, once per process.
+ * its REST API (see lib/db.ts), or a local SQLite file for tests; its tables are created on first use, once per process.
  */
 import { betterAuth } from "better-auth";
 import { APIError, createAuthMiddleware } from "better-auth/api";
 import { getMigrations } from "better-auth/db/migration";
 import { emailOTP } from "better-auth/plugins";
-import { createKysely, d1ConfigFromEnv, ensureTables, getD1Db } from "./db";
+import { createKysely, d1ConfigFromEnv, ensureTables, getD1Db, localD1Path } from "./db";
+import { createLocalKysely } from "./db-local";
 import { sendOtpEmail } from "./email";
 import { clientIp, rateLimit } from "./guard";
 import { verifyTurnstile } from "./turnstile";
@@ -31,7 +32,11 @@ function buildAuth() {
     baseURL,
     trustedOrigins: [baseURL],
     session: { expiresIn: 60 * 60 * 24 * 7, updateAge: 60 * 60 * 24 },
-    database: { db: createKysely(d1ConfigFromEnv()), type: "sqlite", transaction: false },
+    database: {
+      db: localD1Path() ? createLocalKysely(localD1Path()) : createKysely(d1ConfigFromEnv()),
+      type: "sqlite",
+      transaction: false,
+    },
     plugins: [
       emailOTP({
         otpLength: 6,

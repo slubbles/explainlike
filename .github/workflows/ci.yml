@@ -44,6 +44,12 @@ jobs:
         run: pnpm test:e2e
         env:
           NEXT_TELEMETRY_DISABLED: "1"
+      # sign-up and limit tests run the same build with auth on, a local SQLite stand-in for D1,
+      # captured login codes and Turnstile test keys: no keys, no cost.
+      - name: Browser tests, sign-up and limits (Playwright)
+        run: pnpm test:e2e:auth
+        env:
+          NEXT_TELEMETRY_DISABLED: "1"
       - name: Keep the browser test report
         if: failure()
         uses: actions/upload-artifact@v7
