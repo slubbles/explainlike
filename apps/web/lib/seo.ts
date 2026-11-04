@@ -68,23 +68,23 @@ const clean = (s: string) => s.replace(/\s+/g, " ").trim();
 const cut = (s: string, max: number) => (s.length <= max ? s : `${s.slice(0, max - 1).trimEnd()}…`);
 
 /**
- * A shared result link (/?job=<id>) reads as its own page — its own title, description and
- * unfurl — but keeps the home canonical and stays out of search: jobs are transient and unbounded.
+ * A shared result link (/?job=<id>) reads as its own page — its own title, description, canonical
+ * and unfurl — but stays out of search: jobs are transient and unbounded.
  */
 export function jobPageMetadata(job: JobSummary): Metadata {
   const name = clean(job.title || job.input || "whiteboard explainer");
   const title = `${cut(name, 60)} · Explanimate`;
   const description = cut(
-    `Whiteboard explainer video for ${clean(job.input) || name}, made with Explanimate. Watch it, tap the board to ask about any part, and download the editable boards.`,
+    `Whiteboard explainer video: ${name}. Made with Explanimate. Watch it, tap the board to ask about any part, and download the editable boards.`,
     200,
   );
-  const url = `${SITE_URL}/?job=${job.id}`;
+  const url = `${SITE_URL}/?job=${encodeURIComponent(job.id)}`;
   const images = [{ url: OG_IMAGE.url, width: OG_IMAGE.width, height: OG_IMAGE.height, alt: OG_IMAGE.alt }];
   return {
     title,
     description,
-    alternates: { canonical: SITE_URL },
-    robots: { index: false, follow: false },
+    alternates: { canonical: url },
+    robots: { index: false, follow: true },
     openGraph: { title, description, url, siteName: "Explanimate", type: "website", images },
     twitter: { card: "summary_large_image", title, description, images: [OG_IMAGE.url] },
   };
