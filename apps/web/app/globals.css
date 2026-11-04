@@ -4,7 +4,7 @@
   --blue1: #4d8dff; --blue2: #2563eb; --g: linear-gradient(180deg, #4d8dff 0%, #2563eb 100%);
   --bg: #000; --panel: #0a0a0b; --panel2: #0c0c0e;
   --line: rgba(255, 255, 255, .09); --line2: rgba(255, 255, 255, .16);
-  --ink: #fafafa; --mut: #a1a1aa; --dim: #71717a;
+  --ink: #fafafa; --mut: #a1a1aa; --dim: #8a8a93; /* dim text stays >= 4.5:1 on every panel (4.97:1 on #1c1c1f) */
   --red: #ff8080; --amber-bg: rgba(251, 191, 36, .08); --amber-ink: #f5c86b; --amber-line: rgba(251, 191, 36, .35);
   --wrap: 1152px; --gut: 24px;
 }
@@ -145,7 +145,7 @@ footer { border-top: 1px solid var(--line); padding: 36px 0 44px; margin-top: 40
 footer .wrap { display: flex; justify-content: space-between; align-items: center; gap: 16px; font-size: 13px; color: var(--dim); }
 footer .flogo { color: var(--ink); font-size: 16px; font-weight: 600; }
 footer .l { display: flex; gap: 22px; }
-footer .tiny { margin-top: 14px; font-size: 12px; color: #52525b; }
+footer .tiny { margin-top: 14px; font-size: 12px; color: var(--dim); }
 footer .wrap.tiny { display: block; }
 
 /* voice mode: the link box turns into a quiet transcript */
