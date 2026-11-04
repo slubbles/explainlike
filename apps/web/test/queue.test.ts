@@ -100,3 +100,84 @@ test("only a very high, configurable ceiling on waiting jobs refuses a request",
     ["done", "done", "done"],
   );
 });
+
+test("EXPLANIMATE_MAX_CONCURRENT caps simultaneous renders, first in first out, and the stored line matches", async () => {
+  const { admit, getJob, startJob, touch } = await jobs();
+  const settled = (id: string) => getJob(id)!.state === "done" || getJob(id)!.state === "error";
+  delete process.env.EXPLANIMATE_CONCURRENCY;
+  Object.assign(process.env, { EXPLANIMATE_MAX_CONCURRENT: "2" });
+  const ids: string[] = [];
+  for (let i = 0; i < 5; i++) {
+    assert.equal(admit("someone"), undefined, `request ${i + 1} is not turned away`);
+    ids.push(startJob(`max-concurrent number ${i}`, "silent").id);
+  }
+  assert.deepEqual(
+    ids.map((id) => getJob(id)!.state),
+    ["running", "running", "queued", "queued", "queued"],
+  );
+  assert.deepEqual(JSON.parse(fs.readFileSync(path.join(dir, "queue.json"), "utf8")), ids.slice(2));
+  for (let i = 0; i < 400 && !ids.every(settled); i++) {
+    ids.forEach(touch);
+    await sleep(50);
+  }
+  assert.deepEqual(
+    ids.map((id) => getJob(id)!.state),
+    Array(5).fill("done"),
+  );
+  const began = ids.map((id) => getJob(id)!.began!);
+  assert.deepEqual(
+    [...began].sort((a, b) => a - b),
+    began,
+    "started in the order they came in",
+  );
+  delete process.env.EXPLANIMATE_MAX_CONCURRENT;
+});
+
+test("EXPLANIMATE_MAX_CONCURRENT wins over the old EXPLANIMATE_CONCURRENCY", async () => {
+  const { admit, getJob, startJob, touch } = await jobs();
+  const settled = (id: string) => getJob(id)!.state === "done" || getJob(id)!.state === "error";
+  Object.assign(process.env, { EXPLANIMATE_CONCURRENCY: "5", EXPLANIMATE_MAX_CONCURRENT: "1" });
+  const ids: string[] = [];
+  for (let i = 0; i < 3; i++) {
+    assert.equal(admit("someone"), undefined);
+    ids.push(startJob(`precedence number ${i}`, "silent").id);
+  }
+  assert.deepEqual(
+    ids.map((id) => getJob(id)!.state),
+    ["running", "queued", "queued"],
+  );
+  for (let i = 0; i < 400 && !ids.every(settled); i++) {
+    ids.forEach(touch);
+    await sleep(50);
+  }
+  assert.deepEqual(
+    ids.map((id) => getJob(id)!.state),
+    Array(3).fill("done"),
+  );
+  delete process.env.EXPLANIMATE_MAX_CONCURRENT;
+  delete process.env.EXPLANIMATE_CONCURRENCY;
+});
+
+test("ten videos render at once by default", async () => {
+  const { admit, getJob, startJob, touch } = await jobs();
+  const settled = (id: string) => getJob(id)!.state === "done" || getJob(id)!.state === "error";
+  delete process.env.EXPLANIMATE_MAX_CONCURRENT;
+  delete process.env.EXPLANIMATE_CONCURRENCY;
+  const ids: string[] = [];
+  for (let i = 0; i < 11; i++) {
+    assert.equal(admit("someone"), undefined, `request ${i + 1} is not turned away`);
+    ids.push(startJob(`default slots number ${i}`, "silent").id);
+  }
+  assert.deepEqual(
+    ids.map((id) => getJob(id)!.state),
+    [...Array(10).fill("running"), "queued"],
+  );
+  for (let i = 0; i < 600 && !ids.every(settled); i++) {
+    ids.forEach(touch);
+    await sleep(50);
+  }
+  assert.deepEqual(
+    ids.map((id) => getJob(id)!.state),
+    Array(11).fill("done"),
+  );
+});
