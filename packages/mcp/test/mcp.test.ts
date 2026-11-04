@@ -34,6 +34,12 @@ test("the server offers explain, explain_status, explain_cancel and the /explani
   assert.match((p.messages[0].content as any).text, /https:\/\/github\.com\/a\/b/);
 });
 
+test("the /explanimate prompt routes working-change questions to the project folder", async () => {
+  const { client } = await connect();
+  const p = await client.getPrompt({ name: "explanimate", arguments: { request: "what does this branch do" } });
+  assert.match((p.messages[0].content as any).text, /working changes.*branch, diff, new files/s);
+});
+
 test("explain returns the video and board paths, with progress along the way", async () => {
   const { client } = await connect();
   const progress: string[] = [];
