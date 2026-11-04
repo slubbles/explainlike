@@ -184,15 +184,17 @@ test("JOB_CONCURRENCY caps simultaneous renders, first in first out", async () =
   delete process.env.JOB_CONCURRENCY;
 });
 
-test("by default the slots fit the machine: that many render at once and the rest wait silently", async () => {
+test("by default 10 jobs run at once and the rest wait silently", async () => {
   const { admit, getJob, startJob, touch } = await jobs();
   const { poolSize } = await import("../lib/pool.ts");
   const settled = (id: string) => getJob(id)!.state === "done" || getJob(id)!.state === "error";
   delete process.env.EXPLANIMATE_MAX_CONCURRENT;
   delete process.env.EXPLANIMATE_CONCURRENCY;
   delete process.env.JOB_CONCURRENCY;
+  delete process.env.API_CONCURRENCY;
+  delete process.env.EXPLANIMATE_API_CONCURRENCY;
   const n = poolSize();
-  assert.ok(n >= 1, "at least one slot");
+  assert.equal(n, 10, "ten API slots by default");
   const ids: string[] = [];
   for (let i = 0; i < n + 1; i++) {
     assert.equal(admit("someone"), undefined, `request ${i + 1} is not turned away`);
@@ -211,4 +213,48 @@ test("by default the slots fit the machine: that many render at once and the res
     ids.map((id) => getJob(id)!.state),
     Array(n + 1).fill("done"),
   );
+});
+
+test("API_CONCURRENCY caps simultaneous jobs; RENDER_CONCURRENCY does not touch the job slots", async () => {
+  const { admit, getJob, startJob, touch } = await jobs();
+  const settled = (id: string) => getJob(id)!.state === "done" || getJob(id)!.state === "error";
+  delete process.env.EXPLANIMATE_MAX_CONCURRENT;
+  delete process.env.EXPLANIMATE_CONCURRENCY;
+  delete process.env.JOB_CONCURRENCY;
+  Object.assign(process.env, { API_CONCURRENCY: "2", RENDER_CONCURRENCY: "1" });
+  const ids: string[] = [];
+  for (let i = 0; i < 4; i++) {
+    assert.equal(admit("someone"), undefined, `request ${i + 1} is not turned away`);
+    ids.push(startJob(`api-concurrency number ${i}`, "silent").id);
+  }
+  assert.deepEqual(
+    ids.map((id) => getJob(id)!.state),
+    ["running", "running", "queued", "queued"],
+    "two API slots run; the render slots gate the render stage inside the run, not the jobs",
+  );
+  for (let i = 0; i < 400 && !ids.every(settled); i++) {
+    ids.forEach(touch);
+    await sleep(50);
+  }
+  assert.deepEqual(
+    ids.map((id) => getJob(id)!.state),
+    Array(4).fill("done"),
+  );
+  delete process.env.API_CONCURRENCY;
+  delete process.env.RENDER_CONCURRENCY;
+});
+
+test("a finished job keeps its stage sightings and the render wait it reported", async () => {
+  const { getJob, startJob, touch } = await jobs();
+  Object.assign(process.env, { API_CONCURRENCY: "10" });
+  const id = startJob("how stages work", "silent").id;
+  for (let i = 0; i < 400 && getJob(id)!.state !== "done" && getJob(id)!.state !== "error"; i++) {
+    touch(id);
+    await sleep(50);
+  }
+  const job = getJob(id)!;
+  assert.equal(job.state, "done");
+  assert.ok(job.stages?.plan, "the fake CLI's plan stage was sighted");
+  assert.ok(typeof job.accepted === "number" && job.accepted <= (job.began ?? Infinity));
+  delete process.env.API_CONCURRENCY;
 });
