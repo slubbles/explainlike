@@ -2,9 +2,10 @@ import type { Metadata } from "next";
 import Nav from "../../components/Nav";
 import GalleryGrid from "../../components/GalleryGrid";
 import { galleryItems } from "../../lib/gallery";
+import { pageMetadata } from "../../lib/seo";
 
 export const dynamic = "force-dynamic";
-export const metadata: Metadata = { title: "Examples · Explanimate" };
+export const metadata: Metadata = pageMetadata("gallery");
 
 export default function Gallery() {
   const videos = galleryItems();
