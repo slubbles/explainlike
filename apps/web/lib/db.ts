@@ -12,6 +12,9 @@ import {
   SqliteAdapter,
   SqliteIntrospector,
   SqliteQueryCompiler,
+  sql,
+  type DatabaseMetadataOptions,
+  type TableMetadata,
   type CompiledQuery,
   type DatabaseConnection,
   type DatabaseIntrospector,
@@ -260,7 +263,53 @@ export class D1RestDialect implements Dialect {
     return new D1RestAdapter();
   }
   createIntrospector(db: Kysely<any>): DatabaseIntrospector {
-    return new SqliteIntrospector(db);
+    return new D1RestIntrospector(db);
+  }
+}
+
+/**
+ * Kysely's SQLite introspector reads pragma_table_info for every table, and D1 refuses that
+ * (SQLITE_AUTH, code 7500) for its internal `_cf_*` tables, which broke Better Auth's
+ * migrations. This one skips those tables and reads the rest the same way.
+ */
+export class D1RestIntrospector implements DatabaseIntrospector {
+  private db: Kysely<any>;
+  private base: SqliteIntrospector;
+  constructor(db: Kysely<any>) {
+    this.db = db;
+    this.base = new SqliteIntrospector(db);
+  }
+  getSchemas() {
+    return this.base.getSchemas();
+  }
+  getMetadata(options?: DatabaseMetadataOptions) {
+    return this.getTables(options).then((tables) => ({ tables }));
+  }
+  async getTables(_options?: DatabaseMetadataOptions): Promise<TableMetadata[]> {
+    const tables = await sql<{ name: string; type: string; sql: string | null }>`
+      SELECT name, type, sql FROM sqlite_master
+      WHERE type IN ('table', 'view') AND name NOT LIKE 'sqlite_%' AND substr(name, 1, 4) <> '_cf_'
+      ORDER BY name`.execute(this.db);
+    const out: TableMetadata[] = [];
+    for (const t of tables.rows) {
+      const cols = await sql<{ name: string; type: string; notnull: number; dflt_value: unknown; pk: number }>`
+        SELECT name, type, "notnull", dflt_value, pk FROM pragma_table_info(${t.name})`.execute(this.db);
+      const auto = /autoincrement/i.test(t.sql ?? "");
+      out.push({
+        name: t.name,
+        isView: t.type === "view",
+        isForeign: false,
+        columns: cols.rows.map((c) => ({
+          name: c.name,
+          dataType: c.type,
+          isNullable: !c.notnull,
+          isAutoIncrementing: auto && c.pk > 0,
+          hasDefaultValue: c.dflt_value != null,
+          comment: undefined,
+        })),
+      });
+    }
+    return out;
   }
 }
 
