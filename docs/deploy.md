@@ -223,6 +223,39 @@ The project used to be called Explain Like. Settings with the old `EXPLAINLIKE_`
 | `EXPLANIMATE_ALLOW_LOCAL`        | 0                                              | Accept folder paths on the server. Leave off in public.                                                                                                                                                                                                                                                                                                   |
 | `EXPLANIMATE_ALLOW_PRIVATE_URLS` | 0                                              | Read links that resolve to private addresses. Leave off in public; set to 1 (or pass `--allow-private` to the CLI) only to read a local intranet. A host whose DNS hands out proxy addresses (198.18.0.0/15, as some sandboxes and "fake-IP" proxies do) fails every link with the guard on; give such a host real DNS rather than turning the guard off. |
 
+## Sign-in by email code (optional)
+
+Making a video can ask for an account first: the visitor enters their email, passes a Turnstile
+check, and signs in with a 6-digit code (valid 10 minutes, 5 tries). Sessions last 7 days. Each
+account gets 3 videos a day by default. The landing page, gallery and `/docs` stay open without
+an account.
+
+Set `EXPLANIMATE_AUTH_ENABLED=1` — only the exact value `1` turns it on; unset or anything else
+is today's behaviour (no sign-in, no per-account limit; the per-IP limits and spend caps still
+apply) — plus:
+
+| Variable                          | Default                              | What it does                                                                                  |
+| --------------------------------- | ------------------------------------ | --------------------------------------------------------------------------------------------- |
+| `BETTER_AUTH_SECRET`              | (required)                           | Random secret for session cookies (`openssl rand -base64 32`).                                |
+| `BETTER_AUTH_URL`                 | `http://localhost:3000`              | Public base URL of the app (`https://explanimate.co` in production); also the trusted origin. |
+| `EXPLANIMATE_CF_ACCOUNT_ID`       | (required)                           | Cloudflare account id for D1 and Email.                                                       |
+| `EXPLANIMATE_D1_DATABASE_ID`      | (required)                           | D1 database holding accounts, sessions and usage. Tables are created on first use.            |
+| `EXPLANIMATE_D1_TOKEN`            | (required)                           | API token with D1 read and write on that database.                                            |
+| `EXPLANIMATE_CF_EMAIL_TOKEN`      | (required)                           | API token allowed to send through Cloudflare Email Service.                                   |
+| `EXPLANIMATE_EMAIL_FROM`          | `Explanimate <login@explanimate.co>` | Sender line for login codes, `Name <addr>`.                                                   |
+| `EXPLANIMATE_TURNSTILE_SITE_KEY`  | (required, public)                   | Turnstile site key, shown on the sign-in form.                                                |
+| `EXPLANIMATE_TURNSTILE_SECRET`    | (required)                           | Turnstile secret for checking tokens.                                                         |
+| `EXPLANIMATE_TURNSTILE_HOSTNAMES` | (required)                           | Comma list of hostnames a token must come from.                                               |
+| `EXPLANIMATE_DAILY_VIDEOS`        | 3                                    | Videos per account per UTC day.                                                               |
+| `EXPLANIMATE_DAILY_CAP_USD`       | 3                                    | Combined Meta + voice cap per UTC day; works whether sign-in is on or off.                    |
+
+Sending a code is limited to 5 per IP per 10 minutes and 5 per address per hour; verifying to
+10 per IP per 10 minutes. To give one account its own daily limit (after it signs in once):
+
+```bash
+pnpm set-user-limit somebody@example.com 10
+```
+
 ## What is already guarded
 
 - **Spend.** Each job records its Meta and Deepgram cost. Voice chat, speech and box explanations are added to `spend.jsonl` in the jobs folder. A warning appears past 80% of a cap. New work stops while the cap is less than one job's reserve away, and each render running at once holds back its own reserve, so a busy server starts waiting videos only as the budget allows.
@@ -236,8 +269,8 @@ The project used to be called Explain Like. Settings with the old `EXPLAINLIKE_`
 
 - The spend guard counts what this server spent. It does not know about other use of the same keys, so set the caps on the provider dashboards as well.
 - The rate limit is in memory, on one process. Use a shared store if you run more than one instance.
-- Voice mode has no login. Keep it local, or add auth before you open it up.
-- There is no sign-in or per-user quota.
+- Voice mode only answers on localhost. Its routes ask for a sign-in too when `EXPLANIMATE_AUTH_ENABLED=1`.
+- Sign-in and the per-account daily quota exist but are off by default; turn them on with `EXPLANIMATE_AUTH_ENABLED=1` before a public launch.
 - The private-address check resolves the name, then fetches. A DNS server that answers differently the second time could still slip through (DNS rebinding). Pinning the checked address in the connection needs the `undici` package. Until then, block the metadata address and your private ranges in the host's firewall as well.
 - Chromium loads images named in a page's card (avatars, preview images) without that check. It can only show them as pictures, but a firewall rule covers it too.
 - `/api/jobs` still lists the newest jobs to anyone who asks. The home page no longer shows them, but the list and each job are readable by id. Limit it to the caller (or turn it off) before a public launch.
