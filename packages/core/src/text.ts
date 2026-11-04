@@ -88,10 +88,10 @@ const TLD = "com|org|net|io|dev|ai|co|app|gov|edu|uk|de|jp|xyz|info|me|tv|us";
 // small words that are never the name part of a domain someone would say aloud
 const GLUE_WORD =
   "for|then|to|the|and|or|of|in|on|at|with|from|like|as|is|are|by|via|than|into|onto|so|but|when|where|which|a|an|each|every|its|their|your|our|his|her";
-const GLUED_TLD = new RegExp(`\\b(${GLUE_WORD})\\.(${TLD})\\b(?![.\\w/-])`, "gi");
+const GLUED_TLD = new RegExp(`(?<![\\w-])(${GLUE_WORD})\\.(${TLD})\\b(?![.\\w/-])`, "gi");
 /**
  * Keeps a bare top-level domain apart from the word before it: "the servers for.com" -> "the servers for .com".
- * Only a small joining word counts as glued on, so a real domain ("example.com", "api.github.com") is left whole.
+ * Only a small joining word counts as glued on, so a real domain ("example.com", "api.github.com", "wait-for.com") is left whole.
  */
 export function splitGluedTld(s: string): string {
   return s.replace(GLUED_TLD, (m, w: string, tld: string) => `${w} .${tld}`);

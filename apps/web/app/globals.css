@@ -227,9 +227,15 @@ footer .wrap.tiny { display: block; }
 .hit:hover, .hit.on, .hit:focus-visible { border-color: var(--blue1) !important; border-style: solid; background: rgba(77, 141, 255, .14); outline: none; }
 .tipchip { position: absolute; left: 50%; top: -6px; transform: translate(-50%, -100%); background: #fff; color: #1c2b33; font-size: 12.5px; font-weight: 600; padding: 5px 10px; border-radius: 8px; box-shadow: 0 4px 14px rgba(0, 0, 0, .25); white-space: nowrap; opacity: 0; pointer-events: none; transition: opacity .15s; }
 .hit:hover .tipchip, .hit:focus-visible .tipchip { opacity: 1; }
-.under { margin-top: 18px; }
+.under { margin: 0 0 14px; }
 .under .t { margin: 0; font-weight: 650; font-size: 20px; letter-spacing: -0.015em; }
 .under .m { font-size: 13.5px; margin-top: 4px; font-variant-numeric: tabular-nums; color: var(--mut); }
+/* wide screens keep the video above the title; phones read the title first (see the 900px note below) */
+@media (min-width: 901px) {
+  .main .col { display: flex; flex-direction: column; }
+  .main .col > .player { order: -1; }
+  .main .col > .under { order: 0; margin: 18px 0 0; }
+}
 .dl { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 14px; }
 .dl .link { display: inline-flex; align-items: center; min-height: 44px; font-weight: 600; font-size: 14px; margin-left: 8px; text-decoration: underline; text-underline-offset: 3px; text-decoration-color: rgba(255, 255, 255, .25); }
 .dl .link:hover { text-decoration-color: var(--ink); }
@@ -290,7 +296,7 @@ h2 { font-size: clamp(28px, 1.1vw + 24px, 40px); }
 }
 @media (max-width: 900px) {
   .main, .main.solo { grid-template-columns: minmax(0, 1fr); max-width: 720px; }
-  /* one column reads in source order: video, title and downloads, then the Q&A panel */
+  /* one column reads in source order: title, video, downloads, then the Q&A panel */
   .main:not(.solo) { row-gap: 24px; }
   section.blk { padding: 88px 0; }
   .steps5 { grid-template-columns: repeat(3, minmax(0, 1fr)); row-gap: 28px; }
@@ -303,13 +309,13 @@ h2 { font-size: clamp(28px, 1.1vw + 24px, 40px); }
 }
 @media (max-width: 600px) {
   body { font-size: 14.5px; }
-  .nav { height: 64px; } .nav .wrap { height: 64px; gap: 8px; }
-  /* the nav fits 305px wide without scrolling sideways: tighter pills, the email moves out */
-  .navr { gap: 0; font-size: 13.5px; }
+  .nav { height: auto; min-height: 64px; } .nav .wrap { height: auto; min-height: 64px; gap: 8px; flex-wrap: wrap; padding-top: 6px; padding-bottom: 6px; }
+  /* the nav fits 305px wide without scrolling sideways: tighter pills, the email moves out, and the pills wrap under the brand instead of overflowing */
+  .navr { gap: 0; font-size: 13.5px; flex-wrap: wrap; row-gap: 2px; }
   .navl { padding: 8px; min-height: 44px; display: inline-flex; align-items: center; }
   .gh { height: 44px; padding: 0 12px; margin-left: 4px; }
   .navuser .who { display: none; }
-  .hero .in { padding-top: 104px; }
+  .hero .in { padding-top: 124px; }
   h1 br { display: none; }
   .sub { font-size: 15.5px; }
   .box { padding: 16px 16px 14px; border-radius: 20px; margin-top: 28px; }
@@ -323,7 +329,7 @@ h2 { font-size: clamp(28px, 1.1vw + 24px, 40px); }
   .steps5 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .grid { grid-template-columns: minmax(0, 1fr); }
   .stage { padding: 16px; border-radius: 16px; }
-  .docs { padding-top: 88px; }
+  .docs { padding-top: 112px; }
   .docs h2 { font-size: 23px; margin-top: 44px; }
   .docs p, .docs li { font-size: 14.5px; }
   .ask { padding: 18px; }
@@ -341,7 +347,7 @@ h2 { font-size: clamp(28px, 1.1vw + 24px, 40px); }
   .jobbar.fold .in { flex: 1 1 auto; padding: 0; white-space: nowrap; overflow: hidden; }
   .jobbar.fold .opts { display: none; }
   .jobbar.fold .edit { display: inline-flex; padding: 7px 14px; }
-  .page.job { padding-top: 88px; }
+  .page.job { padding-top: 116px; }
   .main { margin-top: 16px; gap: 16px; }
   .row2 { flex-direction: column; }
 }

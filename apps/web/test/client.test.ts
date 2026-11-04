@@ -1,6 +1,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { postJson } from "../lib/client.ts";
+import fs from "node:fs";
+import path from "node:path";
+import { MAX_POLL_FAILURES, postJson } from "../lib/client.ts";
 
 test("a rate limit without a retry-after reads as a minute, not 'a minute seconds'", async () => {
   const realFetch = globalThis.fetch;
@@ -16,4 +18,11 @@ test("a rate limit without a retry-after reads as a minute, not 'a minute second
   } finally {
     globalThis.fetch = realFetch;
   }
+});
+
+test("the job poll gives up with a reload prompt instead of loading forever", () => {
+  assert.equal(MAX_POLL_FAILURES, 10);
+  const s = fs.readFileSync(path.join(import.meta.dirname, "../lib/client.ts"), "utf8");
+  assert.match(s, /failures > MAX_POLL_FAILURES/);
+  assert.match(s, /Reload the page to keep watching/);
 });

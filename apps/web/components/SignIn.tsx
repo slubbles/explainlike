@@ -68,6 +68,8 @@ export default function SignIn({ siteKey, onDone, onCancel }: { siteKey: string;
 
   async function send() {
     if (busy || !email.trim()) return;
+    // the Send button stays disabled until the CAPTCHA check answers; Enter must wait too
+    if (!token) return setErr("Finish the CAPTCHA check first, then send the code.");
     setErr("");
     setBusy(true);
     try {
