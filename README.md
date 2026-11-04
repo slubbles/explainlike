@@ -1,21 +1,65 @@
 # Explanimate
 
-Give it a GitHub repo, an article, an X post, or just a topic ("how DNS works"). It gives you back a narrated **whiteboard explainer video** and the same drawing as **editable boards** you can open in [tldraw](https://www.tldraw.com) or [Excalidraw](https://excalidraw.com).
+Give it a GitHub repo and get back a short narrated whiteboard video that draws how the code works, in plain words.
 
-Try it live at https://explanimate.co, or run it yourself below.
+![A frame from the Explanimate video about facebook/react: a tap on Like flowing from the browser through React and the reconciler to React DOM](docs/assets/hero-react.jpg)
+
+<!-- DEMO_LINK -->
+
+**Watch the demo:** [demo video (link coming soon)](#)
+
+**Try it live:** https://explanimate.co. **See finished videos:** https://explanimate.co/gallery
+
+It also takes an article, an X post or a plain topic ("how DNS works"). Every video comes with the same drawing as **editable boards** for [tldraw](https://www.tldraw.com) and [Excalidraw](https://excalidraw.com).
 
 ## How it works
+
+- You paste a GitHub repo link (or an article, an X post or a topic) on the site, in the CLI or from your coding agent.
+- It reads a digest of the repo: the file tree, manifests, entry points and configs. Secret files are never opened.
+- Muse Spark maps the parts of the system against the real files, checks each box against the code, and writes the scenes and narration.
+- A voice (Deepgram Aura, with Cartesia Sonic as a backup) reads the script, and word timings let each box draw in on the word that names it.
+- The hand-drawn board is rendered to a 1920x1080 mp4 with captions, and exported as `.tldr` and `.excalidraw` boards.
+- Before you see it, the frames are checked for cut-off words, overlaps and blank frames, and the voiceover is transcribed back and compared with the script.
+
+## How it uses Meta Muse Spark
+
+Explanimate calls Meta models through the Meta Model API (or Muse Spark through OpenRouter). See [`packages/models/src/index.ts`](packages/models/src/index.ts).
+
+- **`muse-spark-1.3` does the thinking**, always with strict structured JSON output validated by zod:
+  - the brief: reads the source and picks the approach, depth, pace and look (`packages/planner/src/brief.ts`)
+  - the architecture: extracts the parts and how they connect, then a review pass checks every box against real files and a fix pass repairs what failed (`packages/planner/src/architecture.ts`)
+  - the scenes and narration, plus a plan check (`packages/planner/src/scenes.ts`)
+  - follow-ups after a video: explaining a tapped box, a deep dive on it, and "what breaks at 10x traffic" (`packages/planner/src/followups.ts`)
+  - voice mode on the web app, where Muse Spark holds the conversation and starts the video with a tool call (`apps/web/app/api/voice/turn/route.ts`)
+  - an optional look at rendered frames to list layout problems (off by default, since it costs money)
+- **`muse-image-1.0`** draws the doodle icons on the whiteboard.
+- **`sam-3.1`** finds the drawn object so each icon is cropped cleanly.
+- **`muse-voice-transcribe-1.0`** transcribes the finished voiceover and checks it says what the script says.
+
+## Features
+
+- **Three formats:** Short, Deep and Anatomy (or Auto, which lets Muse Spark choose).
+- **Tap a box:** after a repo video, tap any box for a short explanation from the code, a 15-20 s deep dive on it, or "what if 10x traffic?".
+- **Editable boards:** download the drawing and keep editing it in tldraw or Excalidraw.
+- **`/explanimate` in your coding agent:** `packages/mcp` is an MCP server for Muse Code, Claude Code, Cursor, Codex, Claude Desktop and VS Code. It explains the folder you're in and hands back the video and both boards.
+- **Sign-in:** a 6-digit email code (temporary email addresses are refused), Google, or GitHub.
+- **Limits:** 3 videos per account per day on the hosted site, plus a per-IP rate limit and a spend guard that pauses new work before the Meta or Deepgram cap.
+- **Voice mode:** press the mic and say what you want explained (on localhost).
+
+## Stack
+
+- TypeScript in a pnpm workspace: `core`, `models`, `ingest`, `planner`, `voice`, `render`, `cli`, `api` and `mcp` under `packages/`, and a Next.js web app in `apps/web`.
+- Models: Meta Muse Spark, Muse Image, SAM and Muse Voice Transcribe; Deepgram Aura for the voice, Cartesia Sonic as a backup.
+- Rendering: one hand-drawn SVG canvas with a moving camera, drawn by Skia (or headless Chrome) and encoded with ffmpeg.
+- Hosting: Docker on a VPS, deployed by GitHub Actions after CI passes.
+
+## A sample run
 
 ![Explanimate drawing the OpenMausBot repo](docs/media/openmausbot.gif)
 
 _Above: 12 seconds from a 2-minute video about [milind-soni/OpenMausBot](https://github.com/milind-soni/OpenMausBot). A run like this costs well under $0.20 in models and voice._
 
 ![The Explanimate site turning a link into a video](docs/media/site.jpg)
-
-1. **Paste a link or a topic.** A repo, an article, an X post, or just words on the site or the CLI.
-2. **Muse plans the explanation.** It reads the source, maps the architecture against the code, and writes the narration.
-3. **The board draws itself in sync.** Deepgram speaks each scene (Cartesia Sonic backs it up when its key is set) while the hand-drawn board builds on the words being said.
-4. **Take the video and the boards.** An mp4 plus `.tldr` and `.excalidraw` boards, with a manifest of every check that ran.
 
 ## What it does
 
@@ -227,7 +271,7 @@ DEEPGRAM_API_KEY = "your Deepgram key"
 
 Want to call it from your own code instead? `packages/api` runs the same jobs over a localhost HTTP API (`node packages/api/bin/explanimate-api.mjs`).
 
-## How it works
+## Pipeline details
 
 1. **Read.** It takes a digest of the repo (file tree, manifests, entry points, configs; secret files are never opened) or the article's text. A plain topic is looked up on Wikipedia, and the article plus up to two reputable pages it cites (standards bodies, universities, governments, major outlets) are read; every quote on screen comes from them, and the sources are named in the video, `sources.md` and the manifest.
 2. **Plan.** Muse Spark maps the architecture, checks every box against real files, picks an approach and writes the scenes and narration.
