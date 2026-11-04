@@ -207,3 +207,39 @@ test("JSON-LD describes the app, the site and the org, with no third-party marks
     assert.doesNotMatch(JSON.stringify(block), /meta\.com|facebook|logo.*meta/i, "no Meta marks");
   }
 });
+
+test("the copy page sets its own canonical instead of inheriting the home URL", async () => {
+  // Next shallow-merges each segment's metadata over its parents, replacing duplicate keys:
+  // without its own `alternates` this page would inherit the root layout's home canonical
+  const home = pageMetadata("home") as { alternates?: { canonical: string } };
+  const page = await import("../app/copy/page.tsx");
+  const meta = page.metadata as { alternates?: { canonical?: string }; robots?: { index: boolean; follow: boolean } };
+  const head = { ...home, ...meta };
+  assert.equal(head.alternates?.canonical, `${SITE_URL}/copy`);
+  assert.notEqual(head.alternates?.canonical, SITE_URL);
+  assert.equal(head.robots?.index, false);
+});
+
+test("a 404 drops the home canonical it would otherwise inherit", async () => {
+  const home = pageMetadata("home") as { alternates?: { canonical: string } };
+  const nf = await import("../app/not-found.tsx");
+  const meta = nf.metadata as { alternates?: { canonical?: string } | null; robots?: { index: boolean } };
+  const head = { ...home, ...meta };
+  assert.ok(!head.alternates?.canonical, "a 404 has no single URL to canonicalize");
+  assert.equal(head.robots?.index, false);
+});
+
+test("sign-in has its own short description and stays out of search", () => {
+  const src = fs.readFileSync(path.join(WEB, "app/signin/page.tsx"), "utf8");
+  // the title text is owned by another branch: pin it byte-for-byte without touching it
+  assert.ok(src.includes('title: "Sign in ' + String.fromCharCode(0x2014) + ' Explanimate"'));
+  const description = src.match(/description:\s*"([^"]*)"/)?.[1];
+  assert.ok(description, "sign-in sets its own description");
+  assert.notEqual(description, PAGES.home.description);
+  assert.ok(description.length >= 20 && description.length <= 160, "short enough for a result snippet");
+  assert.ok(
+    !description.includes(String.fromCharCode(0x2014)) && !description.includes(String.fromCharCode(0x2013)),
+    "plain words, no em dashes",
+  );
+  assert.match(src, /robots: \{ index: false \}/);
+});

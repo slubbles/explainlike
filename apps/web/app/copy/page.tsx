@@ -3,11 +3,13 @@ import Nav from "../../components/Nav";
 import Footer from "../../components/Footer";
 import CopyCode from "./CopyCode";
 import { isValidCopyCode } from "../../lib/copy";
+import { SITE_URL } from "../../lib/seo";
 import styles from "./copy.module.css";
 
 export const metadata: Metadata = {
   title: "Copy your sign-in code · Explanimate",
   description: "Your 6-digit Explanimate sign-in code, ready to copy and paste. Codes expire in 10 minutes.",
+  alternates: { canonical: `${SITE_URL}/copy` },
   robots: { index: false, follow: true },
 };
 

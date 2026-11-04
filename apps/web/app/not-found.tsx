@@ -6,6 +6,8 @@ import styles from "./not-found.module.css";
 export const metadata: Metadata = {
   title: "Page not found · Explanimate",
   description: "This page does not exist. Make a whiteboard explainer from any repo, post, article or topic instead.",
+  // a 404 has no single URL, so clear the home canonical inherited from the root layout
+  alternates: { canonical: undefined },
   robots: { index: false, follow: true },
 };
 
