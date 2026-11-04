@@ -45,27 +45,22 @@ test("the policy is self plus a nonce plus Turnstile, and frames nobody", () => 
 });
 
 test("the Google hosts join the policy only when a measurement id is set", () => {
-  const saved = { next: process.env.NEXT_PUBLIC_GA_ID, legacy: process.env.GA_MEASUREMENT_ID };
+  const saved = process.env.GA_MEASUREMENT_ID;
   try {
-    delete process.env.NEXT_PUBLIC_GA_ID;
     delete process.env.GA_MEASUREMENT_ID;
     assert.equal(gaMeasurementId(), undefined);
     assert.doesNotMatch(contentSecurityPolicy("n"), /google/, "unset: nothing from Google");
     process.env.GA_MEASUREMENT_ID = "  ";
     assert.equal(gaMeasurementId(), undefined);
-    process.env.GA_MEASUREMENT_ID = "G-LEGACY";
-    assert.equal(gaMeasurementId(), "G-LEGACY");
-    process.env.NEXT_PUBLIC_GA_ID = "G-TEST123";
-    assert.equal(gaMeasurementId(), "G-TEST123", "NEXT_PUBLIC_GA_ID wins when both are set");
+    process.env.GA_MEASUREMENT_ID = "G-TEST123";
+    assert.equal(gaMeasurementId(), "G-TEST123");
     const csp = contentSecurityPolicy("n");
     assert.match(csp, /script-src[^;]*https:\/\/www\.googletagmanager\.com/);
     assert.match(csp, /connect-src[^;]*https:\/\/www\.google-analytics\.com/);
     assert.match(csp, /img-src[^;]*https:\/\/www\.google-analytics\.com/);
   } finally {
-    if (saved.next === undefined) delete process.env.NEXT_PUBLIC_GA_ID;
-    else process.env.NEXT_PUBLIC_GA_ID = saved.next;
-    if (saved.legacy === undefined) delete process.env.GA_MEASUREMENT_ID;
-    else process.env.GA_MEASUREMENT_ID = saved.legacy;
+    if (saved === undefined) delete process.env.GA_MEASUREMENT_ID;
+    else process.env.GA_MEASUREMENT_ID = saved;
   }
 });
 

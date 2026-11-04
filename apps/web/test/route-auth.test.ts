@@ -118,7 +118,6 @@ test("every public read is rate limited", async () => {
   const file = await import("../app/api/jobs/[id]/file/[name]/route.ts");
   const captions = await import("../app/api/jobs/[id]/captions/route.ts");
   const authConfig = await import("../app/api/auth-config/route.ts");
-  const runtimeConfig = await import("../app/api/runtime-config/route.ts");
   const meVideos = await import("../app/api/me/videos/route.ts");
   const meVideo = await import("../app/api/me/videos/[id]/route.ts");
   const meAccount = await import("../app/api/me/account/route.ts");
@@ -147,7 +146,6 @@ test("every public read is rate limited", async () => {
       () => captions.GET(new Request("http://x/api/jobs/abcdef123456/captions"), { params: Promise.resolve({ id: "abcdef123456" }) }),
     ],
     ["auth-config", () => authConfig.GET(new Request("http://x/api/auth-config"), undefined as never)],
-    ["runtime-config", () => runtimeConfig.GET(new Request("http://x/api/runtime-config"), undefined as never)],
     ["me-videos", () => meVideos.GET(new Request("http://x/api/me/videos"), undefined as never)],
     [
       "me-video-delete",
