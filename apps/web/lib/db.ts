@@ -314,6 +314,18 @@ export async function ensureTables(db: D1Db): Promise<void> {
   }
 }
 
+/**
+ * Every table ensureTables owns and the columns each must end up with. The sign-in fast path
+ * checks these (plus Better Auth's own tables) with one query before skipping migrations;
+ * change this whenever ensureTables changes what it creates.
+ */
+export const APP_TABLE_COLUMNS: Record<string, readonly string[]> = {
+  usage: ["user_id", "day", "videos"],
+  user_limits: ["user_id", "daily_videos"],
+  videos: ["id", "user_id", "input", "created_at", "input_len", "status", "cost"],
+  errors: ["id", "ts", "route", "source", "name", "message", "stack", "request_id"],
+};
+
 /** Better Auth's tables: sign-in, sessions and accounts, plus email-code verification. */
 const AUTH_TABLES = ["user", "session", "account", "verification"] as const;
 
