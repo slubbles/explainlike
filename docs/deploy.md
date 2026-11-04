@@ -176,10 +176,10 @@ Caddy gets and renews the certificate itself and sets `X-Forwarded-For`, so `EXP
 
 Add these records for your domain at your registrar or DNS host (using explanimate.co as the example):
 
-| Host             | Railway                                                                                           | Fly.io                             | VPS                                 |
-| ---------------- | ------------------------------------------------------------------------------------------------- | ---------------------------------- | ----------------------------------- |
+| Host             | Railway                                                                                             | Fly.io                             | VPS                                 |
+| ---------------- | --------------------------------------------------------------------------------------------------- | ---------------------------------- | ----------------------------------- |
 | `explanimate.co` | `ALIAS`/`ANAME` (or `CNAME` with flattening) to the target Railway gives under Settings â†’ Domains | `A` and `AAAA` from `fly ips list` | `A` (and `AAAA`) to the server's IP |
-| `www`            | `CNAME` to the same Railway target                                                                | `CNAME` to `explanimate.fly.dev`   | `CNAME` to `explanimate.co`         |
+| `www`            | `CNAME` to the same Railway target                                                                  | `CNAME` to `explanimate.fly.dev`   | `CNAME` to `explanimate.co`         |
 
 Then:
 
@@ -226,7 +226,7 @@ The project used to be called Explain Like. Settings with the old `EXPLAINLIKE_`
 | `EXPLANIMATE_GALLERY_DIR`        | unset (`/data/gallery` in Docker)              | Folder of example videos and their `gallery.json`. Unset or empty: no examples.                                                                                                                                                                                                                                                                           |
 | `EXPLANIMATE_ALLOW_LOCAL`        | 0                                              | Accept folder paths on the server. Leave off in public.                                                                                                                                                                                                                                                                                                   |
 | `EXPLANIMATE_ALLOW_PRIVATE_URLS` | 0                                              | Read links that resolve to private addresses. Leave off in public; set to 1 (or pass `--allow-private` to the CLI) only to read a local intranet. A host whose DNS hands out proxy addresses (198.18.0.0/15, as some sandboxes and "fake-IP" proxies do) fails every link with the guard on; give such a host real DNS rather than turning the guard off. |
-| `GA_MEASUREMENT_ID`              | (optional)                                     | Google Analytics 4 id (`G-â€¦`). When set, pages load gtag.js with IP anonymization and report page views plus `video_create`, `signin_code_sent` and `signin_success` events; when unset, nothing from Google loads.                                                                                                                                       |
+| `GA_MEASUREMENT_ID`              | (optional)                                     | Google Analytics 4 id (`G-â€¦`). When set, pages load gtag.js with IP anonymization and report page views plus `video_create`, `signin_code_sent` and `signin_success` events; when unset, nothing from Google loads.                                                                                                                                     |
 
 ## Sign-in by email code (optional)
 
