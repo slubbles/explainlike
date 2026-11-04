@@ -69,7 +69,7 @@ export default function ResultView({ job, map, picked, expl, explBusy, clips, pi
       <div className="col">
         {o.mp4 && <Player src={fileUrl(job.id, o.mp4)} map={map} selected={picked} onPick={pick} />}
         <div className="under">
-          <div className="t">{job.title}</div>
+          <h1 className="t">{job.title}</h1>
           <div className="m muted">
             {secs(job.durationSec)}
             {job.costUsd ? ` · cost ${money(job.costUsd)}` : null}
