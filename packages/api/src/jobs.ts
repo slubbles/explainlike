@@ -36,6 +36,8 @@ export interface JobRequest {
   depth?: "overview" | "working" | "deep";
   /** anything else to cover */
   also?: string;
+  /** explanation format; default: the engine decides (anatomy tours a repo's parts) */
+  format?: "short" | "deep" | "anatomy";
 }
 
 export type JobState = "running" | "done" | "error" | "cancelled";
@@ -200,6 +202,7 @@ export class JobRunner extends EventEmitter {
     if (req.voice && req.voice !== "deepgram" && req.voice !== "cartesia" && req.voice !== "silent")
       throw new JobError("voice is deepgram, cartesia or silent");
     if (req.depth && !["overview", "working", "deep"].includes(req.depth)) throw new JobError("depth is overview, working or deep");
+    if (req.format && !["short", "deep", "anatomy"].includes(req.format)) throw new JobError("format is short, deep or anatomy");
     for (const k of ["goal", "audience", "also"] as const) {
       if (req[k] !== undefined && (typeof req[k] !== "string" || req[k]!.length > 500))
         throw new JobError(`${k} is text of at most 500 characters`);
@@ -208,7 +211,7 @@ export class JobRunner extends EventEmitter {
     if (running.length >= this.maxRunning)
       throw new JobError(`another video is still rendering (job ${running[0].id}); wait for it or cancel it`, 409);
     // an ask changes the brief and the plan, so it gets its own folder instead of reusing a plain run's cache
-    const ask = [req.goal, req.audience, req.depth, req.also].map((v) => v?.trim() ?? "");
+    const ask = [req.goal, req.audience, req.depth, req.also, req.format].map((v) => v?.trim() ?? "");
     const askTag = ask.some(Boolean) ? "-ask-" + crypto.createHash("sha1").update(ask.join("\n")).digest("hex").slice(0, 8) : "";
     const suffix = (req.focus ? `-focus-${req.focus}` : req.whatIf ? `-what-if-${req.whatIf}` : "") + askTag;
     const out = path.resolve(req.out ?? path.join(this.outRoot, nameFor(input) + suffix));
@@ -239,6 +242,7 @@ export class JobRunner extends EventEmitter {
     if (ask[1]) args.push("--audience", ask[1]);
     if (ask[2]) args.push("--depth", ask[2]);
     if (ask[3]) args.push("--also", ask[3]);
+    if (ask[4]) args.push("--format", ask[4]);
     // the render runs inside its output folder, so the keys come from this process's environment only
     const child = spawn(process.execPath, args, { cwd: out, env: this.env, stdio: ["ignore", "pipe", "pipe"] });
     this.children.set(job.id, child);

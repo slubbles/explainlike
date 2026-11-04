@@ -49,6 +49,7 @@ what the viewer wants (the web app's voice chat fills these in):
   --goal <text>                            what they want to understand
   --audience <text>                        who it is for
   --depth <overview|working|deep>          how deep to go
+  --format <short|deep|anatomy>            explanation format (default: the engine decides; anatomy tours a repo's parts)
   --also <text>                            anything else to cover
 
 follow-ups on an earlier repo run (same input, new --out):
@@ -105,6 +106,11 @@ if (depth && !["overview", "working", "deep"].includes(depth)) {
   process.stderr.write("--depth takes overview, working or deep\n");
   process.exit(1);
 }
+const format = opt("--format");
+if (format && !["short", "deep", "anatomy"].includes(format)) {
+  process.stderr.write("--format takes short, deep or anatomy\n");
+  process.exit(1);
+}
 let workers: number | undefined;
 let voice: string | undefined;
 try {
@@ -121,6 +127,7 @@ const ask = {
   audience: opt("--audience"),
   depth: depth as "overview" | "working" | "deep" | undefined,
   also: opt("--also"),
+  format: format as "short" | "deep" | "anatomy" | undefined,
 };
 runExplanimate({
   from: opt("--from") && path.resolve(opt("--from")!),

@@ -48,6 +48,33 @@ export function isThisFeatureQuestion(text: string): boolean {
 }
 
 /**
+ * Is this asking for a tour of the codebase itself ("give me the anatomy", "how does the codebase
+ * fit together", "walk me through the parts")? True picks the anatomy format for repos: the parts
+ * layer by layer, anchored on one request traced end to end. One feature, the working tree, or a
+ * comparison ("the diff between X and Y") is never a tour.
+ */
+export function isAnatomyQuestion(text: string): boolean {
+  const t = clean(text);
+  if (HAS(t, /\bbetween\b/)) return false;
+  return (
+    HAS(t, /\banatomy\b/) ||
+    HAS(t, /\btour\b/) ||
+    HAS(t, /\bfits? together\b/) ||
+    HAS(t, /\b(parts|pieces) of (this|the|your) (project|codebase|code|repo|repository|app|system)\b/) ||
+    HAS(t, /\bwhat are the (parts|pieces|components|modules|layers|packages)\b/) ||
+    HAS(
+      t,
+      /\bhow (is|does) (this|the|your) (codebase|project|repo|repository|code|app) (organized|organised|structured|laid out|put together|fit together)\b/,
+    ) ||
+    HAS(t, /\bhow the (pieces|parts|components|modules|packages|layers) (fit|come|work) together\b/) ||
+    HAS(t, /\b(codebase|project|repo|repository) (tour|structure|layout|organization|organisation|map|anatomy|overview)\b/) ||
+    HAS(t, /\b(structure|layout|organization|organisation|map) of (this|the|your) (codebase|project|repo|repository|code)\b/) ||
+    HAS(t, /\bwalk( me)? through (this|the|your) (codebase|project|repo|repository|code)\b/) ||
+    (HAS(t, /\bshow me around\b/) && HAS(t, /\b(codebase|project|repo|repository|code)\b/))
+  );
+}
+
+/**
  * Is this too vague to explain ("explain", "?", "what is this about")? A vague goal is dropped and
  * the video explains the source in general; a vague input on its own is refused with a friendly
  * message. Real topics ("photosynthesis", "how DNS works") are never vague.
