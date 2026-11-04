@@ -30,22 +30,50 @@ _Above: 12 seconds from a 2-minute video about [milind-soni/OpenMausBot](https:/
 
 ## Quick start
 
-You need Node 20+, pnpm, ffmpeg on your PATH and Chrome or Chromium.
+Prereqs: Node 22+, pnpm 9, ffmpeg on your PATH, and Chrome or Chromium.
+On Windows, if PowerShell refuses to run `pnpm.ps1`, use `pnpm.cmd ...` instead.
+No Chrome? `npx playwright-core install chromium`, or point `EXPLANIMATE_CHROME` at an installed binary.
 
 ```bash
 git clone https://github.com/slubbles/explanimate && cd explanimate
 pnpm install
-cp .env.example .env                    # add OPENROUTER_API_KEY (Muse Spark plans through OpenRouter)
-                                        # MODEL_API_KEY is still needed for doodle icons and the voiceover check;
-                                        # DEEPGRAM_API_KEY adds the voice
-npx playwright-core install chromium    # or point EXPLANIMATE_CHROME at an installed Chrome
+cp .env.example .env   # empty works: the app boots with no keys
+pnpm dev               # web app on http://localhost:3000 (`pnpm web` is the same)
+```
 
+Check it:
+
+```bash
+curl -s http://localhost:3000/ -o /dev/null -w "%{http_code}\n"
+curl -s http://localhost:3000/api/health
+```
+
+`/` serves the site (200). `/api/health` answers `{"ok":true}` when a video can be made,
+`{"ok":false}` with a 503 when ffmpeg, Chrome or a Muse key is missing; the pages still load.
+
+Without keys, pages, gallery and docs work and sign-in stays off: no Turnstile, Analytics
+or email setup is needed. To make videos, add `OPENROUTER_API_KEY` to `.env`
+(`MODEL_API_KEY` works too, and is still needed for doodle icons and the voiceover check);
+`DEEPGRAM_API_KEY` adds the voice, otherwise videos render silent with timed captions.
+To try sign-in locally, set `EXPLANIMATE_AUTH_ENABLED=1`: the database defaults to
+`explanimate-out/web/auth.db`, the login code is logged to the server console, and the
+Turnstile check is skipped. Every setting, required vs optional, is listed in
+[`.env.example`](.env.example).
+
+Prefer Docker? `docker compose up` builds the image and serves the same app on port 3000
+with a persistent volume; put the same keys in `.env` to make videos.
+
+Prefer the command line? `pnpm explanimate <link or "a topic">` renders one video
+(see the CLI section below). Prefer your coding agent? `packages/mcp` runs the same
+renders as an MCP server (see the coding-agent section below).
+
+## Make a video
+
+```bash
 pnpm explanimate https://github.com/milind-soni/OpenMausBot
 ```
 
-Without a Deepgram key the video renders silent, with timed captions. Every run prints what it spent.
-
-Results land in `explanimate-out/<name>/`:
+Every run prints what it spent. Results land in `explanimate-out/<name>/`:
 
 - `<name>.mp4`: the 1920x1080 video, with narration and captions
 - `<name>.tldr` and `<name>.excalidraw`: the drawing as boards you can keep editing
@@ -55,10 +83,6 @@ Results land in `explanimate-out/<name>/`:
 The plan and voiceover are cached in that folder, so running the same source again costs almost nothing. A GitHub repo's plan is also kept per commit in `~/.cache/explanimate/plans`, so a new folder for the same commit, asked the same way, skips the Muse planning calls too; a change to the planner code or a new commit plans again. Use `--fresh` to plan again, or set `EXPLANIMATE_PLAN_CACHE=0` to turn the shared cache off.
 
 ## Web app, with voice mode
-
-```bash
-pnpm web    # http://localhost:3000
-```
 
 Paste a link and watch it build, with a live cost meter. Or press the **mic button** and just say what you want explained. The assistant talks back, asks what you want to understand and who it's for, then starts the video. You can interrupt it at any time, and a small box under the chat takes a typed link, since spoken names get misheard. Voice mode needs `DEEPGRAM_API_KEY`.
 

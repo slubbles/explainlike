@@ -11,6 +11,7 @@
     "set-user-limit": "tsx scripts/set-user-limit.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "web": "pnpm --filter @explanimate/web dev",
+    "dev": "pnpm --filter @explanimate/web dev",
     "icons:generate": "tsx scripts/gen-icon-pack.ts",
     "og:generate": "node apps/web/scripts/gen-og-image.mjs",
     "email-logo:generate": "node apps/web/scripts/gen-email-logo.mjs",
