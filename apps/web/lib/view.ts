@@ -9,7 +9,7 @@ import { asSeen } from "./steps";
 import type { Job } from "./jobs";
 
 /** Fields that exist only for the server (resume arguments, owner, slot bookkeeping). */
-const SERVER_ONLY = ["args", "owner", "resumed", "began", "finished"] as const;
+const SERVER_ONLY = ["args", "owner", "resumed", "began", "finished", "deleted"] as const;
 
 /** Server paths never reach the browser: an absolute path in an error reads as told, without the path. */
 export function scrubError(e: string): string {

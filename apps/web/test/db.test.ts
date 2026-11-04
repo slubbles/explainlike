@@ -138,22 +138,40 @@ test("the env handle needs all three D1 settings", () => {
 test("ensureTables creates usage, user_limits, videos and errors when missing", async () => {
   const fetchImpl = stub(d1ok([]));
   await ensureTables(createD1Db({ ...base, fetchImpl }));
-  // 4 CREATEs, the videos column check, and the 3 columns missing on an old table
-  assert.equal(fetchImpl.calls.length, 8);
+  // 4 CREATEs, the videos column check, and the 8 columns missing on an old table
+  assert.equal(fetchImpl.calls.length, 13);
   const sql = fetchImpl.calls.map((c) => String(c.body.sql)).join("\n");
   assert.match(sql, /CREATE TABLE IF NOT EXISTS usage/);
   assert.match(sql, /CREATE TABLE IF NOT EXISTS user_limits/);
   assert.match(sql, /CREATE TABLE IF NOT EXISTS videos/);
   assert.match(sql, /CREATE TABLE IF NOT EXISTS errors/);
-  assert.match(sql, /input_len.*status.*cost/s);
+  assert.match(sql, /input_len.*status.*cost.*title.*format.*duration_sec.*poster.*files/s);
   assert.match(sql, /PRAGMA table_info\(videos\)/);
   assert.match(sql, /ALTER TABLE videos ADD COLUMN input_len/);
   assert.match(sql, /ALTER TABLE videos ADD COLUMN status/);
   assert.match(sql, /ALTER TABLE videos ADD COLUMN cost/);
+  assert.match(sql, /ALTER TABLE videos ADD COLUMN title/);
+  assert.match(sql, /ALTER TABLE videos ADD COLUMN format/);
+  assert.match(sql, /ALTER TABLE videos ADD COLUMN duration_sec/);
+  assert.match(sql, /ALTER TABLE videos ADD COLUMN poster/);
+  assert.match(sql, /ALTER TABLE videos ADD COLUMN files/);
 });
 
 test("ensureTables skips the videos columns a database already has", async () => {
-  const cols = ["id", "user_id", "input", "created_at", "input_len", "status", "cost"].map((name) => ({ name }));
+  const cols = [
+    "id",
+    "user_id",
+    "input",
+    "created_at",
+    "input_len",
+    "status",
+    "cost",
+    "title",
+    "format",
+    "duration_sec",
+    "poster",
+    "files",
+  ].map((name) => ({ name }));
   const fetchImpl = stub(d1ok([]), d1ok([]), d1ok([]), d1ok([]), d1ok(cols));
   await ensureTables(createD1Db({ ...base, fetchImpl }));
   assert.equal(fetchImpl.calls.length, 5);
