@@ -48,7 +48,7 @@ export default function VideoWorkspace({
   const [google, setGoogle] = useState(initial?.google ?? false);
   const [github, setGithub] = useState(initial?.github ?? false);
   const [signin, setSignin] = useState(false);
-  const job = useJob(jobId);
+  const { job, reconnecting } = useJob(jobId);
   const listed = useClips(jobId, bump);
 
   const refreshQuota = async () => {
@@ -212,6 +212,11 @@ export default function VideoWorkspace({
               <div className="screen wait" aria-busy="true">
                 Loading…
               </div>
+              {reconnecting && (
+                <p className="note" role="status">
+                  Reconnecting to the server...
+                </p>
+              )}
             </div>
           )}
           {job?.stage === "missing" && (
@@ -237,7 +242,7 @@ export default function VideoWorkspace({
                   </div>
                 )}
               </div>
-              <Steps job={job} onCancel={cancelRun} />
+              <Steps job={job} onCancel={cancelRun} reconnecting={reconnecting} />
             </div>
           )}
           {job?.state === "done" && (

@@ -8,7 +8,7 @@ import { Check } from "./Icons";
  * The side card while a job draws: the one progress readout (percent and steps) and the money spent so far.
  * The person who started it also gets Cancel, which asks once before it stops the render.
  */
-export default function Steps({ job, onCancel }: { job: Job; onCancel?: () => Promise<void> }) {
+export default function Steps({ job, onCancel, reconnecting }: { job: Job; onCancel?: () => Promise<void>; reconnecting?: boolean }) {
   const steps = stepsFor(job);
   // a cancelled run did not fail: the step it stopped on just stays undone
   const states = stepStates(steps, job.stage, job.state).map((s) => (job.cancelled && s === "fail" ? "todo" : s));
@@ -32,6 +32,11 @@ export default function Steps({ job, onCancel }: { job: Job; onCancel?: () => Pr
       >
         <i style={{ width: `${Math.max(2, job.pct)}%` }} />
       </div>
+      {reconnecting && (
+        <p className="note" role="status">
+          Reconnecting to the server...
+        </p>
+      )}
       <p className="sr" aria-live="polite">
         {failed ? "" : cap(job.message || "")}
       </p>
