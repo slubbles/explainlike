@@ -143,20 +143,18 @@
   color: #ededed;
 }
 
-.wrap :global(.vid .meta > :last-child) {
-  flex: none;
-  font-size: 11px;
-  border: 1px solid #2a2a2a;
-  border-radius: 5px;
-  padding: 2px 6px;
-  color: #8f8f8f;
-  text-decoration: none;
-  white-space: nowrap;
-}
-
-.wrap :global(.vid .meta a:last-child:hover) {
+.wrap :global(.vid .meta a.tag:hover) {
   color: #ededed;
   border-color: rgba(255, 255, 255, 0.25);
+}
+
+/* the video length, like the spec: plain muted text, never a pill */
+.wrap :global(.vid .meta .dur) {
+  flex: none;
+  color: #8f8f8f;
+  font-size: 13px;
+  font-weight: 400;
+  white-space: nowrap;
 }
 
 .empty {
