@@ -31,32 +31,32 @@ Requests without one (curl, server-to-server) pass, because they carry no cookie
 Every route that reads a body uses `readBody`, which refuses a stated non-JSON content type
 with a 415 and caps the size (16 KB, 96 KB for voice turns, 4 KB for client errors).
 
-| Route                            | Auth when sign-in is on                        | Rate limit              | Input validation                                    |
-| -------------------------------- | ---------------------------------------------- | ----------------------- | --------------------------------------------------- |
-| `GET /api/health`                | public (count only, no details)                | no (15 s cache)         | none                                                |
-| `GET /api/auth-config`           | public read                                    | no                      | none                                                |
-| `GET /api/runtime-config`        | public read (GA id only)                       | no                      | none                                                |
-| `GET /api/gallery`               | public                                         | no                      | none                                                |
-| `GET /api/gallery/[name]`        | public                                         | no                      | manifest allowlist + file-name pattern              |
-| `GET /api/jobs`                  | public, 40 latest                              | no                      | none                                                |
-| `POST /api/jobs`                 | 401 without a session                          | per-IP + hourly + daily | JSON, link ≤ 2048 chars, URL/topic checks           |
-| `GET /api/jobs/[id]`             | public read by id                              | no                      | id is a map lookup, never a path                    |
-| `GET /api/jobs/[id]/file/[name]` | public read                                    | no                      | id + name patterns, `job.json` excluded             |
-| `POST /api/jobs/[id]/followup`   | 401 without a session                          | per-IP + hourly + daily | JSON, component/`10x`/`100x` shape before claim     |
-| `POST /api/jobs/[id]/explain`    | 401 without a session                          | per-IP                  | JSON, component id pattern, spend budget            |
-| `POST /api/voice/token`          | localhost + 401 without a session              | per-IP                  | no body                                             |
-| `POST /api/voice/turn`           | localhost + 401 without a session              | per-IP + hourly + daily | JSON, 30 turns ≤ 2000 chars, typed link validated   |
-| `GET /api/voice/speak`           | localhost + 401 without a session              | per-IP                  | `text` param ≤ 400 chars, voice budget              |
-| `POST /api/client-error`         | public by design (signed-out pages report too) | per-IP                  | 4 KB JSON, message/digest/path lengths + path shape |
-| `GET /api/auth/[...all]`         | Better Auth's own session cookies              | OTP send/verify limits  | Better Auth + Turnstile on send (see below)         |
-| `POST /api/auth/[...all]`        | Better Auth's own session cookies              | OTP send/verify limits  | Better Auth + Turnstile on send (see below)         |
-| `GET /api/admin/users`           | 404 unless an admin (see below)                | per-IP                  | none                                                |
-| `GET /api/admin/videos`          | 404 unless an admin                            | per-IP                  | none                                                |
-| `GET /api/admin/usage`           | 404 unless an admin                            | per-IP                  | none                                                |
-| `GET /api/admin/spend`           | 404 unless an admin                            | per-IP                  | none                                                |
-| `GET /api/admin/errors`          | 404 unless an admin                            | per-IP                  | none                                                |
-| `GET /api/admin/health`          | 404 unless an admin                            | per-IP                  | none                                                |
-| `POST /api/admin/limits`         | 404 unless an admin                            | per-IP                  | JSON, account email + whole number 0–1000           |
+| Route                            | Auth when sign-in is on                                      | Rate limit              | Input validation                                    |
+| -------------------------------- | ------------------------------------------------------------ | ----------------------- | --------------------------------------------------- |
+| `GET /api/health`                | public (count only, no details)                              | no (15 s cache)         | none                                                |
+| `GET /api/auth-config`           | public read                                                  | no                      | none                                                |
+| `GET /api/runtime-config`        | public read (GA id only)                                     | no                      | none                                                |
+| `GET /api/gallery`               | public                                                       | no                      | none                                                |
+| `GET /api/gallery/[name]`        | public                                                       | no                      | manifest allowlist + file-name pattern              |
+| `GET /api/jobs`                  | own jobs (account or `ex_owner` cookie), or `?parent=` clips | no                      | none                                                |
+| `POST /api/jobs`                 | 401 without a session                                        | per-IP + hourly + daily | JSON, link ≤ 2048 chars, URL/topic checks           |
+| `GET /api/jobs/[id]`             | read by id, server fields stripped                           | no                      | id is a map lookup, never a path                    |
+| `GET /api/jobs/[id]/file/[name]` | public read                                                  | no                      | id + name patterns, `job.json` excluded             |
+| `POST /api/jobs/[id]/followup`   | 401 without a session                                        | per-IP + hourly + daily | JSON, component/`10x`/`100x` shape before claim     |
+| `POST /api/jobs/[id]/explain`    | 401 without a session                                        | per-IP                  | JSON, component id pattern, spend budget            |
+| `POST /api/voice/token`          | localhost + 401 without a session                            | per-IP                  | no body                                             |
+| `POST /api/voice/turn`           | localhost + 401 without a session                            | per-IP + hourly + daily | JSON, 30 turns ≤ 2000 chars, typed link validated   |
+| `GET /api/voice/speak`           | localhost + 401 without a session                            | per-IP                  | `text` param ≤ 400 chars, voice budget              |
+| `POST /api/client-error`         | public by design (signed-out pages report too)               | per-IP                  | 4 KB JSON, message/digest/path lengths + path shape |
+| `GET /api/auth/[...all]`         | Better Auth's own session cookies                            | OTP send/verify limits  | Better Auth + Turnstile on send (see below)         |
+| `POST /api/auth/[...all]`        | Better Auth's own session cookies                            | OTP send/verify limits  | Better Auth + Turnstile on send (see below)         |
+| `GET /api/admin/users`           | 404 unless an admin (see below)                              | per-IP                  | none                                                |
+| `GET /api/admin/videos`          | 404 unless an admin                                          | per-IP                  | none                                                |
+| `GET /api/admin/usage`           | 404 unless an admin                                          | per-IP                  | none                                                |
+| `GET /api/admin/spend`           | 404 unless an admin                                          | per-IP                  | none                                                |
+| `GET /api/admin/errors`          | 404 unless an admin                                          | per-IP                  | none                                                |
+| `GET /api/admin/health`          | 404 unless an admin                                          | per-IP                  | none                                                |
+| `POST /api/admin/limits`         | 404 unless an admin                                          | per-IP                  | JSON, account email + whole number 0–1000           |
 
 Notes:
 
@@ -67,8 +67,11 @@ Notes:
   the signed-in address is in `EXPLANIMATE_ADMIN_EMAILS` (comma list, case-insensitive).
   The check runs on the server for every route and for the page.
 - **Reads stay open**: the landing page, gallery, `/docs`, `/api/health` and job reads work
-  without an account, with or without sign-in turned on. `GET /api/jobs` still lists the
-  newest jobs to anyone who asks (see the "still to do" list in `deploy.md`).
+  without an account, with or without sign-in turned on.
+- **Jobs list** (`GET /api/jobs`) returns only the caller's own jobs: the signed-in account's,
+  or the ones started from this browser (an HttpOnly `ex_owner` cookie set on the first
+  video). A stranger gets `[]`. `?parent=<id>` lists that video's follow-up clips without
+  their input or cost. A job read by id never carries CLI arguments, paths or the owner key.
 - **Voice** answers only on localhost (`lib/local.ts`): every host and forwarded address
   must be loopback, so a tunnel or proxy is refused.
 - **Job ids and paths**: `[id]` is looked up in memory, never joined into a path; file

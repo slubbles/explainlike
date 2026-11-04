@@ -44,6 +44,8 @@ export interface Job {
   resumed?: number;
   /** when a render slot picked the job up (a job can wait for a slot after it is created) */
   began?: number;
+  /** who started it (lib/owner.ts): scopes the jobs list and who may cancel; never sent to the browser */
+  owner?: string;
 }
 export type Ask = { goal?: string; audience?: string; depth?: "overview" | "working" | "deep"; also?: string };
 
@@ -338,8 +340,8 @@ function newJob(p: Omit<Job, "id" | "state" | "stage" | "message" | "pct" | "sta
   return job;
 }
 
-export function startJob(input: string, voice: string, ask?: Ask, via?: "voice"): Job {
-  const job = newJob({ kind: "video", input, voice, ask, via });
+export function startJob(input: string, voice: string, ask?: Ask, via?: "voice", owner?: string): Job {
+  const job = newJob({ kind: "video", input, voice, ask, via, owner });
   const args = [input, "--out", path.join(JOBS_DIR, job.id)];
   if (voice === "silent") args.push("--voice", "silent");
   for (const k of ["goal", "audience", "depth", "also"] as const) if (ask?.[k]) args.push(`--${k}`, ask[k]!);
@@ -348,7 +350,7 @@ export function startJob(input: string, voice: string, ask?: Ask, via?: "voice")
 }
 
 /** A follow-up clip on a finished repo video: deep dive on one box, or "what if 10x traffic?". */
-export function startFollowUp(parentId: string, f: { focus?: string; whatIf?: string }): Job | string {
+export function startFollowUp(parentId: string, f: { focus?: string; whatIf?: string }, owner?: string): Job | string {
   const p = jobs.get(parentId);
   if (!p || p.state !== "done") return "the original video is not ready";
   if (!fs.existsSync(path.join(JOBS_DIR, p.id, "architecture.json"))) return "follow-ups work on repo videos";
@@ -361,6 +363,7 @@ export function startFollowUp(parentId: string, f: { focus?: string; whatIf?: st
     parent: p.id,
     focus: f.focus,
     whatIf: f.whatIf,
+    owner,
   });
   const args = [p.input, "--out", path.join(JOBS_DIR, job.id), "--from", path.join(JOBS_DIR, p.id), "--no-qa"];
   if (f.focus) args.push("--focus", f.focus);
