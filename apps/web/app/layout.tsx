@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import localFont from "next/font/local";
 import "./globals.css";
+import "./signin.css";
 
 const sans = localFont({ src: "./fonts/InterVariable.woff2", variable: "--sans", weight: "100 900", display: "swap" });
 const hand = localFont({ src: "../../../packages/render/assets/fonts/Excalifont-Regular.woff2", variable: "--hand", display: "swap" });
