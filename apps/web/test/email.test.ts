@@ -31,6 +31,16 @@ function logged(fn: () => Promise<unknown>): Promise<string[]> {
   );
 }
 
+function loggedLog(fn: () => Promise<unknown>): Promise<string[]> {
+  const lines: string[] = [];
+  const orig = console.log;
+  console.log = (...a: unknown[]) => void lines.push(a.map(String).join(" "));
+  return fn().then(
+    () => ((console.log = orig), lines),
+    (e) => ((console.log = orig), Promise.reject(e)),
+  );
+}
+
 test("the sender line parses Name <addr>, a bare address, or falls back to the default", () => {
   assert.deepEqual(parseEmailFrom(undefined), { name: "Explanimate", address: "login@explanimate.co" });
   assert.deepEqual(parseEmailFrom("Explanimate <login@explanimate.co>"), { name: "Explanimate", address: "login@explanimate.co" });
@@ -96,12 +106,23 @@ test("a network error or a missing config fails plainly without sending", async 
     });
     assert.equal(calls, 1);
   });
-  await withEnv({ EXPLANIMATE_CF_ACCOUNT_ID: undefined, EXPLANIMATE_CF_EMAIL_TOKEN: undefined }, async () => {
+  await withEnv({ EXPLANIMATE_CF_ACCOUNT_ID: undefined, EXPLANIMATE_CF_EMAIL_TOKEN: undefined, NODE_ENV: "production" }, async () => {
     const lines = await logged(async () => {
       const r = await sendOtpEmail("a@x.co", "123456", (() => assert.fail("must not call fetch")) as unknown as typeof fetch);
       assert.equal(r.ok, false);
     });
     assert.match(lines.join("\n"), /not configured/);
+  });
+});
+
+test("outside production a missing email config logs the code to the console instead of failing", async () => {
+  await withEnv({ EXPLANIMATE_CF_ACCOUNT_ID: undefined, EXPLANIMATE_CF_EMAIL_TOKEN: undefined, NODE_ENV: "development" }, async () => {
+    const lines = await loggedLog(async () => {
+      const r = await sendOtpEmail("a@x.co", "123456", (() => assert.fail("must not call fetch")) as unknown as typeof fetch);
+      assert.deepEqual(r, { ok: true });
+    });
+    assert.match(lines.join("\n"), /a@x\.co/);
+    assert.match(lines.join("\n"), /123456/);
   });
 });
 

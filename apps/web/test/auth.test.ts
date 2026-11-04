@@ -13,6 +13,9 @@ Object.assign(process.env, {
   EXPLANIMATE_CLI: path.join(import.meta.dirname, "fake-cli.mjs"),
   EXPLANIMATE_JOBS_PER_HOUR: "1000",
   FAKE_DELAY_MS: "50",
+  // in-memory sign-in database: the dev defaults would otherwise open files that stay
+  // locked on Windows and break the temp-dir cleanup below
+  EXPLANIMATE_D1_LOCAL_PATH: ":memory:",
 });
 delete process.env.EXPLANIMATE_AUTH_ENABLED;
 delete process.env.BETTER_AUTH_SECRET;
@@ -36,11 +39,14 @@ const post = (url: string, body: unknown) =>
 /** The 401 path logs why the session check failed; keep the test output quiet. */
 async function quiet<T>(fn: () => Promise<T>): Promise<T> {
   const orig = console.error;
+  const origWarn = console.warn;
+  console.warn = () => {};
   console.error = () => {};
   try {
     return await fn();
   } finally {
     console.error = orig;
+    console.warn = origWarn;
   }
 }
 
@@ -129,4 +135,30 @@ test("anything but the exact value 1 leaves auth off", async () => {
     assert.equal(r.status, 200, JSON.stringify(v));
   }
   delete process.env.EXPLANIMATE_AUTH_ENABLED;
+});
+
+test("a missing BETTER_AUTH_SECRET defaults in dev but still throws in production", async () => {
+  const { getAuth, resetAuthForTests } = await import("../lib/auth.ts");
+  const savedSecret = process.env.BETTER_AUTH_SECRET;
+  const savedNode = process.env.NODE_ENV;
+  const origWarn = console.warn;
+  try {
+    delete process.env.BETTER_AUTH_SECRET;
+    process.env.NODE_ENV = "development";
+    resetAuthForTests();
+    let warned = "";
+    console.warn = (...a: unknown[]) => void (warned += a.map(String).join(" "));
+    getAuth();
+    assert.match(warned, /dev secret/);
+    process.env.NODE_ENV = "production";
+    resetAuthForTests();
+    assert.throws(() => getAuth(), /BETTER_AUTH_SECRET is not set/);
+  } finally {
+    console.warn = origWarn;
+    resetAuthForTests();
+    if (savedSecret === undefined) delete process.env.BETTER_AUTH_SECRET;
+    else process.env.BETTER_AUTH_SECRET = savedSecret;
+    if (savedNode === undefined) delete process.env.NODE_ENV;
+    else process.env.NODE_ENV = savedNode;
+  }
 });

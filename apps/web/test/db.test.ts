@@ -8,8 +8,10 @@ import {
   createKysely,
   d1ConfigFromEnv,
   d1Configured,
+  defaultLocalD1Path,
   ensureTables,
   getD1Db,
+  localD1Path,
   type D1Config,
 } from "../lib/db.ts";
 
@@ -434,4 +436,54 @@ test("introspection skips D1's internal _cf_ tables, which D1 refuses to describ
   );
   assert.equal(tables[0].columns[0].name, "user_id");
   assert.equal(tables[0].columns[0].isNullable, false);
+});
+
+test("local dev defaults the sign-in database to a SQLite file next to the jobs folder", () => {
+  const keys = [
+    "EXPLANIMATE_AUTH_ENABLED",
+    "EXPLANIMATE_CF_ACCOUNT_ID",
+    "EXPLANIMATE_D1_DATABASE_ID",
+    "EXPLANIMATE_D1_TOKEN",
+    "EXPLANIMATE_D1_LOCAL_PATH",
+    "EXPLANIMATE_JOBS_DIR",
+    "NODE_ENV",
+  ] as const;
+  const saved: Record<string, string | undefined> = {};
+  for (const k of keys) saved[k] = process.env[k];
+  try {
+    delete process.env.EXPLANIMATE_D1_LOCAL_PATH;
+    delete process.env.EXPLANIMATE_CF_ACCOUNT_ID;
+    delete process.env.EXPLANIMATE_D1_DATABASE_ID;
+    delete process.env.EXPLANIMATE_D1_TOKEN;
+    process.env.EXPLANIMATE_JOBS_DIR = "/tmp/jobs-dir-test";
+    // auth off: no default, as today
+    delete process.env.EXPLANIMATE_AUTH_ENABLED;
+    delete process.env.NODE_ENV;
+    assert.equal(localD1Path(), undefined);
+    // auth on outside production: the default file
+    process.env.EXPLANIMATE_AUTH_ENABLED = "1";
+    process.env.NODE_ENV = "development";
+    assert.equal(localD1Path(), defaultLocalD1Path());
+    assert.match(defaultLocalD1Path(), /auth\.db$/);
+    // an explicit path still wins
+    process.env.EXPLANIMATE_D1_LOCAL_PATH = "/tmp/custom.db";
+    assert.equal(localD1Path(), "/tmp/custom.db");
+    delete process.env.EXPLANIMATE_D1_LOCAL_PATH;
+    // D1 configured: no default, D1 is used
+    process.env.EXPLANIMATE_CF_ACCOUNT_ID = "a";
+    process.env.EXPLANIMATE_D1_DATABASE_ID = "b";
+    process.env.EXPLANIMATE_D1_TOKEN = "c";
+    assert.equal(localD1Path(), undefined);
+    delete process.env.EXPLANIMATE_CF_ACCOUNT_ID;
+    delete process.env.EXPLANIMATE_D1_DATABASE_ID;
+    delete process.env.EXPLANIMATE_D1_TOKEN;
+    // production without D1: no default, so the missing config still throws
+    process.env.NODE_ENV = "production";
+    assert.equal(localD1Path(), undefined);
+  } finally {
+    for (const k of keys) {
+      if (saved[k] === undefined) delete process.env[k];
+      else process.env[k] = saved[k];
+    }
+  }
 });

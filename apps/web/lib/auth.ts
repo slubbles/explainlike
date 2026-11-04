@@ -3,7 +3,8 @@
  * turns it on; anything else is today's behaviour: no sign-in, no Turnstile, no per-account limit).
  * Better Auth with its emailOTP plugin, plus Google OAuth when its two settings are set. No passwords. Sessions last 7 days and are
  * refreshed daily; codes are 6 digits, valid 10 minutes, with 5 attempts. The database is D1 over
- * its REST API (see lib/db.ts), or a local SQLite file for tests; its tables are created on first use, once per process.
+ * its REST API (see lib/db.ts), or a local SQLite file for tests and local dev; its tables are created on first use, once per process.
+ * In local dev (anything but production) the secret and the SQLite file default, so sign-in works with no setup.
  */
 import fs from "node:fs";
 import os from "node:os";
@@ -35,9 +36,21 @@ export const SIGNIN_ERROR = "Sign in to make a video.";
 const SEND_PATH = "/email-otp/send-verification-otp";
 const VERIFY_PATHS = new Set(["/sign-in/email-otp", "/email-otp/check-verification-otp", "/email-otp/verify-email"]);
 
+/** A fixed dev secret, warned about once; production still requires BETTER_AUTH_SECRET. */
+const DEV_SECRET = "local-dev-secret-not-for-production";
+let warnedSecret = false;
+
 function buildAuth() {
-  const secret = process.env.BETTER_AUTH_SECRET;
-  if (!secret) throw new Error("BETTER_AUTH_SECRET is not set");
+  let secret = process.env.BETTER_AUTH_SECRET;
+  if (!secret && process.env.NODE_ENV === "production") throw new Error("BETTER_AUTH_SECRET is not set");
+  if (!secret) {
+    secret = DEV_SECRET;
+    if (!warnedSecret) {
+      warnedSecret = true;
+      console.warn("[auth] BETTER_AUTH_SECRET is not set, using a dev secret (set one for production)");
+    }
+  }
+
   const baseURL = process.env.BETTER_AUTH_URL ?? "http://localhost:3000";
   const googleId = process.env.GOOGLE_CLIENT_ID?.trim();
   const googleSecret = process.env.GOOGLE_CLIENT_SECRET?.trim();
@@ -245,6 +258,7 @@ export function resetAuthForTests(): void {
   auth = undefined;
   migrated = undefined;
   expected = undefined;
+  warnedSecret = false;
 }
 
 export interface SessionUser {

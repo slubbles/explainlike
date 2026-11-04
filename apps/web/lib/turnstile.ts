@@ -3,6 +3,8 @@
  * a network error, a wrong action or an unlisted hostname all refuse the send.
  * The documented test keys work without network: with the always-passing test secret,
  * the dummy token passes, so end-to-end tests need no widget and no Cloudflare call.
+ * In local dev (anything but production) with no secret set, the check is skipped,
+ * so sign-in works with no setup; production still fails closed.
  */
 
 export type TurnstileResult = { ok: true } | { ok: false; error: string };
@@ -16,12 +18,16 @@ export const TURNSTILE_DUMMY_TOKEN = "XXXX.DUMMY.TOKEN.XXXX";
 
 /** Verify a Turnstile token from the login form. `fetchImpl` is stubbed in tests. */
 export async function verifyTurnstile(token: string, remoteIp: string, fetchImpl: typeof fetch = fetch): Promise<TurnstileResult> {
-  if (!token) return { ok: false, error: FAIL };
   const secret = process.env.EXPLANIMATE_TURNSTILE_SECRET;
   if (!secret) {
+    if (process.env.NODE_ENV !== "production") {
+      console.warn("[turnstile] EXPLANIMATE_TURNSTILE_SECRET is not set, skipping the check (development only)");
+      return { ok: true };
+    }
     console.error("[turnstile] EXPLANIMATE_TURNSTILE_SECRET is not set");
     return { ok: false, error: FAIL };
   }
+  if (!token) return { ok: false, error: FAIL };
   if (secret === TURNSTILE_TEST_SECRET && token === TURNSTILE_DUMMY_TOKEN) return { ok: true };
   const hostnames = (process.env.EXPLANIMATE_TURNSTILE_HOSTNAMES ?? "")
     .split(",")
