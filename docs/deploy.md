@@ -315,9 +315,9 @@ check, and signs in with a 6-digit code (valid 10 minutes, 5 tries). Sessions la
 account gets 3 videos a day by default. The landing page, gallery and `/docs` stay open without
 an account.
 
-Set `EXPLANIMATE_AUTH_ENABLED=1` — only the exact value `1` turns it on; unset or anything else
+Set `EXPLANIMATE_AUTH_ENABLED=1`. Only the exact value `1` turns it on; unset or anything else
 is today's behaviour (no sign-in, no per-account limit; the per-IP limits and spend caps still
-apply) — plus:
+apply). Also set:
 
 | Variable                          | Default                              | What it does                                                                                                                 |
 | --------------------------------- | ------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------- |
