@@ -25,6 +25,15 @@ function camera(K: Key[], t: number): Box {
   return cur;
 }
 
+/** A tap target's label placement: near an edge the label flips inside the video instead of clipping off it. */
+export function chipClass(b: { l: number; tp: number; w: number }): string {
+  const c = ["hit"];
+  if (b.tp < 18) c.push("below");
+  if (b.l < 18 && b.l + b.w <= 82) c.push("rl");
+  else if (b.l + b.w > 82 && b.l >= 18) c.push("rr");
+  return c.join(" ");
+}
+
 export default function Player({
   src,
   map,
@@ -123,7 +132,7 @@ export default function Player({
               key={b.id}
               type="button"
               aria-label={`Explain ${b.keyword}`}
-              className={`hit ${selected === b.id ? "on" : ""}`}
+              className={`${chipClass(b)}${selected === b.id ? " on" : ""}`}
               style={{ left: `${b.l}%`, top: `${b.tp}%`, width: `${b.w}%`, height: `${b.h}%` }}
               onClick={() => {
                 video.current?.pause();

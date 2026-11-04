@@ -51,6 +51,8 @@
 }
 .scap {
   margin-top: 16px;
+  display: flex;
+  justify-content: center;
 }
 .scap:empty {
   display: none;
@@ -107,13 +109,17 @@ button.navl {
   font-size: 13px;
   color: var(--dim);
   max-width: 280px;
+}
+/* only the address truncates: the Sign out button always stays whole */
+.navuser .who {
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
-  white-space: nowrap;
 }
 .navout {
   display: inline-flex;
   align-items: center;
+  flex: none;
   min-height: 44px;
   padding: 0;
   font-size: 13px;
@@ -124,4 +130,14 @@ button.navl {
 }
 .navout:hover {
   color: #fff;
+}
+
+/* the Turnstile widget is 300px wide: on narrow phones the panel makes room for it */
+@media (max-width: 420px) {
+  .signin-back {
+    padding: 16px;
+  }
+  .signin {
+    padding: 22px 20px;
+  }
 }

@@ -19,6 +19,16 @@ test("the result page reads title, video, downloads, then the Q&A panel on phone
   assert.match(wide, /\.main \.col > \.under\s*\{[^}]*order:\s*0/);
 });
 
+test("a long unbroken result title wraps instead of scrolling the page sideways", () => {
+  assert.match(css, /\.under \.t\s*\{[^}]*overflow-wrap:\s*anywhere/);
+});
+
+test("hover labels on edge tap targets flip inside the video instead of clipping", () => {
+  assert.match(css, /\.hit\.below \.tipchip\s*\{[^}]*bottom:\s*-6px/);
+  assert.match(css, /\.hit\.rl \.tipchip\s*\{[^}]*left:\s*0/);
+  assert.match(css, /\.hit\.rr \.tipchip\s*\{[^}]*right:\s*0/);
+});
+
 test("the nav has narrow-screen rules so it never scrolls sideways", () => {
   const narrow = css.slice(css.lastIndexOf("@media (max-width: 360px)"));
   assert.match(narrow, /\.nav \.wrap\s*\{[^}]*width:/);

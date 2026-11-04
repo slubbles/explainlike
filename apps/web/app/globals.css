@@ -231,8 +231,12 @@ footer .wrap.tiny { display: block; }
 .hit:hover, .hit.on, .hit:focus-visible { border-color: var(--blue1) !important; border-style: solid; background: rgba(77, 141, 255, .14); outline: none; }
 .tipchip { position: absolute; left: 50%; top: -6px; transform: translate(-50%, -100%); background: #fff; color: #1c2b33; font-size: 12.5px; font-weight: 600; padding: 5px 10px; border-radius: 8px; box-shadow: 0 4px 14px rgba(0, 0, 0, .25); white-space: nowrap; opacity: 0; pointer-events: none; transition: opacity .15s; }
 .hit:hover .tipchip, .hit:focus-visible .tipchip { opacity: 1; }
+.hit.below .tipchip { top: auto; bottom: -6px; transform: translate(-50%, 100%); }
+.hit.rl .tipchip { left: 0; transform: translate(0, -100%); }
+.hit.rr .tipchip { left: auto; right: 0; transform: translate(0, -100%); }
+.hit.below.rl .tipchip, .hit.below.rr .tipchip { transform: translate(0, 100%); }
 .under { margin: 0 0 14px; }
-.under .t { margin: 0; font-weight: 650; font-size: 20px; letter-spacing: -0.015em; }
+.under .t { margin: 0; font-weight: 650; font-size: 20px; letter-spacing: -0.015em; overflow-wrap: anywhere; }
 .under .m { font-size: 13.5px; margin-top: 4px; font-variant-numeric: tabular-nums; color: var(--mut); }
 /* wide screens keep the video above the title; phones read the title first (see the 900px note below) */
 @media (min-width: 901px) {

@@ -24,3 +24,22 @@ test("signing out refreshes the nav and the page instead of reloading", () => {
   assert.doesNotMatch(nav, /location\.reload/);
   assert.match(src("components/Home.tsx"), /addEventListener\("explanimate:auth-changed"/);
 });
+
+test("a long signed-in address truncates without clipping the Sign out button", () => {
+  const css = src("app/signin.css");
+  // the ellipsis lives on the address span only; the account bit holding the button never hides overflow
+  assert.match(css, /\.navuser \.who\s*\{[^}]*overflow:\s*hidden/);
+  assert.match(css, /\.navuser \.who\s*\{[^}]*text-overflow:\s*ellipsis/);
+  assert.match(css, /\.navout\s*\{[^}]*flex:\s*none/);
+  const account = css.match(/\.navuser\s*\{[^}]*\}/)?.[0] ?? "";
+  assert.doesNotMatch(account, /overflow:/);
+  assert.doesNotMatch(account, /text-overflow:/);
+});
+
+test("the panel fits the 300px CAPTCHA widget on narrow phones", () => {
+  const css = src("app/signin.css");
+  assert.match(css, /\.scap\s*\{[^}]*justify-content:\s*center/);
+  const narrow = css.slice(css.indexOf("@media (max-width: 420px)"));
+  assert.match(narrow, /\.signin-back\s*\{[^}]*padding:\s*16px/);
+  assert.match(narrow, /\.signin\s*\{[^}]*padding:\s*22px 20px/);
+});
