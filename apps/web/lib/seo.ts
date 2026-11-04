@@ -114,10 +114,10 @@ export function sitemapEntries(): MetadataRoute.Sitemap {
   ];
 }
 
-/** Crawlers may read the pages; the JSON API and job files are not content. */
+/** Crawlers may read the pages; the JSON API, the admin portal, the dashboard and sign-in are not content. */
 export function robotsConfig(): MetadataRoute.Robots {
   return {
-    rules: { userAgent: "*", allow: "/", disallow: ["/api/", "/admin"] },
+    rules: { userAgent: "*", allow: "/", disallow: ["/api/", "/admin", "/app", "/signin"] },
     sitemap: `${SITE_URL}/sitemap.xml`,
   };
 }
