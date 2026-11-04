@@ -159,7 +159,7 @@ I measured this from the per-line frame sheets in `crayon-frames/` (two frames p
 | Video (first 120 s) | Hard cuts | Narration lines | Cuts/min | Words/min | Rate                                             |
 | ------------------- | --------- | --------------- | -------- | --------- | ------------------------------------------------ |
 | Anthropic           | 66        | 43              | 33       | about 150 | about 1.5 new pictures per line, one every 1.8 s |
-| TSMC                | 40        | 19 longer lines | 20       | —         | about 2 per line                                 |
+| TSMC                | 40        | 19 longer lines | 20       | n/a       | about 2 per line                                 |
 
 In-shot builds come on top of the hard cuts: a ball drops, a label rewrites, a diagram node appears.
 
