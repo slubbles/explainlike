@@ -196,17 +196,36 @@ answers on 443 with a real certificate.
 | Minimum TLS          | 1.2                                                                  | Old protocol versions are refused                           |
 | HSTS                 | On, 6 months, no subdomains, no preload, `nosniff`                   | Browsers stop trying plain HTTP                             |
 | Bot Fight Mode       | On                                                                   | Known bad bots are challenged before they reach the app     |
-| Cache rule           | `/api/*` not cached, except `/api/gallery/*` images and videos       | Job and account answers are never shared between visitors   |
+| Cache rules          | Static cached a year, HTML and `/api/*` bypassed (below)             | Job and account answers are never shared between visitors   |
 | Rate limit rule      | Non-GET `/api/*`: 20 requests per 10 s per IP, then blocked for 10 s | A cheap first wall in front of the app's own per-IP limits  |
 | Custom firewall rule | Block `.env`, `.git`, `wp-`, `.php`, `phpmyadmin`, `cgi-bin` paths   | Scanner noise never reaches the server                      |
 
-`/_next/static/*` is cached by default (Next sends `immutable`), and HTML is not, because every page
-carries a fresh CSP nonce. Check it with:
+### What the origin sends
+
+- `/_next/static/*`, `/og.png`, `/hero.jpg`, `/icon.svg`, `/favicon.ico`, and the gallery files under
+  `/api/gallery/*`: `Cache-Control: public, max-age=31536000, immutable`.
+- Pages (`/`, `/docs`, `/gallery`, `/admin`, 404s) and every other `/api/*` (including job files):
+  `Cache-Control: no-store`. Pages carry a fresh CSP nonce per request; API answers are per viewer or per job.
+
+The split lives in `apps/web/lib/cache.ts` (middleware sets it; `next.config.mjs` repeats the named
+files; `lib/route.ts` defaults API answers to `no-store` unless the handler set its own).
+
+### Cache Rules (Caching > Cache Rules, in order)
+
+1. Static assets: when the URL path starts with `/_next/static/` or `/api/gallery/`, or equals `/og.png`,
+   `/hero.jpg`, `/icon.svg` or `/favicon.ico`, then Eligible for cache with Edge and Browser TTL set to
+   Respect origin.
+2. API: when the URL path starts with `/api/`, then Bypass cache.
+
+HTML needs no rule: the origin sends `no-store`, so Cloudflare passes it through as `DYNAMIC`.
+Check it with:
 
 ```bash
-curl -sI https://example.com/_next/static/chunks/<any>.js | grep -i cf-cache-status   # HIT
-curl -sI https://example.com/api/health | grep -i cf-cache-status                     # DYNAMIC
-curl -sI https://example.com/ | grep -i strict-transport-security
+curl -sI https://example.com/_next/static/chunks/<any>.js | grep -i -E 'cache-control|cf-cache-status'  # immutable, HIT
+curl -sI https://example.com/og.png | grep -i -E 'cache-control|cf-cache-status'                          # immutable, HIT
+curl -sI https://example.com/api/gallery/<file> | grep -i -E 'cache-control|cf-cache-status'              # immutable, HIT
+curl -sI https://example.com/api/health | grep -i -E 'cache-control|cf-cache-status'                      # no-store, DYNAMIC
+curl -sI https://example.com/ | grep -i -E 'cache-control|cf-cache-status|strict-transport-security'     # no-store, DYNAMIC
 ```
 
 The Bot Fight Mode challenge can also catch scripts and uptime checkers that call the site through

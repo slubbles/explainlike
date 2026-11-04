@@ -1,10 +1,13 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { cacheControlFor } from "./lib/cache";
 import { contentSecurityPolicy, securityHeaders } from "./lib/security";
 
 /**
  * A fresh CSP nonce per request plus the security headers on every route. Next reads the nonce
  * back from the request's CSP header and stamps it on the inline scripts it renders, so the
  * strict script-src does not break hydration (verified by fetching / and matching the nonces).
+ * Cache-Control follows the static/HTML split in lib/cache.ts; the build output under /_next/
+ * keeps Next's own headers (immutable in production, fresh in development).
  */
 export function middleware(request: NextRequest) {
   const bytes = crypto.getRandomValues(new Uint8Array(16));
@@ -15,6 +18,9 @@ export function middleware(request: NextRequest) {
   reqHeaders.set("content-security-policy", csp);
   const res = NextResponse.next({ request: { headers: reqHeaders } });
   for (const [name, value] of Object.entries(securityHeaders(csp))) res.headers.set(name, value);
+  if (!request.nextUrl.pathname.startsWith("/_next/")) {
+    res.headers.set("cache-control", cacheControlFor(request.nextUrl.pathname));
+  }
   return res;
 }
 
