@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { parseEmailFrom, sendOtpEmail } from "../lib/email.ts";
+import { buildOtpEmail, parseEmailFrom, sendOtpEmail } from "../lib/email.ts";
 
 function withEnv(vars: Record<string, string | undefined>, fn: () => Promise<void> | void) {
   const saved: Record<string, string | undefined> = {};
@@ -38,7 +38,7 @@ test("the sender line parses Name <addr>, a bare address, or falls back to the d
   assert.deepEqual(parseEmailFrom("not an address"), { name: "Explanimate", address: "login@explanimate.co" });
 });
 
-test("the code goes out through Cloudflare Email with a short plain message", async () => {
+test("the code goes out through Cloudflare Email with text and designed HTML parts", async () => {
   await withEnv(
     { EXPLANIMATE_CF_ACCOUNT_ID: "acct", EXPLANIMATE_CF_EMAIL_TOKEN: "tok", EXPLANIMATE_EMAIL_FROM: "Explanimate <login@explanimate.co>" },
     async () => {
@@ -50,7 +50,7 @@ test("the code goes out through Cloudflare Email with a short plain message", as
       assert.deepEqual(await sendOtpEmail("a@x.co", "123456", fetchImpl), { ok: true });
       assert.equal(seen.length, 1);
       assert.equal(seen[0].url, "https://api.cloudflare.com/client/v4/accounts/acct/email/sending/send");
-      assert.equal((seen[0].init.headers as Record<string, string>).authorization, "Bearer tok");
+      assert.equal((seen[0].init.headers as Record<string, string>).authorization, "Bearer " + "tok");
       const body = JSON.parse(String(seen[0].init.body));
       assert.deepEqual(
         { to: body.to, from: body.from, subject: body.subject },
@@ -63,10 +63,28 @@ test("the code goes out through Cloudflare Email with a short plain message", as
       for (const part of [body.text, body.html]) {
         assert.match(part, /123456/);
         assert.match(part, /expires in 10 minutes/);
-        assert.match(part, /if you did not ask for this, ignore it/i);
       }
+      assert.match(body.text, /if you did not ask for this, ignore it/i);
+      assert.match(body.html, /Your sign-in code/);
+      assert.match(body.html, /you can ignore this email/);
     },
   );
+});
+
+test("the designed HTML carries the code and the logo, and escapes anything unsafe", () => {
+  const { html } = buildOtpEmail("123456");
+  assert.match(html, /123456/);
+  assert.match(html, /Your sign-in code/);
+  assert.match(html, /<table/);
+  assert.match(html, /<img[^>]*alt="Explanimate"/);
+  assert.match(html, /https:\/\/explanimate\.co\/email\/logo\.png/);
+  assert.match(html, /border-left:3px solid #0082fb/);
+  assert.doesNotMatch(html, /<style|<script|<svg|<link/);
+  assert.ok(fs.existsSync(new URL("../public/email/logo.png", import.meta.url)), "the logo PNG is served from public/");
+
+  const nasty = buildOtpEmail(`1<svg onload=alert(1)>&`).html;
+  assert.doesNotMatch(nasty, /<svg/);
+  assert.match(nasty, /1&lt;svg onload=alert\(1\)&gt;&amp;/);
 });
 
 test("a refused send logs the Cloudflare error codes and tells the user something plain", async () => {
