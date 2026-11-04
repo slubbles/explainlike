@@ -117,7 +117,11 @@ export default async function VideosPage({ searchParams }: { searchParams: Promi
               <div className="app-vid" key={v.id}>
                 <VideoThumb video={v} link={`/app/videos/${v.id}`} />
                 <p className="app-vt">{v.title}</p>
-                <p className="app-vm">{[mss(v.durationSec), formatLabel(v.format)].filter(Boolean).join(" · ")}{" · "}<VideoWhen ts={v.createdAt} /></p>
+                <p className="app-vm">
+                  {[mss(v.durationSec), formatLabel(v.format)].filter(Boolean).join(" · ")}
+                  {" · "}
+                  <VideoWhen ts={v.createdAt} />
+                </p>
                 <div className="app-vdel">
                   <DeleteVideoButton id={v.id} title={v.title} />
                 </div>
@@ -161,7 +165,9 @@ export default async function VideosPage({ searchParams }: { searchParams: Promi
                     <td>
                       <span className="app-fmt">{formatLabel(v.format)}</span>
                     </td>
-                    <td className="made"><VideoWhen ts={v.createdAt} /></td>
+                    <td className="made">
+                      <VideoWhen ts={v.createdAt} />
+                    </td>
                     <td>
                       <div className="app-acts">
                         <Link className="app-abtn" href={`/app/videos/${v.id}`}>
