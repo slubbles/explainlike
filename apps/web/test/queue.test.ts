@@ -158,26 +158,57 @@ test("EXPLANIMATE_MAX_CONCURRENT wins over the old EXPLANIMATE_CONCURRENCY", asy
   delete process.env.EXPLANIMATE_CONCURRENCY;
 });
 
-test("ten videos render at once by default", async () => {
+test("JOB_CONCURRENCY caps simultaneous renders, first in first out", async () => {
   const { admit, getJob, startJob, touch } = await jobs();
   const settled = (id: string) => getJob(id)!.state === "done" || getJob(id)!.state === "error";
   delete process.env.EXPLANIMATE_MAX_CONCURRENT;
   delete process.env.EXPLANIMATE_CONCURRENCY;
+  Object.assign(process.env, { JOB_CONCURRENCY: "2" });
   const ids: string[] = [];
-  for (let i = 0; i < 11; i++) {
+  for (let i = 0; i < 4; i++) {
+    assert.equal(admit("someone"), undefined, `request ${i + 1} is not turned away`);
+    ids.push(startJob(`job-concurrency number ${i}`, "silent").id);
+  }
+  assert.deepEqual(
+    ids.map((id) => getJob(id)!.state),
+    ["running", "running", "queued", "queued"],
+  );
+  for (let i = 0; i < 400 && !ids.every(settled); i++) {
+    ids.forEach(touch);
+    await sleep(50);
+  }
+  assert.deepEqual(
+    ids.map((id) => getJob(id)!.state),
+    Array(4).fill("done"),
+  );
+  delete process.env.JOB_CONCURRENCY;
+});
+
+test("by default the slots fit the machine: that many render at once and the rest wait silently", async () => {
+  const { admit, getJob, startJob, touch } = await jobs();
+  const { poolSize } = await import("../lib/pool.ts");
+  const settled = (id: string) => getJob(id)!.state === "done" || getJob(id)!.state === "error";
+  delete process.env.EXPLANIMATE_MAX_CONCURRENT;
+  delete process.env.EXPLANIMATE_CONCURRENCY;
+  delete process.env.JOB_CONCURRENCY;
+  const n = poolSize();
+  assert.ok(n >= 1, "at least one slot");
+  const ids: string[] = [];
+  for (let i = 0; i < n + 1; i++) {
     assert.equal(admit("someone"), undefined, `request ${i + 1} is not turned away`);
     ids.push(startJob(`default slots number ${i}`, "silent").id);
   }
   assert.deepEqual(
     ids.map((id) => getJob(id)!.state),
-    [...Array(10).fill("running"), "queued"],
+    [...Array(n).fill("running"), "queued"],
   );
+  assert.equal(getJob(ids[n])!.stage, "start", "a waiting job sits at the first step");
   for (let i = 0; i < 600 && !ids.every(settled); i++) {
     ids.forEach(touch);
     await sleep(50);
   }
   assert.deepEqual(
     ids.map((id) => getJob(id)!.state),
-    Array(11).fill("done"),
+    Array(n + 1).fill("done"),
   );
 });
