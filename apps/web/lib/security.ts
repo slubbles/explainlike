@@ -4,9 +4,12 @@
  * and the Content Security Policy plus the rest of the security headers (sent by middleware.ts).
  */
 
-/** The GA4 measurement id, if the deploy sets one. Anything non-empty counts; unset loads nothing. */
+/**
+ * The GA4 measurement id, if the deploy sets one. NEXT_PUBLIC_GA_ID wins; GA_MEASUREMENT_ID
+ * still works for servers set up before the rename. Anything non-empty counts; unset loads nothing.
+ */
 export function gaMeasurementId(): string | undefined {
-  const v = process.env.GA_MEASUREMENT_ID?.trim();
+  const v = (process.env.NEXT_PUBLIC_GA_ID ?? process.env.GA_MEASUREMENT_ID ?? "").trim();
   return v ? v : undefined;
 }
 
@@ -33,8 +36,8 @@ export function checkOrigin(req: Request): Response | undefined {
  * The Content Security Policy. Scripts are this site plus a per-request nonce (middleware hands
  * it to Next, which stamps it on the inline scripts it renders) plus the Turnstile loader;
  * styles allow inline (Next and the widget need it); the browser talks back only to this site,
- * Turnstile and the Deepgram listening socket. The Google hosts join only when GA_MEASUREMENT_ID
- * is set, so an unset id loads nothing from Google.
+ * Turnstile and the Deepgram listening socket. The Google hosts join only when a measurement
+ * id is set (see gaMeasurementId), so an unset id loads nothing from Google.
  */
 export function contentSecurityPolicy(nonce: string): string {
   const script = ["'self'", `'nonce-${nonce}'`, "https://challenges.cloudflare.com"];

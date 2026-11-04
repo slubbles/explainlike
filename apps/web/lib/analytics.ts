@@ -1,11 +1,23 @@
 "use client";
 
-/** The GA4 events the site sends. A no-op until the Analytics loader brings gtag in. */
-export type AnalyticsEvent = "video_create" | "video_finished" | "video_failed" | "signin_code_sent" | "signin_success";
+/**
+ * The GA4 events the site sends. A no-op until the Analytics loader brings gtag in.
+ * A successful sign-in carries new_account so new accounts read apart from logins.
+ */
+export type AnalyticsEvent =
+  | "video_create"
+  | "video_finished"
+  | "video_failed"
+  | "signin_code_sent"
+  | "signin_success"
+  | "gallery_play"
+  | "mcp_docs_view"
+  | "format_select"
+  | "sign_out";
 
-export function trackEvent(name: AnalyticsEvent): void {
+export function trackEvent(name: AnalyticsEvent, params?: Record<string, string | number | boolean>): void {
   try {
-    (window as unknown as { gtag?: (...args: unknown[]) => void }).gtag?.("event", name);
+    (window as unknown as { gtag?: (...args: unknown[]) => void }).gtag?.("event", name, params ?? {});
   } catch {
     /* analytics never breaks the page */
   }

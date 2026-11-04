@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { fetchAuthConfig } from "../lib/session";
+import { trackEvent } from "../lib/analytics";
 
 /**
  * The sign-in corner of the nav: nothing when auth is off, else who is signed in.
@@ -48,6 +49,8 @@ export default function AuthNav({ initialEmail }: { initialEmail?: string | null
             headers: { "content-type": "application/json" },
             body: "{}",
           }).catch(() => null);
+          // a signed-out click reports itself, then refreshes the nav and the page through the event
+          if (r?.ok) trackEvent("sign_out");
           if (r?.ok) dispatchEvent(new CustomEvent("explanimate:auth-changed"));
         }}
       >
