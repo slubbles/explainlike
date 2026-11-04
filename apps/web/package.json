@@ -10,6 +10,8 @@
   },
   "dependencies": {
     "@explanimate/core": "workspace:*",
+    "better-auth": "^1.7.16",
+    "kysely": "^0.29.8",
     "next": "^16.0.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
