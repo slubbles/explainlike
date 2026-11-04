@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
+import { signOut as endSession } from "../../../lib/session";
 
 /** Two letters for the avatar, from the address. */
 const initials = (email: string) =>
@@ -34,12 +35,9 @@ export default function UserMenu({ email }: { email: string }) {
   async function signOut() {
     if (busy) return;
     setBusy(true);
-    try {
-      await fetch("/api/auth/sign-out", { method: "POST" }).catch(() => null);
-    } finally {
-      // the session is over either way: a failed call only means the cookie was already gone
-      location.href = "/";
-    }
+    await endSession();
+    // home either way: the landing page reads the session fresh and shows the truth
+    location.href = "/";
   }
 
   return (
