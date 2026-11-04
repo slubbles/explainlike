@@ -74,47 +74,77 @@ export function cloneError(e: { stderr?: Buffer | string; signal?: string | null
   return `Could not download github.com/${name}: ${err.trim().split("\n").pop()?.slice(0, 200) ?? "git clone failed"}`;
 }
 
-function listFiles(dir: string): string[] {
-  let files: string[];
+/** Most files the digest lists; past this the list is capped and the digest says so. */
+export const MAX_DIGEST_FILES = 20000;
+
+function listFiles(dir: string, maxFiles = MAX_DIGEST_FILES): { files: string[]; truncated: boolean } {
   try {
-    files = execFileSync("git", ["-C", dir, "ls-files"], { encoding: "utf8", maxBuffer: 64 << 20 })
+    const tracked = execFileSync("git", ["-C", dir, "ls-files"], { encoding: "utf8", maxBuffer: 64 << 20 })
       .split("\n")
       .filter(Boolean);
+    // new work that is not committed yet is still part of the repo (a fresh project may have no commits at all)
+    let untracked: string[] = [];
+    try {
+      untracked = execFileSync("git", ["-C", dir, "ls-files", "--others", "--exclude-standard"], {
+        encoding: "utf8",
+        maxBuffer: 64 << 20,
+      })
+        .split("\n")
+        .filter(Boolean);
+    } catch {}
+    const seen = new Set(tracked);
+    const files = [...tracked, ...untracked.filter((f) => !seen.has(f))].filter((f) => !SKIP_DIR.test(f));
+    return files.length > maxFiles ? { files: files.slice(0, maxFiles), truncated: true } : { files, truncated: false };
   } catch {
-    files = [];
-    const walk = (d: string) => {
-      for (const e of fs.readdirSync(path.join(dir, d), { withFileTypes: true })) {
+    // not a git checkout (or git gave up): read the folder itself, bounded, skipping what cannot be read
+    const files: string[] = [];
+    const walk = (d: string): boolean => {
+      let entries;
+      try {
+        entries = fs.readdirSync(path.join(dir, d), { withFileTypes: true });
+      } catch {
+        return true;
+      }
+      for (const e of entries) {
+        if (files.length >= maxFiles) return false;
         const rel = d ? `${d}/${e.name}` : e.name;
         if (e.isDirectory()) {
-          if (!SKIP_DIR.test(rel + "/")) walk(rel);
+          if (!SKIP_DIR.test(rel + "/") && !walk(rel)) return false;
         } else files.push(rel);
       }
+      return true;
     };
-    walk("");
+    const capped = !walk("");
+    return { files: files.filter((f) => !SKIP_DIR.test(f)), truncated: capped };
   }
-  return files.filter((f) => !SKIP_DIR.test(f));
 }
 
 export interface RepoDigest {
   text: string;
   files: string[];
   skippedSecret: string[];
+  /** true when the file list was capped (a huge repo): the digest covers the first files only */
+  truncated: boolean;
   read: (p: string, max?: number) => string;
 }
 
 /** A language-agnostic digest an LLM can reason about, ~40k chars, secrets stripped. */
-export function digestRepo(dir: string, budget = 42000): RepoDigest {
-  const all = listFiles(dir);
+export function digestRepo(dir: string, budget = 42000, maxFiles = MAX_DIGEST_FILES): RepoDigest {
+  const { files: all, truncated } = listFiles(dir, maxFiles);
   const skippedSecret = all.filter(isSecretPath);
   const files = all.filter((f) => !isSecretPath(f));
   const textFiles = files.filter((f) => !BINARY.test(f) && !LOCKFILE.test(f));
   const cache = new Map<string, string>();
   const read = (p: string, max = 200_000): string => {
-    if (isSecretPath(p) || !files.includes(p)) return "";
+    if (isSecretPath(p) || BINARY.test(p) || !files.includes(p)) return "";
     if (!cache.has(p)) {
       try {
         const st = fs.statSync(path.join(dir, p));
-        cache.set(p, st.size > 400_000 ? "" : redact(fs.readFileSync(path.join(dir, p), "utf8")));
+        if (st.size > 400_000) cache.set(p, "");
+        else {
+          const raw = fs.readFileSync(path.join(dir, p), "utf8");
+          cache.set(p, raw.includes("\0") ? "" : redact(raw));
+        }
       } catch {
         cache.set(p, "");
       }
@@ -141,7 +171,7 @@ export function digestRepo(dir: string, budget = 42000): RepoDigest {
   }
   add(
     "repo stats",
-    `${files.length} files tracked. By extension: ${Object.entries(ext)
+    `${files.length} files${truncated ? " listed (capped; the repo has more)" : ""}. By extension: ${Object.entries(ext)
       .sort((a, b) => b[1] - a[1])
       .slice(0, 14)
       .map(([k, v]) => `${k}:${v}`)
@@ -351,12 +381,31 @@ export function digestRepo(dir: string, budget = 42000): RepoDigest {
   }
   add("key source excerpts (first ~1400 chars each, redacted)", excerpts.join("\n\n"));
   if (skippedSecret.length) add("files skipped as possible secrets (never opened)", `${skippedSecret.length} files`);
-  return { text: sec.join("\n\n"), files, skippedSecret, read };
+  return { text: sec.join("\n\n"), files, skippedSecret, truncated, read };
+}
+
+/** Why a folder has nothing to explain, in words that say what to do instead. */
+function emptySourceMessage(dir: string, name: string, secrets: number): string {
+  if (secrets > 0)
+    return `Everything in ${name} looks like a secret (.env files, keys), which explanimate never opens. Add the code you want explained and try again.`;
+  let commits = true;
+  try {
+    execFileSync("git", ["-C", dir, "rev-parse", "HEAD"], { stdio: "pipe" });
+  } catch {
+    commits = false;
+  }
+  let repo = false;
+  try {
+    repo = execFileSync("git", ["-C", dir, "rev-parse", "--is-inside-work-tree"], { encoding: "utf8" }).trim() === "true";
+  } catch {}
+  if (repo && !commits) return `${name} is a git repo with no commits and no files yet. Add some files and commit them, then try again.`;
+  return `${name} has no files to explain. Use a folder with code in it, or a GitHub repo link.`;
 }
 
 export async function ingestRepo(urlOrPath: string): Promise<SourceDoc & { digest: RepoDigest }> {
   const co = checkout(urlOrPath);
   const digest = digestRepo(co.dir);
+  if (!digest.files.length) throw new Error(emptySourceMessage(co.dir, co.name, digest.skippedSecret.length));
   return {
     kind: "repo",
     url: co.url,
