@@ -1,0 +1,120 @@
+/* /copy: narrow centered page, the code large, one big copy button. */
+
+.page {
+  background: #0a0a0a;
+  color: #ededed;
+  font-family: var(--font-sans, var(--sans, Inter, system-ui, -apple-system, sans-serif));
+  padding: 200px 0 160px;
+}
+
+.wrap {
+  width: min(560px, 100% - 32px);
+  margin: 0 auto;
+  text-align: center;
+}
+
+.crumb {
+  color: #4ea1ff;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.wrap h1 {
+  font-size: 44px;
+  font-weight: 450;
+  letter-spacing: -1.2px;
+  line-height: 1.05;
+  margin: 10px 0 0;
+  text-wrap: balance;
+}
+
+.code {
+  font-family: var(--mono, "Geist Mono", ui-monospace, "SF Mono", Menlo, monospace);
+  font-size: clamp(44px, 12vw, 64px);
+  font-weight: 600;
+  letter-spacing: 10px;
+  color: #ffffff;
+  margin: 28px 0 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.actions {
+  margin: 28px 0 0;
+}
+
+.copy {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 220px;
+  min-height: 52px;
+  padding: 14px 28px;
+  border: 0;
+  border-radius: 10px;
+  background: #0866ff;
+  color: #fff;
+  font-weight: 600;
+  font-size: 16px;
+}
+
+.copy:hover {
+  filter: brightness(1.1);
+}
+
+.hint {
+  font-size: 15px;
+  color: #a1a1a1;
+  line-height: 1.55;
+  margin: 20px 0 0;
+}
+
+.lead {
+  font-size: 17px;
+  color: #a1a1a1;
+  line-height: 1.55;
+  margin: 14px 0 0;
+}
+
+.back {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  color: #a1a1a1;
+  font-size: 14px;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.back:hover {
+  color: #fff;
+}
+
+.primary {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 9px 18px;
+  border-radius: 10px;
+  background: #0866ff;
+  color: #fff;
+  font-weight: 600;
+  font-size: 14px;
+  text-decoration: none;
+}
+
+.primary:hover {
+  filter: brightness(1.1);
+}
+
+@media (max-width: 560px) {
+  .page {
+    padding: 160px 0 120px;
+  }
+  .wrap h1 {
+    font-size: 34px;
+  }
+  .copy {
+    width: 100%;
+    min-width: 0;
+  }
+}
