@@ -464,7 +464,15 @@ export async function runExplanimate(o: RunOptions) {
       } catch {
         /* local folder without git history: the manifest skips the commit date */
       }
-      const manifest: FactsManifest = buildFactsManifest({ repoUrl: r.url, commit: r.commit, commitDate, readme: readme(), digestText: src, files: r.digest.files, read: (p, max) => r.digest.read(p, max) });
+      const manifest: FactsManifest = buildFactsManifest({
+        repoUrl: r.url,
+        commit: r.commit,
+        commitDate,
+        readme: readme(),
+        digestText: src,
+        files: r.digest.files,
+        read: (p, max) => r.digest.read(p, max),
+      });
       writeAtomic(path.join(out, "facts.json"), JSON.stringify(manifest, null, 1));
       notes.push(`facts: ${manifest.length} anchors (numbers the script may state)`);
       plan = await timed("scene plan", () =>
