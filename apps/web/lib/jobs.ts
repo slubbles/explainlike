@@ -29,6 +29,12 @@ export interface Job {
   pct: number;
   started: number;
   finished?: number;
+  /** when the request was accepted (same as started for new jobs; old jobs fall back to started) */
+  accepted?: number;
+  /** per-stage first/last seen times from the renderer's progress, in ms since the epoch */
+  stages?: Record<string, { start: number; end?: number }>;
+  /** how long the run waited for a render slot inside the CPU-heavy stage, in ms */
+  renderWaitMs?: number;
   /** follow-up clips point at the video they came from */
   parent?: string;
   focus?: string;
@@ -47,7 +53,7 @@ export interface Job {
   /** the CLI arguments, kept so a job cut off by a server restart can pick up where it stopped */
   args?: string[];
   resumed?: number;
-  /** when a render slot picked the job up (a job can wait for a slot after it is created) */
+  /** when an API slot picked the job up (a job can wait for a slot after it is created) */
   began?: number;
   /** who started it (lib/owner.ts): scopes the jobs list and who may cancel; never sent to the browser */
   owner?: string;
@@ -225,7 +231,7 @@ const recent = new Map<string, number[]>();
 export function admit(client: string): string | undefined {
   if (process.env.EXPLANIMATE_DEMO_ONLY === "1")
     return "This demo only plays example videos. Run Explanimate locally with your own keys to make new ones.";
-  // nobody is turned away for being busy: past the render slots a job waits its turn. This ceiling only stops a flood.
+  // nobody is turned away for being busy: past the API slots a job waits its turn. This ceiling only stops a flood.
   sweep();
   if (line().length >= num("EXPLANIMATE_QUEUE_MAX", 200)) return "Explanimate is very busy right now. Try again in a few minutes.";
   const b = budgetNow();
@@ -253,13 +259,15 @@ const CLI = () => process.env.EXPLANIMATE_CLI ?? path.join(ROOT, "packages/cli/b
 // renders spawned here never read private-network links unless the server explicitly allows them for local use
 const CLI_ENV = { ...process.env, EXPLANIMATE_ALLOW_PRIVATE_URLS: process.env.EXPLANIMATE_ALLOW_PRIVATE_URLS ?? "0" };
 
-// ---- the wait line: up to EXPLANIMATE_MAX_CONCURRENT renders at once; past that, jobs wait first in, first out.
+// ---- the wait line: up to API_CONCURRENCY jobs (default 10) run their API-bound stages at once;
+// past that, jobs wait first in, first out. The CPU-heavy render/encode stage holds a separate,
+// smaller render slot inside the run (RENDER_CONCURRENCY, default max(1, cpus-2)).
 // A waiting job looks like any job at its first step (the page never says "queued"); it is honest because nothing has run yet.
 const num = (name: string, dflt: number) => {
   const n = Number(process.env[name]);
   return Number.isFinite(n) && n > 0 ? n : dflt;
 };
-// render slots come from lib/pool.ts: an explicit setting when set, else a default that fits the machine
+// API slots come from lib/pool.ts: an explicit setting when set, else 10
 const slots = () => poolSize();
 const line = (): string[] => (g.__explanimateLine ??= []);
 const seen = (): Map<string, number> => (g.__explanimateSeen ??= new Map());
@@ -335,7 +343,7 @@ const roomFor = (n: number) => {
   return d.ok ? b : { ...b, ok: false, error: d.error };
 };
 
-/** Start waiting jobs, oldest first, while a render slot is free. */
+/** Start waiting jobs, oldest first, while an API slot is free. */
 function pump() {
   sweep();
   let moved = false;
@@ -412,10 +420,13 @@ function launch(job: Job) {
         }
         if (e.type === "progress") {
           Object.assign(job, { stage: e.stage, message: e.message, pct: e.pct ?? job.pct, usd: e.usd ?? job.usd });
+          if (typeof e.stage === "string" && e.stage) recordStage(job, e.stage);
+          if (typeof e.renderWaitMs === "number" && Number.isFinite(e.renderWaitMs)) job.renderWaitMs = e.renderWaitMs;
           save(job, true);
         } else if (e.type === "done") {
           gotDone = true;
           const m = e.manifest;
+          mergeManifestStages(job, m);
           Object.assign(job, {
             state: "done",
             pct: 100,
@@ -424,6 +435,7 @@ function launch(job: Job) {
             approach: m.brief?.approach,
             durationSec: m.durationSec,
             finished: Date.now(),
+            renderWaitMs: typeof m?.renderWaitMs === "number" ? m.renderWaitMs : job.renderWaitMs,
             costUsd: (m.cost?.metaUsd ?? 0) + (m.cost?.voiceUsd ?? 0),
             usd: { meta: m.cost?.metaUsd ?? 0, voice: m.cost?.voiceUsd ?? 0, total: (m.cost?.metaUsd ?? 0) + (m.cost?.voiceUsd ?? 0) },
             interactive: fs.existsSync(path.join(JOBS_DIR, job.id, "interactive.json")),
@@ -478,6 +490,7 @@ function noteEnd(job: Job) {
     kind: t.kind,
     state: what,
     waitMs: t.waitMs,
+    renderWaitMs: t.renderWaitMs,
     renderMs: t.renderMs,
     totalMs: t.totalMs,
     videoSec: t.videoSec,
@@ -490,9 +503,34 @@ function noteEnd(job: Job) {
   }
 }
 
+/** Note a pipeline stage sighting: first sighting starts it, every sighting ends it. */
+export function recordStage(job: Job, stage: string, now = Date.now()) {
+  job.stages ??= {};
+  const s = (job.stages[stage] ??= { start: now });
+  s.end = now;
+}
+
+/**
+ * Fold the renderer's own stage clock (manifest.stages: seconds from its start) into the job's
+ * stage map. The renderer's start is the slot pickup (began); a stage seen both ways keeps the
+ * earliest start and the latest end.
+ */
+export function mergeManifestStages(job: Job, m: { stages?: { stage: string; at: number; seconds: number }[] }) {
+  if (!Array.isArray(m?.stages) || typeof job.began !== "number") return;
+  job.stages ??= {};
+  for (const s of m.stages) {
+    if (typeof s?.stage !== "string" || typeof s?.at !== "number" || typeof s?.seconds !== "number") continue;
+    const start = job.began + s.at * 1000;
+    const end = start + s.seconds * 1000;
+    const cur = job.stages[s.stage];
+    job.stages[s.stage] = cur ? { start: Math.min(cur.start, start), end: Math.max(cur.end ?? cur.start, end) } : { start, end };
+  }
+}
+
 function newJob(p: Omit<Job, "id" | "state" | "stage" | "message" | "pct" | "started">): Job {
   const id = crypto.randomBytes(6).toString("hex");
-  const job: Job = { ...p, id, state: "queued", stage: "start", message: "starting", pct: 0, started: Date.now() };
+  const now = Date.now();
+  const job: Job = { ...p, id, state: "queued", stage: "start", message: "starting", pct: 0, started: now, accepted: now, stages: {} };
   jobs.set(id, job);
   save(job);
   return job;

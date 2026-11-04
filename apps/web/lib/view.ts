@@ -5,6 +5,7 @@
  * clips of a video whose id the viewer already holds.
  */
 import { NO_STORE_VALUE } from "./cache";
+import { jobTiming } from "./metrics";
 import { asSeen } from "./steps";
 import type { Job } from "./jobs";
 
@@ -25,6 +26,9 @@ export function publicJob(job: Job, viewer?: string) {
   const seen: Record<string, unknown> = { ...asSeen(job) };
   for (const k of SERVER_ONLY) delete seen[k];
   if (typeof seen.error === "string") seen.error = scrubError(seen.error);
+  const timings = jobTiming(job);
+  timings.error = scrubError(timings.error);
+  seen.timings = timings;
   return { ...seen, mine: !!viewer && job.owner === viewer };
 }
 

@@ -1,10 +1,13 @@
 /**
  * Job timing metrics for the admin portal and the logs. Every number comes from the job
  * records themselves (started, began, finished, cost); nothing is estimated.
- * - wait: from the request until a render slot picked the job up (began - started)
+ * - wait: from the request until an API slot picked the job up (began - started)
+ * - render wait: inside the run, waiting for a render slot (reported by the renderer)
  * - render: from the slot pickup until the job ended (finished - began)
  * - total: from the request until the job ended (finished - started)
  */
+import os from "node:os";
+
 export interface TimedJob {
   id: string;
   kind?: string;
@@ -12,6 +15,9 @@ export interface TimedJob {
   started: number;
   began?: number;
   finished?: number;
+  accepted?: number;
+  renderWaitMs?: number;
+  stages?: Record<string, { start: number; end?: number }>;
   durationSec?: number;
   costUsd?: number;
   usd?: { total?: number };
@@ -24,7 +30,10 @@ export interface JobTiming {
   kind: string;
   state: string;
   started: number;
+  accepted: number;
   waitMs: number | null;
+  renderWaitMs: number | null;
+  stages?: Record<string, { start: number; end?: number }>;
   renderMs: number | null;
   totalMs: number | null;
   videoSec: number | null;
@@ -42,6 +51,9 @@ export function jobTiming(j: TimedJob): JobTiming {
     kind: j.kind ?? "video",
     state: j.state,
     started: j.started,
+    accepted: j.accepted ?? j.started,
+    renderWaitMs: typeof j.renderWaitMs === "number" && Number.isFinite(j.renderWaitMs) && j.renderWaitMs >= 0 ? j.renderWaitMs : null,
+    stages: j.stages,
     waitMs: span(j.started, j.began),
     renderMs: span(j.began, j.finished),
     totalMs: span(j.started, j.finished),
@@ -104,6 +116,32 @@ export function jobMetrics(jobs: TimedJob[], sinceMs = 0): JobMetrics {
     medianWaitMs: percentile(wait, 0.5),
     medianTotalMs: percentile(totals, 0.5),
     avgCostDone: done.length ? done.reduce((s, t) => s + t.cost, 0) / done.length : null,
+  };
+}
+
+export interface SystemMetrics {
+  now: number;
+  /** 1, 5 and 15 minute load averages */
+  loadavg: [number, number, number];
+  cpus: number;
+  freemem: number;
+  totalmem: number;
+  process: { rss: number; heapUsed: number; heapTotal: number; external: number };
+  uptime: number;
+}
+
+/** Server CPU and memory for the admin metrics endpoint and the load test sampler. */
+export function systemMetrics(): SystemMetrics {
+  const m = process.memoryUsage();
+  const [a, b, c] = os.loadavg();
+  return {
+    now: Date.now(),
+    loadavg: [a, b, c],
+    cpus: os.cpus().length,
+    freemem: os.freemem(),
+    totalmem: os.totalmem(),
+    process: { rss: m.rss, heapUsed: m.heapUsed, heapTotal: m.heapTotal, external: m.external },
+    uptime: process.uptime(),
   };
 }
 
