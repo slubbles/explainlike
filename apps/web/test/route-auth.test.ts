@@ -65,6 +65,29 @@ test("creating, explaining and follow-ups need a session when auth is on; admins
   }
 });
 
+test("the account routes answer 404 with auth off, and 401 signed out", async () => {
+  delete process.env.EXPLANIMATE_AUTH_ENABLED;
+  const { GET: list } = await import("../app/api/me/videos/route.ts");
+  assert.equal((await list(new Request("http://x/api/me/videos"), undefined as never)).status, 404);
+  const { DELETE: del } = await import("../app/api/me/videos/[id]/route.ts");
+  const ctx = { params: Promise.resolve({ id: "abcdef123456" }) };
+  const gone = (id: string) => del(new Request(`http://x/api/me/videos/${id}`, { method: "DELETE" }), { params: Promise.resolve({ id }) });
+  assert.equal((await gone("abcdef123456")).status, 404);
+  assert.equal((await gone("xyz")).status, 404, "a malformed id reads as not found");
+  const { DELETE: account } = await import("../app/api/me/account/route.ts");
+  assert.equal((await account(new Request("http://x/api/me/account", { method: "DELETE" }), undefined as never)).status, 404);
+  process.env.EXPLANIMATE_AUTH_ENABLED = "1";
+  try {
+    await quiet(async () => {
+      assert.equal((await list(new Request("http://x/api/me/videos"), undefined as never)).status, 401);
+      assert.equal((await del(new Request("http://x/api/me/videos/abcdef123456", { method: "DELETE" }), ctx)).status, 401);
+      assert.equal((await account(new Request("http://x/api/me/account", { method: "DELETE" }), undefined as never)).status, 401);
+    });
+  } finally {
+    delete process.env.EXPLANIMATE_AUTH_ENABLED;
+  }
+});
+
 test("malformed job ids are refused before any lookup", async () => {
   delete process.env.EXPLANIMATE_AUTH_ENABLED;
   const { GET: job } = await import("../app/api/jobs/[id]/route.ts");
@@ -90,6 +113,9 @@ test("every public read is rate limited", async () => {
   const captions = await import("../app/api/jobs/[id]/captions/route.ts");
   const authConfig = await import("../app/api/auth-config/route.ts");
   const runtimeConfig = await import("../app/api/runtime-config/route.ts");
+  const meVideos = await import("../app/api/me/videos/route.ts");
+  const meVideo = await import("../app/api/me/videos/[id]/route.ts");
+  const meAccount = await import("../app/api/me/account/route.ts");
   const cases: [string, () => Promise<Response>][] = [
     ["health", () => health.GET(new Request("http://x/api/health"), undefined as never)],
     ["gallery", () => gallery.GET(new Request("http://x/api/gallery"), undefined as never)],
@@ -116,6 +142,15 @@ test("every public read is rate limited", async () => {
     ],
     ["auth-config", () => authConfig.GET(new Request("http://x/api/auth-config"), undefined as never)],
     ["runtime-config", () => runtimeConfig.GET(new Request("http://x/api/runtime-config"), undefined as never)],
+    ["me-videos", () => meVideos.GET(new Request("http://x/api/me/videos"), undefined as never)],
+    [
+      "me-video-delete",
+      () =>
+        meVideo.DELETE(new Request("http://x/api/me/videos/abcdef123456", { method: "DELETE" }), {
+          params: Promise.resolve({ id: "abcdef123456" }),
+        }),
+    ],
+    ["me-account-delete", () => meAccount.DELETE(new Request("http://x/api/me/account", { method: "DELETE" }), undefined as never)],
   ];
   for (const [name, run] of cases) {
     let limited = false;
