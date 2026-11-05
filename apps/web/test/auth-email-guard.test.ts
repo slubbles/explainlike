@@ -127,3 +127,32 @@ test("the send endpoint refuses a temporary inbox before sending, and still send
   const row = JSON.parse(fs.readFileSync(path.join(mailDir, "user@gmail.com.json"), "utf8")) as { otp: string };
   assert.match(row.otp, /^\d{6}$/);
 });
+
+test("a failed send comes back as an error, not a false success", async () => {
+  const { getAuth } = await import("../lib/auth.ts");
+  // a capture dir under a plain file cannot be created, so the send itself fails
+  const blocker = path.join(dir, "blocker");
+  fs.writeFileSync(blocker, "");
+  process.env.EXPLANIMATE_EMAIL_CAPTURE_DIR = path.join(blocker, "mail");
+  const orig = console.error;
+  console.error = () => {};
+  try {
+    const res = await getAuth().handler(
+      new Request("http://localhost:3000/api/auth/email-otp/send-verification-otp", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          origin: "http://localhost:3000",
+          "x-forwarded-for": "10.9.9.11",
+          "x-turnstile-token": "XXXX.DUMMY.TOKEN.XXXX",
+        },
+        body: JSON.stringify({ email: "fails@gmail.com", type: "sign-in" }),
+      }),
+    );
+    assert.equal(res.status, 500);
+    assert.match(((await res.json()) as { message?: string }).message ?? "", /Could not send the code/);
+  } finally {
+    console.error = orig;
+    process.env.EXPLANIMATE_EMAIL_CAPTURE_DIR = mailDir;
+  }
+});
