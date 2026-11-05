@@ -4,8 +4,10 @@ import { DEFAULT_BRIEF, specFromBrief, type Architecture } from "@explanimate/co
 import { CostLedger } from "@explanimate/models";
 import { planBrief, reviewArchitecture, fixArchitecture, polishNarration } from "@explanimate/planner";
 
-// these tests fake the Meta API, so they pin the provider instead of following whichever key the machine has
+// these tests fake the Meta API, so they pin the provider and drop any OpenRouter key the machine has,
+// which would otherwise turn on the OpenRouter fallback and reach the real network
 process.env.EXPLANIMATE_LLM_PROVIDER = "meta";
+delete process.env.OPENROUTER_API_KEY;
 
 // a fake API that answers every request with JSON no schema accepts, and counts the requests by schema name
 async function requestsFor(run: () => Promise<unknown>): Promise<Record<string, number>> {

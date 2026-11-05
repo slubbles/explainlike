@@ -4,8 +4,10 @@ import type { Architecture, ScenePlan } from "@explanimate/core";
 import { CostLedger } from "@explanimate/models";
 import { fixWording } from "@explanimate/planner";
 
-// these tests fake the Meta API, so they pin the provider instead of following whichever key the machine has
+// these tests fake the Meta API, so they pin the provider and drop any OpenRouter key the machine has,
+// which would otherwise turn on the OpenRouter fallback and reach the real network
 process.env.EXPLANIMATE_LLM_PROVIDER = "meta";
+delete process.env.OPENROUTER_API_KEY;
 
 type Ask = { name: string; body: any };
 // a fake API that answers by schema name from a script, and records every request
