@@ -12,6 +12,16 @@ declare global {
   }
 }
 
+/** Better Auth's error codes for the code step, in plain words. */
+export const CODE_ERRORS: Record<string, string> = {
+  INVALID_OTP: "That code isn't right. Check the email and try again.",
+  OTP_EXPIRED: "That code has expired. Send a new one and use it within 10 minutes.",
+  TOO_MANY_ATTEMPTS: "Too many wrong tries for this code. Send a new one.",
+};
+
+/** Seconds to wait before another code can be sent. */
+export const RESEND_COOLDOWN = 30;
+
 /** Sign in with Google or GitHub, or with a one-time email code: email + Turnstile, then the 6-digit code. */
 export default function SignIn({
   siteKey,
@@ -37,15 +47,23 @@ export default function SignIn({
   const [ghbusy, setGhbusy] = useState(false);
   const [err, setErr] = useState("");
   const [token, setToken] = useState("");
+  const [wait, setWait] = useState(0);
+  const [done, setDone] = useState(false);
+  const [sent, setSent] = useState(false);
   const box = useRef<HTMLDivElement>(null);
   const widget = useRef<string | undefined>(undefined);
   // local dev sets no Turnstile keys: the email flow stays, the widget goes, and the
   // server logs the code to its console instead of sending it.
   const needCaptcha = Boolean(siteKey);
+  // the code step shows its own CAPTCHA for a resend once the countdown ends
+  const capOn = step === "email" || wait <= 0;
 
   // the Turnstile script loads only here, and renders explicitly with action "login"
   useEffect(() => {
-    if (!siteKey || step !== "email" || typeof window === "undefined") return;
+    if (!siteKey || !capOn || typeof window === "undefined") return;
+    // each step has its own widget box, so a step change renders a fresh widget
+    widget.current = undefined;
+    setToken("");
     let stop = false;
     const render = () => {
       if (stop || widget.current || !window.turnstile || !box.current) return;
@@ -78,17 +96,27 @@ export default function SignIn({
       stop = true;
       s?.removeEventListener("load", render);
     };
-  }, [siteKey, step]);
+  }, [siteKey, step, capOn]);
 
   const said = (data: unknown, status: number) => {
-    const d = (data ?? {}) as { message?: unknown; error?: unknown };
+    const d = (data ?? {}) as { message?: unknown; error?: unknown; code?: unknown };
+    const plain = d.code ? CODE_ERRORS[String(d.code)] : undefined;
+    if (plain) return plain;
     if (typeof d.message === "string" && d.message) return d.message;
     if (typeof d.error === "string" && d.error) return d.error;
     return `The server had a problem (${status}). Try again in a moment.`;
   };
 
+  // the resend countdown
+  useEffect(() => {
+    if (wait <= 0) return;
+    const t = setTimeout(() => setWait((w) => w - 1), 1000);
+    return () => clearTimeout(t);
+  }, [wait]);
+
   async function send() {
     if (busy || !email.trim()) return;
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) return setErr("Enter a full email address, like you@example.com.");
     // the Send button stays disabled until the CAPTCHA check answers; Enter must wait too
     if (needCaptcha && !token) return setErr("Finish the CAPTCHA check first, then send the code.");
     setErr("");
@@ -102,6 +130,9 @@ export default function SignIn({
       if (!r) return setErr("Could not reach the server. Check your connection and try again.");
       if (!r.ok) return setErr(said(await r.json().catch(() => ({})), r.status));
       trackEvent("signin_code_sent");
+      setWait(RESEND_COOLDOWN);
+      setSent(step === "code");
+      setCode("");
       setStep("code");
     } finally {
       setBusy(false);
@@ -149,6 +180,8 @@ export default function SignIn({
       const created = (data as { user?: { createdAt?: unknown } })?.user?.createdAt;
       const age = Date.now() - Date.parse(typeof created === "string" ? created : "");
       trackEvent("signin_success", { new_account: Number.isFinite(age) && age >= 0 && age < 120000 });
+      // keep the button busy while the next page loads, so the dialog never looks stuck
+      setDone(true);
       onDone();
     } finally {
       setBusy(false);
@@ -218,13 +251,22 @@ export default function SignIn({
                 autoComplete="email"
                 placeholder="you@example.com"
                 value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                onChange={(e) => {
+                  setEmail(e.target.value);
+                  setErr("");
+                }}
                 onKeyDown={(e) => {
                   if (e.key === "Enter") send();
                 }}
               />
               {needCaptcha && <div ref={box} className="scap" />}
-              <button type="button" className="btn solid wide" disabled={busy || !email.trim() || (needCaptcha && !token)} onClick={send}>
+              <button
+                type="button"
+                className="btn solid wide"
+                disabled={busy || !email.trim() || (needCaptcha && !token)}
+                aria-busy={busy}
+                onClick={send}
+              >
                 {busy ? "Sending…" : "Send code"}
               </button>
             </>
@@ -244,13 +286,27 @@ export default function SignIn({
               maxLength={6}
               placeholder="123456"
               value={code}
-              onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+              onChange={(e) => {
+                setCode(e.target.value.replace(/\D/g, "").slice(0, 6));
+                setErr("");
+              }}
               onKeyDown={(e) => {
                 if (e.key === "Enter") verify();
               }}
             />
-            <button type="button" className="btn solid wide" disabled={busy || code.trim().length !== 6} onClick={verify}>
-              {busy ? "Signing in…" : "Sign in"}
+            <button
+              type="button"
+              className="btn solid wide"
+              disabled={busy || done || code.trim().length !== 6}
+              aria-busy={busy || done}
+              onClick={verify}
+            >
+              {done ? "Opening your dashboard…" : busy ? "Signing in…" : "Sign in"}
+            </button>
+            {sent && <p className="ssub">A new code is on its way. Only the newest code works.</p>}
+            {needCaptcha && capOn && <div ref={box} className="scap" />}
+            <button type="button" className="sback" disabled={busy || done || wait > 0 || (needCaptcha && !token)} onClick={send}>
+              {wait > 0 ? `Resend code in ${wait}s` : "Resend code"}
             </button>
             <button
               type="button"
