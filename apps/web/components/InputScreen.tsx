@@ -151,7 +151,7 @@ export function PromptBox({
           </select>
           <Chevron />
         </label>
-        <span className="fhint">Auto picks for you; anatomy is a tour of a repo&apos;s parts.</span>
+        <span className="fhint">Auto picks for you. Anatomy is a tour of a repo&apos;s parts.</span>
       </div>
       {(hint.count || hint.over) && (
         <p className={`count${hint.over ? " over" : ""}`} id="input-hint" aria-live="polite">
@@ -441,7 +441,7 @@ export default function InputScreen({ form, set, go, busy, err, examples, talkin
           <h2>What do you want explained?</h2>
           <p className="sub">Browsing is free. Sign in with your email and make three videos a day.</p>
           <div className="box">{box("cta")}</div>
-          <p className="note">Private and localhost links are blocked.</p>
+          <p className="note">Paste any public GitHub repo, article or X post.</p>
         </div>
       </section>
 
