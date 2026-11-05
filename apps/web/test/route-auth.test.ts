@@ -158,7 +158,9 @@ test("every public read is rate limited", async () => {
   ];
   for (const [name, run] of cases) {
     let limited = false;
-    for (let i = 0; i < perMin + 2 && !limited; i++) limited = (await run()).status === 429;
+    // job status reads are polled once a second, so they get the larger poll limit
+    const max = name === "job" ? Number(process.env.EXPLANIMATE_POLL_PER_MIN ?? 240) : perMin;
+    for (let i = 0; i < max + 2 && !limited; i++) limited = (await run()).status === 429;
     assert.equal(limited, true, `${name} answers 429 past the per-minute limit`);
   }
 });

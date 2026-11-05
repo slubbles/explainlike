@@ -2,13 +2,13 @@ import { NextResponse } from "next/server";
 import { getJob, touch } from "../../../../lib/jobs";
 import { NO_STORE, publicJob } from "../../../../lib/view";
 import { viewerKey } from "../../../../lib/owner";
-import { limitRequest } from "../../../../lib/guard";
+import { limitRequest, pollPerMin } from "../../../../lib/guard";
 import { withErrors } from "../../../../lib/route";
 
 export const runtime = "nodejs";
 
 export const GET = withErrors("job.GET", async (req: Request, ctx: { params: Promise<{ id: string }> }) => {
-  const limited = limitRequest(req, "job");
+  const limited = limitRequest(req, "job", pollPerMin());
   if (limited) return limited;
   const { id } = await ctx.params;
   if (!/^[a-f0-9]{12}$/.test(id)) return NextResponse.json({ error: "not found" }, { status: 404, headers: NO_STORE });
