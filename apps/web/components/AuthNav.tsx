@@ -39,7 +39,7 @@ export default function AuthNav({ initialEmail }: { initialEmail?: string | null
     );
   // public pages only point signed-in people at the dashboard; Sign out lives there
   return (
-    <a className="navl" href="/app" title={state.email}>
+    <a className="ghost" href="/app" title={state.email}>
       Dashboard
     </a>
   );
