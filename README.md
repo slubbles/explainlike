@@ -55,7 +55,7 @@ Models are called through the Meta Model API, with OpenRouter as a backup for Mu
 
 ## Quick start
 
-**Prerequisites:** Node 22+, pnpm 9, ffmpeg on your PATH, and Chrome or Chromium.
+**Prerequisites:** Node 22+, pnpm 9 (`corepack enable` gets it), ffmpeg on your PATH, and Chrome or Chromium.
 
 ```bash
 git clone https://github.com/slubbles/explanimate && cd explanimate
@@ -70,7 +70,7 @@ Check that it runs:
 curl -s http://localhost:3000/api/health
 ```
 
-It answers `{"ok":true}` when a video can be made. With no keys the pages load but videos can't be made yet. To make videos, add `OPENROUTER_API_KEY` or `MODEL_API_KEY` to `.env`. Add `DEEPGRAM_API_KEY` for the voice; without it videos render silent with captions.
+It answers `{"ok":true}` when a video can be made. With no keys the pages load but videos can't be made yet. To make videos, add `OPENROUTER_API_KEY` or `MODEL_API_KEY` to `.env`. Add `DEEPGRAM_API_KEY` for the voice; without it videos render silent with captions. The error "MODEL_API_KEY is not set" means no model key is set: add `MODEL_API_KEY` (Meta) or `OPENROUTER_API_KEY`.
 
 - **No Chrome?** Run `npx playwright-core install chromium`, or point `EXPLANIMATE_CHROME` at an installed browser.
 - **Windows:** if PowerShell refuses to run `pnpm.ps1`, use `pnpm.cmd` instead.
@@ -138,7 +138,7 @@ Issues and pull requests are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md). Be
 pnpm lint && pnpm format:check && pnpm typecheck && pnpm test
 ```
 
-The tests need ffmpeg and Chrome but no API keys. Report security issues as described in [SECURITY.md](SECURITY.md).
+The tests need ffmpeg and Chrome but no API keys. Run them with no model keys exported in your shell, for example `env -u MODEL_API_KEY -u OPENROUTER_API_KEY pnpm test`. `pnpm build` builds the web app (about a minute). Report security issues as described in [SECURITY.md](SECURITY.md).
 
 ## License
 
