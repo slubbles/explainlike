@@ -3,7 +3,9 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { buildOtpEmail, parseEmailFrom, sendOtpEmail } from "../lib/email.ts";
+import { buildOtpEmail, parseEmailFrom, sendOtpEmail, setEmailRetryDelay } from "../lib/email.ts";
+
+setEmailRetryDelay(1);
 
 function withEnv(vars: Record<string, string | undefined>, fn: () => Promise<void> | void) {
   const saved: Record<string, string | undefined> = {};
@@ -136,7 +138,7 @@ test("a network error or a missing config fails plainly without sending", async 
       ok: false,
       error: "Could not send the code. Try again in a moment.",
     });
-    assert.equal(calls, 1);
+    assert.equal(calls, 3, "a network error is retried");
   });
   await withEnv({ EXPLANIMATE_CF_ACCOUNT_ID: undefined, EXPLANIMATE_CF_EMAIL_TOKEN: undefined, NODE_ENV: "production" }, async () => {
     const lines = await logged(async () => {
@@ -169,4 +171,23 @@ test("EXPLANIMATE_EMAIL_CAPTURE_DIR writes the code to a file instead of sending
     assert.match(fs.readFileSync(path.join(dir, "outbox.jsonl"), "utf8"), /654321/);
   });
   fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test("a 5xx then a success sends the code on the retry; a 400 is not retried", async () => {
+  await withEnv({ EXPLANIMATE_CF_ACCOUNT_ID: "acct", EXPLANIMATE_CF_EMAIL_TOKEN: "tok" }, async () => {
+    let calls = 0;
+    const flaky = (async () => {
+      calls++;
+      return calls === 1 ? new Response("{}", { status: 503 }) : new Response(JSON.stringify({ success: true }), { status: 200 });
+    }) as typeof fetch;
+    assert.deepEqual(await sendOtpEmail("a@x.co", "123456", flaky), { ok: true });
+    assert.equal(calls, 2);
+    calls = 0;
+    const refused = (async () => {
+      calls++;
+      return new Response(JSON.stringify({ success: false }), { status: 400 });
+    }) as typeof fetch;
+    assert.equal((await sendOtpEmail("a@x.co", "123456", refused)).ok, false);
+    assert.equal(calls, 1);
+  });
 });

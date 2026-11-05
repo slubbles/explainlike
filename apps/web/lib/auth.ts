@@ -44,6 +44,8 @@ export function githubEnabled(clientId: string | undefined, clientSecret: string
 export const SIGNIN_ERROR = "Sign in to make a video.";
 
 const SEND_PATH = "/email-otp/send-verification-otp";
+/** Code sends that failed in this request, by address; read and cleared by the after hook. */
+const sendFailures = new Map<string, string>();
 const VERIFY_PATHS = new Set(["/sign-in/email-otp", "/email-otp/check-verification-otp", "/email-otp/verify-email"]);
 
 /** A fixed dev secret, warned about once; production still requires BETTER_AUTH_SECRET. */
@@ -100,12 +102,22 @@ function buildAuth() {
         allowedAttempts: 5,
         sendVerificationOTP: async ({ email, otp, type }) => {
           if (type !== "sign-in") throw new APIError("BAD_REQUEST", { message: "Not supported." });
+          // Better Auth swallows errors thrown here and still answers success, so a failed
+          // send is noted and the after hook turns it into a real error for the form
           const r = await sendOtpEmail(email, otp);
-          if (!r.ok) throw new APIError("INTERNAL_SERVER_ERROR", { message: r.error });
+          if (!r.ok) sendFailures.set(email.toLowerCase(), r.error);
         },
       }),
     ],
     hooks: {
+      after: createAuthMiddleware(async (ctx) => {
+        if (ctx.path !== SEND_PATH) return;
+        const email = typeof ctx.body?.email === "string" ? ctx.body.email.trim().toLowerCase() : "";
+        const failed = sendFailures.get(email);
+        if (failed === undefined) return;
+        sendFailures.delete(email);
+        throw new APIError("INTERNAL_SERVER_ERROR", { message: failed });
+      }),
       before: createAuthMiddleware(async (ctx) => {
         if (ctx.path !== SEND_PATH && !(ctx.path && VERIFY_PATHS.has(ctx.path))) return;
         const req = ctx.request ?? new Request("http://localhost/", { headers: new Headers(ctx.headers as HeadersInit) });
