@@ -25,10 +25,11 @@ test("signing in tells the nav, so it shows the account without a reload", () =>
   assert.match(src("components/AuthNav.tsx"), /addEventListener\("explanimate:auth-changed"/);
 });
 
-test("signing out refreshes the nav and the page instead of reloading", () => {
+test("public nav sends signed-in people to the dashboard instead of showing their email", () => {
   const nav = src("components/AuthNav.tsx");
-  assert.match(nav, /if \(r\?\.ok\) dispatchEvent\(new CustomEvent\("explanimate:auth-changed"\)\)/);
-  assert.doesNotMatch(nav, /location\.reload/);
+  assert.match(nav, /href="\/app"/);
+  assert.match(nav, /Dashboard/);
+  assert.doesNotMatch(nav, /Signed in as/);
   assert.match(src("components/Home.tsx"), /addEventListener\("explanimate:auth-changed"/);
 });
 
