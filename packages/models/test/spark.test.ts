@@ -3,8 +3,10 @@ import assert from "node:assert/strict";
 import { z } from "zod";
 import { CostLedger, firstOf, hedgeCopies, sparkJson } from "../src/index.ts";
 
-// these tests fake the Meta API, so they pin the provider instead of following whichever key the machine has
+// these tests fake the Meta API, so they pin the provider and drop any OpenRouter key the machine has,
+// which would otherwise turn on the OpenRouter fallback and reach the real network
 process.env.EXPLANIMATE_LLM_PROVIDER = "meta";
+delete process.env.OPENROUTER_API_KEY;
 
 // a fake Meta API: answers in turn, and records each request body
 function fakeApi(replies: { content?: string; finish?: string; slow?: boolean }[]) {
