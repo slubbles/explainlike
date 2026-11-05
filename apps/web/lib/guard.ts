@@ -30,13 +30,19 @@ export function rateLimit(key: string, limit: number, windowMs: number, now = Da
 }
 
 /** Per-IP request limit for the API routes that cost money or start work (EXPLANIMATE_REQ_PER_MIN, default 12). */
-export function limitRequest(req: Request, route: string): Response | undefined {
-  const perMin = Number(process.env.EXPLANIMATE_REQ_PER_MIN ?? 12);
+export function limitRequest(
+  req: Request,
+  route: string,
+  perMin = Number(process.env.EXPLANIMATE_REQ_PER_MIN ?? 12),
+): Response | undefined {
   const wait = rateLimit(`${route}:${clientIp(req)}`, perMin, 60_000);
   return wait
     ? Response.json({ error: `Too many requests. Try again in ${wait} s.` }, { status: 429, headers: { "retry-after": String(wait) } })
     : undefined;
 }
+
+/** Per-IP limit for job status reads (EXPLANIMATE_POLL_PER_MIN, default 240): the progress page polls once a second, and a few tabs share one IP. */
+export const pollPerMin = () => Number(process.env.EXPLANIMATE_POLL_PER_MIN ?? 240);
 
 export const MAX_BODY_BYTES = 16 * 1024;
 export const MAX_INPUT_CHARS = 2048;
