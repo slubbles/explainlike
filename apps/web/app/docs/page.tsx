@@ -138,6 +138,7 @@ export default function Docs() {
           </aside>
 
           <div className={styles.main}>
+            <DocsSearch index={SEARCH_INDEX} id="docs-search-mobile" className={styles.msearch} />
             <details className={styles.menu}>
               <summary aria-label="Docs sections">
                 <span>Sections</span>

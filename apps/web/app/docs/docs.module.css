@@ -70,7 +70,7 @@
   width: 100%;
   background: transparent;
   border: 1px solid rgba(255, 255, 255, 0.14);
-  border-radius: 8px;
+  border-radius: 6px;
   padding: 9px 64px 9px 12px;
   color: #ededed;
   font-size: 13px;
@@ -97,6 +97,23 @@
   pointer-events: none;
 }
 
+.msearch {
+  display: none;
+}
+
+.results li button.active {
+  background: #1d1d1d;
+  color: #fff;
+}
+
+.snippet {
+  display: block;
+  color: #9a9a9a;
+  font-size: 12px;
+  margin-top: 4px;
+  line-height: 1.4;
+}
+
 .results {
   position: absolute;
   top: calc(100% + 8px);
@@ -108,7 +125,7 @@
   padding: 6px;
   background: #141414;
   border: 1px solid #2e2e2e;
-  border-radius: 12px;
+  border-radius: 6px;
   box-shadow: 0 20px 50px rgba(0, 0, 0, 0.8);
   max-height: 320px;
   overflow-y: auto;
@@ -120,7 +137,7 @@
   text-align: left;
   background: none;
   border: 0;
-  border-radius: 7px;
+  border-radius: 6px;
   padding: 8px 10px;
   color: #bdbdbd;
   font-size: 13px;
@@ -470,6 +487,17 @@
   }
   .menu {
     display: block;
+  }
+  .msearch {
+    display: block;
+    margin-bottom: 12px;
+  }
+  .msearch kbd {
+    display: none;
+  }
+  .msearch input {
+    padding-right: 12px;
+    font-size: 16px;
   }
   .main {
     max-width: none;
