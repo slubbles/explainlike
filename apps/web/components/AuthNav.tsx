@@ -29,11 +29,15 @@ export default function AuthNav({ initialEmail }: { initialEmail?: string | null
   if (!state) return null;
   if (!state.email)
     return (
-      <button type="button" className="navl ghost" onClick={() => {
+      <button
+        type="button"
+        className="navl ghost"
+        onClick={() => {
           // only the home page has the sign-in panel; every other page goes to /signin and comes back
           if (location.pathname === "/") dispatchEvent(new CustomEvent("explanimate:signin"));
           else location.href = `/signin?next=${encodeURIComponent(location.pathname)}`;
-        }}>
+        }}
+      >
         Sign in
       </button>
     );
