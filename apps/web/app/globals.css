@@ -176,7 +176,7 @@ button.pill:hover { color: #fff; }
 .mcs { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; margin-top: 16px; }
 .mc { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 20px; }
 .mc .mono { font-size: 12px; color: var(--dim); }
-.mc h4 { font-size: 17px; font-weight: 450; margin: 22px 0 8px; }
+.mc h3 { font-size: 17px; font-weight: 450; margin: 22px 0 8px; }
 .mc p { color: var(--dim); font-size: 14px; line-height: 1.5; margin: 0; }
 
 /* gallery teaser: the live example grid as a wall of cards */
