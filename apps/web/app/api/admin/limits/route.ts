@@ -6,14 +6,12 @@ import { checkOrigin } from "../../../../lib/security";
 
 export const runtime = "nodejs";
 
-
 /** Signed-out and non-admin callers get 404, same as the other admin GETs (never 405). */
 export const GET = withErrors("admin-limits.GET", async (req: Request) => {
   const gate = await requireAdmin(req);
   if (!gate.ok) return gate.response;
   return NextResponse.json({ error: "Not found." }, { status: 404 });
 });
-
 
 /** Set one account's daily video limit: { email, limit } with limit a whole number, 0 to 1000. */
 export const POST = withErrors("admin-limits.POST", async (req: Request) => {
