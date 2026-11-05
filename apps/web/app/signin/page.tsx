@@ -1,6 +1,7 @@
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import Nav from "../../components/Nav";
+import { SITE_URL } from "../../lib/seo";
 import { authEnabled, githubEnabled, googleEnabled, sessionUser } from "../../lib/auth";
 import SignInPanel from "./SignInPanel";
 
@@ -10,6 +11,7 @@ export const metadata = {
   title: "Sign in · Explanimate",
   description: "Sign in to Explanimate to make whiteboard explainer videos from your repos, posts, articles and topics.",
   robots: { index: false },
+  alternates: { canonical: `${SITE_URL}/signin` },
 };
 
 /** Where to land after signing in: a local path, never someone else's site. */
