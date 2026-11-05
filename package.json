@@ -4,6 +4,18 @@
   "version": "0.1.0",
   "description": "Explanimate: paste a repo, X post or article, get a whiteboard explainer video and an editable board that opens in tldraw.com. Powered by Meta Muse models.",
   "license": "MIT",
+  "author": "Cesar Salem (https://github.com/slubbles)",
+  "homepage": "https://explanimate.co",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/slubbles/explanimate.git"
+  },
+  "bugs": {
+    "url": "https://github.com/slubbles/explanimate/issues"
+  },
+  "engines": {
+    "node": ">=22"
+  },
   "type": "module",
   "packageManager": "pnpm@9.15.9",
   "scripts": {

@@ -127,7 +127,7 @@ explanimate/
     ├── gallery.example.json  the format of the gallery list
     ├── design/landing-v2/    the landing page reference mockup
     ├── media/                readme images and sample frames
-    └── research/             our own study notes (PLAYBOOK.md, agent-browser-sample.md)
+    └── research/             study notes behind the narration rules (PLAYBOOK.md)
 ```
 
 Tests sit in each package's `test/` folder and use Node's built-in test runner. Run them with `pnpm test`.

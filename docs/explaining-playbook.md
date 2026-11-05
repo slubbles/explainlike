@@ -67,7 +67,7 @@ Sources:
 ## Lessons from nine channels (November 2026)
 
 Notes from 19 recent videos on nine channels.
-For each one I read the description, transcribed the first 150 s on the box (local Whisper, `base.en`), and looked at frames: the first 30 s every 2 s, plus 16 frames spread over the whole video.
+For each one I read the description, transcribed the first 150 s locally (Whisper, `base.en`), and looked at frames: the first 30 s every 2 s, plus 16 frames spread over the whole video.
 I also counted cuts in the first 2 minutes with ffmpeg scene detection (`scene > 0.3`) and drew spectrograms of the first 40 s to see how the sound was built.
 Nothing from these videos is reused. Only the techniques are.
 
@@ -177,5 +177,5 @@ Everything below fits a hand-drawn whiteboard. None of it adds fast cuts, stock 
 6. **Soft sound effects under the voice.**
    - A quiet pop when a component appears and a soft whoosh when a request dot starts moving.
    - They are short and written at fixed levels (a pop peaks near -25 dBFS, a whoosh near -28) and join the mix after the bed's ducking, about 18 dB under the voice. A burst of parts drawn together makes one pop, not a rattle.
-   - All sounds are synthesised on the box from sine waves and filtered noise (`packages/render/src/music.ts`). No samples, so there is nothing to license or credit.
+   - All sounds are synthesised locally from sine waves and filtered noise (`packages/render/src/music.ts`). No samples, so there is nothing to license or credit.
    - `--no-sfx` turns them off.
