@@ -38,7 +38,8 @@ test("playable videos are labelled with a captions track; previews stay hidden",
   assert.match(grid, /<track kind="captions" src=\{v\.captions\} srcLang="en" label="English" \/>/);
   assert.match(src("lib/gallery.ts"), /galleryCaptionsUrl/, "gallery items carry a captions URL when the folder holds them");
   const result = src("components/ResultView.tsx");
-  assert.match(result, /captions=\{captionsUrl\(job\.id\)\}/);
+  // run videos always have captions drawn in, so a second track would show them twice
+  assert.doesNotMatch(result, /captions=\{captionsUrl/);
   assert.match(result, /#t=4.*aria-hidden="true"/, "the clip preview is decorative inside its labelled link");
 });
 

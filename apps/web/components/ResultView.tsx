@@ -1,7 +1,7 @@
 "use client";
 import { useState } from "react";
 import Player, { type Interactive } from "./Player";
-import { captionsUrl, fileUrl, money, secs, useJob, type Explain, type Job } from "../lib/client";
+import { fileUrl, money, secs, useJob, type Explain, type Job } from "../lib/client";
 import { Info } from "./Icons";
 import { cap } from "../lib/steps";
 import { noBoxesNote } from "../lib/form";
@@ -116,7 +116,7 @@ export default function ResultView({ job, map, picked, expl, explBusy, clips, pi
           </div>
         </div>
         {o.mp4 && (
-          <Player src={fileUrl(job.id, o.mp4)} map={map} selected={picked} onPick={pick} title={job.title} captions={captionsUrl(job.id)} />
+          <Player src={fileUrl(job.id, o.mp4)} map={map} selected={picked} onPick={pick} title={job.title} />
         )}
         <div className="dl">
           {o.mp4 && (
