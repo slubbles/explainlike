@@ -77,7 +77,7 @@
   color: #1f1f1f;
   background: #fff;
   border: 1px solid transparent;
-  border-radius: 999px;
+  border-radius: 6px;
 }
 .gbtn:hover {
   background: #eef0f2;
