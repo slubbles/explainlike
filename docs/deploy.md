@@ -370,3 +370,9 @@ pnpm set-user-limit somebody@example.com 10
 - The private-address check resolves the name, then fetches. A DNS server that answers differently the second time could still slip through (DNS rebinding). Pinning the checked address in the connection needs the `undici` package. Until then, block the metadata address and your private ranges in the host's firewall as well.
 - Chromium loads images named in a page's card (avatars, preview images) without that check. It can only show them as pictures, but a firewall rule covers it too.
 - The GitHub Actions in CI still run on Node 20 and print deprecation notices. Move `actions/checkout`, `pnpm/action-setup` and `actions/setup-node` to their latest majors.
+
+## Zero-downtime deploys
+
+The server runs two copies of the app, blue and green. `/root/deploy-explanimate.sh` starts the new image beside the live one, waits until it is healthy, then switches traffic over. The old copy drains: it gets no new work and keeps running until its videos finish, for up to 10 minutes, then it stops. That drain is why the Deploy job allows 40 minutes.
+
+If a release goes wrong, run `/root/explanimate-rollback.sh` on the server. It switches traffic back to the previous image.
