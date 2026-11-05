@@ -63,6 +63,8 @@ export interface Job {
   cancelled?: boolean;
   /** deleted through /api/me: dropped from memory and disk, never written back nor sent out */
   deleted?: boolean;
+  /** the daily video slot was given back after a failure, so it is never given back twice */
+  slotReleased?: boolean;
 }
 export type Ask = {
   goal?: string;
@@ -486,6 +488,22 @@ function launch(job: Job) {
   });
 }
 
+let releaseSlot: (userId: string, day: number) => Promise<void> = async (userId, day) =>
+  (await import("./usage")).releaseVideoSlot(userId, day);
+/** Tests swap in a fake slot release. */
+export function setSlotRelease(fn: typeof releaseSlot) {
+  releaseSlot = fn;
+}
+
+/** A video that failed (not cancelled, not a restart resume) gives its daily slot back, once per job, on the day it was claimed. */
+export function refundFailedSlot(job: Job): boolean {
+  if (job.state !== "error" || job.cancelled || job.slotReleased || (job.resumed ?? 0) > 0) return false;
+  if (!job.owner?.startsWith("u:")) return false;
+  job.slotReleased = true;
+  void releaseSlot(job.owner.slice(2), job.started).catch(() => {});
+  return true;
+}
+
 /** One structured log line per finished job, with its timings; a failed render also lands in the error store. */
 function noteEnd(job: Job) {
   noteVideoStatus(job);
@@ -502,6 +520,7 @@ function noteEnd(job: Job) {
     videoSec: t.videoSec,
     costUsd: Number(t.cost.toFixed(4)),
   });
+  if (job.state === "error" && !job.cancelled) refundFailedSlot(job);
   if (job.state === "error" && !job.cancelled) {
     const e = new Error(job.error || "render failed");
     e.name = "RenderError";
