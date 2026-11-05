@@ -16,7 +16,7 @@
 
 <!-- DEMO_LINK -->
 
-**Watch the demo:** [demo video (link coming soon)](#)
+**Watch the demo:** [demo video](https://explanimate.co/demo.mp4)
 
 ## What is Explanimate?
 
