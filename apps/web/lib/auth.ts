@@ -104,7 +104,10 @@ function buildAuth() {
           if (type !== "sign-in") throw new APIError("BAD_REQUEST", { message: "Not supported." });
           // Better Auth swallows errors thrown here and still answers success, so a failed
           // send is noted and the after hook turns it into a real error for the form
-          const r = await sendOtpEmail(email, otp);
+          const r = await sendOtpEmail(email, otp).catch((e: unknown) => {
+            console.error(`[email] send threw: ${e instanceof Error ? e.name : "error"}`);
+            return { ok: false as const, error: "Could not send the code. Try again in a moment." };
+          });
           if (!r.ok) sendFailures.set(email.toLowerCase(), r.error);
         },
       }),
