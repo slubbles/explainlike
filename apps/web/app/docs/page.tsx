@@ -512,16 +512,15 @@ export default function Docs() {
                 <dd>Pick the Muse Spark provider by hand: openrouter or meta. Unset: OpenRouter when its key is set.</dd>
               </div>
             </dl>
-            <p>
-              Old <code>EXPLAINLIKE_*</code> names from before the rename still work; an <code>EXPLANIMATE_*</code> name wins if both are
-              set.
-            </p>
             <div className={styles.subhead}>Spend guard and limits (web app)</div>
             <p>
               Every job spends API credits, so new jobs pause before a job could cross a cap: <code>EXPLANIMATE_META_CAP_USD</code> and{" "}
               <code>EXPLANIMATE_VOICE_CAP_USD</code> for lifetime spend, <code>EXPLANIMATE_DAILY_CAP_USD</code> per UTC day. A per-IP rate
-              limit, an hourly video cap and a render queue apply on top. <code>/api/health</code> reports which fallbacks are configured,
-              as booleans only, never keys.
+              limit, an hourly video cap and a render queue apply on top. <code>/api/health</code> answers only{" "}
+              <code>
+                {"{"}ok{"}"}
+              </code>
+              ; the operator health check reports which fallbacks are configured, as booleans only, never keys.
             </p>
             <div className={styles.subhead}>Sign-in, paths and timeouts</div>
             <p>
