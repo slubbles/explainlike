@@ -16,7 +16,7 @@ test("signed-out visits land on the sign-in page, and the API answers 401", asyn
   await expect(page).toHaveURL(/\/signin\?next=%2Fapp$/);
   await expect(page.getByLabel("Email")).toBeVisible();
   await page.goto("/app/videos");
-  await expect(page).toHaveURL(/\/signin\?next=%2Fapp$/);
+  await expect(page).toHaveURL(/\/signin\?next=%2Fapp%2Fvideos$/);
   const res = await request.get("/api/me/videos");
   expect(res.status()).toBe(401);
   expect((await res.json()).error).toBe("Sign in to make a video.");

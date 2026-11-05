@@ -16,6 +16,8 @@ export function middleware(request: NextRequest) {
   const reqHeaders = new Headers(request.headers);
   reqHeaders.set("x-nonce", nonce);
   reqHeaders.set("content-security-policy", csp);
+  // the /app gate reads this to send a signed-out deep link back to the same page after sign-in
+  reqHeaders.set("x-explanimate-path", request.nextUrl.pathname + request.nextUrl.search);
   const res = NextResponse.next({ request: { headers: reqHeaders } });
   for (const [name, value] of Object.entries(securityHeaders(csp))) res.headers.set(name, value);
   if (!request.nextUrl.pathname.startsWith("/_next/")) {
