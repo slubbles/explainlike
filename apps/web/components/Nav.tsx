@@ -54,7 +54,7 @@ export default function Nav({ initialEmail }: { initialEmail?: string | null }) 
               aria-expanded={open}
               onClick={() => setOpen((v) => !v)}
             >
-              <span aria-hidden="true">☰</span>
+              <span aria-hidden="true">{open ? "×" : "☰"}</span>
             </button>
             {open && (
               <div className="navdrop" onClick={() => setOpen(false)}>
