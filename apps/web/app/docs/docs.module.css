@@ -5,7 +5,7 @@
   background: #0a0a0a;
   color: #ededed;
   font-family: var(--font-sans, var(--sans, Inter, system-ui, -apple-system, sans-serif));
-  padding: 120px 0 120px;
+  padding: 48px 0 120px;
 }
 
 .layout {
