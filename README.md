@@ -16,7 +16,7 @@
 
 <!-- DEMO_LINK -->
 
-**Watch the demo:** [demo video](https://explanimate.co/demo.mp4)
+**Watch the demo:** [demo video](https://explanimate.co/meta-hackathon-demo-video.mp4)
 
 ## What is Explanimate?
 
