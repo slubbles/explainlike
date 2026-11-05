@@ -16,7 +16,7 @@ plus the same drawing as `.tldr` and `.excalidraw` boards.
 
 ## 2. How to run
 
-Prerequisites: Node 20+, pnpm, `ffmpeg` on PATH, and Chrome or Chromium.
+Prerequisites: Node 22+, pnpm, `ffmpeg` on PATH, and Chrome or Chromium.
 Keys live in a gitignored `.env` file (see [`.env.example`](.env.example));
 never print, commit, or send key values anywhere.
 

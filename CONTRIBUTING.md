@@ -13,7 +13,7 @@ cp .env.example .env   # add keys; never commit this file
 pnpm typecheck && pnpm test
 ```
 
-You need Node 20+, pnpm, `ffmpeg`, and Chrome or Chromium. Tests need no API
+You need Node 22+, pnpm, `ffmpeg`, and Chrome or Chromium. Tests need no API
 keys.
 
 ## Checks

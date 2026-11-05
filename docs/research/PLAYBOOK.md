@@ -1,8 +1,8 @@
 # Explainer playbook v2: how the best channels explain things (for Explanimate)
 
-Written 2026-11-03. Research only: no repo changes and no paid API calls.
+Written 2026-11-03. Research notes behind the narration rules in the planner.
 This builds on `docs/explaining-playbook.md` (Nov 1) and **replaces its "one analogy world / analogy first, then real name" rule.**
-The maintainer's v3 feedback rules that out: use real part names, anchor to tools people already use, cover the core, and stop repeating the same visual formula.
+Reviewing early videos ruled that out: use real part names, anchor to tools people already use, cover the core, and stop repeating the same visual formula.
 
 ## 0. Evidence used
 
@@ -17,7 +17,7 @@ The study worked from YouTube captions and local whisper transcripts of the vide
 | Sean AI Stories        | Agent System Design (CyLYY_xb5bQ); Harness & Loop Eng (GrNbuWWJYiI, partly machine-translated captions); 0sI0MbCt4f4 (whisper)                                                                    |
 | CNBC / BI / Vox / Alux | Nov 1 full captions (CNBC ZYsP8qM6bPE and Wh1zlJXKy1M, BI 62VYumto5Jc, Vox KVYNwthBcgM), Alux whisper, and Nov 1 first-150 s notes for the rest                                                   |
 
-YouTube's subtitle endpoint returned HTTP 429 for about 60% of requests. I got the rest by transcribing locally the mp4s that were already downloaded on Nov 1.
+YouTube's subtitle endpoint returned HTTP 429 for about 60% of requests. The rest were transcribed locally with Whisper.
 
 ---
 
@@ -152,7 +152,7 @@ The existing Explanimate rule of "one short, dry aside" matches the pros.
 
 ## 7. Visual variety: what Crayon actually puts on screen per line
 
-I measured this from the per-line frame sheets in `crayon-frames/` (two frames per whisper line, captioned).
+Measured from per-line frame sheets (two frames per transcribed line; not kept in the repo).
 
 **Rate:**
 
