@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import Nav from "../../components/Nav";
 import { SITE_URL } from "../../lib/seo";
 import { authEnabled, githubEnabled, googleEnabled, sessionUser } from "../../lib/auth";
+import { safeNext } from "../../lib/next-path";
 import SignInPanel from "./SignInPanel";
 
 export const runtime = "nodejs";
@@ -13,9 +14,6 @@ export const metadata = {
   robots: { index: false },
   alternates: { canonical: `${SITE_URL}/signin` },
 };
-
-/** Where to land after signing in: a local path, never someone else's site. */
-const safeNext = (v: unknown): string => (typeof v === "string" && v.startsWith("/") && !v.startsWith("//") ? v : "/app");
 
 /** Sign in with a one-time email code. Signed-in visits skip straight to where they were headed. */
 export default async function SignInPage({ searchParams }: { searchParams: Promise<{ next?: string }> }) {
