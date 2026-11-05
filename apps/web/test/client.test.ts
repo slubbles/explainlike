@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
-import { POLL_TIMEOUT_MS, RECONNECT_AFTER_FAILURES, pollDelay, postJson } from "../lib/client.ts";
+import { POLL_TIMEOUT_MS, RECONNECT_AFTER_FAILURES, pollDelay, postJson, retryAfterMs } from "../lib/client.ts";
 
 const WEB = path.resolve(import.meta.dirname, "..");
 const src = (p: string) => fs.readFileSync(path.join(WEB, p), "utf8");
@@ -54,4 +54,14 @@ test("a reconnecting page keeps the last job and says so in a muted line", () =>
   assert.match(workspace, /\{ job, reconnecting \} = useJob\(jobId\)/, "the video page reads the flag");
   assert.match(workspace, /reconnecting=\{reconnecting\}/, "the flag reaches the progress card");
   assert.match(workspace, /Reconnecting to the server\.\.\./, "no job yet still shows the line instead of an error");
+});
+
+test("a rate-limited poll waits out Retry-After and does not flag reconnecting", () => {
+  assert.equal(retryAfterMs("7"), 7000);
+  assert.equal(retryAfterMs("0.2"), 1000);
+  assert.equal(retryAfterMs("600"), 30_000);
+  assert.equal(retryAfterMs(null), 5000);
+  assert.equal(retryAfterMs("soon"), 5000);
+  const s = src("lib/client.ts");
+  assert.match(s, /status === 429\) \{\s*timer = setTimeout\(poll, retryAfterMs/, "a 429 reschedules without failed()");
 });

@@ -134,3 +134,16 @@ test("no client code reads a server secret", () => {
   for (const f of client) assert.doesNotMatch(fs.readFileSync(f, "utf8"), /process\.env|API_KEY/, path.relative(root, f));
   for (const f of files) assert.doesNotMatch(fs.readFileSync(f, "utf8"), /NEXT_PUBLIC_[A-Z_]*KEY/, path.relative(root, f));
 });
+
+test("job status reads get their own limit, roomy enough for a one-second poll, while other routes keep 12/min", async () => {
+  const { limitRequest, pollPerMin } = await import("../lib/guard.ts");
+  delete process.env.EXPLANIMATE_POLL_PER_MIN;
+  delete process.env.EXPLANIMATE_REQ_PER_MIN;
+  assert.ok(pollPerMin() >= 120);
+  const req = () => new Request("http://x/api/jobs/abcdefabcdef");
+  for (let i = 0; i < 90; i++) assert.equal(limitRequest(req(), "job-test-poll", pollPerMin()), undefined, `poll ${i} allowed`);
+  for (let i = 0; i < 12; i++) assert.equal(limitRequest(req(), "jobs-test-create"), undefined);
+  assert.equal(limitRequest(req(), "jobs-test-create")?.status, 429, "creation stays at 12/min");
+  const route = fs.readFileSync(path.resolve(import.meta.dirname, "../app/api/jobs/[id]/route.ts"), "utf8");
+  assert.match(route, /limitRequest\(req, "job", pollPerMin\(\)\)/);
+});

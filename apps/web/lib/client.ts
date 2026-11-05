@@ -76,11 +76,17 @@ export const captionsUrl = (id: string) => `/api/jobs/${id}/captions`;
 
 /** One job poll may hang this long before it counts as failed. */
 export const POLL_TIMEOUT_MS = 15_000;
-/** Failed polls in a row (offline, timeout, 429, 5xx) before the page says it is reconnecting. */
+/** Failed polls in a row (offline, timeout, 5xx; a 429 waits out its Retry-After instead) before the page says it is reconnecting. */
 export const RECONNECT_AFTER_FAILURES = 3;
 /** Wait after a failed poll: 3 s, then doubling up to 15 s. */
 export function pollDelay(failures: number): number {
   return Math.min(3000 * 2 ** Math.max(0, failures - 1), 15_000);
+}
+
+/** Wait asked for by a 429's Retry-After (seconds), clamped to 1-30 s; 5 s when missing or unreadable. */
+export function retryAfterMs(header: string | null): number {
+  const n = Number(header);
+  return Number.isFinite(n) && n > 0 ? Math.min(Math.max(n, 1), 30) * 1000 : 5000;
 }
 
 /** Poll a job until it finishes. Failed polls never end the loop; only a 404 or the server reporting done or error does. */
@@ -128,6 +134,11 @@ export function useJob(id?: string): { job: Job | null; reconnecting: boolean } 
       if (r?.status === 404) {
         setReconnecting(false);
         setJob(missing());
+        return;
+      }
+      // rate limited means the server is up: wait as asked, without counting it toward "reconnecting"
+      if (r?.status === 429) {
+        timer = setTimeout(poll, retryAfterMs(r.headers.get("retry-after")));
         return;
       }
       if (!r?.ok) {
