@@ -1,7 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
 import { fetchAuthConfig } from "../lib/session";
-import { trackEvent } from "../lib/analytics";
 
 /**
  * The sign-in corner of the nav: nothing when auth is off, else who is signed in.
@@ -34,28 +33,10 @@ export default function AuthNav({ initialEmail }: { initialEmail?: string | null
         Sign in
       </button>
     );
+  // public pages only point signed-in people at the dashboard; Sign out lives there
   return (
-    <span className="navuser">
-      <span className="who" title={state.email}>
-        Signed in as {state.email} ·
-      </span>
-      <button
-        type="button"
-        className="navout"
-        onClick={async () => {
-          const r = await fetch("/api/auth/sign-out", {
-            // Better Auth rejects a POST without a JSON content type (415)
-            method: "POST",
-            headers: { "content-type": "application/json" },
-            body: "{}",
-          }).catch(() => null);
-          // a signed-out click reports itself, then refreshes the nav and the page through the event
-          if (r?.ok) trackEvent("sign_out");
-          if (r?.ok) dispatchEvent(new CustomEvent("explanimate:auth-changed"));
-        }}
-      >
-        Sign out
-      </button>
-    </span>
+    <a className="navl" href="/app" title={state.email}>
+      Dashboard
+    </a>
   );
 }
