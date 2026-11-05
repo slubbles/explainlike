@@ -22,7 +22,7 @@ test("the site URL is the bare https domain, never www", () => {
 
 test("every page has a unique title and description, and a canonical URL on the bare domain", () => {
   const keys = Object.keys(PAGES);
-  assert.deepEqual(keys.sort(), ["docs", "gallery", "home", "privacy", "terms"]);
+  assert.deepEqual(keys.sort(), ["changelog", "docs", "gallery", "home", "pricing", "privacy", "terms"]);
   const titles = new Set<string>();
   const descriptions = new Set<string>();
   for (const key of keys as (keyof typeof PAGES)[]) {
@@ -113,8 +113,10 @@ test("the sitemap lists the public pages, and nothing private or transient", () 
   const entries = sitemapEntries();
   assert.deepEqual(entries.map((e) => e.url).sort(), [
     SITE_URL,
+    `${SITE_URL}/changelog`,
     `${SITE_URL}/docs`,
     `${SITE_URL}/gallery`,
+    `${SITE_URL}/pricing`,
     `${SITE_URL}/privacy`,
     `${SITE_URL}/terms`,
   ]);

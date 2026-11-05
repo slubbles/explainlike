@@ -32,6 +32,15 @@ export default function Nav({ initialEmail }: { initialEmail?: string | null }) 
           <a className="navl" href="/docs">
             Docs
           </a>
+          <a className="navl" href="/docs#coding-tools">
+            Coding tools
+          </a>
+          <a className="navl" href="/pricing">
+            Pricing
+          </a>
+          <a className="navl" href="/changelog">
+            Changelog
+          </a>
           <a className="gh" href="https://github.com/slubbles/explanimate" target="_blank" rel="noreferrer">
             GitHub
           </a>
@@ -51,6 +60,9 @@ export default function Nav({ initialEmail }: { initialEmail?: string | null }) 
               <div className="navdrop" onClick={() => setOpen(false)}>
                 <a href="/gallery">Examples</a>
                 <a href="/docs">Docs</a>
+                <a href="/docs#coding-tools">Coding tools</a>
+                <a href="/pricing">Pricing</a>
+                <a href="/changelog">Changelog</a>
                 <a href="https://github.com/slubbles/explanimate" target="_blank" rel="noreferrer">
                   GitHub
                 </a>
