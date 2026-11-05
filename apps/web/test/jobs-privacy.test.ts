@@ -7,6 +7,7 @@ import path from "node:path";
 // the jobs here are rendered by the fake CLI: nothing paid runs
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), "el-privacy-"));
 Object.assign(process.env, {
+  EXPLANIMATE_PRECHECK: "0",
   EXPLANIMATE_JOBS_DIR: dir,
   EXPLANIMATE_RESUME: "0",
   EXPLANIMATE_ROOT: path.resolve(import.meta.dirname, "../../.."),

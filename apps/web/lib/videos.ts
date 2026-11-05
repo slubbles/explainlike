@@ -318,3 +318,8 @@ export function ago(ts: number, nowMs = Date.now()): string {
   if (m < 60) return `${m}m ${s % 60}s ago`;
   return `${Math.floor(m / 60)}h ${m % 60}m ago`;
 }
+
+/** What My videos lists: a failed run that made no video does not count, so it is not shown. */
+export function shownVideos(videos: UserVideo[]): UserVideo[] {
+  return videos.filter((v) => !((v.status === "error" || v.status === "failed") && !v.files.mp4));
+}

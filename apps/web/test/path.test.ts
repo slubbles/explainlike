@@ -6,6 +6,7 @@ import path from "node:path";
 
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), "el-path-"));
 Object.assign(process.env, {
+  EXPLANIMATE_PRECHECK: "0",
   EXPLANIMATE_JOBS_DIR: dir,
   EXPLANIMATE_RESUME: "0",
   EXPLANIMATE_ROOT: path.resolve(import.meta.dirname, "../../.."),

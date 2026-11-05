@@ -8,7 +8,7 @@ import { listJobs } from "../../lib/jobs";
 import { MCP_SNIPPETS } from "../../lib/mcp";
 import { cap, stepsFor, stepStates } from "../../lib/steps";
 import { ensureUsageTables, videosLeftToday } from "../../lib/usage";
-import { ago, formatLabel, listVideosForUser, mss } from "../../lib/videos";
+import { ago, formatLabel, listVideosForUser, mss, shownVideos } from "../../lib/videos";
 import VideoThumb from "./components/VideoThumb";
 import VideoWhen from "./components/VideoWhen";
 import VideoWorkspace from "./components/VideoWorkspace";
@@ -28,7 +28,10 @@ export default async function OverviewPage() {
   const db = getD1Db();
   await ensureUsageTables(db);
   const jobs = listJobs();
-  const [quota, videos] = await Promise.all([videosLeftToday(user.id, Date.now(), db, user.email), listVideosForUser(user.id, jobs, db)]);
+  const [quota, videos] = await Promise.all([
+    videosLeftToday(user.id, Date.now(), db, user.email),
+    listVideosForUser(user.id, jobs, db).then(shownVideos),
+  ]);
   const active = jobs
     .filter((j) => j.owner === `u:${user.id}` && (j.state === "queued" || j.state === "running"))
     .sort((a, b) => b.started - a.started)[0];

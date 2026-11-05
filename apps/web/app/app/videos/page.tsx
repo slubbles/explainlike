@@ -5,7 +5,7 @@ import { sourceKind } from "../../../lib/form";
 import { jobFile, listJobs } from "../../../lib/jobs";
 import { cap } from "../../../lib/steps";
 import { ensureUsageTables } from "../../../lib/usage";
-import { formatLabel, listVideosForUser, mss, type UserVideo } from "../../../lib/videos";
+import { formatLabel, listVideosForUser, shownVideos, mss, type UserVideo } from "../../../lib/videos";
 import DeleteVideoButton from "../components/DeleteVideoButton";
 import VideoThumb from "../components/VideoThumb";
 import VideoWhen from "../components/VideoWhen";
@@ -40,7 +40,7 @@ export default async function VideosPage({ searchParams }: { searchParams: Promi
   const grid = view === "grid";
   const db = getD1Db();
   await ensureUsageTables(db);
-  const all = await listVideosForUser(user.id, listJobs(), db);
+  const all = shownVideos(await listVideosForUser(user.id, listJobs(), db));
   const needle = query.toLowerCase();
   const videos = all.filter(
     (v) => (!only || v.format === only) && (!needle || v.title.toLowerCase().includes(needle) || v.input.toLowerCase().includes(needle)),

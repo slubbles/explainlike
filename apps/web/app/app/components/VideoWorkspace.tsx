@@ -100,6 +100,9 @@ export default function VideoWorkspace({
   async function submit() {
     if (posting) return;
     setErr("");
+    // the daily limit is already known: say so at once instead of after "Starting…"
+    if (quota && quota !== "signin" && quota.limit !== null && quota.left === 0)
+      return setErr(`You've used all ${quota.limit} videos for today. Your limit resets at 00:00 UTC.`);
     setPosting(true);
     const input = normalizeInput(form.input);
     if (input !== form.input) setForm((x) => ({ ...x, input }));
@@ -117,8 +120,10 @@ export default function VideoWorkspace({
       return;
     }
     const data = await r.json().catch(() => ({}));
-    if (!r.ok)
+    if (!r.ok) {
+      if (r.status === 429) refreshQuota();
       return setErr(typeof data?.error === "string" ? data.error : `The server had a problem (${r.status}). Try again in a moment.`);
+    }
     trackEvent("video_create");
     setNotes(Array.isArray(data.warnings) ? data.warnings : []);
     refreshQuota();
