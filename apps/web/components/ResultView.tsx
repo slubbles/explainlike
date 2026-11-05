@@ -115,9 +115,7 @@ export default function ResultView({ job, map, picked, expl, explBusy, clips, pi
             {job.costUsd ? ` · cost ${money(job.costUsd)}` : null}
           </div>
         </div>
-        {o.mp4 && (
-          <Player src={fileUrl(job.id, o.mp4)} map={map} selected={picked} onPick={pick} title={job.title} />
-        )}
+        {o.mp4 && <Player src={fileUrl(job.id, o.mp4)} map={map} selected={picked} onPick={pick} title={job.title} />}
         <div className="dl">
           {o.mp4 && (
             <a className="btn solid" href={fileUrl(job.id, o.mp4, true)}>
