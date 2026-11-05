@@ -16,7 +16,7 @@
 
 <!-- DEMO_LINK -->
 
-**Watch the demo:** [demo video (link coming soon)](#)
+**Watch the demo:** [Explanimate demo video (under 3 minutes)](https://drive.google.com/file/d/1YGZym_QDs6ks0nWfgeZg9-dStmMkbQrX/view?usp=drivesdk)
 
 ## What is Explanimate?
 
