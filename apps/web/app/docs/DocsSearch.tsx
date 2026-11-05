@@ -29,7 +29,10 @@ function sectionText(id: string): string {
 /** A short piece of the section around the first matched word. */
 function snippetOf(text: string, words: string[]): string {
   const low = text.toLowerCase();
-  const at = words.map((w) => low.indexOf(w)).filter((i) => i >= 0).sort((a, b) => a - b)[0];
+  const at = words
+    .map((w) => low.indexOf(w))
+    .filter((i) => i >= 0)
+    .sort((a, b) => a - b)[0];
   if (at === undefined) return "";
   const start = Math.max(0, at - 40);
   const end = Math.min(text.length, at + 80);
@@ -150,7 +153,12 @@ export default function DocsSearch({ index, id = "docs-search", className }: { i
           ) : (
             hits.map(({ h, snippet }, i) => (
               <li key={h.id} id={`${list}-${i}`} role="option" aria-selected={i === active}>
-                <button type="button" className={i === active ? styles.active : undefined} onMouseEnter={() => setActive(i)} onClick={() => go(h.id)}>
+                <button
+                  type="button"
+                  className={i === active ? styles.active : undefined}
+                  onMouseEnter={() => setActive(i)}
+                  onClick={() => go(h.id)}
+                >
                   {h.label}
                   <small>{h.group}</small>
                   {snippet && <span className={styles.snippet}>{snippet}</span>}
