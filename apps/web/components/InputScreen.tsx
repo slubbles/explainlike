@@ -398,22 +398,22 @@ export default function InputScreen({ form, set, go, busy, err, examples, talkin
           <div className="mcs">
             <div className="mc">
               <div className="mono">explain</div>
-              <h4>Ask</h4>
+              <h3>Ask</h3>
               <p>Point it at a repo, a link, a topic or your current branch. It decides the style and length.</p>
             </div>
             <div className="mc">
               <div className="mono">explain_status</div>
-              <h4>Follow along</h4>
+              <h3>Follow along</h3>
               <p>A render takes a few minutes. The agent checks back and tells you where it is.</p>
             </div>
             <div className="mc">
               <div className="mono">explain_cancel</div>
-              <h4>Stop</h4>
+              <h3>Stop</h3>
               <p>Change your mind and cancel. Anything already written stays in its folder.</p>
             </div>
             <div className="mc">
               <div className="mono">.mp4 · .tldr · .excalidraw</div>
-              <h4>Everything back</h4>
+              <h3>Everything back</h3>
               <p>The video and both boards, as paths you can open straight from the chat.</p>
             </div>
           </div>
