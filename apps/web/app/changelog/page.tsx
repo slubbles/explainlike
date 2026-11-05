@@ -21,7 +21,8 @@ export default function Changelog() {
               <strong>October 31:</strong> First videos: a narrated whiteboard drawn from a GitHub repo, saved as a tldraw board too.
             </li>
             <li>
-              <strong>November 1:</strong> Muse Spark picks how to explain each topic, checks its map against the code, and polishes the narration.
+              <strong>November 1:</strong> Muse Spark picks how to explain each topic, checks its map against the code, and polishes the
+              narration.
             </li>
             <li>
               <strong>November 1:</strong> Plain topics, the command line, a local API and an MCP server for coding tools.
