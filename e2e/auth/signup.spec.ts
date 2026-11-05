@@ -30,31 +30,19 @@ test("the right code signs in", async ({ request, baseURL }) => {
   expect(body.videos).toMatchObject({ used: 0, limit: 3 });
 });
 
-test("signing in through the page shows who is signed in", async ({ page, baseURL }) => {
+test("signed-in public pages show a Dashboard link, never the address", async ({ page, baseURL }) => {
   const email = uniqueEmail();
   await signIn(page.request, baseURL!, email, uniqueIp());
-  await page.goto("/");
-  await expect(page.getByText(`Signed in as ${email}`)).toBeVisible();
-  await expect(page.getByText("3 of 3 videos left today").first()).toBeVisible();
-});
-
-test("a long address truncates without clipping Sign out", async ({ page, baseURL }) => {
-  const email = `e2e-truncation-${Date.now()}-${"x".repeat(20)}@example.com`;
-  await signIn(page.request, baseURL!, email, uniqueIp());
-  await page.setViewportSize({ width: 768, height: 900 });
-  await page.goto("/");
-  await expect(page.getByRole("button", { name: "Sign out" })).toBeVisible();
-  // the address ellipsizes, so this page really exercises the truncation
-  const truncated = await page.locator(".navuser .who").evaluate((el) => el.scrollWidth > el.clientWidth + 1);
-  expect(truncated).toBe(true);
-  const boxes = await page.evaluate(() => {
-    const u = document.querySelector(".navuser")!.getBoundingClientRect();
-    const b = document.querySelector(".navout")!.getBoundingClientRect();
-    return { u: u.toJSON(), b: b.toJSON(), vw: window.innerWidth };
-  });
-  expect(boxes.b.left).toBeGreaterThanOrEqual(boxes.u.left - 1);
-  expect(boxes.b.right).toBeLessThanOrEqual(boxes.u.right + 1);
-  expect(boxes.b.right).toBeLessThanOrEqual(boxes.vw + 1);
+  for (const width of [1440, 768, 390]) {
+    await page.setViewportSize({ width, height: 900 });
+    await page.goto("/docs");
+    const dash = page.getByRole("link", { name: "Dashboard" });
+    await expect(dash).toBeVisible();
+    await expect(dash).toHaveAttribute("href", "/app");
+    await expect(page.getByText(`Signed in as ${email}`)).toHaveCount(0);
+    const right = await dash.evaluate((el) => el.getBoundingClientRect().right);
+    expect(right).toBeLessThanOrEqual(width + 1);
+  }
 });
 
 test("a signed-out user cannot create a video but can browse the gallery", async ({ request, page, baseURL }) => {
