@@ -100,24 +100,43 @@ export async function sendOtpEmail(to: string, otp: string, fetchImpl: typeof fe
   }
   const from = parseEmailFrom(process.env.EXPLANIMATE_EMAIL_FROM);
   const { subject, text, html } = buildOtpEmail(otp);
-  let res: Response;
-  try {
-    res = await fetchImpl(`https://api.cloudflare.com/client/v4/accounts/${account}/email/sending/send`, {
-      method: "POST",
-      headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
-      body: JSON.stringify({ to, from: { address: from.address, name: from.name }, subject, text, html }),
-    });
-  } catch {
-    return { ok: false, error: FAIL };
-  }
-  const data = (await res.json().catch(() => ({}))) as { success?: boolean; errors?: { code?: number; message?: string }[] };
-  if (!res.ok || data.success !== true) {
+  const body = JSON.stringify({ to, from: { address: from.address, name: from.name }, subject, text, html });
+  // a first send can hit a cold connection or a brief Cloudflare hiccup: try up to 3 times,
+  // retrying only network errors, 429 and 5xx, and log every failure so it shows in the logs
+  for (let attempt = 1; attempt <= SEND_ATTEMPTS; attempt++) {
+    let res: Response;
+    try {
+      res = await fetchImpl(`https://api.cloudflare.com/client/v4/accounts/${account}/email/sending/send`, {
+        method: "POST",
+        headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
+        body,
+        signal: AbortSignal.timeout(10_000),
+      });
+    } catch (e) {
+      console.error(`[email] send attempt ${attempt} failed: ${e instanceof Error ? e.name : "error"}`);
+      if (attempt < SEND_ATTEMPTS) await sleep(attempt * RETRY_MS);
+      continue;
+    }
+    const data = (await res.json().catch(() => ({}))) as { success?: boolean; errors?: { code?: number; message?: string }[] };
+    if (res.ok && data.success === true) {
+      if (attempt > 1) console.log(`[email] code sent on attempt ${attempt}`);
+      return { ok: true };
+    }
     const codes = (data.errors ?? [])
       .map((e) => e.code)
       .filter(Boolean)
       .join(",");
-    console.error(`[email] Cloudflare refused the send (http ${res.status}${codes ? `, codes ${codes}` : ""})`);
-    return { ok: false, error: FAIL };
+    console.error(`[email] Cloudflare refused the send (attempt ${attempt}, http ${res.status}${codes ? `, codes ${codes}` : ""})`);
+    if (!(res.status === 429 || res.status >= 500)) return { ok: false, error: FAIL };
+    if (attempt < SEND_ATTEMPTS) await sleep(attempt * RETRY_MS);
   }
-  return { ok: true };
+  return { ok: false, error: FAIL };
 }
+
+const SEND_ATTEMPTS = 3;
+let RETRY_MS = 500;
+/** Tests shorten the wait between send attempts. */
+export function setEmailRetryDelay(ms: number): void {
+  RETRY_MS = ms;
+}
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
