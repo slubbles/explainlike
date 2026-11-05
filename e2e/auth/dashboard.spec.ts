@@ -138,17 +138,11 @@ test("the landing prompt sends signed-out visits to sign-in, then the editor wit
   await expect(page.getByLabel("Link or topic to explain")).toHaveValue("how DNS works");
 });
 
-test("a signed-in landing prompt opens the editor carrying the prompt", async ({ page, baseURL }) => {
+test("a signed-in visit to the landing page goes straight to the dashboard", async ({ page, baseURL }) => {
   const email = uniqueEmail();
   await signIn(page.request, baseURL!, email, uniqueIp());
   await page.goto("/");
-  await expect(page.getByText("of 3 videos left today").first()).toBeVisible();
-  await page.getByLabel("Link or topic to explain").first().fill("how TCP works");
-  await page
-    .getByRole("button", { name: /Explain it/ })
-    .first()
-    .click();
-  await expect(page).toHaveURL(/\/app\/new\?prompt=how%20TCP%20works$/);
+  await expect(page).toHaveURL(/\/app$/);
 });
 
 const WIDTHS = [1440, 1024, 768, 390];
