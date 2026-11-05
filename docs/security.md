@@ -51,13 +51,6 @@ with a 415 and caps the size (16 KB, 96 KB for voice turns, 4 KB for client erro
 | `POST /api/client-error`         | public by design (signed-out pages report too)               | per-IP                  | 4 KB JSON, message/digest/path lengths + path shape |
 | `GET /api/auth/[...all]`         | Better Auth's own session cookies                            | per-IP + OTP limits     | Better Auth + Turnstile on send (see below)         |
 | `POST /api/auth/[...all]`        | Better Auth's own session cookies                            | per-IP + OTP limits     | Better Auth + Turnstile on send (see below)         |
-| `GET /api/admin/users`           | 404 unless an admin (see below)                              | per-IP                  | none                                                |
-| `GET /api/admin/videos`          | 404 unless an admin                                          | per-IP                  | none                                                |
-| `GET /api/admin/usage`           | 404 unless an admin                                          | per-IP                  | none                                                |
-| `GET /api/admin/spend`           | 404 unless an admin                                          | per-IP                  | none                                                |
-| `GET /api/admin/errors`          | 404 unless an admin                                          | per-IP                  | none                                                |
-| `GET /api/admin/health`          | 404 unless an admin                                          | per-IP                  | none                                                |
-| `POST /api/admin/limits`         | 404 unless an admin                                          | per-IP                  | JSON, account email + whole number 0–1000           |
 
 Notes:
 
@@ -66,9 +59,6 @@ Notes:
   verified email links to the existing account): sending a code costs 5 per IP per 10
   minutes and 5 per address per hour plus a Turnstile check; verifying costs 10 per IP per
   10 minutes. Trusted origins are the app's own base URL.
-- **Admin** (`/admin`, `/api/admin/*`) answers 404, never 403, unless sign-in is on and
-  the signed-in address is in `EXPLANIMATE_ADMIN_EMAILS` (comma list, case-insensitive).
-  The check runs on the server for every route and for the page.
 - **Reads stay open**: the landing page, gallery, `/docs`, `/api/health` and job reads work
   without an account, with or without sign-in turned on.
 - **Jobs list** (`GET /api/jobs`) returns only the caller's own jobs: the signed-in account's,
@@ -93,8 +83,7 @@ Notes:
 
 ## Data and secrets
 
-- All D1 SQL uses bound parameters (`lib/db.ts`, `lib/usage.ts`, `lib/errors.ts`,
-  `lib/admin.ts`): values travel in `params`, never in the statement text. The only
+- All D1 SQL uses bound parameters (`lib/db.ts`, `lib/usage.ts`, `lib/errors.ts`): values travel in `params`, never in the statement text. The only
   statement built in code is the `videos` column migration, from constant strings.
 - Logs (`lib/log.ts`) are structured JSON on stdout. Emails are masked, and tokens, codes,
   cookies, secrets and passwords are redacted, in free text and under matching keys.
@@ -103,5 +92,4 @@ Notes:
   through `/api/auth-config`, and the GA id from the root layout, which reads
   `GA_MEASUREMENT_ID` on the server at request time and hands it to the Analytics loader.
 - Errors persist to the D1 `errors` table when D1 is configured (rows older than 14 days
-  are pruned), otherwise to an in-memory ring of 200. `/api/health` answers only `{ok}`;
-  the checks, problems and 24-hour error count live behind `/api/admin/health`.
+  are pruned), otherwise to an in-memory ring of 200. `/api/health` answers only `{ok}`.
