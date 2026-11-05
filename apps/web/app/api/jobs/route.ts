@@ -8,6 +8,7 @@ import { SIGNIN_ERROR, authEnabled, sessionUser } from "../../../lib/auth";
 import { MAX_INPUT_CHARS, clientIp, field, limitRequest, readBody } from "../../../lib/guard";
 import { claimVideoSlot, recordVideo } from "../../../lib/usage";
 import { inputHint, normalizeInput } from "../../../lib/form";
+import { precheckInput } from "../../../lib/precheck";
 import { withErrors } from "../../../lib/route";
 import { checkOrigin } from "../../../lib/security";
 
@@ -57,6 +58,11 @@ export const POST = withErrors("jobs.POST", async (req: Request) => {
     }
     if (!/^https?:\/\/(www\.)?github\.com\//i.test(input) && !path.isAbsolute(input))
       return NextResponse.json({ error: "Path works with GitHub repo links and local folders." }, { status: 400 });
+  }
+  // reject a bad input before it takes a slot or shows "Starting…"; the engine skips this for tests
+  if (process.env.EXPLANIMATE_PRECHECK !== "0") {
+    const bad = await precheckInput(input);
+    if (bad) return NextResponse.json({ error: bad }, { status: 400 });
   }
   const no = admit(clientIp(req));
   if (no) return NextResponse.json({ error: no }, { status: 429 });
