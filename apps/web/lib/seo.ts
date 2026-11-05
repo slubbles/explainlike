@@ -17,7 +17,7 @@ export const OG_IMAGE = {
   alt: "Explanimate: whiteboard explainers from any repo, post, article or topic",
 };
 
-export type PageKey = "home" | "docs" | "gallery" | "privacy" | "terms";
+export type PageKey = "home" | "docs" | "gallery" | "privacy" | "terms" | "pricing" | "changelog";
 
 export const PAGES: Record<PageKey, { title: string; description: string; path: string }> = {
   home: {
@@ -47,6 +47,16 @@ export const PAGES: Record<PageKey, { title: string; description: string; path: 
     title: "Terms · Explanimate",
     description: "The short terms for using Explanimate: a free hackathon project, offered as is, with daily limits and no abuse.",
     path: "/terms",
+  },
+  pricing: {
+    title: "Pricing · Explanimate",
+    description: "Explanimate is free to try: browse for free, sign in to make 3 videos a day, or run the MIT-licensed code yourself.",
+    path: "/pricing",
+  },
+  changelog: {
+    title: "Changelog · Explanimate",
+    description: "What shipped in Explanimate since the first commit on October 31, 2026.",
+    path: "/changelog",
   },
 };
 
@@ -111,6 +121,8 @@ export function sitemapEntries(): MetadataRoute.Sitemap {
     { url: pageUrl("docs"), changeFrequency: "monthly", priority: 0.8 },
     { url: pageUrl("privacy"), changeFrequency: "monthly", priority: 0.5 },
     { url: pageUrl("terms"), changeFrequency: "monthly", priority: 0.5 },
+    { url: pageUrl("pricing"), changeFrequency: "monthly", priority: 0.6 },
+    { url: pageUrl("changelog"), changeFrequency: "weekly", priority: 0.5 },
   ];
 }
 
